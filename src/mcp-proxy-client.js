@@ -17,7 +17,7 @@ import {
 import https from 'https';
 import http from 'http';
 import { URL } from 'url';
-import { createLogger } from './src/logger.js';
+import { createLogger } from './logger.js';
 
 // Enable SSL bypass for self-signed certificates
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';

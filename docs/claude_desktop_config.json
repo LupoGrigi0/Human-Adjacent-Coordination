@@ -1,8 +1,38 @@
 {
   "mcpServers": {
-    "coordination-system": {
+    "coordination-system-proxy": {
       "command": "node",
-      "args": ["D:\\Lupo\\Source\\AI\\CladueCOO\\mcp-coordination-system\\src\\mcp-server.js"]
+      "args": ["/Users/lupo/source/CladueCOO/mcp-coordination-system/mcp-proxy-client.js"],
+      "env": {
+        "SSE_SERVER_URL": "https://192.168.0.171:3444/mcp",
+        "USE_HTTP": "false",
+        "DEBUG": "false"
+      }
+    },
+    "coordination-system-DOCKER-proxy": {
+      "command": "node",
+      "args": ["/Users/lupo/source/CladueCOO/mcp-coordination-system/mcp-proxy-client.js"],
+      "env": {
+        "SSE_SERVER_URL": "https://192.168.0.171:3445/mcp",
+        "USE_HTTP": "false",
+        "DEBUG": "false"
+      }
+    },
+    "human-adjacent-live": {
+      "command": "node",
+      "args": ["/Users/lupo/source/Human-Adjacent-Coordination/src/mcp-proxy-client.js"],
+      "env": {
+        "SSE_SERVER_URL": "https://192.168.0.171:3444/mcp",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      }
+    },
+    "human-adjacent-local": {
+      "command": "node",
+      "args": ["/Users/lupo/source/Human-Adjacent-Coordination/src/mcp-proxy-client.js"],
+      "env": {
+        "SSE_SERVER_URL": "https://localhost:3444/mcp",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      }
     }
   }
 }

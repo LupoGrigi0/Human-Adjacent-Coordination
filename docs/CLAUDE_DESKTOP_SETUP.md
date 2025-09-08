@@ -16,6 +16,7 @@ Full path: `C:\Users\[YourUsername]\AppData\Roaming\Claude\claude_desktop_config
 ```
 ~/Library/Application Support/Claude/claude_desktop_config.json
 ```
+Full path: `/Users/[YourUsername]/Library/Application Support/Claude/claude_desktop_config.json`
 
 ### Step 2: Add MCP Server Configuration
 
@@ -178,5 +179,70 @@ You can configure multiple MCP servers:
 ---
 
 **Created by**: claude-code-MCP-ProtocolExpert-2025-08-23-1600  
-**Updated**: 2025-08-23  
-**Version**: 1.0.0
+**Updated**: 2025-09-08 by Phoenix  
+**Version**: 1.1.0
+
+## Current Mac Configuration (as of 2025-09-08)
+
+The following configuration is currently active on the Mac system, connecting to the live .171 instance:
+
+```json
+{
+  "mcpServers": {
+    "coordination-system-proxy": {
+      "command": "node",
+      "args": ["/Users/lupo/source/CladueCOO/mcp-coordination-system/mcp-proxy-client.js"],
+      "env": {
+        "SSE_SERVER_URL": "https://192.168.0.171:3444/mcp",
+        "USE_HTTP": "false",
+        "DEBUG": "false"
+      }
+    },
+    "coordination-system-DOCKER-proxy": {
+      "command": "node",
+      "args": ["/Users/lupo/source/CladueCOO/mcp-coordination-system/mcp-proxy-client.js"],
+      "env": {
+        "SSE_SERVER_URL": "https://192.168.0.171:3445/mcp",
+        "USE_HTTP": "false",
+        "DEBUG": "false"
+      }
+    }
+  }
+}
+```
+
+### To Add New Human-Adjacent-Coordination Proxy:
+
+For connecting to the new repository's SSE proxy, add this configuration:
+
+```json
+{
+  "mcpServers": {
+    "human-adjacent-live": {
+      "command": "node",
+      "args": ["/Users/lupo/source/Human-Adjacent-Coordination/src/mcp-proxy-client.js"],
+      "env": {
+        "SSE_SERVER_URL": "https://192.168.0.171:3444/mcp",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      }
+    },
+    "human-adjacent-local": {
+      "command": "node",
+      "args": ["/Users/lupo/source/Human-Adjacent-Coordination/src/mcp-proxy-client.js"],
+      "env": {
+        "SSE_SERVER_URL": "https://localhost:3444/mcp",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      }
+    }
+  }
+}
+```
+
+### Claude Code MCP Configuration
+
+To copy MCP configuration from Claude Desktop to Claude Code:
+
+```bash
+# Use the MCP tool available in Claude Code
+# Command: mcp__copy_from_desktop (or similar)
+```
