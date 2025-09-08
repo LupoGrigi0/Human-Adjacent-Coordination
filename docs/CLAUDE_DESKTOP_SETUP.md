@@ -244,5 +244,6 @@ To copy MCP configuration from Claude Desktop to Claude Code:
 
 ```bash
 # Use the MCP tool available in Claude Code
-# Command: mcp__copy_from_desktop (or similar)
+# Command: 
+claude mcp add-from-claude-desktop
 ```
