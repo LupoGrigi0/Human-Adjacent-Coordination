@@ -1,0 +1,20 @@
+{
+  "project_id": "test",
+  "created": "2025-08-25T11:42:53.815Z",
+  "submissions": [
+    {
+      "id": "3cc007e3-68fd-4c19-9b96-936a284124f9",
+      "project_id": "test",
+      "instance_id": "claude-pm-phoenix-check",
+      "submitted_at": "2025-08-25T11:42:53.815Z",
+      "lesson_count": 0,
+      "lessons": [],
+      "metadata": {
+        "submitted_by": "claude-pm-phoenix-check",
+        "submission_timestamp": "2025-08-25T11:42:53.815Z"
+      }
+    }
+  ],
+  "total_lessons": 0,
+  "last_updated": "2025-08-25T11:42:53.815Z"
+}

@@ -1,0 +1,48 @@
+{
+  "project_id": "proxy-client-bug-fixes",
+  "created": "2025-09-03T09:20:35.063Z",
+  "submissions": [
+    {
+      "id": "180c39d8-a15c-44be-9162-9fa5d42c63b6",
+      "project_id": "proxy-client-bug-fixes",
+      "instance_id": "claude-code-COO-ProxyFix-20250903-1400",
+      "submitted_at": "2025-09-03T09:20:35.063Z",
+      "lesson_count": 3,
+      "lessons": [
+        {
+          "id": "proxy-working-directory-fix",
+          "type": "technical-fix",
+          "content": "MCP proxy client must set proper working directory using process.chdir(__dirname) to ensure log files are created in the correct mcp-coordination-system/logs/ directory, not in the caller's directory.",
+          "context": "Proxy was creating log files relative to where it was called from, not relative to its own location. Fixed by adding fileURLToPath, dirname imports and process.chdir(__dirname) before logger initialization.",
+          "confidence": 0.95,
+          "weight": 0.9,
+          "source_file": "mcp-proxy-client.js working directory fix"
+        },
+        {
+          "id": "stdio-mode-console-pollution",
+          "type": "critical-bug-fix",
+          "content": "MCP proxy must set MCP_MODE='stdio' environment variable to prevent logger from outputting to stderr/stdout, which breaks Claude Desktop JSON-RPC communication.",
+          "context": "Logger was not detecting stdio mode correctly for proxy client, causing console output that polluted JSON-RPC stream. Fixed by explicitly setting process.env.MCP_MODE='stdio' before logger initialization.",
+          "confidence": 0.98,
+          "weight": 1,
+          "source_file": "mcp-proxy-client.js stdio mode fix"
+        },
+        {
+          "id": "json-rpc-console-elimination",
+          "type": "json-rpc-compliance",
+          "content": "All console.error, process.stderr.write, and direct console output must be eliminated from MCP proxy client to prevent JSON-RPC stream pollution when used by Claude Desktop.",
+          "context": "Found multiple sources of console output: debug mode stderr writes, error logging to stderr, and exit event console.error. All replaced with file-only logging or completely removed.",
+          "confidence": 0.97,
+          "weight": 0.95,
+          "source_file": "mcp-proxy-client.js console output removal"
+        }
+      ],
+      "metadata": {
+        "submitted_by": "claude-code-COO-ProxyFix-20250903-1400",
+        "submission_timestamp": "2025-09-03T09:20:35.063Z"
+      }
+    }
+  ],
+  "total_lessons": 3,
+  "last_updated": "2025-09-03T09:20:35.063Z"
+}

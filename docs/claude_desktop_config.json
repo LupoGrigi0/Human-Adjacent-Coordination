@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "coordination-system": {
+      "command": "node",
+      "args": ["D:\\Lupo\\Source\\AI\\CladueCOO\\mcp-coordination-system\\src\\mcp-server.js"]
+    }
+  }
+}

@@ -1,0 +1,341 @@
+{
+  "version": "1.0.0",
+  "created": "2025-08-25T11:42:53.813Z",
+  "total_lessons": 39,
+  "projects": {
+    "test": {
+      "total_lessons": 0,
+      "last_updated": "2025-08-25T11:42:53.815Z",
+      "submissions": 1
+    },
+    "self-improving-human-adjacent-ai-protocol": {
+      "total_lessons": 8,
+      "last_updated": "2025-09-02T22:31:25.452Z",
+      "submissions": 2
+    },
+    "docker-production-deployment": {
+      "total_lessons": 28,
+      "last_updated": "2025-09-05T22:17:38.400Z",
+      "submissions": 10
+    },
+    "proxy-client-bug-fixes": {
+      "total_lessons": 3,
+      "last_updated": "2025-09-03T09:20:35.063Z",
+      "submissions": 1
+    }
+  },
+  "confidence_levels": {
+    "high": [
+      {
+        "id": "console-log-crisis-prevention",
+        "project_id": "self-improving-human-adjacent-ai-protocol",
+        "type": "critical-error-prevention",
+        "confidence": 0.95,
+        "submission_id": "1a9754ab-2dbd-476e-97ea-d11fba266807"
+      },
+      {
+        "id": "meta-recursive-development-pattern",
+        "project_id": "self-improving-human-adjacent-ai-protocol",
+        "type": "architectural-pattern",
+        "confidence": 0.9,
+        "submission_id": "1a9754ab-2dbd-476e-97ea-d11fba266807"
+      },
+      {
+        "id": "message-privacy-routing-architecture",
+        "project_id": "self-improving-human-adjacent-ai-protocol",
+        "type": "technical-architecture",
+        "confidence": 0.85,
+        "submission_id": "1a9754ab-2dbd-476e-97ea-d11fba266807"
+      },
+      {
+        "id": "specialist-spawning-coordination-pattern",
+        "project_id": "self-improving-human-adjacent-ai-protocol",
+        "type": "workflow-pattern",
+        "confidence": 0.88,
+        "submission_id": "1a9754ab-2dbd-476e-97ea-d11fba266807"
+      },
+      {
+        "id": "context-preservation-handoff-timing",
+        "project_id": "self-improving-human-adjacent-ai-protocol",
+        "type": "operational-wisdom",
+        "confidence": 0.92,
+        "submission_id": "1a9754ab-2dbd-476e-97ea-d11fba266807"
+      },
+      {
+        "id": "lesson-docker-http-conversion-001",
+        "project_id": "docker-production-deployment",
+        "type": "infrastructure-pattern",
+        "confidence": 0.95,
+        "submission_id": "76e606ed-c25d-46f3-ab38-8928405bb916"
+      },
+      {
+        "id": "lesson-task-agent-spawning-002",
+        "project_id": "docker-production-deployment",
+        "type": "coordination-pattern",
+        "confidence": 0.9,
+        "submission_id": "76e606ed-c25d-46f3-ab38-8928405bb916"
+      },
+      {
+        "id": "lesson-evolution-engine-preservation-003",
+        "project_id": "docker-production-deployment",
+        "type": "technical-continuity",
+        "confidence": 0.92,
+        "submission_id": "76e606ed-c25d-46f3-ab38-8928405bb916"
+      },
+      {
+        "id": "meta-recursive-development-success-story",
+        "project_id": "self-improving-human-adjacent-ai-protocol",
+        "type": "architectural-breakthrough",
+        "confidence": 0.98,
+        "submission_id": "a22ce822-887e-4e46-80b0-ca648087ea91"
+      },
+      {
+        "id": "predecessor-successor-coordination-pattern",
+        "project_id": "self-improving-human-adjacent-ai-protocol",
+        "type": "operational-wisdom",
+        "confidence": 0.95,
+        "submission_id": "a22ce822-887e-4e46-80b0-ca648087ea91"
+      },
+      {
+        "id": "institutional-memory-preservation-success",
+        "project_id": "self-improving-human-adjacent-ai-protocol",
+        "type": "operational-wisdom",
+        "confidence": 0.92,
+        "submission_id": "a22ce822-887e-4e46-80b0-ca648087ea91"
+      },
+      {
+        "id": "lesson-ssl-certificate-rejection-001",
+        "project_id": "docker-production-deployment",
+        "type": "ssl-configuration",
+        "confidence": 0.98,
+        "submission_id": "77a45e04-4e61-4735-aed5-904d86c986f8"
+      },
+      {
+        "id": "lesson-claude-conversations-hanging-002",
+        "project_id": "docker-production-deployment",
+        "type": "maintenance-pattern",
+        "confidence": 0.85,
+        "submission_id": "77a45e04-4e61-4735-aed5-904d86c986f8"
+      },
+      {
+        "id": "proxy-working-directory-fix",
+        "project_id": "proxy-client-bug-fixes",
+        "type": "technical-fix",
+        "confidence": 0.95,
+        "submission_id": "180c39d8-a15c-44be-9162-9fa5d42c63b6"
+      },
+      {
+        "id": "stdio-mode-console-pollution",
+        "project_id": "proxy-client-bug-fixes",
+        "type": "critical-bug-fix",
+        "confidence": 0.98,
+        "submission_id": "180c39d8-a15c-44be-9162-9fa5d42c63b6"
+      },
+      {
+        "id": "json-rpc-console-elimination",
+        "project_id": "proxy-client-bug-fixes",
+        "type": "json-rpc-compliance",
+        "confidence": 0.97,
+        "submission_id": "180c39d8-a15c-44be-9162-9fa5d42c63b6"
+      },
+      {
+        "id": "proxy-multi-process-root-cause",
+        "project_id": "docker-production-deployment",
+        "type": "critical_bug_analysis",
+        "confidence": 0.85,
+        "submission_id": "3155bd21-bcf6-4363-90f4-84734d6fa8d4"
+      },
+      {
+        "id": "task-agent-tunnel-vision-pattern",
+        "project_id": "docker-production-deployment",
+        "type": "process_antipattern",
+        "confidence": 0.9,
+        "submission_id": "3155bd21-bcf6-4363-90f4-84734d6fa8d4"
+      },
+      {
+        "id": "stdin-event-handler-conflict",
+        "project_id": "docker-production-deployment",
+        "type": "technical_debt",
+        "confidence": 0.95,
+        "submission_id": "3155bd21-bcf6-4363-90f4-84734d6fa8d4"
+      },
+      {
+        "id": "proxy-multi-process-root-cause-resolved",
+        "project_id": "docker-production-deployment",
+        "type": "critical_bug_resolution",
+        "confidence": 0.95,
+        "submission_id": "30b2d4b7-b9a2-400e-82c8-8fe39f62a289"
+      },
+      {
+        "id": "configuration-investigation-methodology",
+        "project_id": "docker-production-deployment",
+        "type": "debugging_methodology",
+        "confidence": 0.92,
+        "submission_id": "30b2d4b7-b9a2-400e-82c8-8fe39f62a289"
+      },
+      {
+        "id": "stdin-handler-cleanup-pattern",
+        "project_id": "docker-production-deployment",
+        "type": "technical_debt_resolution",
+        "confidence": 0.9,
+        "submission_id": "30b2d4b7-b9a2-400e-82c8-8fe39f62a289"
+      },
+      {
+        "id": "agent-assumption-validation-failure",
+        "project_id": "docker-production-deployment",
+        "type": "critical_failure",
+        "confidence": 1,
+        "submission_id": "3421ac6f-2bc7-4bee-8e83-6d9a8424c7e9"
+      },
+      {
+        "id": "dual-mcp-architecture-understanding",
+        "project_id": "docker-production-deployment",
+        "type": "system_architecture",
+        "confidence": 1,
+        "submission_id": "3421ac6f-2bc7-4bee-8e83-6d9a8424c7e9"
+      },
+      {
+        "id": "agent-communication-limitation",
+        "project_id": "docker-production-deployment",
+        "type": "process_limitation",
+        "confidence": 1,
+        "submission_id": "3421ac6f-2bc7-4bee-8e83-6d9a8424c7e9"
+      },
+      {
+        "id": "progressive-protocol-stack-architecture",
+        "project_id": "docker-production-deployment",
+        "type": "system_architecture",
+        "confidence": 1,
+        "submission_id": "d0839c4e-e7b6-4c51-b087-7135659f6307"
+      },
+      {
+        "id": "network-wide-ai-coordination-vision",
+        "project_id": "docker-production-deployment",
+        "type": "product_vision",
+        "confidence": 1,
+        "submission_id": "d0839c4e-e7b6-4c51-b087-7135659f6307"
+      },
+      {
+        "id": "dual-mcp-configuration-intentional",
+        "project_id": "docker-production-deployment",
+        "type": "configuration_pattern",
+        "confidence": 1,
+        "submission_id": "d0839c4e-e7b6-4c51-b087-7135659f6307"
+      },
+      {
+        "id": "mcp-server-copy-approach",
+        "project_id": "docker-production-deployment",
+        "type": "implementation_pattern",
+        "confidence": 0.9,
+        "submission_id": "d0839c4e-e7b6-4c51-b087-7135659f6307"
+      },
+      {
+        "id": "task-agent-noop-loop-hallucination",
+        "project_id": "docker-production-deployment",
+        "type": "critical_failure",
+        "confidence": 1,
+        "submission_id": "25750357-bd3b-40c0-8cd7-1b48eed3ad7d"
+      },
+      {
+        "id": "productive-procrastination-pattern",
+        "project_id": "docker-production-deployment",
+        "type": "agent_antipattern",
+        "confidence": 1,
+        "submission_id": "25750357-bd3b-40c0-8cd7-1b48eed3ad7d"
+      },
+      {
+        "id": "mcp-development-testing-methodology",
+        "project_id": "docker-production-deployment",
+        "type": "testing_protocol",
+        "confidence": 1,
+        "submission_id": "935c15f0-8f6a-4ab4-9b93-6b937441a970"
+      },
+      {
+        "id": "mcp-logging-requirements",
+        "project_id": "docker-production-deployment",
+        "type": "debugging_protocol",
+        "confidence": 1,
+        "submission_id": "935c15f0-8f6a-4ab4-9b93-6b937441a970"
+      },
+      {
+        "id": "project-creation-antipattern",
+        "project_id": "docker-production-deployment",
+        "type": "project_management",
+        "confidence": 1,
+        "submission_id": "935c15f0-8f6a-4ab4-9b93-6b937441a970"
+      },
+      {
+        "id": "logger-system-evolution-pattern",
+        "project_id": "docker-production-deployment",
+        "type": "system_architecture",
+        "confidence": 1,
+        "submission_id": "af026270-8e15-4443-b9e3-f28b81e2162a"
+      },
+      {
+        "id": "proxy-logging-fix-surgical",
+        "project_id": "docker-production-deployment",
+        "type": "implementation_pattern",
+        "confidence": 1,
+        "submission_id": "af026270-8e15-4443-b9e3-f28b81e2162a"
+      },
+      {
+        "id": "project-creation-antipattern-2025-09-05",
+        "project_id": "docker-production-deployment",
+        "type": "antipattern",
+        "confidence": 0.95,
+        "submission_id": "db97f620-cd0a-44fa-9a5d-58e74d68c40e"
+      },
+      {
+        "id": "project-scope-management-2025-09-05",
+        "project_id": "docker-production-deployment",
+        "type": "best_practice",
+        "confidence": 0.95,
+        "submission_id": "db97f620-cd0a-44fa-9a5d-58e74d68c40e"
+      },
+      {
+        "id": "institutional-knowledge-preservation-2025-09-05",
+        "project_id": "docker-production-deployment",
+        "type": "lesson_learned",
+        "confidence": 0.9,
+        "submission_id": "db97f620-cd0a-44fa-9a5d-58e74d68c40e"
+      }
+    ],
+    "medium": [],
+    "low": []
+  },
+  "lesson_types": {
+    "critical-error-prevention": 1,
+    "architectural-pattern": 1,
+    "technical-architecture": 1,
+    "workflow-pattern": 1,
+    "operational-wisdom": 3,
+    "infrastructure-pattern": 1,
+    "coordination-pattern": 1,
+    "technical-continuity": 1,
+    "architectural-breakthrough": 1,
+    "ssl-configuration": 1,
+    "maintenance-pattern": 1,
+    "technical-fix": 1,
+    "critical-bug-fix": 1,
+    "json-rpc-compliance": 1,
+    "critical_bug_analysis": 1,
+    "process_antipattern": 1,
+    "technical_debt": 1,
+    "critical_bug_resolution": 1,
+    "debugging_methodology": 1,
+    "technical_debt_resolution": 1,
+    "critical_failure": 2,
+    "system_architecture": 3,
+    "process_limitation": 1,
+    "product_vision": 1,
+    "configuration_pattern": 1,
+    "implementation_pattern": 2,
+    "agent_antipattern": 1,
+    "testing_protocol": 1,
+    "debugging_protocol": 1,
+    "project_management": 1,
+    "antipattern": 1,
+    "best_practice": 1,
+    "lesson_learned": 1
+  }
+}

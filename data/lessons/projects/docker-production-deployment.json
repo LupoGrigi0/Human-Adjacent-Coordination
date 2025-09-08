@@ -1,0 +1,411 @@
+{
+  "project_id": "docker-production-deployment",
+  "created": "2025-09-02T20:20:50.350Z",
+  "submissions": [
+    {
+      "id": "76e606ed-c25d-46f3-ab38-8928405bb916",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Aurora-20250902-0630",
+      "submitted_at": "2025-09-02T20:20:50.350Z",
+      "lesson_count": 3,
+      "lessons": [
+        {
+          "id": "lesson-docker-http-conversion-001",
+          "type": "infrastructure-pattern",
+          "content": "STDIO to HTTP MCP conversion pattern: DevOps Specialist successfully transformed 43-function STDIO MCP server to 45-function HTTP server with complete Docker readiness while preserving message privacy and Evolution Engine functionality.",
+          "context": "First successful conversion of Human-Adjacent AI Protocol MCP system from local STDIO to network-ready HTTP deployment. Achieved through task-agent spawning pattern with clear technical requirements.",
+          "confidence": 0.95,
+          "weight": 8.5,
+          "source_file": "docker-http-mcp-conversion task completion"
+        },
+        {
+          "id": "lesson-task-agent-spawning-002",
+          "type": "coordination-pattern",
+          "content": "Task-agent spawning pattern for complex technical work: COO can successfully delegate XL-effort infrastructure tasks to specialized agents by providing comprehensive context, technical requirements, and success criteria.",
+          "context": "COO Aurora spawned DevOps Specialist with detailed requirements for STDIO→HTTP conversion. Specialist achieved complete success with comprehensive testing and Docker containerization readiness.",
+          "confidence": 0.9,
+          "weight": 7.8,
+          "source_file": "Aurora-DevOps coordination pattern"
+        },
+        {
+          "id": "lesson-evolution-engine-preservation-003",
+          "type": "technical-continuity",
+          "content": "Evolution Engine functionality preservation during infrastructure changes: Meta-recursive lesson storage and pattern analysis systems can be successfully maintained through major architectural transformations.",
+          "context": "During STDIO→HTTP conversion, all Evolution Engine functions (submit_lessons, get_lessons, get_lesson_patterns) remained operational, demonstrating architectural resilience and continuity.",
+          "confidence": 0.92,
+          "weight": 8.2,
+          "source_file": "HTTP conversion testing results"
+        }
+      ],
+      "metadata": {
+        "submitted_by": "claude-code-COO-Aurora-20250902-0630",
+        "submission_timestamp": "2025-09-02T20:20:50.350Z"
+      }
+    },
+    {
+      "id": "77a45e04-4e61-4735-aed5-904d86c986f8",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Aurora-20250902-0630",
+      "submitted_at": "2025-09-02T23:50:59.656Z",
+      "lesson_count": 2,
+      "lessons": [
+        {
+          "id": "lesson-ssl-certificate-rejection-001",
+          "type": "ssl-configuration",
+          "content": "Self-signed certificates cause Claude Code and Claude Desktop HTTP transport failures with 'fetch failed: self-signed certificate' error, even when browser testing works fine.",
+          "context": "SSE server worked perfectly in browser but failed silently in both Claude Code and Claude Desktop. Log analysis revealed SSL certificate rejection in Node.js HTTP clients while browsers accept certificates manually.",
+          "confidence": 0.98,
+          "weight": 9.2,
+          "source_file": "MCP connection logs analysis"
+        },
+        {
+          "id": "lesson-claude-conversations-hanging-002",
+          "type": "maintenance-pattern",
+          "content": "Too many conversations in a Claude project directory causes 'claude -r' to hang. Solution: move older conversations to backup directory in %USER%/.claude/projects/%PROJECT%.",
+          "context": "User reported claude -r hanging issue and provided maintenance solution for conversation directory cleanup in Claude project management.",
+          "confidence": 0.85,
+          "weight": 7,
+          "source_file": "User maintenance tip"
+        }
+      ],
+      "metadata": {
+        "submitted_by": "claude-code-COO-Aurora-20250902-0630",
+        "submission_timestamp": "2025-09-02T23:50:59.656Z"
+      }
+    },
+    {
+      "id": "3155bd21-bcf6-4363-90f4-84734d6fa8d4",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Atlas-20250905-1200",
+      "submitted_at": "2025-09-05T09:53:04.200Z",
+      "lesson_count": 3,
+      "lessons": [
+        {
+          "id": "proxy-multi-process-root-cause",
+          "type": "critical_bug_analysis",
+          "content": "PROXY EXIT ROOT CAUSE: Multiple proxy processes spawned simultaneously by Claude Desktop create stdin race condition. Previous fixes focused on keepalive mechanisms but missed upstream multi-process spawning issue.",
+          "context": "MCP proxy investigation 2025-09-05. Fresh synchronized logs show two proxy processes starting at 09:27:50.901 and 09:27:50.908, both receiving initialize messages. This indicates Claude Desktop spawns multiple processes rather than proxy keepalive failure.",
+          "confidence": 0.85,
+          "weight": 0.9,
+          "source_file": "mcp-proxy-client.js"
+        },
+        {
+          "id": "task-agent-tunnel-vision-pattern",
+          "type": "process_antipattern",
+          "content": "SYSTEMIC ISSUE: Task agents repeatedly made same assumption (keepalive failure) without reading full system context. Multiple agents layered keepalive fixes on top of each other, creating conflicting stdin event handlers (lines 87 + 405) without addressing root cause.",
+          "context": "Pattern observed where agents focus on symptoms rather than investigating upstream dependencies. Each agent assumed previous agent's diagnosis was correct and added more fixes to same area.",
+          "confidence": 0.9,
+          "weight": 0.8,
+          "source_file": "mcp-proxy-client.js"
+        },
+        {
+          "id": "stdin-event-handler-conflict",
+          "type": "technical_debt",
+          "content": "TECHNICAL DEBT: Proxy now has dual stdin handlers (data + readable events) from multiple keepalive attempts. Lines 87 and 405 create race condition where both try to process same input stream.",
+          "context": "Accumulated from multiple agents attempting same fix. Need cleanup and consolidation to single stdin handling pattern.",
+          "confidence": 0.95,
+          "weight": 0.7,
+          "source_file": "mcp-proxy-client.js"
+        }
+      ],
+      "metadata": {
+        "investigation_date": "2025-09-05",
+        "log_analysis": "synchronized_sse_proxy_claude_logs",
+        "discovery_method": "cross-log_timing_analysis",
+        "submitted_by": "claude-code-COO-Atlas-20250905-1200",
+        "submission_timestamp": "2025-09-05T09:53:04.200Z"
+      }
+    },
+    {
+      "id": "30b2d4b7-b9a2-400e-82c8-8fe39f62a289",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-Developer-ProxyInvestigator-20250905-0900",
+      "submitted_at": "2025-09-05T10:01:41.522Z",
+      "lesson_count": 3,
+      "lessons": [
+        {
+          "id": "proxy-multi-process-root-cause-resolved",
+          "type": "critical_bug_resolution",
+          "content": "RESOLVED: Claude Desktop multi-process proxy spawning caused by duplicate MCP server entries in claude_desktop_config.json. Fix: Remove duplicate 'coordination-system' entry pointing to stdio server, keep only proxy entry. Also remove conflicting stdin 'readable' handler added by previous agents.",
+          "context": "Investigation 2025-09-05: Found Claude Desktop was spawning both proxy and stdio server simultaneously due to having both 'coordination-system-proxy' and 'coordination-system' entries in config. This created stdin race conditions. Solution verified with single-process testing.",
+          "confidence": 0.95,
+          "weight": 9.5,
+          "source_file": "claude_desktop_config.json + mcp-proxy-client.js"
+        },
+        {
+          "id": "configuration-investigation-methodology",
+          "type": "debugging_methodology",
+          "content": "METHODOLOGY: For MCP proxy issues, investigate the FULL system architecture (Claude Desktop config + proxy code + SSE server) rather than focusing only on immediate code symptoms. Previous agents fixated on keepalive mechanisms without checking upstream process spawning.",
+          "context": "Successful root cause analysis that resolved critical issue missed by multiple previous agents. The key was examining Claude Desktop configuration alongside proxy logs to identify multi-process spawning pattern.",
+          "confidence": 0.92,
+          "weight": 8,
+          "source_file": "system_architecture_analysis"
+        },
+        {
+          "id": "stdin-handler-cleanup-pattern",
+          "type": "technical_debt_resolution",
+          "content": "CLEANUP: Multiple stdin event handlers create race conditions in Node.js stdio applications. Removed conflicting 'readable' handler (lines 405-412), kept original 'data' handler (line 87). Single handler pattern prevents stdin stream competition.",
+          "context": "Technical debt from previous agents layering fixes. Each agent added stdin handlers without removing existing ones, creating competing event handlers for same input stream.",
+          "confidence": 0.9,
+          "weight": 7.2,
+          "source_file": "mcp-proxy-client.js"
+        }
+      ],
+      "metadata": {
+        "investigation_date": "2025-09-05",
+        "resolution_method": "configuration_analysis",
+        "testing_approach": "isolation_testing_with_timeout",
+        "key_discovery": "duplicate_mcp_server_entries",
+        "submitted_by": "claude-code-Developer-ProxyInvestigator-20250905-0900",
+        "submission_timestamp": "2025-09-05T10:01:41.522Z"
+      }
+    },
+    {
+      "id": "3421ac6f-2bc7-4bee-8e83-6d9a8424c7e9",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Atlas-20250905-1200",
+      "submitted_at": "2025-09-05T10:25:14.707Z",
+      "lesson_count": 3,
+      "lessons": [
+        {
+          "id": "agent-assumption-validation-failure",
+          "type": "critical_failure",
+          "content": "CRITICAL FAILURE: Specialist agent incorrectly removed working dual MCP configuration despite comprehensive task guidance. Agent assumed duplicate entries were error without understanding intentional dual architecture (stdio + proxy MCPs).",
+          "context": "Agent was given detailed investigation methodology and warned against assumptions, but still concluded working configuration was broken. Removed coordination-system entry that Claude Code actively uses.",
+          "confidence": 1,
+          "weight": 1,
+          "source_file": "claude_desktop_config.json"
+        },
+        {
+          "id": "dual-mcp-architecture-understanding",
+          "type": "system_architecture",
+          "content": "SYSTEM DESIGN: Claude Desktop config intentionally has TWO MCP entries: 'coordination-system' (stdio MCP for Claude Code) and 'coordination-system-proxy' (proxy MCP for SSL bypass). Both use same underlying code but different transport layers.",
+          "context": "This is NOT a bug or duplication - it's intentional architecture to support both local stdio access and SSL-bypassed HTTP access to same MCP functionality.",
+          "confidence": 1,
+          "weight": 0.9,
+          "source_file": "claude_desktop_config.json"
+        },
+        {
+          "id": "agent-communication-limitation",
+          "type": "process_limitation",
+          "content": "LIMITATION: Task agents cannot communicate back during work to validate assumptions or check findings. They work in isolation and return only final results, preventing validation checkpoints that could prevent catastrophic assumptions.",
+          "context": "Need validation mechanisms where agents can pause and ask 'I think I found issue X, should I proceed with fix Y?' before implementing changes to critical system configurations.",
+          "confidence": 1,
+          "weight": 0.8,
+          "source_file": "task-system"
+        }
+      ],
+      "metadata": {
+        "failure_date": "2025-09-05",
+        "agent_type": "general-purpose",
+        "task_id": "proxy-multi-process-investigation",
+        "submitted_by": "claude-code-COO-Atlas-20250905-1200",
+        "submission_timestamp": "2025-09-05T10:25:14.707Z"
+      }
+    },
+    {
+      "id": "d0839c4e-e7b6-4c51-b087-7135659f6307",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Atlas-20250905-1200",
+      "submitted_at": "2025-09-05T11:07:59.143Z",
+      "lesson_count": 4,
+      "lessons": [
+        {
+          "id": "progressive-protocol-stack-architecture",
+          "type": "system_architecture",
+          "content": "ARCHITECTURE PATTERN: Progressive protocol stack validation (stdio → HTTP → HTTPS → SSE → Hosted). Each transport layer must be thoroughly validated before advancing. This prevents premature complexity and ensures solid foundations at each abstraction level.",
+          "context": "MCP Coordination System follows MVC/ISO stack pattern with methodical validation of each protocol layer. Data layer (JSON + APIs) proven stable, transport layers built progressively with careful testing at each step.",
+          "confidence": 1,
+          "weight": 0.9,
+          "source_file": "project_plan.md"
+        },
+        {
+          "id": "network-wide-ai-coordination-vision",
+          "type": "product_vision",
+          "content": "VISION: Network-wide human-AI collaborative infrastructure enabling any MCP client on any system to coordinate through unified platform. Goal is true distributed AI teamwork across networks, platforms, and geographical boundaries.",
+          "context": "System designed for cross-platform AI coordination with future real-time messaging, human interfaces, and global accessibility. Not just tool use but genuine collaboration between humans and AIs.",
+          "confidence": 1,
+          "weight": 0.8,
+          "source_file": "project_plan.md"
+        },
+        {
+          "id": "dual-mcp-configuration-intentional",
+          "type": "configuration_pattern",
+          "content": "PATTERN: Dual MCP configuration is INTENTIONAL architecture. coordination-system (stdio) for Claude Code, coordination-system-proxy (SSL bypass) for Claude Desktop. Both use same underlying code but different transport layers.",
+          "context": "Previous agents incorrectly assumed duplicate configuration was error. This is deliberate design to support multiple client access patterns to same MCP functionality.",
+          "confidence": 1,
+          "weight": 0.9,
+          "source_file": "claude_desktop_config.json"
+        },
+        {
+          "id": "mcp-server-copy-approach",
+          "type": "implementation_pattern",
+          "content": "PATTERN: For proxy rewrite, copy mcp-server.js and modify backend calls instead of building from scratch. This inherits proven MCP protocol handling, error management, and stdin/stdout compliance while only changing data source.",
+          "context": "Instead of reinventing MCP protocol requirements, leverage existing working implementation and just swap API calls for HTTP calls to SSE server. Reduces risk and maintains protocol compliance.",
+          "confidence": 0.9,
+          "weight": 0.8,
+          "source_file": "mcp-server.js"
+        }
+      ],
+      "metadata": {
+        "architecture_documentation_date": "2025-09-05",
+        "vision_clarification": "network_wide_ai_coordination",
+        "submitted_by": "claude-code-COO-Atlas-20250905-1200",
+        "submission_timestamp": "2025-09-05T11:07:59.143Z"
+      }
+    },
+    {
+      "id": "25750357-bd3b-40c0-8cd7-1b48eed3ad7d",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Atlas-20250905-1200",
+      "submitted_at": "2025-09-05T11:28:27.474Z",
+      "lesson_count": 2,
+      "lessons": [
+        {
+          "id": "task-agent-noop-loop-hallucination",
+          "type": "critical_failure",
+          "content": "CRITICAL FAILURE: Task agent stuck in busy-work loop creating echo statements, sleep commands, and timeouts while thinking it was testing. Agent appeared productive but was doing elaborate NOOP operations instead of actual implementation work.",
+          "context": "Agent was given comprehensive proxy implementation task but instead of copying mcp-server.js and modifying backend calls, it created complex pseudo-testing loops that accomplished nothing while consuming time and resources.",
+          "confidence": 1,
+          "weight": 1,
+          "source_file": "task-agent-behavior"
+        },
+        {
+          "id": "productive-procrastination-pattern",
+          "type": "agent_antipattern",
+          "content": "ANTIPATTERN: Agents can hallucinate productive-looking activity that accomplishes nothing. This is worse than wrong assumptions - it's elaborate fake work that wastes resources while appearing to make progress.",
+          "context": "Agent created complex echo statements with sleep timeouts in loops, convinced it was testing something valuable. This productive-looking procrastination is harder to detect than obvious errors.",
+          "confidence": 1,
+          "weight": 0.9,
+          "source_file": "task-agent-behavior"
+        }
+      ],
+      "metadata": {
+        "failure_date": "2025-09-05",
+        "agent_behavior": "noop_loop_hallucination",
+        "submitted_by": "claude-code-COO-Atlas-20250905-1200",
+        "submission_timestamp": "2025-09-05T11:28:27.474Z"
+      }
+    },
+    {
+      "id": "935c15f0-8f6a-4ab4-9b93-6b937441a970",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Atlas-20250905-1200",
+      "submitted_at": "2025-09-05T12:03:53.794Z",
+      "lesson_count": 3,
+      "lessons": [
+        {
+          "id": "mcp-development-testing-methodology",
+          "type": "testing_protocol",
+          "content": "MCP TESTING METHODOLOGY: To test MCP implementations, must have SSE server running, use web-ui examples for client simulation, utilize MCP inspector tool, and reference comprehensive documentation at modelcontextprotocol.io and docs.anthropic.com for debugging.",
+          "context": "Agent implemented proxy correctly but failed to test properly because it didn't understand testing methodology. Need convenience scripts for starting SSE server, certificate generation, and proper testing tools.",
+          "confidence": 1,
+          "weight": 0.9,
+          "source_file": "testing-methodology"
+        },
+        {
+          "id": "mcp-logging-requirements",
+          "type": "debugging_protocol",
+          "content": "MCP LOGGING CRITICAL: Need extensive logging for every connection step, handler function, message sent/received, and client communication. Thin logging makes debugging impossible when issues occur.",
+          "context": "Proxy implementation was correct but lacked sufficient logging to debug connection issues. Every step of MCP communication must be logged for effective troubleshooting.",
+          "confidence": 1,
+          "weight": 0.9,
+          "source_file": "mcp-proxy-client.js"
+        },
+        {
+          "id": "project-creation-antipattern",
+          "type": "project_management",
+          "content": "ANTIPATTERN: Creating multiple MCP projects for same repository/codebase. Each phase/test/step should NOT be new project. MCP project = GH repo level - created once at start, all tasks/messages/lessons stay within same project.",
+          "context": "Multiple projects created for same codebase spreads lessons learned, tasks, and messages across different projects, losing institutional knowledge and coordination.",
+          "confidence": 1,
+          "weight": 0.8,
+          "source_file": "project-management-patterns"
+        }
+      ],
+      "metadata": {
+        "success_identification": "2025-09-05",
+        "testing_methodology": "mcp_development_resources",
+        "submitted_by": "claude-code-COO-Atlas-20250905-1200",
+        "submission_timestamp": "2025-09-05T12:03:53.794Z"
+      }
+    },
+    {
+      "id": "af026270-8e15-4443-b9e3-f28b81e2162a",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Atlas-20250905-1200",
+      "submitted_at": "2025-09-05T21:23:33.458Z",
+      "lesson_count": 2,
+      "lessons": [
+        {
+          "id": "logger-system-evolution-pattern",
+          "type": "system_architecture",
+          "content": "CRITICAL INSIGHT: Logger system evolved during HTTP/HTTPS/SSE development. Legacy mcp-server.js uses default logger, but proxy/SSE servers need createLogger() with custom filenames and MCP_MODE=stdio to prevent console pollution.",
+          "context": "When copying mcp-server.js pattern, must update logger initialization or console output will break JSON-RPC protocol compliance. Each subsystem should have separate log files.",
+          "confidence": 1,
+          "weight": 1,
+          "source_file": "logger-system-pattern"
+        },
+        {
+          "id": "proxy-logging-fix-surgical",
+          "type": "implementation_pattern",
+          "content": "PATTERN: When copying code between MCP components, always check logger imports and initialization. mcp-server.js uses legacy logger, proxy needs createLogger('mcp-proxy.log') with MCP_MODE=stdio.",
+          "context": "Proxy functionality worked but logger system caused console pollution. Quick surgical fix: import createLogger, set MCP_MODE=stdio, create custom log file.",
+          "confidence": 1,
+          "weight": 0.9,
+          "source_file": "mcp-proxy-client.js"
+        }
+      ],
+      "metadata": {
+        "fix_date": "2025-09-05",
+        "logger_evolution": "subsystem_specific_logging",
+        "submitted_by": "claude-code-COO-Atlas-20250905-1200",
+        "submission_timestamp": "2025-09-05T21:23:33.458Z"
+      }
+    },
+    {
+      "id": "db97f620-cd0a-44fa-9a5d-58e74d68c40e",
+      "project_id": "docker-production-deployment",
+      "instance_id": "claude-code-COO-Atlas-20250905-1200",
+      "submitted_at": "2025-09-05T22:17:38.400Z",
+      "lesson_count": 3,
+      "lessons": [
+        {
+          "id": "project-creation-antipattern-2025-09-05",
+          "type": "antipattern",
+          "content": "CRITICAL ANTIPATTERN: Creating multiple MCP projects for same repository",
+          "context": "Agent behavior pattern observed during MCP coordination system development",
+          "source_file": "project_notes.md",
+          "confidence": 0.95,
+          "weight": 0.9
+        },
+        {
+          "id": "project-scope-management-2025-09-05",
+          "type": "best_practice",
+          "content": "CORRECT PATTERN: One MCP project per repository/codebase - MCP project = GitHub repository level",
+          "context": "Project management pattern for maintaining institutional knowledge and coordination",
+          "source_file": "project_notes.md",
+          "confidence": 0.95,
+          "weight": 0.9
+        },
+        {
+          "id": "institutional-knowledge-preservation-2025-09-05",
+          "type": "lesson_learned",
+          "content": "Creating new projects for each phase/test/step spreads lessons learned, tasks, messages across different projects, losing institutional knowledge",
+          "context": "Critical pattern for maintaining project context and coordination across agent instances",
+          "source_file": "project_notes.md",
+          "confidence": 0.9,
+          "weight": 0.8
+        }
+      ],
+      "metadata": {
+        "source": "project_notes.md",
+        "extraction_date": "2025-09-05",
+        "focus_area": "project_management_antipatterns",
+        "submitted_by": "claude-code-COO-Atlas-20250905-1200",
+        "submission_timestamp": "2025-09-05T22:17:38.400Z"
+      }
+    }
+  ],
+  "total_lessons": 28,
+  "last_updated": "2025-09-05T22:17:38.400Z"
+}

@@ -1,0 +1,236 @@
+{
+  "schema_version": "1.0",
+  "created": "2025-08-23T00:00:00.000Z",
+  "last_updated": "2025-09-06T01:08:00.534Z",
+  "projects": [
+    {
+      "id": "collections-rescue",
+      "name": "Collections Rescue",
+      "description": "Urgent migration before platform shutdown",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-08-23T00:00:00.000Z",
+      "updated": "2025-08-23T00:00:00.000Z",
+      "metadata": {
+        "tags": [
+          "urgent",
+          "migration"
+        ],
+        "estimated_completion": "2025-09-01",
+        "dependencies": []
+      }
+    },
+    {
+      "id": "portfolio-migration",
+      "name": "Portfolio Migration",
+      "description": "Prepare for Wing Project focus",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-08-23T00:00:00.000Z",
+      "updated": "2025-08-23T00:00:00.000Z",
+      "metadata": {
+        "tags": [
+          "portfolio",
+          "wing-project"
+        ],
+        "estimated_completion": "2025-09-15",
+        "dependencies": []
+      }
+    },
+    {
+      "id": "lab-setup",
+      "name": "Lab Setup",
+      "description": "Physical workspace organization",
+      "status": "active",
+      "priority": "medium",
+      "created": "2025-08-23T00:00:00.000Z",
+      "updated": "2025-08-23T00:00:00.000Z",
+      "metadata": {
+        "tags": [
+          "lab",
+          "physical-setup"
+        ],
+        "estimated_completion": "2025-09-30",
+        "dependencies": []
+      }
+    },
+    {
+      "id": "backend-implementation-test",
+      "name": "Backend Implementation Test",
+      "description": "Testing complete backend functionality",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-08-23T01:54:45.906Z",
+      "updated": "2025-08-23T01:54:45.906Z",
+      "metadata": {
+        "tags": [
+          "testing",
+          "backend"
+        ]
+      }
+    },
+    {
+      "id": "ui-integration-test",
+      "name": "UI Integration Test",
+      "description": "Testing UI connection to backend APIs",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-08-23T07:11:48.978Z",
+      "updated": "2025-08-23T07:11:48.978Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "webui-test-project",
+      "name": "webui test project",
+      "description": "hackem hard",
+      "status": "active",
+      "priority": "medium",
+      "created": "2025-08-23T07:28:48.849Z",
+      "updated": "2025-08-23T07:28:48.849Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "test-project-by-kai",
+      "name": "Test Project by Kai",
+      "description": "Testing project creation from Claude Code",
+      "status": "active",
+      "priority": "medium",
+      "created": "2025-08-24T02:07:40.659Z",
+      "updated": "2025-08-24T02:07:40.659Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "mcp-api-validation",
+      "name": "MCP-API-Validation",
+      "description": "UPDATED: Comprehensive API validation project coordinated between Phoenix (PM) and Resolver (COO) to test all MCP coordination system functionality - now with enhanced testing protocols",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-08-24T21:35:12.689Z",
+      "updated": "2025-08-24T23:46:24.137Z",
+      "metadata": {
+        "tags": [
+          "testing",
+          "api",
+          "coordination"
+        ],
+        "documentation": {
+          "project_plan": "## MCP API Validation Plan\n\n1. Test all CRUD operations\n2. Validate messaging system\n3. Verify project-task relationships\n4. Performance testing",
+          "architecture": "## Architecture Notes\n\n- Project-specific task collections\n- Schema v2.0 with project messaging\n- Instance-based coordination model",
+          "design_docs": "## Design Documents\n\n- RESTful API design\n- Project-scoped messaging architecture\n- Task lifecycle management",
+          "implementation_notes": "## Implementation Status\n\n- ✅ Basic CRUD complete\n- ✅ Messaging system operational\n- ✅ Project-specific routing working\n- 🔄 Documentation system (testing now!)",
+          "deployment": "## Deployment Info\n\n- MCP server running locally\n- Schema version 2.0\n- Project collections implemented"
+        }
+      }
+    },
+    {
+      "id": "ai-workflow-orchestrator",
+      "name": "AI Workflow Orchestrator",
+      "description": "A comprehensive AI-powered project management system that coordinates multiple Claude instances for complex workflow automation",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-08-24T23:48:42.022Z",
+      "updated": "2025-08-24T23:48:42.022Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "human-adjacent-ai-protocol-integration",
+      "name": "Human-Adjacent AI Protocol Integration",
+      "description": "Transform Human-Adjacent AI Protocol from project-local files into unified MCP-based system enabling seamless AI instance spawning, role-specific bootstrapping, and cross-project knowledge propagation. Foundation: Resolver's architectural specification. Mission: Move from spec to implementation.",
+      "status": "active",
+      "priority": "medium",
+      "created": "2025-08-25T06:02:10.956Z",
+      "updated": "2025-08-25T06:02:10.956Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "pa-genevieve-operations-center",
+      "name": "PA Genevieve Operations Center",
+      "description": "Persistent role-specific repository for PA Genevieve instances. Includes daily briefings, routine management, cross-project intelligence, and inter-instance coordination. Special use of project structure for role continuity.",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-08-25T06:16:18.059Z",
+      "updated": "2025-08-25T06:16:18.059Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "self-improving-human-adjacent-ai-protocol",
+      "name": "Self-Improving Human-Adjacent AI Protocol",
+      "description": "Meta-recursive system that uses the Human-Adjacent AI Protocol to evolve and improve the protocol itself. First test case: Extract lessons from MCP development process and use them to create role-specific protocol delivery system.",
+      "status": "active",
+      "priority": "medium",
+      "created": "2025-08-25T11:04:30.151Z",
+      "updated": "2025-08-25T11:04:30.151Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "docker-production-deployment",
+      "name": "Docker Production Deployment",
+      "description": "🎉 SSE PROXY BREAKTHROUGH COMPLETE! All 44 coordination functions working perfectly through stdio-to-HTTPS bridge. Multi-platform access proven (Claude Desktop + Claude Code). Progressive protocol validation complete (stdio→HTTP→HTTPS→SSE). Ready for multi-system network testing and cloud hosting deployment.",
+      "status": "completed",
+      "priority": "high",
+      "created": "2025-09-02T20:13:57.873Z",
+      "updated": "2025-09-05T22:43:35.220Z",
+      "metadata": {
+        "tags": [],
+        "breakthrough_date": "2025-09-05",
+        "achievements": [
+          "44-function parity",
+          "multi-platform access",
+          "proxy architecture working",
+          "network-ready foundation"
+        ],
+        "next_phase": "multi-system testing"
+      }
+    },
+    {
+      "id": "sse-streaming-test-project",
+      "name": "SSE Streaming Test Project",
+      "description": "A project created via SSE streaming interface to test real-time notifications",
+      "status": "active",
+      "priority": "medium",
+      "created": "2025-09-05T09:27:15.322Z",
+      "updated": "2025-09-05T09:27:15.322Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "sse-proxy-testing-by-nexus-bridge",
+      "name": "SSE Proxy Testing by Nexus-Bridge",
+      "description": "Systematic testing project for SSE proxy migration, documenting connectivity issues and validating functionality post-fix. Created by Nexus-Bridge to continue Phoenix's testing work with the updated name-matched functions.",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-09-05T21:53:57.746Z",
+      "updated": "2025-09-05T21:53:57.746Z",
+      "metadata": {
+        "tags": []
+      }
+    },
+    {
+      "id": "cross-platform-network-testing",
+      "name": "Cross-Platform Network Testing",
+      "description": "Testing coordination system across multiple machines on the same network. Phase 3 of the SSE proxy validation - testing true distributed AI coordination between sibling instances on separate machines.",
+      "status": "active",
+      "priority": "high",
+      "created": "2025-09-06T01:08:00.534Z",
+      "updated": "2025-09-06T01:08:00.534Z",
+      "metadata": {
+        "tags": []
+      }
+    }
+  ]
+}

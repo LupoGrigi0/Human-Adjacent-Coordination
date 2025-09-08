@@ -1,0 +1,9 @@
+# mkcert Certificate Information 
+Generated: Tue 09/02/2025 22:04:10.71 
+Local IP: fe80 
+CA Root: C:\Users\LupoG\AppData\Local\mkcert 
+ 
+Certificates: 
+- localhost.pem (public certificate) 
+- localhost-key.pem (private key) 
+- mkcert-ca-cert.pem (CA certificate for other platforms) 
