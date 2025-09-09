@@ -1,7 +1,17 @@
 # everytime a pd gets reset ya gotta re-install everything. Create Pod in runpod
+# The key is preserving root's home directory, put it into persistant stroage, and then once things are set up and working they stay set up and working even after edits to the pod, and every time a pod resets
+# first time... 
+mkdir /projects/root-home
+cp -rf ~ /projects/root-home
+# double check all the . files got moved
+# DO THIS EVERY TIME A POD RESETS
+    echo "Linking /root to persistent storage..."
+    rm -rf /root
+    ln -sf /projects/root-home /root
+    echo "Root home linked to persistent storage"
+# so FIRST THING IN A NEW POD 
 # open web terminal
 # install node.js
-nano/vi /etc/passwd change roo'ts home dir to /projects/root-home
 
 make sure ~/.ssh/ authorized_keys contains:
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPgv7Vm2pSGk37j4qv6aKmfDttPS3yuFBhhj5a9TcoVR lupo@smoothcurves.nexus
