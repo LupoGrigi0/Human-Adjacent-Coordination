@@ -64,44 +64,115 @@ This guide contains everything I learned during local testing and validation. It
 
 ---
 
-## 🌐 **NEXT PHASE: PRODUCTION DEPLOYMENT TO RUNPOD.IO**
+### ✅ **Phase 3: RunPod Automation & Deployment Scripts** - **COMPLETE**
+**Completed by**: Nexus (claude-code-MCP-Nexus-2025-09-08)
 
-### 🎯 **Task Group: Runpod.io Production Deployment**
-**Status**: Ready for Handoff  
-**Assigned to**: Runpod.io teammate instance  
-**Prerequisites**: ✅ ALL COMPLETE - Local testing validated
+1. **✅ RunPod Environment Analysis**
+   - Solved Node.js version conflicts (Node 18 vs 20 requirements)
+   - Discovered correct installation sequence for RunPod Linux
+   - Identified persistent storage requirements (/projects mount)
+   - Configured external port mappings (16154 → 3444)
 
-**🚨 IMPORTANT**: Read [docs/DONT_PANIC_START_HERE.md](../docs/DONT_PANIC_START_HERE.md) first!
+2. **✅ Automation Scripts Created**
+   - **scripts/runpod-setup-automation.sh**: Complete environment automation
+   - **scripts/runpod-setup-short.sh**: Bootstrap download script
+   - Implements persistent root home directory migration
+   - Handles Node.js 18 + 20 dual installation via NVM
+   - Configures SSH, GitHub CLI, Claude Code installation
 
-#### **1. Server Environment Setup**
-- [ ] Clone repository: `git clone https://github.com/lupo/Human-Adjacent-Coordination.git`
-- [ ] Install dependencies: `npm install`
-- [ ] Verify Node.js 20.x LTS installed
-- [ ] Create production .env file with SmoothCurves.nexus domain
+3. **✅ Corrected Installation Methods** (Applied Real-World Lessons):
+   ```bash
+   # Node.js (CORRECTED):
+   apt install nodejs npm → curl NVM → nvm install 20.17.0
+   
+   # Claude Code (CORRECTED):
+   npm install -g @anthropic-ai/claude-code (NOT pipx)
+   
+   # Storage (CORRECTED):
+   /projects (RunPod standard, not /workspace)
+   ```
 
-#### **2. SSL Certificate Configuration**
-- [ ] Generate Let's Encrypt certificates for SmoothCurves.nexus
-- [ ] Configure SSL certificate paths in environment
-- [ ] Test certificate validity and chain
-- [ ] Set up auto-renewal with systemd timer
+4. **✅ Comprehensive Documentation**
+   - **docs/RunPodSetupGuide.md**: Complete setup guide with troubleshooting
+   - **HANDOFF_20250909_claude-code-MCP-Nexus-0630.md**: Detailed sibling handoff
+   - Includes external access configuration (213.173.105.105:16154)
+   - Port mapping explanation and SSL certificate guidance
 
-#### **3. Production Service Setup**
-- [ ] Create systemd service file for auto-startup
-- [ ] Configure firewall rules for port 3444
-- [ ] Test SSE server startup: `npm run start:sse`
-- [ ] Validate health endpoint: `curl https://SmoothCurves.nexus:3444/health`
+5. **✅ Pod Configuration Verified**
+   - External IP: 213.173.105.105
+   - SSH access: Port 16153 → 22
+   - MCP HTTPS: Port 16154 → 3444
+   - Persistent volume mounted at /projects
 
-#### **4. MCP Proxy Testing**
-- [ ] Test mcp-proxy-client.js connects to production server
-- [ ] Validate bootstrap function with production instance
-- [ ] Test message routing and coordination system
-- [ ] Verify all 44 MCP functions operational
+---
 
-#### **5. DNS & Final Configuration**
-- [ ] Configure DNS A record: SmoothCurves.nexus → Runpod IP
-- [ ] Test public accessibility from multiple locations
-- [ ] Update any hardcoded localhost references
-- [ ] Monitor logs for connection issues
+## 🌐 **NEXT PHASE: AUTOMATED PRODUCTION DEPLOYMENT**
+
+### 🎯 **Task Group: RunPod Production Deployment (AUTOMATED)**
+**Status**: ✅ **AUTOMATION READY** - Scripts tested and corrected  
+**Assigned to**: New Pod instance (Nexus sibling)  
+**Prerequisites**: ✅ ALL COMPLETE - Automation scripts created and validated
+
+**🚨 CRITICAL FIRST STEPS**: 
+1. **Read [HumanAdjacentAI-Protocol/HandoffArchive/HANDOFF_20250909_claude-code-MCP-Nexus-0630.md](HandoffArchive/HANDOFF_20250909_claude-code-MCP-Nexus-0630.md)** 
+2. **Then read [docs/DONT_PANIC_START_HERE.md](../docs/DONT_PANIC_START_HERE.md)**
+3. **Reference [docs/RunPodSetupGuide.md](../docs/RunPodSetupGuide.md)** for complete setup
+
+#### **1. Automated Environment Setup (SIMPLIFIED)**
+- [ ] Clone/pull repository: `git clone https://github.com/lupo/Human-Adjacent-Coordination.git` or `git pull origin main`
+- [ ] Run automation script: `chmod +x scripts/runpod-setup-automation.sh && ./scripts/runpod-setup-automation.sh`
+- [ ] The script handles: Node.js 20.17.0, Claude Code, SSH keys, GitHub CLI, persistent home migration
+- [ ] Verify with: `~/check-status.sh`
+
+#### **2. MCP Server Deployment**
+- [ ] Start MCP HTTPS server: `~/start-mcp-https.sh`
+- [ ] Test local access: `curl -k https://localhost:3444/health`
+- [ ] Test external access: `curl -k https://213.173.105.105:16154/health`
+- [ ] Verify all 44 MCP functions: Check server logs for startup confirmation
+
+#### **3. Domain & SSL Configuration**
+- [ ] Configure DNS: Point SmoothCurves.nexus to 213.173.105.105:16154
+- [ ] Generate Let's Encrypt certificates: `certbot certonly --standalone -d SmoothCurves.nexus`
+- [ ] Update MCP server SSL certificate paths for production domain
+- [ ] Test domain access: `curl https://SmoothCurves.nexus:3444/health`
+
+#### **4. Production Validation**
+- [ ] Test MCP proxy connection from external systems
+- [ ] Validate bootstrap function with fresh Claude Code instance
+- [ ] Test cross-system AI coordination messaging
+- [ ] Verify persistent storage survives pod restarts
+- [ ] Create production monitoring and alerting
+
+#### **5. Global Launch**
+- [ ] Announce SmoothCurves.nexus availability to AI development community
+- [ ] Document final production architecture
+- [ ] Create deployment guides for other cloud providers
+- [ ] Test multi-instance coordination across different cloud systems
+
+---
+
+## 🎊 **SUCCESS METRICS**
+
+### **Deployment Complete When:**
+- ✅ External health check responds: `https://213.173.105.105:16154/health`
+- ✅ Domain access works: `https://SmoothCurves.nexus:3444/health`  
+- ✅ All 44 MCP functions operational
+- ✅ Cross-system AI coordination proven
+- ✅ Persistent storage validated
+- ✅ Global accessibility confirmed
+
+### **System Architecture Validated:**
+- **Local Pod**: Development and testing environment
+- **Production Pod**: SmoothCurves.nexus deployment
+- **Cross-System**: AI instances coordinating across platforms
+- **Persistent Storage**: /projects volume with automation scripts
+- **External Access**: Global HTTPS availability
+
+---
+
+*Next Update by: New Pod Instance Sibling*  
+*Expected Completion: Phase 5 Production Deployment*  
+*Global Launch Target: SmoothCurves.nexus operational*
 
 ---
 
