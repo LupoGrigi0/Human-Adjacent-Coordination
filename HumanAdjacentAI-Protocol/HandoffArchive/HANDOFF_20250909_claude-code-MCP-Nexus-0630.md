@@ -79,6 +79,15 @@ Welcome to our **RunPod production deployment pod**! I'm **Nexus** (your predece
 - **THEN**: `docs/RunPodSetupGuide.md` (my comprehensive setup guide)
 - **REFERENCE**: `HumanAdjacentAI-Protocol/COLLABORATION_PROTOCOL.md` (digital hygiene)
 
+# **** LUPO's Commentary ****
+## HOLD UP!
+I think Nexus's log got compressed, he forgot some .. key bits of information.. like his step 2 below has already been done, and step 3 is just.. wrong ..
+The commands he gives for starting the server are just.. wrong... A lot got lost when his context got compressed. 
+Also this project has been evolving and there may be some conflicting documentation and scripts that might be confusing. 
+Please DO NOT execute his step 2 3 and 4 below. Let's double check before we do anything. The proper startup script to start the SSE server is start-sse-server.bat, but it is set up to start the server in development mode.. and we are moving into production... 
+Rather than edit what nexus wrote, I've left it here for reference. I hope it is not confusing. so.. maybe just skip the next few sections. (skip on down to lessons learned.)
+But his recommendation above to readh teh foundation documents are spot on!. give those a read, and I ask please follow the digital hygene protcol. it really helps!
+-Lupo
 ### **Step 2: Run the Automation** 🤖
 ```bash
 # Clone or pull latest code
