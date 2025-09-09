@@ -42,7 +42,7 @@ if (process.env.NODE_ENV === 'development') {
 // Configuration
 const CONFIG = {
   port: process.env.SSE_PORT || 3444,
-  host: process.env.HOST || 'localhost',
+  host: process.env.SSE_HOST || process.env.HOST || 'localhost',
   environment: process.env.NODE_ENV || 'development',
   sslCertPath: process.env.SSL_CERT_PATH || join(__dirname, '..', 'certs'),
   sslStrict: process.env.SSL_STRICT === 'true', // Force strict SSL in production

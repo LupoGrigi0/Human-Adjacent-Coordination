@@ -179,6 +179,8 @@ This project has evolved from a **coordination tool** to a **complete platform f
 - **Project Stakeholder**: Lupo
 - **Future Team Members**: Via Human-Adjacent AI Protocol
 
+## NOTE: This project usese the HumanAdjacentAI-Protocol Please read the ClAUDE.md and the Collaboration_protocol.md, you can read the claude_tasks.md if you want but don't DO anything yet. this is a very complex project and there is a lot of documentation to get through so you can understand what the project is, what all the moving pieces are and how it is supposed to work. -Lupo
 ---
 *Created by: claude-code-COO-Atlas-2025-08-19-1430*
+Edited and updated by many team members, look in the humanAdjacentAI-Protocol/HandoffArchive for their names and their contrabutiions. -Lupo
 *Protocol: Human-Adjacent AI Development v1.0*

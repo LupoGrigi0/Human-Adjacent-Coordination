@@ -91,7 +91,23 @@ LOG_LEVEL=info
 LOG_FILE=./logs/sse-server.log
 ```
 
-### Step 5: Test SSE Server Locally
+### Step 5: Critical Network Binding Configuration
+
+**🚨 IMPORTANT**: There's a critical environment variable configuration that must be correct for external access.
+
+The server configuration in `src/sse-server.js` reads environment variables in this order:
+```javascript
+host: process.env.SSE_HOST || process.env.HOST || 'localhost',
+```
+
+**Ensure your environment sets `SSE_HOST=0.0.0.0`** for external access. If only `HOST` is set, make sure it's `0.0.0.0`, not `localhost`.
+
+**Common Issue**: If the server starts but is only accessible locally, check that:
+- Environment variable `SSE_HOST=0.0.0.0` is set
+- Server logs show `HTTPS Server: https://0.0.0.0:3444` (not localhost)
+- External connectivity test: `curl -k https://[external-ip]:[port]/health`
+
+### Step 6: Test SSE Server Locally
 
 ```bash
 # Test the SSE server before exposing to internet

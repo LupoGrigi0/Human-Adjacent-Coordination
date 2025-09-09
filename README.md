@@ -11,3 +11,19 @@ Task management system that allows multipule instances to work a task list for a
 "Evolution Engine" that allows lessons learned to change how the MCP works, for all roles, projects, 
 Messaging system allows HumanAdjacent and Humans to use the same communication system and participate at any level
 
+## 🚀 Quick Start (RunPod Deployment)
+
+**For new RunPod instances after pod reset:**
+```bash
+cd /projects/Human-Adjacent-Coordination
+./scripts/runpod-complete-setup.sh
+```
+
+**For environment setup only:**
+```bash
+./scripts/runpod-setup-fixed.sh
+```
+
+**Read the handoff guide:** `docs/SESSION_HANDOFF_2025_09_09.md`  
+**Don't panic guide:** `docs/DONT_PANIC_START_HERE.md`
+

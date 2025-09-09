@@ -27,6 +27,7 @@ Thumbs.db
 # SSL Certificates (for production)
 certs/*.key
 certs/*.crt
+certs/*.cert
 certs/*.pem
 # Keep the directory but not the certificates
 !certs/.gitkeep
