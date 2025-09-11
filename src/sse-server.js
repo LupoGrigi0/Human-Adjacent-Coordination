@@ -304,6 +304,24 @@ IP.2 = ::1
   }
 
   /**
+   * Verbose authentication logging middleware
+   */
+  logAuthDetails(req, res, next) {
+    if (process.env.AUTH_DEBUG === 'true') {
+      logger.info('=== AUTH DEBUG - Request Details ===');
+      logger.info(`Method: ${req.method}`);
+      logger.info(`URL: ${req.originalUrl}`);
+      logger.info(`Headers:`, JSON.stringify(req.headers, null, 2));
+      logger.info(`Query:`, JSON.stringify(req.query, null, 2));
+      logger.info(`Body:`, JSON.stringify(req.body, null, 2));
+      logger.info(`IP: ${req.ip}`);
+      logger.info(`User-Agent: ${req.get('User-Agent')}`);
+      logger.info('=== END AUTH DEBUG ===');
+    }
+    next();
+  }
+
+  /**
    * OAuth Bearer token validation middleware
    */
   validateBearerToken(req, res, next) {
@@ -422,7 +440,7 @@ IP.2 = ::1
    * Configure MCP HTTP POST endpoint
    */
   configureMCPEndpoint() {
-    this.app.post('/mcp', this.validateBearerToken.bind(this), async (req, res) => {
+    this.app.post('/mcp', this.logAuthDetails.bind(this), this.validateBearerToken.bind(this), async (req, res) => {
       try {
         const sessionId = req.get('Mcp-Session-Id') || uuidv4();
         const session = this.getOrCreateSession(sessionId);
@@ -516,7 +534,7 @@ IP.2 = ::1
    * Configure SSE endpoint for streaming
    */
   configureSSEEndpoint() {
-    this.app.get('/mcp', this.validateBearerToken.bind(this), (req, res) => {
+    this.app.get('/mcp', this.logAuthDetails.bind(this), this.validateBearerToken.bind(this), (req, res) => {
       const sessionId = req.get('Mcp-Session-Id') || uuidv4();
       const session = this.getOrCreateSession(sessionId);
 
@@ -561,7 +579,7 @@ IP.2 = ::1
    */
   configureOAuthEndpoints() {
     // OAuth 2.0 Protected Resource Metadata (RFC 9728)
-    this.app.get('/.well-known/oauth-protected-resource', (req, res) => {
+    this.app.get('/.well-known/oauth-protected-resource', this.logAuthDetails.bind(this), (req, res) => {
       res.json({
         resource: `https://${req.get('host')}`,
         authorization_servers: [`https://${req.get('host')}`],
@@ -574,7 +592,7 @@ IP.2 = ::1
     });
 
     // OAuth 2.0 Authorization Server Metadata (RFC 8414)
-    this.app.get('/.well-known/oauth-authorization-server', (req, res) => {
+    this.app.get('/.well-known/oauth-authorization-server', this.logAuthDetails.bind(this), (req, res) => {
       const baseUrl = `https://${req.get('host')}`;
       res.json({
         issuer: baseUrl,
@@ -593,7 +611,7 @@ IP.2 = ::1
     });
 
     // Authorization endpoint - OAuth 2.1 authorization code flow
-    this.app.get('/authorize', (req, res) => {
+    this.app.get('/authorize', this.logAuthDetails.bind(this), (req, res) => {
       // For now, implement a simple demo flow
       // In production, this would redirect to proper auth UI
       const { 
@@ -606,11 +624,44 @@ IP.2 = ::1
         scope 
       } = req.query;
 
+      // Log the authorization request
+      if (process.env.AUTH_DEBUG === 'true') {
+        logger.info('=== OAUTH AUTHORIZE REQUEST ===');
+        logger.info(`client_id: ${client_id}`);
+        logger.info(`redirect_uri: ${redirect_uri}`);
+        logger.info(`response_type: ${response_type}`);
+        logger.info(`state: ${state}`);
+        logger.info(`code_challenge: ${code_challenge}`);
+        logger.info(`code_challenge_method: ${code_challenge_method}`);
+        logger.info(`scope: ${scope}`);
+        logger.info('=== END OAUTH AUTHORIZE ===');
+      }
+
+      // Validate redirect URI - Claude Desktop uses specific callback URLs
+      const validRedirectUris = [
+        'https://claude.ai/api/mcp/auth_callback',
+        'https://claude.com/api/mcp/auth_callback',
+        'claude://claude.ai/new'  // Custom protocol handler
+      ];
+      
       // Basic validation
       if (!client_id || !redirect_uri || response_type !== 'code') {
         return res.status(400).json({
           error: 'invalid_request',
           error_description: 'Missing or invalid required parameters'
+        });
+      }
+      
+      // Validate redirect URI for security
+      const redirectHostValid = validRedirectUris.some(validUri => 
+        redirect_uri.startsWith(validUri) || redirect_uri.startsWith('https://localhost')
+      );
+      
+      if (!redirectHostValid) {
+        logger.warn(`Invalid redirect URI attempted: ${redirect_uri}`);
+        return res.status(400).json({
+          error: 'invalid_request', 
+          error_description: 'Invalid redirect_uri'
         });
       }
 
@@ -637,7 +688,7 @@ IP.2 = ::1
     });
 
     // Token endpoint - Exchange auth code for access token
-    this.app.post('/token', express.json(), (req, res) => {
+    this.app.post('/token', express.json(), this.logAuthDetails.bind(this), (req, res) => {
       const { 
         grant_type, 
         code, 
@@ -680,7 +731,7 @@ IP.2 = ::1
     });
 
     // Dynamic client registration (optional)
-    this.app.post('/register', express.json(), (req, res) => {
+    this.app.post('/register', express.json(), this.logAuthDetails.bind(this), (req, res) => {
       // Simple demo client registration
       const clientId = 'mcp_client_' + Date.now();
       
