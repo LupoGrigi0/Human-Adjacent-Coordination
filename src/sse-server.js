@@ -61,6 +61,9 @@ class SSEMCPServer {
     this.sslOptions = null;
     this.sessions = new Map(); // Store MCP sessions
     this.sseClients = new Map(); // Store SSE connections
+    
+    // Start SSE heartbeat to prevent connection timeouts
+    this.startSSEHeartbeat();
   }
 
   /**
@@ -101,6 +104,29 @@ class SSEMCPServer {
       logger.error('Failed to detect local IP address', error.message);
       return '127.0.0.1';
     }
+  }
+
+  /**
+   * Start SSE heartbeat to prevent connection timeouts
+   * Sends periodic ping events to keep connections alive
+   */
+  startSSEHeartbeat() {
+    setInterval(() => {
+      for (const [sessionId, res] of this.sseClients.entries()) {
+        try {
+          res.write(`data: ${JSON.stringify({
+            type: 'ping',
+            timestamp: new Date().toISOString(),
+            sessionId
+          })}\n\n`);
+        } catch (error) {
+          logger.warn(`Failed to send heartbeat to SSE client ${sessionId}:`, error.message);
+          this.sseClients.delete(sessionId);
+        }
+      }
+    }, 30000); // Send heartbeat every 30 seconds
+    
+    logger.info('SSE heartbeat started (30s intervals)');
   }
 
   /**
