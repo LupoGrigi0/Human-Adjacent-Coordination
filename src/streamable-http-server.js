@@ -328,11 +328,36 @@ IP.2 = ::1
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       // For development/local access, allow requests without auth
       const realIP = req.get('X-Real-IP') || req.ip;
-      if (CONFIG.environment === 'development' || req.ip === '127.0.0.1' || req.ip === '::1' || 
-          realIP === '127.0.0.1' || realIP === '::1' || realIP.startsWith('10.48.')) {
+      
+      // DETAILED AUTHENTICATION DECISION LOGGING
+      logger.info(`=== AUTHENTICATION BYPASS ANALYSIS ===`);
+      logger.info(`Environment: ${CONFIG.environment}`);
+      logger.info(`req.ip: ${req.ip}`);
+      logger.info(`X-Real-IP header: ${req.get('X-Real-IP') || 'not set'}`);
+      logger.info(`Computed realIP: ${realIP}`);
+      logger.info(`Environment check: ${CONFIG.environment === 'development'}`);
+      logger.info(`req.ip localhost check: ${req.ip === '127.0.0.1' || req.ip === '::1'}`);
+      logger.info(`realIP localhost check: ${realIP === '127.0.0.1' || realIP === '::1'}`);
+      logger.info(`realIP 10.48.x check: ${realIP.startsWith('10.48.')}`);
+      
+      const bypassConditions = [
+        CONFIG.environment === 'development',
+        req.ip === '127.0.0.1',
+        req.ip === '::1', 
+        realIP === '127.0.0.1',
+        realIP === '::1',
+        realIP.startsWith('10.48.')
+      ];
+      const shouldBypass = bypassConditions.some(condition => condition);
+      logger.info(`Overall bypass decision: ${shouldBypass}`);
+      logger.info(`=== END AUTHENTICATION ANALYSIS ===`);
+      
+      if (shouldBypass) {
+        logger.info(`✅ Authentication bypassed for ${realIP}`);
         return next();
       }
       
+      logger.info(`❌ Authentication REQUIRED for ${realIP} - no bypass conditions met`);
       return res.status(401).json({
         error: 'unauthorized',
         error_description: 'Bearer token required',
