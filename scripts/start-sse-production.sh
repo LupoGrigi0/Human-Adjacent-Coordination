@@ -7,13 +7,13 @@
 echo "================================================"
 echo "  Human-Adjacent Coordination System"
 echo "  SSE MCP Server - Production Mode"
-echo "  Port: 3444 (HTTPS)"
+echo "  Port: 73444 (HTTPS)"
 echo "================================================"
 echo ""
 
 # Set production environment
 export NODE_ENV=production
-export SSE_PORT=3444
+export SSE_PORT=73444
 export SSE_HOST=0.0.0.0
 export DEBUG=false
 

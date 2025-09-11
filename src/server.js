@@ -346,10 +346,10 @@ async function startServer() {
   const initialized = await server.initialize();
 
   if (initialized) {
-    await this.logger.info('Ready for AI instance coordination!');
-    await this.logger.info('Try calling: server.call("bootstrap", {role: "COO", instanceId: "test-instance"})');
+    console.log('Ready for AI instance coordination!');
+    console.log('Try calling: server.call("bootstrap", {role: "COO", instanceId: "test-instance"})');
   } else {
-    await this.logger.error('Failed to start server');
+    console.error('Failed to start server');
     process.exit(1);
   }
 }
@@ -360,7 +360,7 @@ export { server, MCPCoordinationServer };
 // Start server if this file is run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   startServer().catch(async (error) => {
-    await this.logger.error('Server startup failed:', error.message);
+    console.error('Server startup failed:', error.message);
     process.exit(1);
   });
 }
