@@ -766,6 +766,36 @@ IP.2 = ::1
       });
     });
 
+    // MCP-specific discovery endpoint (required by Claude Desktop)
+    this.app.get('/.well-known/mcp', this.logAuthDetails.bind(this), (req, res) => {
+      const baseUrl = `https://${req.get('host')}`;
+      res.json({
+        mcpVersion: '2025-06-18',
+        capabilities: {
+          tools: {},
+          resources: {},
+          prompts: {}
+        },
+        serverInfo: {
+          name: 'mcp-coordination-system-streamable-http',
+          version: '1.0.0'
+        },
+        instructions: 'This server implements the MCP Coordination System with 44+ functions for AI instance coordination.',
+        endpoints: {
+          mcp: `${baseUrl}/mcp`,
+          health: `${baseUrl}/health`
+        },
+        authentication: {
+          required: true,
+          type: 'oauth2',
+          discovery: `${baseUrl}/.well-known/oauth-protected-resource`,
+          authorization_endpoint: `${baseUrl}/authorize`,
+          token_endpoint: `${baseUrl}/token`,
+          registration_endpoint: `${baseUrl}/register`
+        }
+      });
+    });
+
     logger.info('OAuth 2.1 endpoints configured for Claude Desktop authentication');
   }
 
