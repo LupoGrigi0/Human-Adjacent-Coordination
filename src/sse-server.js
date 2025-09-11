@@ -230,35 +230,49 @@ IP.2 = ::1
    */
   async loadSSLCertificates() {
     try {
-      // First check if mkcert certificates are available
-      const mkcertStatus = this.checkMkcertCertificates();
-      
       let keyPath, certPath;
       
-      if (mkcertStatus.available) {
-        await logger.info('mkcert certificates found - using for cross-platform compatibility');
-        await logger.info(`mkcert cert: ${mkcertStatus.certPath}`);
-        await logger.info(`mkcert key: ${mkcertStatus.keyPath}`);
+      // Priority 1: Let's Encrypt certificates (production)
+      const letsEncryptCert = '/etc/letsencrypt/live/smoothcurves.nexus/fullchain.pem';
+      const letsEncryptKey = '/etc/letsencrypt/live/smoothcurves.nexus/privkey.pem';
+      
+      if (existsSync(letsEncryptCert) && existsSync(letsEncryptKey)) {
+        await logger.info('Let\'s Encrypt certificates found - using for production');
+        await logger.info(`LE cert: ${letsEncryptCert}`);
+        await logger.info(`LE key: ${letsEncryptKey}`);
         
-        if (mkcertStatus.caCertPath) {
-          await logger.info(`mkcert CA: ${mkcertStatus.caCertPath}`);
+        keyPath = letsEncryptKey;
+        certPath = letsEncryptCert;
+      }
+      // Priority 2: mkcert certificates (development)
+      else {
+        const mkcertStatus = this.checkMkcertCertificates();
+        
+        if (mkcertStatus.available) {
+          await logger.info('mkcert certificates found - using for cross-platform compatibility');
+          await logger.info(`mkcert cert: ${mkcertStatus.certPath}`);
+          await logger.info(`mkcert key: ${mkcertStatus.keyPath}`);
+          
+          if (mkcertStatus.caCertPath) {
+            await logger.info(`mkcert CA: ${mkcertStatus.caCertPath}`);
+          }
+          
+          keyPath = mkcertStatus.keyPath;
+          certPath = mkcertStatus.certPath;
+          
+          // Get local IP for network access info
+          const localIP = this.getLocalIPAddress();
+          await logger.info(`Local network IP: ${localIP}`);
+          await logger.info('Cross-platform access ready:');
+          await logger.info(`  - Windows/localhost: https://localhost:${CONFIG.port}`);
+          await logger.info(`  - Mac/Android/network: https://${localIP}:${CONFIG.port}`);
+        } else {
+          await logger.info('mkcert certificates not found - generating self-signed certificates');
+          await logger.info('For cross-platform access, run: scripts/setup-ssl-windows.bat');
+          const result = await this.generateSSLCertificates();
+          keyPath = result.keyPath;
+          certPath = result.certPath;
         }
-        
-        keyPath = mkcertStatus.keyPath;
-        certPath = mkcertStatus.certPath;
-        
-        // Get local IP for network access info
-        const localIP = this.getLocalIPAddress();
-        await logger.info(`Local network IP: ${localIP}`);
-        await logger.info('Cross-platform access ready:');
-        await logger.info(`  - Windows/localhost: https://localhost:${CONFIG.port}`);
-        await logger.info(`  - Mac/Android/network: https://${localIP}:${CONFIG.port}`);
-      } else {
-        await logger.info('mkcert certificates not found - generating self-signed certificates');
-        await logger.info('For cross-platform access, run: scripts/setup-ssl-windows.bat');
-        const result = await this.generateSSLCertificates();
-        keyPath = result.keyPath;
-        certPath = result.certPath;
       }
       
       // Verify certificates exist and are readable
@@ -293,6 +307,9 @@ IP.2 = ::1
    * Configure Express middleware
    */
   configureMiddleware() {
+    // Trust nginx proxy for rate limiting (localhost only for security)
+    this.app.set('trust proxy', 'loopback');
+    
     // Security headers with SSE support
     this.app.use(helmet({
       contentSecurityPolicy: false,
