@@ -566,8 +566,9 @@ IP.2 = ::1
 
       logger.info(`SSE client connected: ${sessionId}`);
       
-      // Don't send any initial events - MCP SSE transport should be pure JSON-RPC
-      // Claude Desktop expects to establish the stream and then communicate via JSON-RPC messages only
+      // Send an initial empty SSE message to establish the stream properly
+      // This prevents immediate connection aborts
+      res.write(': SSE stream established\n\n');
       
       // Mark this as an MCP connection to skip heartbeats
       session.isMCPConnection = true;
