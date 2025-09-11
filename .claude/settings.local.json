@@ -42,7 +42,14 @@
       "WebFetch(domain:smoothcurves.nexus)",
       "WebFetch(domain:213.173.105.105)",
       "Bash(git add:*)",
-      "Bash(SSE_PORT=73444 SSE_HOST=0.0.0.0 NODE_ENV=production node src/sse-server.js)"
+      "Bash(SSE_PORT=73444 SSE_HOST=0.0.0.0 NODE_ENV=production node src/sse-server.js)",
+      "Bash(cp:*)",
+      "Bash(timeout:*)",
+      "Bash(USE_HTTP=true node src/streamable-http-server.js)",
+      "Bash(set USE_HTTP=true)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(set SSE_PORT=3445)"
     ],
     "deny": [],
     "ask": []

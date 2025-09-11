@@ -26,7 +26,7 @@ import { networkInterfaces } from 'os';
 
 // Create dedicated logger for SSE server - Force file-only mode to avoid stdout/stderr pollution
 // This is critical for JSON-RPC protocol compliance
-const logger = createLogger('sse-server.log', true); // Force file-only mode
+const logger = createLogger('sreamableHttp-server.log', true); // Force file-only mode
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
