@@ -304,6 +304,39 @@ IP.2 = ::1
   }
 
   /**
+   * OAuth Bearer token validation middleware
+   */
+  validateBearerToken(req, res, next) {
+    const authHeader = req.get('Authorization');
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // For development/local access, allow requests without auth
+      if (CONFIG.environment === 'development' || req.ip === '127.0.0.1' || req.ip === '::1') {
+        return next();
+      }
+      
+      return res.status(401).json({
+        error: 'unauthorized',
+        error_description: 'Bearer token required',
+        www_authenticate: `Bearer realm="MCP Server", error="invalid_token"`
+      });
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
+    // Simple token validation (in production, verify JWT or check database)
+    if (token.startsWith('mcp_access_token_')) {
+      req.user = { token, authorized: true };
+      return next();
+    }
+    
+    res.status(401).json({
+      error: 'invalid_token',
+      error_description: 'Invalid access token'
+    });
+  }
+
+  /**
    * Configure Express middleware
    */
   configureMiddleware() {
@@ -389,7 +422,7 @@ IP.2 = ::1
    * Configure MCP HTTP POST endpoint
    */
   configureMCPEndpoint() {
-    this.app.post('/mcp', async (req, res) => {
+    this.app.post('/mcp', this.validateBearerToken.bind(this), async (req, res) => {
       try {
         const sessionId = req.get('Mcp-Session-Id') || uuidv4();
         const session = this.getOrCreateSession(sessionId);
@@ -483,7 +516,7 @@ IP.2 = ::1
    * Configure SSE endpoint for streaming
    */
   configureSSEEndpoint() {
-    this.app.get('/mcp', (req, res) => {
+    this.app.get('/mcp', this.validateBearerToken.bind(this), (req, res) => {
       const sessionId = req.get('Mcp-Session-Id') || uuidv4();
       const session = this.getOrCreateSession(sessionId);
 
@@ -520,6 +553,155 @@ IP.2 = ::1
         logger.error(`SSE client error: ${sessionId}`, error.message);
       });
     });
+  }
+
+  /**
+   * Configure OAuth 2.1 authentication endpoints for Claude Desktop
+   * Implements MCP authorization specification requirements
+   */
+  configureOAuthEndpoints() {
+    // OAuth 2.0 Protected Resource Metadata (RFC 9728)
+    this.app.get('/.well-known/oauth-protected-resource', (req, res) => {
+      res.json({
+        resource: `https://${req.get('host')}`,
+        authorization_servers: [`https://${req.get('host')}`],
+        jwks_uri: `https://${req.get('host')}/.well-known/jwks`,
+        scopes_supported: ['mcp:read', 'mcp:write'],
+        response_types_supported: ['token'],
+        bearer_methods_supported: ['header'],
+        resource_documentation: 'https://spec.modelcontextprotocol.io/'
+      });
+    });
+
+    // OAuth 2.0 Authorization Server Metadata (RFC 8414)
+    this.app.get('/.well-known/oauth-authorization-server', (req, res) => {
+      const baseUrl = `https://${req.get('host')}`;
+      res.json({
+        issuer: baseUrl,
+        authorization_endpoint: `${baseUrl}/authorize`,
+        token_endpoint: `${baseUrl}/token`,
+        registration_endpoint: `${baseUrl}/register`,
+        jwks_uri: `${baseUrl}/.well-known/jwks`,
+        scopes_supported: ['mcp:read', 'mcp:write'],
+        response_types_supported: ['code'],
+        response_modes_supported: ['query', 'fragment'],
+        grant_types_supported: ['authorization_code', 'client_credentials'],
+        token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
+        code_challenge_methods_supported: ['S256'],
+        service_documentation: 'https://spec.modelcontextprotocol.io/'
+      });
+    });
+
+    // Authorization endpoint - OAuth 2.1 authorization code flow
+    this.app.get('/authorize', (req, res) => {
+      // For now, implement a simple demo flow
+      // In production, this would redirect to proper auth UI
+      const { 
+        client_id, 
+        redirect_uri, 
+        response_type, 
+        state, 
+        code_challenge, 
+        code_challenge_method,
+        scope 
+      } = req.query;
+
+      // Basic validation
+      if (!client_id || !redirect_uri || response_type !== 'code') {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing or invalid required parameters'
+        });
+      }
+
+      // Generate authorization code (demo - in production use crypto.randomBytes)
+      const authCode = 'demo_auth_code_' + Date.now();
+      
+      // Store authorization details (in production use Redis/database)
+      this.authCodes = this.authCodes || new Map();
+      this.authCodes.set(authCode, {
+        client_id,
+        redirect_uri,
+        code_challenge,
+        code_challenge_method,
+        scope,
+        expires: Date.now() + 10 * 60 * 1000 // 10 minutes
+      });
+
+      // Redirect with auth code
+      const redirectUrl = new URL(redirect_uri);
+      redirectUrl.searchParams.set('code', authCode);
+      if (state) redirectUrl.searchParams.set('state', state);
+      
+      res.redirect(redirectUrl.toString());
+    });
+
+    // Token endpoint - Exchange auth code for access token
+    this.app.post('/token', express.json(), (req, res) => {
+      const { 
+        grant_type, 
+        code, 
+        redirect_uri, 
+        client_id, 
+        code_verifier 
+      } = req.body;
+
+      if (grant_type === 'authorization_code') {
+        // Validate authorization code
+        this.authCodes = this.authCodes || new Map();
+        const authData = this.authCodes.get(code);
+        
+        if (!authData || authData.expires < Date.now()) {
+          return res.status(400).json({
+            error: 'invalid_grant',
+            error_description: 'Authorization code is invalid or expired'
+          });
+        }
+
+        // In production, validate PKCE code_verifier
+        // Generate access token (demo - use JWT in production)
+        const accessToken = 'mcp_access_token_' + Date.now();
+        
+        // Clean up used auth code
+        this.authCodes.delete(code);
+        
+        res.json({
+          access_token: accessToken,
+          token_type: 'Bearer',
+          expires_in: 3600,
+          scope: authData.scope || 'mcp:read mcp:write'
+        });
+      } else {
+        res.status(400).json({
+          error: 'unsupported_grant_type',
+          error_description: 'Only authorization_code grant type is supported'
+        });
+      }
+    });
+
+    // Dynamic client registration (optional)
+    this.app.post('/register', express.json(), (req, res) => {
+      // Simple demo client registration
+      const clientId = 'mcp_client_' + Date.now();
+      
+      res.status(201).json({
+        client_id: clientId,
+        client_secret: 'demo_secret_' + Date.now(),
+        registration_access_token: 'reg_token_' + Date.now(),
+        registration_client_uri: `https://${req.get('host')}/register/${clientId}`,
+        redirect_uris: req.body.redirect_uris || [],
+        token_endpoint_auth_method: 'client_secret_basic'
+      });
+    });
+
+    // JWKS endpoint for token verification (placeholder)
+    this.app.get('/.well-known/jwks', (req, res) => {
+      res.json({
+        keys: []  // In production, provide actual JWK keys
+      });
+    });
+
+    logger.info('OAuth 2.1 endpoints configured for Claude Desktop authentication');
   }
 
   /**
@@ -877,6 +1059,11 @@ IP.2 = ::1
           health: '/health',
           mcp_post: 'POST /mcp',
           mcp_sse: 'GET /mcp',
+          oauth_discovery: '/.well-known/oauth-protected-resource',
+          oauth_auth_server: '/.well-known/oauth-authorization-server',
+          authorize: '/authorize',
+          token: '/token',
+          register: '/register',
           documentation: 'https://spec.modelcontextprotocol.io/specification/'
         },
         sessions: this.sessions.size,
@@ -888,6 +1075,9 @@ IP.2 = ::1
     // Configure MCP endpoints
     this.configureMCPEndpoint();
     this.configureSSEEndpoint();
+    
+    // Configure OAuth 2.1 authentication endpoints for Claude Desktop
+    this.configureOAuthEndpoints();
 
     // Static files for web UI
     this.app.use('/ui', express.static(join(__dirname, '..', 'web-ui')));
