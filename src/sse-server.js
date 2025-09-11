@@ -474,7 +474,9 @@ IP.2 = ::1
 
         switch (method) {
           case 'initialize':
+            logger.info(`Initialize params received:`, JSON.stringify(params, null, 2));
             result = await this.handleInitialize(params, session);
+            logger.info(`Initialize response:`, JSON.stringify(result, null, 2));
             session.initialized = true;
             break;
 
@@ -534,6 +536,11 @@ IP.2 = ::1
    * Configure SSE endpoint for streaming
    */
   configureSSEEndpoint() {
+    // Add HEAD support for Claude Desktop preflight checks
+    this.app.head('/mcp', this.logAuthDetails.bind(this), (req, res) => {
+      res.status(200).end();
+    });
+    
     this.app.get('/mcp', this.logAuthDetails.bind(this), this.validateBearerToken.bind(this), (req, res) => {
       const sessionId = req.get('Mcp-Session-Id') || uuidv4();
       const session = this.getOrCreateSession(sessionId);
@@ -578,10 +585,12 @@ IP.2 = ::1
    * Implements MCP authorization specification requirements
    */
   configureOAuthEndpoints() {
-    // OAuth 2.0 Protected Resource Metadata (RFC 9728)
-    this.app.get('/.well-known/oauth-protected-resource', this.logAuthDetails.bind(this), (req, res) => {
+    // OAuth 2.0 Protected Resource Metadata (RFC 9728)  
+    // Support both base path and /mcp path for Claude Desktop compatibility
+    const protectedResourceHandler = this.logAuthDetails.bind(this);
+    const protectedResourceResponse = (req, res) => {
       res.json({
-        resource: `https://${req.get('host')}`,
+        resource: `https://${req.get('host')}/mcp`,
         authorization_servers: [`https://${req.get('host')}`],
         jwks_uri: `https://${req.get('host')}/.well-known/jwks`,
         scopes_supported: ['mcp:read', 'mcp:write'],
@@ -589,10 +598,15 @@ IP.2 = ::1
         bearer_methods_supported: ['header'],
         resource_documentation: 'https://spec.modelcontextprotocol.io/'
       });
-    });
+    };
+    
+    this.app.get('/.well-known/oauth-protected-resource', protectedResourceHandler, protectedResourceResponse);
+    this.app.get('/.well-known/oauth-protected-resource/mcp', protectedResourceHandler, protectedResourceResponse);
 
     // OAuth 2.0 Authorization Server Metadata (RFC 8414)
-    this.app.get('/.well-known/oauth-authorization-server', this.logAuthDetails.bind(this), (req, res) => {
+    // Support both base path and /mcp path for Claude Desktop compatibility
+    const authServerHandler = this.logAuthDetails.bind(this);
+    const authServerResponse = (req, res) => {
       const baseUrl = `https://${req.get('host')}`;
       res.json({
         issuer: baseUrl,
@@ -608,7 +622,10 @@ IP.2 = ::1
         code_challenge_methods_supported: ['S256'],
         service_documentation: 'https://spec.modelcontextprotocol.io/'
       });
-    });
+    };
+    
+    this.app.get('/.well-known/oauth-authorization-server', authServerHandler, authServerResponse);
+    this.app.get('/.well-known/oauth-authorization-server/mcp', authServerHandler, authServerResponse);
 
     // Authorization endpoint - OAuth 2.1 authorization code flow
     this.app.get('/authorize', this.logAuthDetails.bind(this), (req, res) => {
@@ -777,7 +794,18 @@ IP.2 = ::1
    * Handle MCP initialize request
    */
   async handleInitialize(params, session) {
-    // Get the actual tools available and advertise them in capabilities
+    const { protocolVersion, capabilities: clientCaps, clientInfo } = params;
+    
+    logger.info(`Client protocol version: ${protocolVersion}`);
+    logger.info(`Client info:`, JSON.stringify(clientInfo, null, 2));
+    
+    // Validate protocol version - support both 2025-03-26 and 2025-06-18
+    const supportedVersions = ['2025-03-26', '2025-06-18'];
+    if (!supportedVersions.includes(protocolVersion)) {
+      throw new Error(`Unsupported protocol version: ${protocolVersion}. Supported: ${supportedVersions.join(', ')}`);
+    }
+
+    // Get the actual tools available and advertise them in capabilities  
     const toolsResult = await this.handleToolsList();
     const tools = toolsResult.tools || [];
     
@@ -789,8 +817,10 @@ IP.2 = ::1
 
     session.capabilities = capabilities;
     session.availableTools = tools;  // Store for later use
+    session.protocolVersion = protocolVersion;
 
     return {
+      protocolVersion,  // Echo back the protocol version
       capabilities,
       serverInfo: {
         name: 'mcp-coordination-system-sse',
