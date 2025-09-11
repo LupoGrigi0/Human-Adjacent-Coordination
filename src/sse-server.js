@@ -114,6 +114,12 @@ class SSEMCPServer {
     setInterval(() => {
       for (const [sessionId, res] of this.sseClients.entries()) {
         try {
+          // Skip heartbeats for MCP connections - they handle their own connection management
+          const session = this.sessions.get(sessionId);
+          if (session && session.isMCPConnection) {
+            continue;
+          }
+          
           res.write(`data: ${JSON.stringify({
             type: 'ping',
             timestamp: new Date().toISOString(),
@@ -126,7 +132,7 @@ class SSEMCPServer {
       }
     }, 30000); // Send heartbeat every 30 seconds
     
-    logger.info('SSE heartbeat started (30s intervals)');
+    logger.info('SSE heartbeat started (30s intervals, MCP connections excluded)');
   }
 
   /**
@@ -558,14 +564,13 @@ IP.2 = ::1
       // Store SSE client
       this.sseClients.set(sessionId, res);
 
-      // Send initial connection event
-      res.write(`data: ${JSON.stringify({
-        type: 'connection',
-        sessionId: session.id,
-        timestamp: new Date().toISOString()
-      })}\n\n`);
-
       logger.info(`SSE client connected: ${sessionId}`);
+      
+      // Don't send any initial events - MCP SSE transport should be pure JSON-RPC
+      // Claude Desktop expects to establish the stream and then communicate via JSON-RPC messages only
+      
+      // Mark this as an MCP connection to skip heartbeats
+      session.isMCPConnection = true;
 
       // Handle client disconnect
       req.on('close', () => {
@@ -778,6 +783,12 @@ IP.2 = ::1
   notifySSEClients(type, data) {
     for (const [sessionId, res] of this.sseClients.entries()) {
       try {
+        // Skip notifications for MCP connections - they use pure JSON-RPC protocol
+        const session = this.sessions.get(sessionId);
+        if (session && session.isMCPConnection) {
+          continue;
+        }
+        
         res.write(`data: ${JSON.stringify({
           type,
           timestamp: new Date().toISOString(),
