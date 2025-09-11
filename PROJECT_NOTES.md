@@ -33,6 +33,55 @@
   - **External IP**: 213.173.105.105:16872 (RunPod maps to internal 3000)
   - **Solved**: RunPod default nginx config conflicts by creating custom nginx-mcp.conf
 
+## 🚨 **CRITICAL PROTOCOL DISCOVERY (2025-09-11)**
+**Research by**: Network Analysis Specialist (claude-opus-4-1-20250805)
+
+### **ROOT CAUSE IDENTIFIED: SSE TRANSPORT DEPRECATED**
+
+#### **The Connection Abort Mystery - SOLVED**
+- **Pattern**: Claude Desktop connects, completes OAuth, establishes SSE, then disconnects in ~30-100ms
+- **Root Cause**: **SSE transport deprecated in MCP protocol version 2025-03-26**
+- **Evidence**: Claude Desktop (2025) expects **Streamable HTTP**, not legacy SSE
+
+#### **Technical Analysis**
+1. **Protocol Evolution**: MCP SSE → Streamable HTTP (2025-03-26)
+2. **Claude Desktop Behavior**: Detects legacy SSE, immediately aborts connection
+3. **Browser Success**: Raw SSE still works, but not MCP-compliant transport
+4. **Authentication Working**: OAuth 2.1 flow completes successfully before transport failure
+
+#### **Key Research Sources**
+- **Primary**: https://modelcontextprotocol.io/docs/concepts/transports
+- **Deprecation Analysis**: https://blog.fka.dev/blog/2025-06-06-why-mcp-deprecated-sse-and-go-with-streamable-http/
+- **Official SDKs**: github.com/modelcontextprotocol/python-sdk, /typescript-sdk
+
+#### **Search Strategy That Worked**
+```
+Search Terms:
+1. "MCP server SSE implementation requirements Anthropic Model Context Protocol"
+2. "Anthropic MCP server authentication handshake SSE transport" 
+3. "MCP over SSE protocol specification Server-Sent Events 2025"
+4. "Claude Desktop MCP server requirements SSE authentication 2025"
+5. "official MCP SSE implementation examples GitHub Anthropic"
+
+Key Findings:
+- SSE limitations: Two-endpoint complexity, resource-intensive, no resumability
+- Streamable HTTP advantages: Single endpoint, bidirectional, better error handling
+- Claude Desktop 2025: Supports both 2025-03-26 and 2025-06-18 auth specs
+```
+
+#### **Migration Requirements Identified**
+1. **Single Endpoint**: Support both POST (client→server) and GET (optional SSE streaming)
+2. **Content-Type Handling**: `application/json` and `text/event-stream` responses
+3. **Session Management**: Stateful connections with session IDs
+4. **Origin Header Validation**: Security requirement (DNS rebinding protection)
+5. **OAuth 2.1 Compliance**: Verify 2025-06-18 auth spec compatibility
+
+#### **Developer Handoff Requirements**
+- **Current Asset**: sse-server.js (working OAuth, SSL, nginx integration)
+- **Migration Need**: Convert to Streamable HTTP transport
+- **Preserve**: 44 MCP functions, authentication flow, SSL certificates, nginx config
+- **Critical**: Test with actual Claude Desktop after migration
+
 ### 🔧 **Critical Technical Discoveries**:
 - **Import Path Bug**: Moving files to src/ directory broke relative imports in mcp-proxy-client.js
 - **Port Standardization**: 3444 is THE production port - all legacy references updated
@@ -46,6 +95,11 @@
   - **Problem**: RunPod doesn't expose port 80 (only 16869→22, 16870→3444, 16871→3445, 16872→3000)
   - **Solution Options**: 1) Add port 80 mapping (requires pod reset), 2) DNS-01 challenge (needs Dynadot API), 3) Custom port SSL
   - **Current Status**: HTTP proxy working, SSL pending port 80 access
+- **🚨 ULTIMATE ROOT CAUSE (2025-09-11)**: SSE Transport Protocol Deprecation
+  - **Discovery**: MCP SSE transport deprecated in protocol version 2025-03-26
+  - **Claude Desktop Behavior**: Connects, validates OAuth, detects legacy SSE, immediately disconnects
+  - **Solution Required**: Migrate to Streamable HTTP transport (single endpoint, bidirectional)
+  - **Impact**: All previous networking/SSL work valid, just need transport layer update
 - **Config File Locations**: 
   - Claude Desktop: `/Users/[user]/Library/Application Support/Claude/claude_desktop_config.json`
   - Claude Code: `/Users/[user]/.claude.json`

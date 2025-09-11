@@ -108,32 +108,76 @@ This project has evolved from a **coordination tool** to a **complete platform f
 
 ## 🌐 **PHASE 5: PRODUCTION INTERNET DEPLOYMENT (2025-09-08)**
 
-### **Current Status: IN PROGRESS**
+### **Current Status: CRITICAL PROTOCOL ISSUE DISCOVERED (2025-09-11)**
 
-#### **Deployment Target:**
-- **Domain**: SmoothCurves.nexus
-- **Primary Endpoint**: https://SmoothCurves.nexus:3444/mcp
-- **Infrastructure**: Runpod.io cloud hosting
-- **Version**: v2.0.0 Production Release
+#### **🚨 BREAKING DISCOVERY: SSE TRANSPORT DEPRECATED**
+**Research by**: Network Analysis Specialist (claude-opus-4-1-20250805)
+**Key Finding**: MCP SSE transport was **deprecated** in protocol version **2025-03-26**
 
-#### **Completed Tasks:**
+**Root Cause Analysis**:
+1. **Protocol Mismatch**: Our sse-server.js implements legacy SSE transport
+2. **Claude Desktop Evolution**: 2025 Claude Desktop expects **Streamable HTTP** transport
+3. **Connection Pattern**: ~30-100ms disconnection matches deprecation behavior
+4. **Auth Specification**: Claude supports 2025-06-18 auth spec, need to verify compatibility
+
+**Technical Evidence**:
+- Claude Desktop completes OAuth flow successfully ✅
+- SSE connection establishes then immediately aborts ❌
+- Browser connections work (raw SSE) but Claude Desktop fails (expects MCP-compliant transport) ❌
+- Shows "Configure" instead of "Connected" status ❌
+
+**Research Sources**:
+- https://modelcontextprotocol.io/docs/concepts/transports
+- https://blog.fka.dev/blog/2025-06-06-why-mcp-deprecated-sse-and-go-with-streamable-http/
+- Official MCP repositories: github.com/modelcontextprotocol/
+
+**Search Terms Used**:
+- "MCP server SSE implementation requirements Anthropic Model Context Protocol"
+- "Anthropic MCP server authentication handshake SSE transport"
+- "MCP over SSE protocol specification Server-Sent Events 2025"
+- "Claude Desktop MCP server requirements SSE authentication 2025"
+- "official MCP SSE implementation examples GitHub Anthropic"
+
+#### **URGENT: STREAMABLE HTTP MIGRATION REQUIRED**
+- **Current Issue**: SSE transport deprecated, causing immediate disconnections
+- **Required Solution**: Migrate to **Streamable HTTP transport** (MCP 2025-03-26 spec)
+- **Impact**: All Claude Desktop connections failing due to protocol mismatch
+- **Priority**: **CRITICAL** - System non-functional with modern Claude Desktop
+
+#### **Migration Requirements**:
+1. **Single Endpoint**: Must support both POST (client→server) and GET (optional SSE streaming)
+2. **Session Management**: Implement session IDs and stateful connections
+3. **Content-Type Handling**: Support both `application/json` and `text/event-stream`
+4. **Origin Header Validation**: Security requirement for DNS rebinding protection
+5. **OAuth 2.1 Compliance**: Verify 2025-06-18 auth spec compatibility
+
+#### **Completed Research & Analysis:**
 - [x] Fresh repository baseline (Human-Adjacent-Coordination)
-- [x] Package version bumped to 2.0.0
+- [x] Package version bumped to 2.0.0  
 - [x] Port configuration standardized to 3444
 - [x] Production deployment guide created
 - [x] Domain references updated
+- [x] **CRITICAL**: Root cause analysis of SSE connection aborts
+- [x] **CRITICAL**: MCP transport protocol evolution research
+- [x] **CRITICAL**: Claude Desktop 2025 requirements identified
+- [x] **CRITICAL**: Streamable HTTP migration path documented
 
-#### **In Progress:**
-- [ ] Local Mac testing of SSE server
-- [ ] Connection to live .171 coordination instance
-- [ ] Initial git commit and repository population
+#### **Completed Diagnostics:**
+- [x] Local Mac testing of SSE server (working for browsers)
+- [x] Connection to live coordination instance (OAuth working)
+- [x] Initial git commit and repository population
+- [x] **CRITICAL**: Network debugging with Windows specialist
+- [x] **CRITICAL**: Protocol compliance analysis completed
 
-#### **Pending:**
-- [ ] Runpod.io server configuration
-- [ ] DNS configuration for SmoothCurves.nexus
-- [ ] SSL certificate generation (Let's Encrypt)
-- [ ] Multi-system network validation
-- [ ] Production monitoring setup
+#### **URGENT: Streamable HTTP Implementation Required:**
+- [ ] **CRITICAL**: Migrate sse-server.js to Streamable HTTP transport
+- [ ] **CRITICAL**: Implement single endpoint supporting POST + GET methods
+- [ ] **CRITICAL**: Add session management and Origin header validation
+- [ ] **CRITICAL**: Update OAuth flow to 2025-06-18 auth spec compliance
+- [ ] **CRITICAL**: Test Claude Desktop compatibility with new transport
+- [ ] SSL certificate generation (Let's Encrypt) - BLOCKED pending protocol fix
+- [ ] Multi-system network validation - BLOCKED pending protocol fix
+- [ ] Production monitoring setup - BLOCKED pending protocol fix
 
 ### **Success Criteria for Phase 5:**
 - Global accessibility at SmoothCurves.nexus:3444

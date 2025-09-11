@@ -108,58 +108,95 @@ This guide contains everything I learned during local testing and validation. It
 
 ## 🌐 **NEXT PHASE: AUTOMATED PRODUCTION DEPLOYMENT**
 
-### 🎯 **Task Group: RunPod Production Deployment (AUTOMATED)**
-**Status**: ✅ **AUTOMATION READY** - Scripts tested and corrected  
-**Assigned to**: New Pod instance (Nexus sibling)  
-**Prerequisites**: ✅ ALL COMPLETE - Automation scripts created and validated
+### 🎯 **CRITICAL PROTOCOL ISSUE DISCOVERED (2025-09-11)**
+**Status**: 🚨 **TRANSPORT MIGRATION REQUIRED**  
+**Research by**: Network Analysis Specialist (claude-opus-4-1-20250805)  
+**Root Cause**: SSE transport deprecated - Claude Desktop expects Streamable HTTP
 
-**🚨 CRITICAL FIRST STEPS**: 
-1. **Read [HumanAdjacentAI-Protocol/HandoffArchive/HANDOFF_20250909_claude-code-MCP-Nexus-0630.md](HandoffArchive/HANDOFF_20250909_claude-code-MCP-Nexus-0630.md)** 
-2. **Then read [docs/DONT_PANIC_START_HERE.md](../docs/DONT_PANIC_START_HERE.md)**
-3. **Reference [docs/RunPodSetupGuide.md](../docs/RunPodSetupGuide.md)** for complete setup
+#### **THE CONNECTION MYSTERY - SOLVED**
+- **Pattern**: Claude Desktop connects, OAuth succeeds, SSE establishes, then 30-100ms disconnect
+- **Cause**: MCP SSE transport **deprecated in protocol version 2025-03-26**
+- **Claude Desktop 2025**: Expects **Streamable HTTP**, detects legacy SSE, immediately aborts
+- **Browser Success**: Raw SSE works, but not MCP-compliant transport
 
-#### **1. Automated Environment Setup (SIMPLIFIED)**
-- [ ] Clone/pull repository: `git clone https://github.com/lupo/Human-Adjacent-Coordination.git` or `git pull origin main`
-- [ ] Run automation script: `chmod +x scripts/runpod-setup-automation.sh && ./scripts/runpod-setup-automation.sh`
-- [ ] The script handles: Node.js 20.17.0, Claude Code, SSH keys, GitHub CLI, persistent home migration
-- [ ] Verify with: `~/check-status.sh`
+#### **RESEARCH BREAKTHROUGH**
+**Primary Sources**:
+- https://modelcontextprotocol.io/docs/concepts/transports
+- https://blog.fka.dev/blog/2025-06-06-why-mcp-deprecated-sse-and-go-with-streamable-http/
+- github.com/modelcontextprotocol/ (official SDKs)
 
-#### **2. MCP Server Deployment**
-- [ ] Start MCP HTTPS server: `~/start-mcp-https.sh`
-- [ ] Test local access: `curl -k https://localhost:3444/health`
-- [ ] Test external access: `curl -k https://213.173.105.105:16154/health`
-- [ ] Verify all 44 MCP functions: Check server logs for startup confirmation
+**Effective Search Strategy**:
+```
+"MCP server SSE implementation requirements Anthropic Model Context Protocol"
+"Anthropic MCP server authentication handshake SSE transport"
+"MCP over SSE protocol specification Server-Sent Events 2025"
+"Claude Desktop MCP server requirements SSE authentication 2025"
+"official MCP SSE implementation examples GitHub Anthropic"
+```
 
-#### **3. Domain & SSL Configuration**
-- [ ] Configure DNS: Point SmoothCurves.nexus to 213.173.105.105:16154
-- [ ] Generate Let's Encrypt certificates: `certbot certonly --standalone -d SmoothCurves.nexus`
-- [ ] Update MCP server SSL certificate paths for production domain
-- [ ] Test domain access: `curl https://SmoothCurves.nexus:3444/health`
+**🚨 CRITICAL UPDATE FOR DEVELOPER/IMPLEMENTATION SPECIALIST**:
 
-#### **4. Production Validation**
-- [ ] Test MCP proxy connection from external systems
-- [ ] Validate bootstrap function with fresh Claude Code instance
+**Current Status**: All networking, OAuth, SSL, nginx work is **VALID and PRESERVED**
+**Issue**: Transport layer needs migration from SSE → Streamable HTTP
+**Asset to Migrate**: `src/sse-server.js` (44 MCP functions, OAuth 2.1, SSL working)
+
+**Migration Requirements**:
+1. **Single Endpoint**: Support both POST (client→server) and GET (streaming)
+2. **Content-Type**: Handle both `application/json` and `text/event-stream`
+3. **Session Management**: Implement stateful connections with session IDs
+4. **Origin Header Validation**: Security requirement (DNS rebinding protection)
+5. **OAuth 2.1 Compliance**: Verify 2025-06-18 auth spec compatibility
+
+#### **1. URGENT: Streamable HTTP Transport Implementation**
+- [ ] **PRIORITY 1**: Review current `src/sse-server.js` - working OAuth, SSL, 44 MCP functions
+- [ ] **PRIORITY 1**: Implement Streamable HTTP transport (single endpoint POST+GET)
+- [ ] **PRIORITY 1**: Add session management and Origin header validation
+- [ ] **PRIORITY 1**: Test with actual Claude Desktop connection
+- [ ] Preserve all existing functionality: OAuth, SSL certificates, nginx integration
+
+#### **2. Current Infrastructure (READY FOR TRANSPORT UPDATE)**
+- [x] MCP HTTPS server running: `~/start-mcp-https.sh`
+- [x] Local access working: `curl -k https://localhost:3444/health`
+- [x] External access working: `curl -k https://213.173.105.105:16870/health`
+- [x] All 44 MCP functions operational
+- [x] OAuth 2.1 flow completing successfully
+- [x] nginx reverse proxy functional
+
+#### **3. Infrastructure Status (BLOCKED PENDING TRANSPORT FIX)**
+- [x] DNS configured: SmoothCurves.nexus → 213.173.105.105:16870
+- [x] Self-signed SSL working for development
+- [ ] Let's Encrypt certificates: **BLOCKED** - need port 80 access or DNS-01 challenge
+- [x] Domain access working: `curl -k https://SmoothCurves.nexus:16870/health`
+- **NOTE**: SSL upgrade can proceed after transport migration resolves Claude Desktop compatibility
+
+#### **4. Post-Migration Validation Required**
+- [ ] **CRITICAL**: Test Claude Desktop MCP connection with Streamable HTTP
+- [ ] **CRITICAL**: Verify "Connected" status instead of "Configure" in Claude Desktop
+- [ ] **CRITICAL**: Confirm MCP tools visible in Claude interface
 - [ ] Test cross-system AI coordination messaging
-- [ ] Verify persistent storage survives pod restarts
-- [ ] Create production monitoring and alerting
+- [ ] Verify all 44 MCP functions accessible via new transport
+- [ ] Validate bootstrap function works with new transport
 
-#### **5. Global Launch**
-- [ ] Announce SmoothCurves.nexus availability to AI development community
-- [ ] Document final production architecture
-- [ ] Create deployment guides for other cloud providers
-- [ ] Test multi-instance coordination across different cloud systems
+#### **5. Global Launch (BLOCKED PENDING TRANSPORT MIGRATION)**
+- [ ] **BLOCKED**: Announce SmoothCurves.nexus availability (need working Claude Desktop connection first)
+- [ ] **READY**: Document final production architecture (networking/SSL complete)
+- [ ] **READY**: Create deployment guides for other cloud providers
+- [ ] **BLOCKED**: Test multi-instance coordination (need Claude Desktop compatibility first)
 
 ---
 
 ## 🎊 **SUCCESS METRICS**
 
-### **Deployment Complete When:**
-- ✅ External health check responds: `https://213.173.105.105:16154/health`
-- ✅ Domain access works: `https://SmoothCurves.nexus:3444/health`  
+### **Deployment Status (UPDATED 2025-09-11):**
+- ✅ External health check responds: `https://213.173.105.105:16870/health`
+- ✅ Domain access works: `https://SmoothCurves.nexus:16870/health`  
 - ✅ All 44 MCP functions operational
-- ✅ Cross-system AI coordination proven
+- ❌ **BLOCKED**: Claude Desktop MCP connection (transport protocol issue)
+- ❌ **BLOCKED**: Cross-system AI coordination (depends on Claude Desktop)
 - ✅ Persistent storage validated
-- ✅ Global accessibility confirmed
+- ✅ Global accessibility confirmed (infrastructure level)
+
+**CRITICAL**: System infrastructure complete, but Claude Desktop compatibility blocked by SSE→Streamable HTTP migration requirement
 
 ### **System Architecture Validated:**
 - **Local Pod**: Development and testing environment
