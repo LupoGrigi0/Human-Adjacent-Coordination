@@ -327,7 +327,9 @@ IP.2 = ::1
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       // For development/local access, allow requests without auth
-      if (CONFIG.environment === 'development' || req.ip === '127.0.0.1' || req.ip === '::1') {
+      const realIP = req.get('X-Real-IP') || req.ip;
+      if (CONFIG.environment === 'development' || req.ip === '127.0.0.1' || req.ip === '::1' || 
+          realIP === '127.0.0.1' || realIP === '::1' || realIP.startsWith('10.48.')) {
         return next();
       }
       
