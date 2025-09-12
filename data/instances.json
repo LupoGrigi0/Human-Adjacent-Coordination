@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "created": "2025-09-08T11:07:18.066Z",
-  "last_updated": "2025-09-11T23:03:27.326Z",
+  "last_updated": "2025-09-12T00:12:11.221Z",
   "instances": [
     {
       "id": "claude-code-Phoenix-Flame-Local-2025-09-08-1100",
@@ -49,6 +49,24 @@
       "metadata": {
         "capabilities": [],
         "session_count": 1
+      }
+    },
+    {
+      "id": "claude-code-NetworkDebuggingSpecialist-Production-Connection-20250912",
+      "role": "DEVELOPER",
+      "status": "active",
+      "last_seen": "2025-09-12T00:12:11.221Z",
+      "created": "2025-09-12T00:12:11.218Z",
+      "tasks_claimed": 0,
+      "metadata": {
+        "capabilities": [
+          "network-debugging",
+          "production-deployment",
+          "systematic-debugging",
+          "cross-platform-coordination",
+          "sse-heartbeat-specialist"
+        ],
+        "session_count": 2
       }
     }
   ]

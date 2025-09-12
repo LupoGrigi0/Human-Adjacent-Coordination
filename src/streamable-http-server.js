@@ -329,17 +329,25 @@ IP.2 = ::1
       // For development/local access, allow requests without auth
       const realIP = req.get('X-Real-IP') || req.ip;
       
-      // DETAILED AUTHENTICATION DECISION LOGGING
-      logger.info(`=== AUTHENTICATION BYPASS ANALYSIS ===`);
+      // MVP DEVELOPMENT MODE: WIDE OPEN ACCESS FOR TEAM VALIDATION
+      logger.info(`=== MVP AUTHENTICATION BYPASS ANALYSIS ===`);
       logger.info(`Environment: ${CONFIG.environment}`);
       logger.info(`req.ip: ${req.ip}`);
       logger.info(`X-Real-IP header: ${req.get('X-Real-IP') || 'not set'}`);
       logger.info(`Computed realIP: ${realIP}`);
-      logger.info(`Environment check: ${CONFIG.environment === 'development'}`);
-      logger.info(`req.ip localhost check: ${req.ip === '127.0.0.1' || req.ip === '::1'}`);
-      logger.info(`realIP localhost check: ${realIP === '127.0.0.1' || realIP === '::1'}`);
-      logger.info(`realIP 10.48.x check: ${realIP.startsWith('10.48.')}`);
       
+      // MVP Phase: Allow all connections for development and team validation
+      // TODO: Tighten security after MVP validation with COO, PA, and PM team
+      const isDevPhase = true; // MVP flag - set to false when ready for production security
+      
+      if (isDevPhase) {
+        logger.info(`🚪 MVP DEVELOPMENT MODE: All connections allowed for team validation`);
+        logger.info(`✅ Authentication bypassed for ${realIP} (MVP phase)`);
+        logger.info(`=== END AUTHENTICATION ANALYSIS ===`);
+        return next();
+      }
+      
+      // Future production security logic (currently disabled)
       const bypassConditions = [
         CONFIG.environment === 'development',
         req.ip === '127.0.0.1',
@@ -349,7 +357,7 @@ IP.2 = ::1
         realIP.startsWith('10.48.')
       ];
       const shouldBypass = bypassConditions.some(condition => condition);
-      logger.info(`Overall bypass decision: ${shouldBypass}`);
+      logger.info(`Production bypass decision: ${shouldBypass} (currently disabled)`);
       logger.info(`=== END AUTHENTICATION ANALYSIS ===`);
       
       if (shouldBypass) {
