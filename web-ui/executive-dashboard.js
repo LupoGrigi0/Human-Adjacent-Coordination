@@ -10,8 +10,8 @@ const CONFIG = {
     // Dynamic SSE Server endpoint (adapts to current host)
     SSE_SERVER_URL: `https://${window.location.hostname}:3444/mcp`,
     
-    // Fallback HTTP server (also dynamic)
-    HTTP_SERVER_URL: `http://${window.location.hostname}:3000/api/mcp`,
+    // Production MCP server (also dynamic)
+    HTTP_SERVER_URL: `http://${window.location.hostname}:3000/api/mcp/call`,
     
     // Update intervals
     REFRESH_INTERVAL: 30000, // 30 seconds
@@ -153,7 +153,7 @@ async function testSSEConnection() {
  * Test HTTP server connection
  */
 async function testHTTPConnection() {
-    const response = await fetch(CONFIG.HTTP_SERVER_URL.replace('/api/mcp', '/health'), {
+    const response = await fetch(CONFIG.HTTP_SERVER_URL.replace('/api/mcp/call', '/health'), {
         method: 'GET',
         headers: {
             'Accept': 'application/json'
@@ -196,16 +196,26 @@ async function bootstrapExecutive() {
 async function mcpCall(functionName, params = {}) {
     const url = state.serverType === 'sse' ? CONFIG.SSE_SERVER_URL : CONFIG.HTTP_SERVER_URL;
     
-    // Correct JSON-RPC 2.0 payload format for SSE MCP server
-    const requestData = {
-        jsonrpc: '2.0',
-        method: 'tools/call',
-        params: {
-            name: functionName, // SSE server functions don't use mcp__ prefix
-            arguments: params
-        },
-        id: Date.now() // Unique ID for this request
-    };
+    // Different payload formats for SSE vs HTTP production server
+    let requestData;
+    if (state.serverType === 'sse') {
+        // JSON-RPC 2.0 format for SSE server
+        requestData = {
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+                name: functionName,
+                arguments: params
+            },
+            id: Date.now()
+        };
+    } else {
+        // Production server MCP call format
+        requestData = {
+            function: functionName,
+            params: params
+        };
+    }
     
     console.log(`📞 MCP Call [${state.serverType.toUpperCase()}]: ${functionName}`, params);
     console.log(`📞 Request Payload:`, requestData);
@@ -217,7 +227,6 @@ async function mcpCall(functionName, params = {}) {
             'Accept': 'application/json'
         },
         body: JSON.stringify(requestData),
-        // Handle self-signed certificates and CORS
         mode: 'cors'
     });
     
@@ -230,13 +239,13 @@ async function mcpCall(functionName, params = {}) {
     const result = await response.json();
     console.log(`✅ MCP Response [${state.serverType.toUpperCase()}]:`, result);
     
-    // Handle different response formats from SSE server
+    // Handle different response formats
     if (result.error) {
         throw new Error(result.error.message || result.error || 'MCP call failed');
     }
     
-    // Extract and parse the actual result content from MCP tool response
-    if (result.result && result.result.content && Array.isArray(result.result.content)) {
+    // Handle SSE server response format
+    if (state.serverType === 'sse' && result.result && result.result.content && Array.isArray(result.result.content)) {
         const textContent = result.result.content.find(item => item.type === 'text');
         if (textContent?.text) {
             try {
@@ -246,6 +255,11 @@ async function mcpCall(functionName, params = {}) {
                 return result.result;
             }
         }
+    }
+    
+    // Production server returns data directly or wrapped in result
+    if (state.serverType === 'http') {
+        return result; // Production server response is already unwrapped
     }
     
     // Return the result as-is if no content parsing needed
