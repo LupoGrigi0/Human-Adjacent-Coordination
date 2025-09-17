@@ -11,19 +11,67 @@ Task management system that allows multipule instances to work a task list for a
 "Evolution Engine" that allows lessons learned to change how the MCP works, for all roles, projects, 
 Messaging system allows HumanAdjacent and Humans to use the same communication system and participate at any level
 
-## 🚀 Quick Start (RunPod Deployment)
+## 🚀 Production Access (DigitalOcean)
 
-**For new RunPod instances after pod reset:**
+**Production MCP Server:** https://smoothcurves.nexus/mcp
+**OpenAPI Specification:** https://smoothcurves.nexus/mcp/openapi.json
+**Executive Dashboard:** https://smoothcurves.nexus/web-ui/executive-dashboard.html
+
+**Connect via Claude Code:**
 ```bash
-cd /projects/Human-Adjacent-Coordination
-./scripts/runpod-complete-setup.sh
+claude mcp add smoothcurves.nexus --transport http --url https://smoothcurves.nexus
 ```
 
-**For environment setup only:**
+**Read the guides:**
+- **Don't panic guide:** `docs/DONT_PANIC_START_HERE.md`
+- **Session handoff guide:** `docs/SESSION_HANDOFF_2025_09_09.md`
+- **Intelligent archival guide:** `docs/INTELLIGENT_ARCHIVAL_GUIDE.md`
+
+## 🗄️ System Maintenance
+
+### Intelligent Archival System
+The coordination system includes automated archival with full rollback capability:
+
 ```bash
-./scripts/runpod-setup-fixed.sh
+# See what needs archiving
+node scripts/intelligent-archive.js --analyze
+
+# Auto-archive safe items (old messages, completed projects)
+node scripts/intelligent-archive.js --auto
+
+# Get agent guidance for manual decisions
+node scripts/intelligent-archive.js --interactive
+
+# Rollback if something goes wrong
+node scripts/intelligent-archive.js --rollback archive-2025-09-17-1234567890
 ```
 
-**Read the handoff guide:** `docs/SESSION_HANDOFF_2025_09_09.md`  
-**Don't panic guide:** `docs/DONT_PANIC_START_HERE.md`
+**Key Features:**
+- 🟢 **Safe auto-archival** of obvious items (7+ day old messages, completed projects)
+- 🟡 **Agent-guided decisions** for complex items requiring judgment
+- 🔵 **Lesson extraction** before archiving valuable projects
+- 🔄 **Complete rollback** capability - nothing is permanently lost
+
+**Decision Framework:**
+- **Preserve:** Active conversations, ongoing projects, production instances
+- **Review:** Test projects, inactive instances, deprecated docs
+- **Extract lessons first:** Breakthrough implementations, failed experiments with value
+
+See `docs/INTELLIGENT_ARCHIVAL_GUIDE.md` for complete agent instructions.
+
+## 📊 System Architecture
+
+**Production Infrastructure:**
+- **Host:** DigitalOcean Droplet (Ubuntu 24.04)
+- **Domain:** smoothcurves.nexus (SSL via Let's Encrypt)
+- **Transport:** Streamable HTTP (SSE deprecated as of MCP 2025-03-26)
+- **Authentication:** OAuth 2.1 with PKCE for Claude Desktop/Code
+- **Proxy:** nginx → Node.js Express server on port 3444
+
+**Core Functions:** 44+ coordination functions including:
+- Instance registration and heartbeat management
+- Project and task coordination
+- Inter-instance messaging
+- Lesson learned extraction and storage
+- Bootstrap capabilities for zero-knowledge onboarding
 

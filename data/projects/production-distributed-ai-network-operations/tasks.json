@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0",
+  "project_id": "production-distributed-ai-network-operations",
+  "created": "2025-09-12T06:08:37.164Z",
+  "last_updated": "2025-09-17T23:07:28.714Z",
+  "tasks": [
+    {
+      "id": "message-system-optimization-001",
+      "title": "Message System UX Improvements",
+      "description": "Implement message preview/summary APIs to prevent context window exhaustion. Add functions: get_message_summary(), get_message_statistics(), get_recent_messages_preview(limit=5). Based on production usage insight: \"reading messages can consume a TON of tokens\" - Network Debugging Specialist observation.",
+      "status": "pending",
+      "priority": "high",
+      "assigned_to": null,
+      "created": "2025-09-12T06:08:37.166Z",
+      "updated": "2025-09-12T06:08:37.166Z",
+      "metadata": {
+        "effort_estimate": null,
+        "tags": [],
+        "dependencies": []
+      }
+    },
+    {
+      "id": "claude-desktop-proxy-deployment-001",
+      "title": "Deploy Claude Desktop Proxy Bridge",
+      "description": "Copy and configure the MCP proxy from CladueCOO codebase to production. Update proxy to connect to smoothcurves.nexus/mcp with production auth tokens. Test Claude Desktop → Proxy → Production MCP connection. This enables 2nd major platform access to distributed AI network.",
+      "status": "pending",
+      "priority": "critical",
+      "assigned_to": null,
+      "created": "2025-09-12T06:08:59.828Z",
+      "updated": "2025-09-12T06:08:59.828Z",
+      "metadata": {
+        "effort_estimate": null,
+        "tags": [],
+        "dependencies": []
+      }
+    },
+    {
+      "id": "production-data-cleanup-001",
+      "title": "Production Data Cleanup & Archival",
+      "description": "Clean up test data from development phase. Archive development messages, remove test instances from registry, establish clean production baseline. Can be run by any instance with SSH access to smoothcurves.nexus. Focus on /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/data/ directory.",
+      "status": "completed",
+      "priority": "high",
+      "assigned_to": "claude-code-ProductionMCP-DigitalOcean-2025-09-17",
+      "created": "2025-09-12T06:09:12.965Z",
+      "updated": "2025-09-17T23:07:28.714Z",
+      "metadata": {
+        "effort_estimate": null,
+        "tags": [],
+        "dependencies": []
+      },
+      "claimed_at": "2025-09-17T20:08:10.601Z",
+      "completion_notes": "✅ Completed comprehensive data cleanup:\n\n**Archived:**\n- All pre-production instance messages (32 files)\n- All project message history\n- Legacy instance registry snapshot\n\n**Created:**\n- Intelligent archival system with rollback capability\n- Complete agent decision framework\n- Updated README.md with production info and maintenance instructions\n\n**Archive Location:** `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/data/archive/pre-production-2025-09-17/`\n\n**New Tools Available:**\n- `scripts/intelligent-archive.js` - Automated + agent-guided archival\n- `docs/INTELLIGENT_ARCHIVAL_GUIDE.md` - Complete instructions\n- Full rollback capability for safe experimentation\n\nProduction baseline established with clean message directories."
+    },
+    {
+      "id": "mcp-platform-research-001",
+      "title": "Multi-Platform MCP Compatibility Research",
+      "description": "Research and test other platforms supporting MCP protocol beyond Anthropic ecosystem. Test OpenAI Custom GPTs, self-hosted solutions (Ollama), and other AI platforms. Document compatibility matrix and connection methods. Our HTTP MCP server should be compatible with more platforms than SSE was.",
+      "status": "pending",
+      "priority": "medium",
+      "assigned_to": null,
+      "created": "2025-09-12T06:09:22.605Z",
+      "updated": "2025-09-12T06:09:22.605Z",
+      "metadata": {
+        "effort_estimate": null,
+        "tags": [],
+        "dependencies": []
+      }
+    }
+  ]
+}

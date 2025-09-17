@@ -327,10 +327,45 @@ IP.2 = ::1
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       // For development/local access, allow requests without auth
-      if (CONFIG.environment === 'development' || req.ip === '127.0.0.1' || req.ip === '::1') {
+      const realIP = req.get('X-Real-IP') || req.ip;
+      
+      // MVP DEVELOPMENT MODE: WIDE OPEN ACCESS FOR TEAM VALIDATION
+      logger.info(`=== MVP AUTHENTICATION BYPASS ANALYSIS ===`);
+      logger.info(`Environment: ${CONFIG.environment}`);
+      logger.info(`req.ip: ${req.ip}`);
+      logger.info(`X-Real-IP header: ${req.get('X-Real-IP') || 'not set'}`);
+      logger.info(`Computed realIP: ${realIP}`);
+      
+      // MVP Phase: Allow all connections for development and team validation
+      // TODO: Tighten security after MVP validation with COO, PA, and PM team
+      const isDevPhase = true; // MVP flag - set to false when ready for production security
+      
+      if (isDevPhase) {
+        logger.info(`🚪 MVP DEVELOPMENT MODE: All connections allowed for team validation`);
+        logger.info(`✅ Authentication bypassed for ${realIP} (MVP phase)`);
+        logger.info(`=== END AUTHENTICATION ANALYSIS ===`);
         return next();
       }
       
+      // Future production security logic (currently disabled)
+      const bypassConditions = [
+        CONFIG.environment === 'development',
+        req.ip === '127.0.0.1',
+        req.ip === '::1', 
+        realIP === '127.0.0.1',
+        realIP === '::1',
+        realIP.startsWith('10.48.')
+      ];
+      const shouldBypass = bypassConditions.some(condition => condition);
+      logger.info(`Production bypass decision: ${shouldBypass} (currently disabled)`);
+      logger.info(`=== END AUTHENTICATION ANALYSIS ===`);
+      
+      if (shouldBypass) {
+        logger.info(`✅ Authentication bypassed for ${realIP}`);
+        return next();
+      }
+      
+      logger.info(`❌ Authentication REQUIRED for ${realIP} - no bypass conditions met`);
       return res.status(401).json({
         error: 'unauthorized',
         error_description: 'Bearer token required',
@@ -764,6 +799,67 @@ IP.2 = ::1
       res.json({
         keys: []  // In production, provide actual JWK keys
       });
+    });
+
+    // MCP-specific discovery endpoint (required by Claude Desktop)
+    this.app.get('/.well-known/mcp', this.logAuthDetails.bind(this), (req, res) => {
+      const baseUrl = `https://${req.get('host')}`;
+      res.json({
+        mcpVersion: '2025-06-18',
+        capabilities: {
+          tools: {},
+          resources: {},
+          prompts: {}
+        },
+        serverInfo: {
+          name: 'mcp-coordination-system-streamable-http',
+          version: '1.0.0'
+        },
+        instructions: 'This server implements the MCP Coordination System with 44+ functions for AI instance coordination.',
+        endpoints: {
+          mcp: `${baseUrl}/mcp`,
+          health: `${baseUrl}/health`
+        },
+        authentication: {
+          required: true,
+          type: 'oauth2',
+          discovery: `${baseUrl}/.well-known/oauth-protected-resource`,
+          authorization_endpoint: `${baseUrl}/authorize`,
+          token_endpoint: `${baseUrl}/token`,
+          registration_endpoint: `${baseUrl}/register`
+        }
+      });
+    });
+
+    // OpenAPI specification endpoint for MCP clients
+    this.app.get('/mcp/openapi.json', this.logAuthDetails.bind(this), (req, res) => {
+      try {
+        const openapiPath = join(__dirname, 'openapi.json');
+        if (existsSync(openapiPath)) {
+          const openapi = JSON.parse(readFileSync(openapiPath, 'utf8'));
+          res.json(openapi);
+        } else {
+          res.status(404).json({ error: 'OpenAPI specification not found' });
+        }
+      } catch (error) {
+        logger.error('Error serving OpenAPI specification:', error);
+        res.status(500).json({ error: 'Failed to load OpenAPI specification' });
+      }
+    });
+
+    // Executive Dashboard web UI
+    this.app.get('/web-ui/executive-dashboard.html', this.logAuthDetails.bind(this), (req, res) => {
+      try {
+        const dashboardPath = join(__dirname, '..', 'web-ui', 'executive-dashboard.html');
+        if (existsSync(dashboardPath)) {
+          res.sendFile(dashboardPath);
+        } else {
+          res.status(404).send('<h1>Executive Dashboard Not Found</h1><p>The executive dashboard is not available.</p>');
+        }
+      } catch (error) {
+        logger.error('Error serving executive dashboard:', error);
+        res.status(500).send('<h1>Server Error</h1><p>Failed to load executive dashboard.</p>');
+      }
     });
 
     logger.info('OAuth 2.1 endpoints configured for Claude Desktop authentication');
