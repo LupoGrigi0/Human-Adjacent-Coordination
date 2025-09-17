@@ -1,5 +1,5 @@
 {
-  "openapi": "3.0.0",
+  "openapi": "3.1.1",
   "info": {
     "title": "MCP Coordination API",
     "description": "API for the MCP Coordination System – an AI instance coordination server with self-bootstrapping capability.",
