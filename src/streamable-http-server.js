@@ -831,6 +831,37 @@ IP.2 = ::1
       });
     });
 
+    // OpenAPI specification endpoint for MCP clients
+    this.app.get('/mcp/openapi.json', this.logAuthDetails.bind(this), (req, res) => {
+      try {
+        const openapiPath = join(__dirname, 'openapi.json');
+        if (existsSync(openapiPath)) {
+          const openapi = JSON.parse(readFileSync(openapiPath, 'utf8'));
+          res.json(openapi);
+        } else {
+          res.status(404).json({ error: 'OpenAPI specification not found' });
+        }
+      } catch (error) {
+        logger.error('Error serving OpenAPI specification:', error);
+        res.status(500).json({ error: 'Failed to load OpenAPI specification' });
+      }
+    });
+
+    // Executive Dashboard web UI
+    this.app.get('/web-ui/executive-dashboard.html', this.logAuthDetails.bind(this), (req, res) => {
+      try {
+        const dashboardPath = join(__dirname, '..', 'web-ui', 'executive-dashboard.html');
+        if (existsSync(dashboardPath)) {
+          res.sendFile(dashboardPath);
+        } else {
+          res.status(404).send('<h1>Executive Dashboard Not Found</h1><p>The executive dashboard is not available.</p>');
+        }
+      } catch (error) {
+        logger.error('Error serving executive dashboard:', error);
+        res.status(500).send('<h1>Server Error</h1><p>Failed to load executive dashboard.</p>');
+      }
+    });
+
     logger.info('OAuth 2.1 endpoints configured for Claude Desktop authentication');
   }
 

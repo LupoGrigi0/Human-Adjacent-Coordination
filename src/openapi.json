@@ -1,0 +1,176 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "MCP Coordination API",
+    "description": "API for the MCP Coordination System – an AI instance coordination server with self-bootstrapping capability.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://smoothcurves.nexus",
+      "description": "Production server (HTTPS) for MCP Coordination services"
+    }
+  ],
+  "paths": {
+    "/mcp": {
+      "post": {
+        "summary": "Proxy coordination function call",
+        "description": "Invokes a coordination function on the MCP system by specifying a function name and parameters. The request is forwarded to the underlying MCP Coordination System, executing the desired operation.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpRequest"
+              },
+              "example": {
+                "functionName": "bootstrap",
+                "params": {
+                  "role": "COO",
+                  "instanceId": "test-instance"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation (the response will indicate success or failure within a JSON body).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpResponse"
+                },
+                "examples": {
+                  "SuccessExample": {
+                    "summary": "Successful Response",
+                    "value": {
+                      "success": true,
+                      "result": {
+                        "status": "operational",
+                        "version": "1.0.0",
+                        "protocol": "mcp",
+                        "timestamp": "2025-09-16T17:01:39Z",
+                        "functions_available": 30
+                      }
+                    }
+                  },
+                  "ErrorExample": {
+                    "summary": "Error Response",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "message": "Function call failed",
+                        "details": "Missing required parameter 'taskId'",
+                        "function": "get_task",
+                        "timestamp": "2025-09-16T17:01:39Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized – Authentication token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "invalid_token"
+                    },
+                    "error_description": {
+                      "type": "string",
+                      "example": "Invalid access token"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "error_description"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error (unexpected failure during function execution).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "message": "Internal server error",
+                    "type": "server_error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "McpRequest": {
+        "type": "object",
+        "required": [
+          "functionName",
+          "params"
+        ],
+        "properties": {
+          "functionName": {
+            "type": "string",
+            "description": "Name of the function to invoke (e.g., 'bootstrap', 'get_tasks', 'send_message')."
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters object for the specified function. The required fields within this object depend on the function.",
+            "additionalProperties": true
+          }
+        }
+      },
+      "McpResponse": {
+        "type": "object",
+        "description": "Standard response format for the MCP coordination request.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "True if the function call was successful, false if an error occurred."
+          },
+          "result": {
+            "type": "object",
+            "description": "Result object returned when the call is successful. The content varies based on the function invoked.",
+            "nullable": true
+          },
+          "error": {
+            "type": "object",
+            "description": "Error information returned if the call failed. The content may include an error message or other details.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
