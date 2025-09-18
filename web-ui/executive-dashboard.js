@@ -2371,10 +2371,9 @@ async function markMessageAsRead() {
     try {
         logInfo('📧 Marking message as read', { messageId: currentMessageId });
 
-        // Check if there's an update_message function available
-        const result = await mcpCall('update_message', {
-            id: currentMessageId,
-            updates: { status: 'read' }
+        // Use the newly implemented mark_message_read function
+        const result = await mcpCall('mark_message_read', {
+            id: currentMessageId
         });
 
         if (result && result.success !== false) {
