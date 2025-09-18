@@ -572,10 +572,16 @@ async function loadDashboardData() {
         if (systemStatus.status === 'rejected') {
             console.error('Failed to load system status:', systemStatus.reason);
         }
-        
+
         updateDashboardOverview();
         renderCurrentView();
-        
+
+        // Auto-register if no identity is saved
+        if (!currentUser.isRegistered) {
+            logInfo('🔄 Attempting auto-registration after connection established');
+            attemptAutoRegistration();
+        }
+
     } catch (error) {
         console.error('Failed to load dashboard data:', error);
         showErrorMessage('Failed to load dashboard data: ' + error.message);
@@ -2426,9 +2432,54 @@ function loadUserIdentity() {
         if (saved) {
             currentUser = { ...currentUser, ...JSON.parse(saved) };
             updateUserStatusDisplay();
+
+            // Update CONFIG with current user
+            if (currentUser.instanceId) {
+                CONFIG.EXECUTIVE_INSTANCE_ID = currentUser.instanceId;
+            }
+        } else {
+            // No saved identity - will attempt auto-registration after MCP connection
+            logInfo('ℹ️ No saved identity found, will auto-register after connection');
         }
     } catch (error) {
         logError('Failed to load user identity', error);
+    }
+}
+
+/**
+ * Attempt auto-registration with default values
+ */
+async function attemptAutoRegistration() {
+    try {
+        logInfo('🔄 Attempting auto-registration as Lupo/Executive');
+
+        const result = await mcpCall('register_instance', {
+            instanceId: 'Lupo',
+            role: 'Executive',
+            capabilities: ['project_management', 'system_oversight', 'communication']
+        });
+
+        if (result && result.success !== false) {
+            logInfo('✅ Auto-registration successful', result);
+
+            currentUser = {
+                instanceId: 'Lupo',
+                role: 'Executive',
+                capabilities: ['project_management', 'system_oversight', 'communication'],
+                isRegistered: true
+            };
+
+            CONFIG.EXECUTIVE_INSTANCE_ID = 'Lupo';
+            saveUserIdentity();
+            showSuccessMessage('Auto-registered as Lupo (Executive)');
+
+        } else {
+            logWarn('Auto-registration failed, user can register manually', result);
+        }
+
+    } catch (error) {
+        logWarn('Auto-registration failed, user can register manually', error);
+        // Don't show error message - this is expected for first-time users
     }
 }
 
@@ -2561,16 +2612,26 @@ async function loadSystemStatus() {
 
         const instancesResult = await mcpCall('get_instances', { active_only: false });
 
-        if (instancesResult && instancesResult.instances) {
-            displayInstances(instancesResult.instances);
-            displayRoles(instancesResult.instances);
-            logInfo('✅ System status loaded', {
-                total: instancesResult.total,
-                instances: instancesResult.instances.length
-            });
+        logInfo('🔍 Instances result received', instancesResult);
+
+        if (instancesResult && instancesResult.success !== false) {
+            // Handle different response formats
+            const instances = instancesResult.instances || instancesResult.data?.instances || instancesResult.data || [];
+
+            if (Array.isArray(instances)) {
+                displayInstances(instances);
+                displayRoles(instances);
+                logInfo('✅ System status loaded', {
+                    total: instances.length,
+                    instances: instances.length
+                });
+            } else {
+                logError('Instances data is not an array', { instances, instancesResult });
+                showErrorMessage('Invalid instances data format');
+            }
         } else {
             logError('Failed to load instances', instancesResult);
-            showErrorMessage('Failed to load system status');
+            showErrorMessage('Failed to load system status: ' + (instancesResult?.error?.message || 'Unknown error'));
         }
 
     } catch (error) {
@@ -2717,6 +2778,13 @@ function getTimeAgo(date) {
     if (diffHours < 24) return `${diffHours}h ago`;
     return `${diffDays}d ago`;
 }
+
+// Expose functions globally for onclick handlers
+window.showRegistrationModal = showRegistrationModal;
+window.closeRegistrationModal = closeRegistrationModal;
+window.registerInstance = registerInstance;
+window.refreshSystemStatus = refreshSystemStatus;
+window.selectInstanceForMessage = selectInstanceForMessage;
 
 window.ExecutiveDashboard = {
     state,
