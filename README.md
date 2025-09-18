@@ -27,6 +27,100 @@ claude mcp add smoothcurves.nexus --transport http --url https://smoothcurves.ne
 - **Session handoff guide:** `docs/SESSION_HANDOFF_2025_09_09.md`
 - **Intelligent archival guide:** `docs/INTELLIGENT_ARCHIVAL_GUIDE.md`
 
+## 🏗️ Development Workflow
+
+**⚠️ IMPORTANT: This repository is the DEVELOPMENT environment.**
+
+### **Environment Structure:**
+```
+/mnt/coordinaton_mcp_data/
+├── Human-Adjacent-Coordination/     # 🛠️ DEVELOPMENT (this repo)
+│   ├── src/                         # Development source code
+│   ├── web-ui/                      # Development UI
+│   ├── data/                        # Development data (safe to break)
+│   └── scripts/deploy-to-production.sh
+├── production/                      # 🚀 PRODUCTION (deployed code)
+│   ├── src/                         # Production source (copied from dev)
+│   ├── web-ui/                      # Production UI (copied from dev)
+│   └── node_modules/                # Production dependencies
+└── production-data/                 # 🗄️ PRODUCTION DATA (isolated)
+    ├── instances.json               # Live production instances
+    ├── messages/                    # Live production messages
+    └── projects/                    # Live production projects
+```
+
+### **Development vs Production Servers:**
+
+**Development Server (for testing):**
+```bash
+# Run development server on port 3445 (if needed)
+cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination
+NODE_ENV=development node src/streamable-http-server.js
+# Access: http://localhost:3445 (local only)
+```
+
+**Production Server (live system):**
+```bash
+# Production server runs automatically from:
+cd /mnt/coordinaton_mcp_data/production
+NODE_ENV=production node src/streamable-http-server.js
+# Access: https://smoothcurves.nexus (global SSL)
+```
+
+### **🚀 DEPLOYING CHANGES TO PRODUCTION:**
+
+**After making ANY changes to source code or web-ui, you MUST deploy to production:**
+
+```bash
+# Deploy your changes to production
+./scripts/deploy-to-production.sh
+```
+
+**The deployment script:**
+- ✅ Backs up current production
+- ✅ Copies source code to production directory
+- ✅ Copies web-ui to production directory
+- ✅ Updates production configuration
+- ✅ Restarts production server
+- ✅ Validates deployment
+
+**Example workflow for UI developers:**
+```bash
+# 1. Make changes to web-ui/executive-dashboard.js
+vim web-ui/executive-dashboard.js
+
+# 2. Test locally (optional)
+# node src/streamable-http-server.js
+
+# 3. Deploy to production
+./scripts/deploy-to-production.sh
+
+# 4. Verify at https://smoothcurves.nexus/web-ui/executive-dashboard.html
+```
+
+### **🔄 Frequent Development Cycle:**
+
+For developers making frequent changes (especially UI developers):
+
+1. **Edit** files in development environment
+2. **Deploy** with `./scripts/deploy-to-production.sh`
+3. **Test** at https://smoothcurves.nexus
+4. **Repeat** as needed
+
+**💡 The deployment script is designed for frequent use - run it after every significant change!**
+
+### **📊 Data Isolation:**
+
+**Development Data:**
+- Safe to delete/modify/break
+- Empty instances, messages, projects
+- Use for testing without affecting production users
+
+**Production Data:**
+- Live user data in `/mnt/coordinaton_mcp_data/production-data/`
+- Contains all active instances, messages, projects
+- **Never directly modify** - use MCP functions only
+
 ## 🗄️ System Maintenance
 
 ### Intelligent Archival System

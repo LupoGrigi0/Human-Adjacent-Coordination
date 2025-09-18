@@ -22,6 +22,23 @@
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
 
+        /* Dark Mode Variables */
+        [data-theme="dark"] {
+            --primary-color: #3b82f6;
+            --primary-dark: #2563eb;
+            --secondary-color: #94a3b8;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --background-color: #0f172a;
+            --surface-color: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
         /* Mobile-First Responsive Design */
         * {
             margin: 0;
@@ -60,6 +77,36 @@
             font-size: 1.25rem;
             font-weight: 700;
             color: var(--primary-color);
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .theme-toggle {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+            height: 40px;
+        }
+
+        .theme-toggle:hover {
+            background: var(--background-color);
+            transform: scale(1.05);
+        }
+
+        .theme-icon {
+            font-size: 18px;
+            transition: transform 0.2s;
         }
 
         .connection-status {
@@ -659,9 +706,14 @@
     <header class="header">
         <div class="header-content">
             <div class="logo">Executive Dashboard</div>
-            <div class="connection-status">
-                <div class="status-dot" id="connection-dot"></div>
-                <span class="status-text" id="connection-status">Connecting...</span>
+            <div class="header-controls">
+                <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode">
+                    <span class="theme-icon">🌙</span>
+                </button>
+                <div class="connection-status">
+                    <div class="status-dot" id="connection-dot"></div>
+                    <span class="status-text" id="connection-status">Connecting...</span>
+                </div>
             </div>
         </div>
     </header>

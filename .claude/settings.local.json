@@ -49,7 +49,12 @@
       "Bash(set USE_HTTP=true)",
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
-      "Bash(set SSE_PORT=3445)"
+      "Bash(set SSE_PORT=3445)",
+      "mcp__CoordinationSystem__bootstrap",
+      "mcp__CoordinationSystem__get_projects",
+      "mcp__CoordinationSystem__get_tasks",
+      "mcp__CoordinationSystem__get_messages",
+      "mcp__CoordinationSystem__send_message"
     ],
     "deny": [],
     "ask": []

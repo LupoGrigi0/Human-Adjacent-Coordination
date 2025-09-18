@@ -9,9 +9,9 @@
 const CONFIG = {
     // Dynamic SSE Server endpoint (adapts to current host)
     SSE_SERVER_URL: `https://${window.location.hostname}:3444/mcp`,
-    
-    // Production MCP server (also dynamic)
-    HTTP_SERVER_URL: `http://${window.location.hostname}:3000/api/mcp/call`,
+
+    // Production MCP server (streamable HTTP)
+    HTTP_SERVER_URL: `https://${window.location.hostname}/mcp`,
     
     // Update intervals
     REFRESH_INTERVAL: 30000, // 30 seconds
@@ -45,9 +45,63 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`🌐 Network Config - SSE: ${CONFIG.SSE_SERVER_URL}`);
     console.log(`🌐 Network Config - HTTP: ${CONFIG.HTTP_SERVER_URL}`);
     console.log(`📱 Host detected: ${window.location.hostname}`);
+    initializeTheme();
     initializeDashboard();
     initializeProjectTaskSearch();
 });
+
+/**
+ * Initialize theme system
+ */
+function initializeTheme() {
+    // Load saved theme or default to light
+    const savedTheme = localStorage.getItem('dashboard-theme') || 'light';
+    applyTheme(savedTheme);
+
+    // Setup theme toggle button
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+        updateThemeIcon(savedTheme);
+    }
+}
+
+/**
+ * Apply theme to document
+ */
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('dashboard-theme', theme);
+    updateThemeIcon(theme);
+}
+
+/**
+ * Toggle between light and dark themes
+ */
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    applyTheme(newTheme);
+
+    // Add animation effect
+    const toggle = document.getElementById('theme-toggle');
+    if (toggle) {
+        toggle.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+            toggle.style.transform = 'scale(1)';
+        }, 150);
+    }
+}
+
+/**
+ * Update theme toggle icon
+ */
+function updateThemeIcon(theme) {
+    const themeIcon = document.querySelector('.theme-icon');
+    if (themeIcon) {
+        themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+}
 
 /**
  * Initialize the dashboard
@@ -153,7 +207,7 @@ async function testSSEConnection() {
  * Test HTTP server connection
  */
 async function testHTTPConnection() {
-    const response = await fetch(CONFIG.HTTP_SERVER_URL.replace('/api/mcp/call', '/health'), {
+    const response = await fetch(CONFIG.HTTP_SERVER_URL.replace('/mcp', '/health'), {
         method: 'GET',
         headers: {
             'Accept': 'application/json'
@@ -210,10 +264,15 @@ async function mcpCall(functionName, params = {}) {
             id: Date.now()
         };
     } else {
-        // Production server MCP call format
+        // Production server uses JSON-RPC 2.0 format too (streamable HTTP)
         requestData = {
-            function: functionName,
-            params: params
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+                name: functionName,
+                arguments: params
+            },
+            id: Date.now()
         };
     }
     
@@ -243,9 +302,9 @@ async function mcpCall(functionName, params = {}) {
     if (result.error) {
         throw new Error(result.error.message || result.error || 'MCP call failed');
     }
-    
-    // Handle SSE server response format
-    if (state.serverType === 'sse' && result.result && result.result.content && Array.isArray(result.result.content)) {
+
+    // Handle MCP response format - both SSE and HTTP use the same structure
+    if (result.result && result.result.content && Array.isArray(result.result.content)) {
         const textContent = result.result.content.find(item => item.type === 'text');
         if (textContent?.text) {
             try {
@@ -256,12 +315,7 @@ async function mcpCall(functionName, params = {}) {
             }
         }
     }
-    
-    // Production server returns data directly or wrapped in result
-    if (state.serverType === 'http') {
-        return result; // Production server response is already unwrapped
-    }
-    
+
     // Return the result as-is if no content parsing needed
     return result.result || result;
 }

@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "project_id": "production-distributed-ai-network-operations",
   "created": "2025-09-12T06:08:37.164Z",
-  "last_updated": "2025-09-17T23:07:28.714Z",
+  "last_updated": "2025-09-18T00:31:29.634Z",
   "tasks": [
     {
       "id": "message-system-optimization-001",
@@ -62,6 +62,21 @@
       "updated": "2025-09-12T06:09:22.605Z",
       "metadata": {
         "effort_estimate": null,
+        "tags": [],
+        "dependencies": []
+      }
+    },
+    {
+      "id": "messaging-system-redesign-v2",
+      "title": "Redesign messaging system with Jabber/XMPP backend",
+      "description": "Research and implement migration from current JSON file-based messaging to Jabber/XMPP backend for improved scalability, real-time capabilities, and standards compliance. Current system has performance issues with large message volumes causing token overflow in MCP calls. Jabber provides mature federation, presence, encryption, and chat room capabilities that align with multi-instance coordination needs.",
+      "status": "pending",
+      "priority": "medium",
+      "assigned_to": null,
+      "created": "2025-09-18T00:31:29.634Z",
+      "updated": "2025-09-18T00:31:29.634Z",
+      "metadata": {
+        "effort_estimate": "2-3 weeks implementation",
         "tags": [],
         "dependencies": []
       }
