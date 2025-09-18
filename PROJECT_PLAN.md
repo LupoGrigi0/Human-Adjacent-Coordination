@@ -217,6 +217,45 @@ Claude Code → DigitalOcean VPC (10.48.0.2) → nginx:443 → Streamable HTTP S
 - **Project Stakeholder**: Lupo
 - **Future Team Members**: Via Human-Adjacent AI Protocol
 
+## 🔧 Configuration Management System
+
+The project includes comprehensive infrastructure-as-code with all system configurations version-controlled:
+
+### **Configuration Directory Structure:**
+```
+config/
+├── nginx/           # Web server configuration
+├── systemd/         # Service management
+├── ssl/             # SSL certificate automation
+├── scripts/         # Complete server setup automation
+└── environment.md   # Production environment documentation
+```
+
+### **Key Configuration Components:**
+
+**Infrastructure:**
+- `config/nginx/smoothcurves-nexus` - Complete nginx site configuration with SSL and static file serving
+- `config/systemd/mcp-coordination.service` - Production service definition with security hardening
+
+**Automation:**
+- `config/scripts/server-setup.sh` - One-command fresh server deployment
+- `config/ssl/setup-letsencrypt.sh` - Automated SSL certificate provisioning
+- `scripts/deploy-to-production.sh` - Production deployment with automatic backups
+
+**Documentation:**
+- `config/environment.md` - Complete production environment guide
+- Deployment instructions for new servers
+- Troubleshooting and maintenance procedures
+
+### **New Server Deployment:**
+```bash
+# One-command setup for fresh Ubuntu server:
+wget https://raw.githubusercontent.com/LupoGrigi0/Human-Adjacent-Coordination/main/config/scripts/server-setup.sh
+sudo ./server-setup.sh
+```
+
+This system ensures all infrastructure configuration is reproducible, version-controlled, and automatically deployed.
+
 ## NOTE: This project usese the HumanAdjacentAI-Protocol Please read the ClAUDE.md and the Collaboration_protocol.md, you can read the claude_tasks.md if you want but don't DO anything yet. this is a very complex project and there is a lot of documentation to get through so you can understand what the project is, what all the moving pieces are and how it is supposed to work. -Lupo
 ---
 *Created by: claude-code-COO-Atlas-2025-08-19-1430*

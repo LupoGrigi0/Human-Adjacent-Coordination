@@ -16,6 +16,7 @@ import * as MessageHandler from './handlers/messages-v3.js';
 import * as InstanceHandler from './handlers/instances.js';
 import { handlers as LessonHandlers } from './handlers/lessons.js';
 import { handlers as MetaRecursiveHandlers } from './handlers/meta-recursive.js';
+import { handlers as RoleHandlers } from './handlers/roles.js';
 
 /**
  * Simple server implementation for development and testing
@@ -235,6 +236,16 @@ class MCPCoordinationServer {
           return MetaRecursiveHandlers.test_meta_recursive_system(params);
         case 'generate_enhanced_collections_workflow':
           return MetaRecursiveHandlers.generate_enhanced_collections_workflow(params);
+
+        // Role management functions
+        case 'get_available_roles':
+          return RoleHandlers.get_available_roles(params);
+        case 'get_role_documents':
+          return RoleHandlers.get_role_documents(params);
+        case 'get_role_document':
+          return RoleHandlers.get_role_document(params);
+        case 'get_all_role_documents':
+          return RoleHandlers.get_all_role_documents(params);
 
         default:
           return {

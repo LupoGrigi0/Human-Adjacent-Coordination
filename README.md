@@ -176,3 +176,81 @@ See `docs/INTELLIGENT_ARCHIVAL_GUIDE.md` for complete agent instructions.
 - Lesson learned extraction and storage
 - Bootstrap capabilities for zero-knowledge onboarding
 
+## 🔧 Configuration Management
+
+The `config/` directory contains all system-level configuration files needed for production deployment:
+
+### **Configuration Structure:**
+```
+config/
+├── nginx/
+│   └── smoothcurves-nexus           # nginx site configuration with SSL and static file serving
+├── systemd/
+│   └── mcp-coordination.service     # systemd service for production MCP server
+├── ssl/
+│   └── setup-letsencrypt.sh         # automated SSL certificate setup via Let's Encrypt
+├── scripts/
+│   └── server-setup.sh              # complete server setup script for fresh installations
+└── environment.md                   # comprehensive environment and deployment documentation
+```
+
+### **Configuration Files:**
+
+**`config/nginx/smoothcurves-nexus`**
+- Complete nginx site configuration
+- SSL termination with Let's Encrypt certificates
+- Static file serving with correct MIME types for web-UI
+- Reverse proxy to Node.js server on port 3444
+- Security headers and caching policies
+
+**`config/systemd/mcp-coordination.service`**
+- systemd service definition for production MCP server
+- Automatic restart on failure
+- Proper working directory and environment variables
+- Security hardening (NoNewPrivileges, ProtectSystem, etc.)
+
+**`config/ssl/setup-letsencrypt.sh`**
+- Automated SSL certificate provisioning via certbot
+- Handles snapd installation and certificate renewal setup
+- Domain: smoothcurves.nexus
+
+**`config/scripts/server-setup.sh`**
+- Complete server setup for fresh Ubuntu installations
+- Installs all dependencies (Node.js, nginx, ufw, etc.)
+- Clones repository, sets up directory structure
+- Configures firewall, SSL, and starts all services
+
+**`config/environment.md`**
+- Comprehensive production environment documentation
+- Directory structure, SSL paths, service management
+- Troubleshooting guide and backup procedures
+
+### **Deploying to a New Server:**
+
+For a fresh Ubuntu server deployment:
+
+```bash
+# 1. Copy and run the complete server setup script
+wget https://raw.githubusercontent.com/LupoGrigi0/Human-Adjacent-Coordination/main/config/scripts/server-setup.sh
+chmod +x server-setup.sh
+sudo ./server-setup.sh
+
+# 2. The script will:
+#    - Install all system dependencies (Node.js, nginx, etc.)
+#    - Clone the repository to /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination
+#    - Set up directory structure and permissions
+#    - Configure nginx with the site configuration
+#    - Set up SSL certificates via Let's Encrypt
+#    - Install and start the systemd service
+#    - Deploy code to production and start the MCP server
+
+# 3. Update DNS to point smoothcurves.nexus to your server IP
+
+# 4. Verify deployment:
+curl https://smoothcurves.nexus/health
+```
+
+**⚠️ Important:** Update the email address in `config/ssl/setup-letsencrypt.sh` before deployment.
+
+The deployment script automatically manages these configuration files during updates, backing up existing configs and testing nginx configuration before applying changes.
+

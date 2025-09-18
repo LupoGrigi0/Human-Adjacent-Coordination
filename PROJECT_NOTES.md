@@ -1,4 +1,31 @@
 # MCP Coordination System - Project Notes
+## 🔧 Configuration Management System
+
+All system-level configuration is now version-controlled in the `config/` directory:
+
+### **Infrastructure Configuration:**
+- `config/nginx/smoothcurves-nexus` - nginx site configuration with SSL termination and static file serving
+- `config/systemd/mcp-coordination.service` - Production systemd service with security hardening
+- `config/ssl/setup-letsencrypt.sh` - Automated SSL certificate provisioning via Let's Encrypt
+- `config/scripts/server-setup.sh` - Complete server setup for fresh Ubuntu installations
+- `config/environment.md` - Comprehensive production environment documentation
+
+### **Deployment Automation:**
+The deployment script now manages both code and system configuration:
+- Automatic nginx config backup and rollback on failure
+- systemd service installation and daemon reload
+- nginx configuration testing before activation
+- Complete infrastructure reproducibility
+
+### **New Server Setup:**
+```bash
+# One-command deployment for fresh servers:
+wget https://raw.githubusercontent.com/LupoGrigi0/Human-Adjacent-Coordination/main/config/scripts/server-setup.sh
+sudo ./server-setup.sh
+```
+
+This ensures all "stray configuration files" (nginx, systemd, SSL) are captured in source control and automatically deployed.
+
 ## NOTE: This project usese the HumanAdjacentAI-Protocol Please read the ClAUDE.md and the Collaboration_protocol.md, you can read the claude_tasks.md if you want but don't DO anything yet. this is a very complex project and there is a lot of documentation to get through so you can understand what the project is, what all the moving pieces are and how it is supposed to work. 
 ## 🎉 **LOCAL VALIDATION COMPLETE! READY FOR PRODUCTION (2025-09-08)**
 

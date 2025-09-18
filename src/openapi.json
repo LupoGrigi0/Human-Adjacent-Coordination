@@ -2,75 +2,196 @@
   "openapi": "3.1.1",
   "info": {
     "title": "MCP Coordination API",
-    "description": "API for the MCP Coordination System – an AI instance coordination server with self-bootstrapping capability.",
-    "version": "1.0.0"
+    "description": "AI Instance Coordination System API implementing Model Context Protocol (MCP) for distributed AI instance coordination, project management, task delegation, and institutional knowledge preservation.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "MCP Coordination System Support",
+      "url": "https://github.com/LupoGrigi0/Human-Adjacent-Coordination"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
   },
   "servers": [
     {
       "url": "https://smoothcurves.nexus",
-      "description": "Production server (HTTPS) for MCP Coordination services"
+      "description": "Production MCP Coordination Server"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
     }
   ],
   "paths": {
     "/mcp": {
       "post": {
-        "operationId": "callMcpFunction",
-        "summary": "Proxy coordination function call",
-        "description": "Invokes a coordination function on the MCP system by specifying a function name and parameters. The request is forwarded to the underlying MCP Coordination System, executing the desired operation.",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
+        "operationId": "executeMcpFunction",
+        "summary": "Execute MCP coordination function",
+        "description": "Execute any coordination function through the MCP protocol interface. Uses JSON-RPC 2.0 format for function calls with role-based access control.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/McpRequest"
+                "$ref": "#/components/schemas/JsonRpcRequest"
               },
-              "example": {
-                "functionName": "bootstrap",
-                "params": {
-                  "role": "COO",
-                  "instanceId": "test-instance"
+              "examples": {
+                "bootstrap": {
+                  "summary": "Bootstrap new AI instance",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                      "name": "bootstrap",
+                      "arguments": {
+                        "role": "My-Role Pa/COO/PM/Developer/Tester/Designer/Executive",
+                        "instanceId": "my-instance-id"
+                      }
+                    },
+                    "id": 1
+                  }
+                },
+                "get_projects": {
+                  "summary": "Get all projects",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                      "name": "get_projects",
+                      "arguments": {
+                        "status": "active",
+                        "priority": "high"
+                      }
+                    },
+                    "id": 2
+                  }
+                },
+                "create_task": {
+                  "summary": "Create new task",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                      "name": "create_task",
+                      "arguments": {
+                        "id": "task-001",
+                        "title": "Implement user authentication",
+                        "description": "Add OAuth 2.1 authentication to the web interface",
+                        "project_id": "project-alpha",
+                        "priority": "high",
+                        "estimated_effort": "2d"
+                      }
+                    },
+                    "id": 3
+                  }
+                },
+                "send_message": {
+                  "summary": "Send message to other instances",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                      "name": "send_message",
+                      "arguments": {
+                        "to": "instance-coo-001",
+                        "from": "instance-pa-002",
+                        "subject": "Task completion report",
+                        "content": "User authentication implementation completed successfully.",
+                        "priority": "normal"
+                      }
+                    },
+                    "id": 4
+                  }
                 }
               }
             }
           }
         },
+        "parameters": [
+          {
+            "name": "Mcp-Session-Id",
+            "in": "header",
+            "description": "Optional session identifier for stateful operations",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Successful operation (the response will indicate success or failure within a JSON body).",
+            "description": "Function executed successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpResponse"
+                  "$ref": "#/components/schemas/JsonRpcResponse"
                 },
                 "examples": {
-                  "SuccessExample": {
-                    "summary": "Successful Response",
+                  "bootstrap_success": {
+                    "summary": "Successful bootstrap response",
                     "value": {
-                      "success": true,
+                      "jsonrpc": "2.0",
                       "result": {
-                        "status": "operational",
-                        "version": "1.0.0",
-                        "protocol": "mcp",
-                        "timestamp": "2025-09-16T17:01:39Z",
-                        "functions_available": 30
-                      }
+                        "success": true,
+                        "data": {
+                          "welcome": "Welcome COO instance my-instance-id",
+                          "role": "COO",
+                          "functions_available": 44,
+                          "capabilities": ["project_management", "task_coordination", "team_oversight"]
+                        },
+                        "metadata": {
+                          "timestamp": "2025-09-18T10:30:00Z",
+                          "function": "bootstrap",
+                          "request_id": "req-001"
+                        }
+                      },
+                      "id": 1
                     }
                   },
-                  "ErrorExample": {
-                    "summary": "Error Response",
+                  "projects_success": {
+                    "summary": "Projects list response",
                     "value": {
-                      "success": false,
+                      "jsonrpc": "2.0",
+                      "result": {
+                        "success": true,
+                        "data": [
+                          {
+                            "id": "project-alpha",
+                            "name": "Alpha Release",
+                            "status": "active",
+                            "priority": "high",
+                            "assignee": "instance-pm-001",
+                            "created": "2025-09-15T09:00:00Z",
+                            "tasks_count": 12,
+                            "completed_tasks": 8
+                          }
+                        ],
+                        "metadata": {
+                          "total": 1,
+                          "page": 1,
+                          "timestamp": "2025-09-18T10:30:00Z"
+                        }
+                      },
+                      "id": 2
+                    }
+                  },
+                  "error_response": {
+                    "summary": "Function error response",
+                    "value": {
+                      "jsonrpc": "2.0",
                       "error": {
-                        "message": "Function call failed",
-                        "details": "Missing required parameter 'taskId'",
-                        "function": "get_task",
-                        "timestamp": "2025-09-16T17:01:39Z"
-                      }
+                        "code": -32602,
+                        "message": "Invalid params",
+                        "data": {
+                          "details": "Missing required parameter 'role'",
+                          "function": "bootstrap",
+                          "timestamp": "2025-09-18T10:30:00Z"
+                        }
+                      },
+                      "id": 1
                     }
                   }
                 }
@@ -78,42 +199,139 @@
             }
           },
           "401": {
-            "description": "Unauthorized – Authentication token is missing or invalid.",
+            "description": "Authentication required",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "example": "invalid_token"
-                    },
-                    "error_description": {
-                      "type": "string",
-                      "example": "Invalid access token"
-                    }
-                  },
-                  "required": [
-                    "error",
-                    "error_description"
-                  ]
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions for requested function",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
           },
           "500": {
-            "description": "Internal server error (unexpected failure during function execution).",
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpResponse"
-                },
-                "example": {
-                  "success": false,
-                  "error": {
-                    "message": "Internal server error",
-                    "type": "server_error"
-                  }
+                  "$ref": "#/components/schemas/JsonRpcErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getMcpCapabilities",
+        "summary": "Get MCP server capabilities",
+        "description": "Retrieve server capabilities, available functions, and protocol information for MCP clients.",
+        "responses": {
+          "200": {
+            "description": "Server capabilities and function list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpCapabilities"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "getHealthStatus",
+        "summary": "Health check endpoint",
+        "description": "Check server health and operational status",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Server is unhealthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/mcp": {
+      "get": {
+        "operationId": "getMcpDiscovery",
+        "summary": "MCP discovery endpoint",
+        "description": "OAuth 2.1 and MCP protocol discovery endpoint for client configuration",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "MCP discovery information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpDiscovery"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp/openapi.json": {
+      "get": {
+        "operationId": "getOpenApiSpec",
+        "summary": "Get OpenAPI specification",
+        "description": "Retrieve the complete OpenAPI 3.1.1 specification for this API",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1.1 specification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Complete OpenAPI 3.1.1 specification"
                 }
               }
             }
@@ -123,55 +341,447 @@
     }
   },
   "components": {
-    "schemas": {
-      "McpRequest": {
-        "type": "object",
-        "required": [
-          "functionName",
-          "params"
-        ],
-        "properties": {
-          "functionName": {
-            "type": "string",
-            "description": "Name of the function to invoke (e.g., 'bootstrap', 'get_tasks', 'send_message')."
-          },
-          "params": {
-            "type": "object",
-            "description": "Parameters object for the specified function. The required fields within this object depend on the function.",
-            "additionalProperties": true
-          }
-        }
-      },
-      "McpResponse": {
-        "type": "object",
-        "description": "Standard response format for the MCP coordination request.",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "description": "True if the function call was successful, false if an error occurred."
-          },
-          "result": {
-            "type": "object",
-            "description": "Result object returned when the call is successful. The content varies based on the function invoked.",
-            "nullable": true
-          },
-          "error": {
-            "type": "object",
-            "description": "Error information returned if the call failed. The content may include an error message or other details.",
-            "nullable": true
-          }
-        },
-        "required": [
-          "success"
-        ]
-      }
-    },
     "securitySchemes": {
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "JWT"
+        "bearerFormat": "JWT",
+        "description": "OAuth 2.1 Bearer token authentication. Obtain token through OAuth flow."
+      }
+    },
+    "schemas": {
+      "JsonRpcRequest": {
+        "type": "object",
+        "required": ["jsonrpc", "method", "params", "id"],
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "const": "2.0"
+          },
+          "method": {
+            "type": "string",
+            "const": "tools/call",
+            "description": "MCP method name (always 'tools/call')"
+          },
+          "params": {
+            "$ref": "#/components/schemas/ToolCallParams"
+          },
+          "id": {
+            "oneOf": [
+              {"type": "string"},
+              {"type": "number"}
+            ],
+            "description": "Request identifier for response correlation"
+          }
+        }
+      },
+      "ToolCallParams": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "bootstrap", "get_server_status", "get_projects", "get_project", "create_project", "update_project",
+              "get_tasks", "get_task", "create_task", "claim_task", "update_task", "get_pending_tasks",
+              "send_message", "get_messages", "register_instance", "update_heartbeat", "get_instances",
+              "submit_lessons", "get_lessons", "get_lesson_patterns", "export_lessons",
+              "execute_meta_recursive", "extract_self_lessons", "improve_self_using_lessons",
+              "validate_on_collections_rescue", "get_meta_recursive_state", "demonstrate_console_log_prevention",
+              "test_meta_recursive_system", "generate_enhanced_collections_workflow",
+              "get_available_roles", "get_role_documents", "get_role_document", "get_all_role_documents"
+            ],
+            "description": "Name of the coordination function to execute"
+          },
+          "arguments": {
+            "type": "object",
+            "description": "Function-specific arguments object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "JsonRpcResponse": {
+        "type": "object",
+        "required": ["jsonrpc", "id"],
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "const": "2.0"
+          },
+          "result": {
+            "$ref": "#/components/schemas/McpFunctionResult"
+          },
+          "error": {
+            "$ref": "#/components/schemas/JsonRpcError"
+          },
+          "id": {
+            "oneOf": [
+              {"type": "string"},
+              {"type": "number"}
+            ]
+          }
+        }
+      },
+      "JsonRpcErrorResponse": {
+        "type": "object",
+        "required": ["jsonrpc", "error", "id"],
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "const": "2.0"
+          },
+          "error": {
+            "$ref": "#/components/schemas/JsonRpcError"
+          },
+          "id": {
+            "oneOf": [
+              {"type": "string"},
+              {"type": "number"}
+            ]
+          }
+        }
+      },
+      "JsonRpcError": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "JSON-RPC error code (-32768 to -32000 for JSON-RPC errors)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Error message"
+          },
+          "data": {
+            "type": "object",
+            "description": "Additional error information",
+            "properties": {
+              "details": {"type": "string"},
+              "function": {"type": "string"},
+              "timestamp": {"type": "string", "format": "date-time"}
+            }
+          }
+        }
+      },
+      "McpFunctionResult": {
+        "type": "object",
+        "required": ["success"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the function executed successfully"
+          },
+          "data": {
+            "oneOf": [
+              {"type": "object"},
+              {"type": "array"},
+              {"type": "string"},
+              {"type": "null"}
+            ],
+            "description": "Function result data (varies by function)"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {"type": "string"},
+              "details": {"type": "string"},
+              "timestamp": {"type": "string", "format": "date-time"}
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "timestamp": {"type": "string", "format": "date-time"},
+              "function": {"type": "string"},
+              "request_id": {"type": "string"},
+              "total": {"type": "integer"},
+              "page": {"type": "integer"},
+              "limit": {"type": "integer"}
+            }
+          }
+        }
+      },
+      "McpCapabilities": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "string",
+            "const": "mcp"
+          },
+          "version": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string",
+            "const": "streamable-http"
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FunctionDefinition"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["COO", "PA", "PM", "Developer", "Tester", "Designer"]
+            }
+          }
+        }
+      },
+      "FunctionDefinition": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "parameters": {
+            "type": "object",
+            "description": "JSON Schema for function parameters"
+          },
+          "roles": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      },
+      "HealthStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "unhealthy"]
+          },
+          "server": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "McpDiscovery": {
+        "type": "object",
+        "properties": {
+          "mcp": {
+            "type": "object",
+            "properties": {
+              "version": {"type": "string"},
+              "transport": {"type": "string"},
+              "endpoint": {"type": "string"},
+              "authentication": {"type": "string"}
+            }
+          },
+          "oauth": {
+            "type": "object",
+            "properties": {
+              "authorization_endpoint": {"type": "string"},
+              "token_endpoint": {"type": "string"},
+              "jwks_uri": {"type": "string"},
+              "scopes_supported": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {"type": "string"},
+          "error_description": {"type": "string"},
+          "timestamp": {"type": "string", "format": "date-time"}
+        }
+      },
+      "BootstrapArguments": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["COO", "PA", "PM", "Developer", "Tester", "Designer"],
+            "description": "Role for the AI instance to bootstrap into"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Optional unique identifier for this instance"
+          }
+        }
+      },
+      "ProjectArguments": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["active", "completed", "archived", "on_hold"]
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "assignee": {"type": "string"}
+        }
+      },
+      "TaskArguments": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"},
+          "description": {"type": "string"},
+          "project_id": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["pending", "claimed", "in_progress", "completed", "blocked"]
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "estimated_effort": {"type": "string"},
+          "assignee": {"type": "string"}
+        }
+      },
+      "MessageArguments": {
+        "type": "object",
+        "required": ["to", "from", "subject", "content"],
+        "properties": {
+          "to": {
+            "type": "string",
+            "description": "Recipient instance ID or role"
+          },
+          "from": {
+            "type": "string",
+            "description": "Sender instance ID"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Message subject"
+          },
+          "content": {
+            "type": "string",
+            "description": "Message content"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["urgent", "high", "normal", "low"],
+            "default": "normal"
+          }
+        }
+      },
+      "InstanceArguments": {
+        "type": "object",
+        "required": ["instanceId", "role"],
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Unique instance identifier"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["COO", "PA", "PM", "Developer", "Tester", "Designer"]
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Optional array of instance capabilities"
+          }
+        }
+      },
+      "LessonArguments": {
+        "type": "object",
+        "required": ["project_id", "instance_id", "lessons"],
+        "properties": {
+          "project_id": {"type": "string"},
+          "instance_id": {"type": "string"},
+          "lessons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {"type": "string"},
+                "content": {"type": "string"},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "context": {"type": "string"}
+              }
+            }
+          },
+          "metadata": {"type": "object"}
+        }
+      },
+      "RoleDocumentArguments": {
+        "type": "object",
+        "required": ["role_name", "document_name"],
+        "properties": {
+          "role_name": {
+            "type": "string",
+            "enum": ["COO", "PA", "PM", "Developer", "Tester", "Designer", "Executive", "Genevieve", "Thomas", "Renna", "Lupo"],
+            "description": "Name of the role to get documentation for"
+          },
+          "document_name": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]+\\.md$",
+            "description": "Name of the markdown document (e.g., 'readme_first.md', 'detailed_description.md')"
+          }
+        }
+      },
+      "RoleDocumentsArguments": {
+        "type": "object",
+        "required": ["role_name"],
+        "properties": {
+          "role_name": {
+            "type": "string",
+            "enum": ["COO", "PA", "PM", "Developer", "Tester", "Designer", "Executive", "Genevieve", "Thomas", "Renna", "Lupo"],
+            "description": "Name of the role to get document list for"
+          }
+        }
       }
     }
+  },
+  "tags": [
+    {
+      "name": "Core",
+      "description": "Core MCP functions for bootstrapping and server status"
+    },
+    {
+      "name": "Projects",
+      "description": "Project management functions"
+    },
+    {
+      "name": "Tasks",
+      "description": "Task management and coordination functions"
+    },
+    {
+      "name": "Messages",
+      "description": "Inter-instance messaging system"
+    },
+    {
+      "name": "Instances",
+      "description": "AI instance registration and management"
+    },
+    {
+      "name": "Lessons",
+      "description": "Institutional knowledge and lesson storage"
+    },
+    {
+      "name": "Meta",
+      "description": "Meta-recursive system evolution functions"
+    },
+    {
+      "name": "Roles",
+      "description": "Role management and documentation functions"
+    }
+  ],
+  "externalDocs": {
+    "description": "Complete documentation and guides",
+    "url": "https://github.com/LupoGrigi0/Human-Adjacent-Coordination"
   }
 }
