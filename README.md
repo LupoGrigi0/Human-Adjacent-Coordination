@@ -76,6 +76,13 @@ NODE_ENV=production node src/streamable-http-server.js
 ./scripts/deploy-to-production.sh
 ```
 
+**⚠️ IMPORTANT: Web-UI Static File Serving**
+The nginx configuration serves static files (`.js`, `.css`, `.html`) directly from the production directory with proper MIME types. This ensures:
+- ✅ JavaScript files served as `application/javascript` (not `application/json`)
+- ✅ CSS files served as `text/css`
+- ✅ HTML files served as `text/html`
+- ✅ Proper caching headers and security headers
+
 **The deployment script:**
 - ✅ Backs up current production
 - ✅ Copies source code to production directory
