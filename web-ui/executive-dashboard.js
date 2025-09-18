@@ -225,6 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeTheme();
         logInfo('✅ Theme system initialized');
 
+        loadUserIdentity();
+        logInfo('✅ User identity loaded');
+
         initializeDashboard();
         logInfo('✅ Dashboard initialization started');
 
@@ -549,10 +552,11 @@ async function loadDashboardData() {
         console.log('📊 Loading dashboard data...');
         
         // Load in parallel for better performance
-        const [projects, tasks, messages] = await Promise.allSettled([
+        const [projects, tasks, messages, systemStatus] = await Promise.allSettled([
             loadProjects(),
             loadTasks(),
-            loadMessages()
+            loadMessages(),
+            loadSystemStatus()
         ]);
         
         // Handle any failures gracefully
@@ -564,6 +568,9 @@ async function loadDashboardData() {
         }
         if (messages.status === 'rejected') {
             console.error('Failed to load messages:', messages.reason);
+        }
+        if (systemStatus.status === 'rejected') {
+            console.error('Failed to load system status:', systemStatus.reason);
         }
         
         updateDashboardOverview();
@@ -2398,6 +2405,317 @@ async function markMessageAsRead() {
         logError('Error marking message as read', error);
         showErrorMessage('Error marking message as read: ' + error.message);
     }
+}
+
+// ============================================================================
+// USER REGISTRATION AND IDENTITY MANAGEMENT
+// ============================================================================
+
+let currentUser = {
+    instanceId: null,
+    role: null,
+    isRegistered: false
+};
+
+/**
+ * Load current user identity from localStorage
+ */
+function loadUserIdentity() {
+    try {
+        const saved = localStorage.getItem('mcp-user-identity');
+        if (saved) {
+            currentUser = { ...currentUser, ...JSON.parse(saved) };
+            updateUserStatusDisplay();
+        }
+    } catch (error) {
+        logError('Failed to load user identity', error);
+    }
+}
+
+/**
+ * Save current user identity to localStorage
+ */
+function saveUserIdentity() {
+    try {
+        localStorage.setItem('mcp-user-identity', JSON.stringify(currentUser));
+        updateUserStatusDisplay();
+    } catch (error) {
+        logError('Failed to save user identity', error);
+    }
+}
+
+/**
+ * Update the user status display in header
+ */
+function updateUserStatusDisplay() {
+    const userIdElement = document.getElementById('current-user-id');
+    const userRoleElement = document.getElementById('current-user-role');
+    const registerBtn = document.getElementById('register-btn');
+
+    if (currentUser.isRegistered && currentUser.instanceId) {
+        userIdElement.textContent = currentUser.instanceId;
+        userRoleElement.textContent = currentUser.role || '';
+        registerBtn.textContent = 'Change Identity';
+    } else {
+        userIdElement.textContent = 'Not Registered';
+        userRoleElement.textContent = '';
+        registerBtn.textContent = 'Register/Change Identity';
+    }
+}
+
+/**
+ * Show registration modal
+ */
+function showRegistrationModal() {
+    const modal = document.getElementById('registrationModal');
+    const instanceIdInput = document.getElementById('instanceId');
+    const roleSelect = document.getElementById('instanceRole');
+
+    // Pre-populate with current values
+    if (currentUser.instanceId) {
+        instanceIdInput.value = currentUser.instanceId;
+    }
+    if (currentUser.role) {
+        roleSelect.value = currentUser.role;
+    }
+
+    modal.style.display = 'block';
+}
+
+/**
+ * Close registration modal
+ */
+function closeRegistrationModal() {
+    document.getElementById('registrationModal').style.display = 'none';
+}
+
+/**
+ * Register/update instance with MCP server
+ */
+async function registerInstance() {
+    const instanceId = document.getElementById('instanceId').value.trim();
+    const role = document.getElementById('instanceRole').value;
+    const capabilitiesStr = document.getElementById('instanceCapabilities').value.trim();
+
+    if (!instanceId) {
+        showErrorMessage('Instance ID is required');
+        return;
+    }
+
+    try {
+        logInfo('🔄 Registering instance', { instanceId, role });
+
+        const capabilities = capabilitiesStr ?
+            capabilitiesStr.split(',').map(c => c.trim()).filter(c => c) :
+            [];
+
+        const result = await mcpCall('register_instance', {
+            instanceId: instanceId,
+            role: role,
+            capabilities: capabilities
+        });
+
+        if (result && result.success !== false) {
+            logInfo('✅ Instance registered successfully', result);
+
+            // Update current user state
+            currentUser = {
+                instanceId: instanceId,
+                role: role,
+                capabilities: capabilities,
+                isRegistered: true
+            };
+
+            // Update global config
+            CONFIG.EXECUTIVE_INSTANCE_ID = instanceId;
+
+            saveUserIdentity();
+            closeRegistrationModal();
+            showSuccessMessage(`Successfully registered as ${instanceId} (${role})`);
+
+            // Refresh system data
+            refreshSystemStatus();
+            loadMessages();
+
+        } else {
+            logError('Registration failed', result);
+            showErrorMessage('Registration failed: ' + (result?.error?.message || 'Unknown error'));
+        }
+
+    } catch (error) {
+        logError('Error during registration', error);
+        showErrorMessage('Registration error: ' + error.message);
+    }
+}
+
+// ============================================================================
+// SYSTEM STATUS AND INSTANCES MANAGEMENT
+// ============================================================================
+
+/**
+ * Load and display instances and roles
+ */
+async function loadSystemStatus() {
+    try {
+        logInfo('🔄 Loading system status');
+
+        const instancesResult = await mcpCall('get_instances', { active_only: false });
+
+        if (instancesResult && instancesResult.instances) {
+            displayInstances(instancesResult.instances);
+            displayRoles(instancesResult.instances);
+            logInfo('✅ System status loaded', {
+                total: instancesResult.total,
+                instances: instancesResult.instances.length
+            });
+        } else {
+            logError('Failed to load instances', instancesResult);
+            showErrorMessage('Failed to load system status');
+        }
+
+    } catch (error) {
+        logError('Error loading system status', error);
+        showErrorMessage('Error loading system status: ' + error.message);
+    }
+}
+
+/**
+ * Display instances list
+ */
+function displayInstances(instances) {
+    const container = document.getElementById('instances-list');
+
+    if (!instances || instances.length === 0) {
+        container.innerHTML = '<div class="loading-placeholder">No instances found</div>';
+        return;
+    }
+
+    // Sort: active first, then by last seen
+    const sortedInstances = [...instances].sort((a, b) => {
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (b.status === 'active' && a.status !== 'active') return 1;
+        return new Date(b.last_seen) - new Date(a.last_seen);
+    });
+
+    let html = '';
+    let lastWasActive = true;
+
+    sortedInstances.forEach((instance) => {
+        const isActive = instance.status === 'active';
+
+        // Add separator between active and inactive
+        if (lastWasActive && !isActive) {
+            html += '<div style="border-top: 1px solid var(--border-color); margin: 1rem 0; padding-top: 1rem; font-size: 0.75rem; color: var(--text-secondary); text-align: center;">Inactive Instances</div>';
+        }
+        lastWasActive = isActive;
+
+        const lastSeen = new Date(instance.last_seen);
+        const timeAgo = getTimeAgo(lastSeen);
+
+        html += `
+            <div class="instance-item ${isActive ? 'active' : 'inactive'}"
+                 onclick="selectInstanceForMessage('${instance.id}')"
+                 title="Click to send message to ${instance.id}">
+                <div class="instance-info">
+                    <div class="instance-id">${instance.id}</div>
+                    <div class="instance-role">${instance.role}</div>
+                </div>
+                <div class="instance-status">
+                    <div class="status-indicator ${isActive ? 'active' : ''}"></div>
+                    <span>${timeAgo}</span>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Display roles with counts
+ */
+function displayRoles(instances) {
+    const container = document.getElementById('roles-list');
+    const badge = document.getElementById('total-instances-badge');
+
+    // Count roles
+    const roleCounts = {};
+    instances.forEach(instance => {
+        const role = instance.role || 'Unknown';
+        roleCounts[role] = (roleCounts[role] || 0) + 1;
+    });
+
+    // Update total badge
+    badge.textContent = `${instances.length} Total`;
+
+    // Sort roles by count (descending)
+    const sortedRoles = Object.entries(roleCounts).sort((a, b) => b[1] - a[1]);
+
+    let html = '';
+    sortedRoles.forEach(([role, count]) => {
+        html += `
+            <div class="role-item">
+                <div class="role-name">${role}</div>
+                <div class="role-count">${count}</div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html || '<div class="loading-placeholder">No roles found</div>';
+}
+
+/**
+ * Select instance for messaging
+ */
+function selectInstanceForMessage(instanceId) {
+    logInfo('📧 Selecting instance for message', { instanceId });
+
+    // Open message modal with instance pre-selected
+    showSendMessage();
+
+    // Pre-populate recipient
+    const recipientSelect = document.getElementById('messageRecipient');
+
+    // Try to find the instance in the dropdown options
+    let optionFound = false;
+    for (let option of recipientSelect.options) {
+        if (option.value === instanceId) {
+            option.selected = true;
+            optionFound = true;
+            break;
+        }
+    }
+
+    // If not found in dropdown, use custom option
+    if (!optionFound) {
+        recipientSelect.value = 'custom';
+        toggleCustomRecipient();
+        document.getElementById('customRecipient').value = instanceId;
+    }
+}
+
+/**
+ * Refresh system status
+ */
+async function refreshSystemStatus() {
+    logInfo('🔄 Refreshing system status');
+    await loadSystemStatus();
+}
+
+/**
+ * Get human readable time ago string
+ */
+function getTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
 }
 
 window.ExecutiveDashboard = {
