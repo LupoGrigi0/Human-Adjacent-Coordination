@@ -18,7 +18,7 @@ const CONFIG = {
     CONNECTION_CHECK_INTERVAL: 5000, // 5 seconds
     
     // Executive instance ID for message routing
-    EXECUTIVE_INSTANCE_ID: 'Lupo',
+    EXECUTIVE_INSTANCE_ID: 'aria-ui-dev',
     
     // SSL handling for self-signed certificates
     SSL_IGNORE_ERRORS: true
@@ -68,9 +68,117 @@ function log(level, message, data = null) {
     const colors = ['color: #666', 'color: #0066ff', 'color: #ff9900', 'color: #ff0000'];
     console.log(`%c[${timestamp}] ${levelNames[level]}: ${message}`, colors[level], data || '');
 
+    // Store in localStorage for debugging
+    try {
+        localStorage.setItem('dashboard-debug-logs', JSON.stringify(logs.slice(-50))); // Keep last 50 entries
+    } catch (e) {
+        // localStorage might be full, ignore
+    }
+
     // Keep only last 100 logs
     if (logs.length > 100) {
         logs.shift();
+    }
+}
+
+/**
+ * Download logs as a file for debugging
+ */
+function downloadLogs() {
+    const logsData = {
+        timestamp: new Date().toISOString(),
+        instance: 'aria-ui-dev',
+        total_entries: logs.length,
+        logs: logs
+    };
+
+    const dataStr = JSON.stringify(logsData, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(dataBlob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dashboard-logs-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    logInfo('🗄️ Debug logs downloaded', { entries: logs.length });
+}
+
+/**
+ * Create debug panel for live log viewing
+ */
+function createDebugPanel() {
+    // Add a debug button to the header
+    const header = document.querySelector('.header .header-actions');
+    if (header && !document.getElementById('debug-panel-btn')) {
+        const debugBtn = document.createElement('button');
+        debugBtn.id = 'debug-panel-btn';
+        debugBtn.className = 'btn-secondary';
+        debugBtn.innerHTML = '🔍 Debug';
+        debugBtn.style.cssText = 'margin-left: 10px; font-size: 0.9rem;';
+        debugBtn.onclick = toggleDebugPanel;
+        header.appendChild(debugBtn);
+    }
+}
+
+function toggleDebugPanel() {
+    let panel = document.getElementById('debug-panel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'debug-panel';
+        panel.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 400px;
+            height: 300px;
+            background: var(--background-color);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            z-index: 1000;
+            overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        `;
+
+        panel.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0; color: var(--text-color);">Debug Logs</h3>
+                <div>
+                    <button onclick="downloadLogs()" class="btn-secondary" style="margin-right: 5px; font-size: 0.8rem;">📥 Download</button>
+                    <button onclick="toggleDebugPanel()" class="btn-secondary" style="font-size: 0.8rem;">✖️</button>
+                </div>
+            </div>
+            <div id="debug-log-content" style="font-family: monospace; font-size: 0.75rem; color: var(--text-color); line-height: 1.2;"></div>
+        `;
+
+        document.body.appendChild(panel);
+        updateDebugPanel();
+    } else {
+        panel.remove();
+    }
+}
+
+function updateDebugPanel() {
+    const content = document.getElementById('debug-log-content');
+    if (content) {
+        const recentLogs = logs.slice(-20); // Show last 20 entries
+        content.innerHTML = recentLogs.map(entry =>
+            `<div style="margin-bottom: 5px; padding: 3px; border-left: 3px solid ${
+                entry.level === 'ERROR' ? '#ff0000' :
+                entry.level === 'WARN' ? '#ff9900' :
+                entry.level === 'INFO' ? '#0066ff' : '#666'
+            }; padding-left: 8px;">
+                <div><strong>[${entry.timestamp.slice(11,19)}] ${entry.level}:</strong> ${entry.message}</div>
+                ${entry.data ? `<div style="color: #888; font-size: 0.7rem;">${JSON.stringify(entry.data).slice(0,100)}${JSON.stringify(entry.data).length > 100 ? '...' : ''}</div>` : ''}
+            </div>`
+        ).join('');
+
+        // Auto-scroll to bottom
+        content.scrollTop = content.scrollHeight;
     }
 }
 
@@ -91,6 +199,18 @@ window.downloadLogs = () => {
     a.click();
     URL.revokeObjectURL(url);
 };
+
+// Utility function for date formatting
+function formatDate(dateString) {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleString();
+    } catch (error) {
+        logWarn('Invalid date format', { dateString, error });
+        return dateString;
+    }
+}
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
@@ -178,7 +298,8 @@ async function initializeDashboard() {
         await connectToMCPSystem();
         await loadDashboardData();
         startPeriodicUpdates();
-        
+        createDebugPanel(); // Add debug panel button
+
         showSuccessMessage('Executive Dashboard loaded successfully');
     } catch (error) {
         console.error('Dashboard initialization failed:', error);
@@ -356,6 +477,16 @@ async function mcpCall(functionName, params = {}) {
     
     logInfo(`📞 MCP Call [${state.serverType.toUpperCase()}]: ${functionName}`, { params, url });
     logDebug(`📞 Request Payload:`, requestData);
+
+    // Special detailed logging for send_message
+    if (functionName === 'send_message') {
+        logInfo('🔍 DETAILED MESSAGE DEBUG:', {
+            function: functionName,
+            serverType: state.serverType,
+            endpoint: url,
+            payload: JSON.stringify(requestData, null, 2)
+        });
+    }
     
     const response = await fetch(url, {
         method: 'POST',
@@ -375,6 +506,18 @@ async function mcpCall(functionName, params = {}) {
     
     const result = await response.json();
     logInfo(`✅ MCP Response [${state.serverType.toUpperCase()}]:`, result);
+
+    // Special detailed logging for send_message responses
+    if (functionName === 'send_message') {
+        logInfo('📩 DETAILED MESSAGE RESPONSE:', {
+            httpStatus: response.status,
+            httpStatusText: response.statusText,
+            responseBody: JSON.stringify(result, null, 2),
+            hasError: !!result.error,
+            errorMessage: result.error?.message || result.error,
+            success: !result.error
+        });
+    }
     
     // Handle different response formats
     if (result.error) {
@@ -482,21 +625,45 @@ async function loadTasks() {
  */
 async function loadMessages() {
     try {
-        const result = await mcpCall('get_messages', {
+        logInfo('🔍 Loading messages for multiple sources...');
+
+        // Load messages for current instance
+        const instanceResult = await mcpCall('get_messages', {
             instanceId: CONFIG.EXECUTIVE_INSTANCE_ID,
             limit: 20
         });
-        console.log('Parsed messages response:', result);
-        
-        // Extract messages from parsed response
-        const messages = result.messages || [];
-        state.messages = Array.isArray(messages) ? messages : [];
-        
-        console.log(`📨 Loaded ${state.messages.length} messages`);
+
+        // Load messages sent to ALL
+        const allResult = await mcpCall('get_messages', {
+            instanceId: 'ALL',
+            limit: 20
+        });
+
+        console.log('Parsed instance messages response:', instanceResult);
+        console.log('Parsed ALL messages response:', allResult);
+
+        // Combine messages from both sources
+        const instanceMessages = instanceResult.messages || [];
+        const allMessages = allResult.messages || [];
+
+        // Merge and deduplicate by message ID
+        const allMessagesMap = new Map();
+        [...instanceMessages, ...allMessages].forEach(msg => {
+            if (msg && msg.id) {
+                allMessagesMap.set(msg.id, msg);
+            }
+        });
+
+        // Convert back to array and sort by creation date (newest first)
+        state.messages = Array.from(allMessagesMap.values()).sort((a, b) =>
+            new Date(b.created || b.timestamp) - new Date(a.created || a.timestamp)
+        );
+
+        logInfo(`📨 Loaded ${instanceMessages.length} instance messages + ${allMessages.length} ALL messages = ${state.messages.length} total`);
         return state.messages;
-        
+
     } catch (error) {
-        console.error('Failed to load messages:', error);
+        logError('Failed to load messages', error);
         state.messages = [];
         throw error;
     }
@@ -506,9 +673,8 @@ async function loadMessages() {
  * Update dashboard overview metrics
  */
 function updateDashboardOverview() {
-    const activeProjects = state.projects.filter(p => p.status === 'active').length;
     const pendingTasks = state.tasks.filter(t => t.status === 'pending').length;
-    const unreadMessages = state.messages.filter(m => !m.read).length;
+    const unreadMessages = state.messages.filter(m => m.status === 'unread').length;
     
     document.getElementById('total-projects').textContent = state.projects.length;
     document.getElementById('pending-tasks').textContent = pendingTasks;
@@ -606,6 +772,10 @@ function renderAllTasks() {
                     return task.status === 'pending';
                 case 'in-progress':
                     return task.status === 'in-progress';
+                case 'completed':
+                    return task.status === 'completed';
+                case 'active':
+                    return task.status !== 'completed';
                 case 'critical':
                     return task.priority === 'critical';
                 case 'high':
@@ -639,22 +809,363 @@ function renderAllTasks() {
 function renderTaskItem(task) {
     const isCompleted = task.status === 'completed';
     const priorityClass = `priority-${task.priority || 'medium'}`;
-    
+
     return `
         <div class="task-item" data-task-id="${task.id}">
-            <div class="task-checkbox ${isCompleted ? 'completed' : ''}" 
+            <div class="task-checkbox ${isCompleted ? 'completed' : ''}"
                  onclick="toggleTaskStatus('${task.id}', '${task.status}')">
             </div>
-            <div class="task-content">
-                <div class="task-title">${escapeHtml(task.title)}</div>
+            <div class="task-content" onclick="showTaskDetail('${task.id}')">
+                <div class="task-title"
+                     ondblclick="event.stopPropagation(); toggleTitleEdit('${task.id}', '${escapeHtml(task.title).replace(/'/g, '\\\'')}')"
+                     id="title-${task.id}">${escapeHtml(task.title)}</div>
                 <div class="task-meta">
-                    <span class="priority-badge ${priorityClass}">${task.priority || 'medium'}</span>
+                    <span class="priority-badge ${priorityClass}"
+                          onclick="event.stopPropagation(); togglePriorityEdit('${task.id}', '${task.priority || 'medium'}')"
+                          data-task-id="${task.id}"
+                          id="priority-${task.id}">${task.priority || 'medium'}</span>
                     ${task.project_id ? `• Project: ${task.project_id}` : ''}
                     ${task.assigned_to ? `• Assigned: ${task.assigned_to}` : ''}
                 </div>
             </div>
         </div>
     `;
+}
+
+/**
+ * Toggle priority inline editing
+ */
+function togglePriorityEdit(taskId, currentPriority) {
+    const priorityElement = document.getElementById(`priority-${taskId}`);
+    if (!priorityElement) return;
+
+    // Check if already editing
+    const existingSelect = document.querySelector(`#priority-select-${taskId}`);
+    if (existingSelect) {
+        return; // Already editing
+    }
+
+    // Create dropdown
+    const select = document.createElement('select');
+    select.id = `priority-select-${taskId}`;
+    select.className = 'priority-select-inline';
+    select.style.cssText = `
+        font-size: 0.75rem;
+        padding: 2px 4px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        background: var(--background-color);
+        min-width: 80px;
+        cursor: pointer;
+    `;
+
+    // Add options
+    const priorities = [
+        { value: 'low', label: 'Low' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'high', label: 'High' },
+        { value: 'critical', label: 'Critical' }
+    ];
+
+    priorities.forEach(priority => {
+        const option = document.createElement('option');
+        option.value = priority.value;
+        option.textContent = priority.label;
+        if (priority.value === currentPriority) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+
+    // Handle selection change
+    select.addEventListener('change', async function() {
+        const newPriority = this.value;
+        await updateTaskPriority(taskId, newPriority);
+        restorePriorityBadge(taskId, newPriority);
+    });
+
+    // Handle click outside to cancel
+    select.addEventListener('blur', function() {
+        restorePriorityBadge(taskId, currentPriority);
+    });
+
+    // Handle escape key
+    select.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            restorePriorityBadge(taskId, currentPriority);
+        }
+    });
+
+    // Replace badge with dropdown
+    priorityElement.style.display = 'none';
+    priorityElement.parentNode.insertBefore(select, priorityElement);
+    select.focus();
+}
+
+function restorePriorityBadge(taskId, priority) {
+    const priorityElement = document.getElementById(`priority-${taskId}`);
+    const selectElement = document.getElementById(`priority-select-${taskId}`);
+
+    if (selectElement) {
+        selectElement.remove();
+    }
+
+    if (priorityElement) {
+        // Update the badge content and class
+        priorityElement.textContent = priority;
+        priorityElement.className = `priority-badge priority-${priority}`;
+        priorityElement.style.display = '';
+    }
+}
+
+async function updateTaskPriority(taskId, newPriority) {
+    try {
+        logInfo('Updating task priority', { taskId, newPriority });
+
+        const result = await mcpCall('update_task', {
+            id: taskId,
+            updates: { priority: newPriority }
+        });
+
+        if (result && result.success !== false) {
+            // Update local state
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.priority = newPriority;
+            }
+
+            showSuccessMessage(`Task priority updated to ${newPriority}`);
+
+            // Refresh current view to reflect changes
+            renderCurrentView();
+            updateDashboardOverview();
+        } else {
+            showErrorMessage('Failed to update task priority: ' + (result?.error?.message || 'Unknown error'));
+        }
+
+    } catch (error) {
+        logError('Error updating task priority', error);
+        showErrorMessage('Error updating task priority: ' + error.message);
+    }
+}
+
+/**
+ * Toggle title inline editing
+ */
+function toggleTitleEdit(taskId, currentTitle) {
+    const titleElement = document.getElementById(`title-${taskId}`);
+    if (!titleElement) return;
+
+    // Check if already editing
+    const existingInput = document.querySelector(`#title-input-${taskId}`);
+    if (existingInput) {
+        return; // Already editing
+    }
+
+    // Create input field
+    const input = document.createElement('input');
+    input.id = `title-input-${taskId}`;
+    input.type = 'text';
+    input.value = currentTitle;
+    input.style.cssText = `
+        font-size: inherit;
+        font-weight: inherit;
+        padding: 2px 4px;
+        border: 1px solid var(--primary-color);
+        border-radius: 4px;
+        background: var(--background-color);
+        color: var(--text-color);
+        width: 100%;
+        margin: -2px -4px;
+        box-sizing: border-box;
+    `;
+
+    // Handle Enter key to save
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const newTitle = this.value.trim();
+            if (newTitle && newTitle !== currentTitle) {
+                updateTaskTitle(taskId, newTitle);
+                restoreTaskTitle(taskId, newTitle);
+            } else {
+                restoreTaskTitle(taskId, currentTitle);
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            restoreTaskTitle(taskId, currentTitle);
+        }
+    });
+
+    // Handle blur to save/cancel
+    input.addEventListener('blur', function() {
+        const newTitle = this.value.trim();
+        if (newTitle && newTitle !== currentTitle) {
+            updateTaskTitle(taskId, newTitle);
+            restoreTaskTitle(taskId, newTitle);
+        } else {
+            restoreTaskTitle(taskId, currentTitle);
+        }
+    });
+
+    // Replace title with input
+    titleElement.style.display = 'none';
+    titleElement.parentNode.insertBefore(input, titleElement);
+    input.focus();
+    input.select();
+}
+
+function restoreTaskTitle(taskId, title) {
+    const titleElement = document.getElementById(`title-${taskId}`);
+    const inputElement = document.getElementById(`title-input-${taskId}`);
+
+    if (inputElement) {
+        inputElement.remove();
+    }
+
+    if (titleElement) {
+        titleElement.textContent = title;
+        titleElement.style.display = '';
+    }
+}
+
+async function updateTaskTitle(taskId, newTitle) {
+    try {
+        logInfo('Updating task title', { taskId, newTitle });
+
+        const result = await mcpCall('update_task', {
+            id: taskId,
+            updates: { title: newTitle }
+        });
+
+        if (result && result.success !== false) {
+            // Update local state
+            const task = state.tasks.find(t => t.id === taskId);
+            if (task) {
+                task.title = newTitle;
+            }
+
+            showSuccessMessage('Task title updated successfully');
+
+            // Refresh current view to reflect changes
+            renderCurrentView();
+            updateDashboardOverview();
+        } else {
+            showErrorMessage('Failed to update task title: ' + (result?.error?.message || 'Unknown error'));
+        }
+
+    } catch (error) {
+        logError('Error updating task title', error);
+        showErrorMessage('Error updating task title: ' + error.message);
+    }
+}
+
+/**
+ * Toggle project description inline editing
+ */
+function toggleProjectDescriptionEdit(projectId, currentDescription) {
+    const descElement = document.getElementById(`description-${projectId}`);
+    if (!descElement) return;
+
+    // Check if already editing
+    const existingTextarea = document.querySelector(`#description-textarea-${projectId}`);
+    if (existingTextarea) {
+        return; // Already editing
+    }
+
+    // Create textarea for multi-line editing
+    const textarea = document.createElement('textarea');
+    textarea.id = `description-textarea-${projectId}`;
+    textarea.value = currentDescription || '';
+    textarea.placeholder = 'Enter project description...';
+    textarea.style.cssText = `
+        font-size: inherit;
+        font-family: inherit;
+        padding: 8px;
+        border: 1px solid var(--primary-color);
+        border-radius: 4px;
+        background: var(--background-color);
+        color: var(--text-color);
+        width: 100%;
+        min-height: 60px;
+        resize: vertical;
+        margin: -4px 0;
+        box-sizing: border-box;
+    `;
+
+    // Handle keyboard shortcuts
+    textarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            // Ctrl+Enter to save
+            e.preventDefault();
+            const newDescription = this.value.trim();
+            updateProjectDescription(projectId, newDescription);
+            restoreProjectDescription(projectId, newDescription);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            restoreProjectDescription(projectId, currentDescription);
+        }
+    });
+
+    // Handle blur to save
+    textarea.addEventListener('blur', function() {
+        const newDescription = this.value.trim();
+        if (newDescription !== currentDescription) {
+            updateProjectDescription(projectId, newDescription);
+        }
+        restoreProjectDescription(projectId, newDescription || currentDescription);
+    });
+
+    // Replace description with textarea
+    descElement.style.display = 'none';
+    descElement.parentNode.insertBefore(textarea, descElement);
+    textarea.focus();
+    textarea.select();
+}
+
+function restoreProjectDescription(projectId, description) {
+    const descElement = document.getElementById(`description-${projectId}`);
+    const textareaElement = document.getElementById(`description-textarea-${projectId}`);
+
+    if (textareaElement) {
+        textareaElement.remove();
+    }
+
+    if (descElement) {
+        descElement.textContent = description || 'Click to add description...';
+        descElement.style.display = '';
+    }
+}
+
+async function updateProjectDescription(projectId, newDescription) {
+    try {
+        logInfo('Updating project description', { projectId, newDescription });
+
+        const result = await mcpCall('update_project', {
+            id: projectId,
+            updates: { description: newDescription }
+        });
+
+        if (result && result.success !== false) {
+            // Update local state
+            const project = state.projects.find(p => p.id === projectId);
+            if (project) {
+                project.description = newDescription;
+            }
+
+            showSuccessMessage('Project description updated successfully');
+
+            // Refresh current view to reflect changes
+            renderCurrentView();
+            updateDashboardOverview();
+        } else {
+            showErrorMessage('Failed to update project description: ' + (result?.error?.message || 'Unknown error'));
+        }
+
+    } catch (error) {
+        logError('Error updating project description', error);
+        showErrorMessage('Error updating project description: ' + error.message);
+    }
 }
 
 /**
@@ -714,7 +1225,9 @@ function renderProjectCard(project) {
                 ${project.status || 'active'}
             </div>
             <h3 class="project-title">${escapeHtml(project.name)}</h3>
-            <p class="project-description">${escapeHtml(project.description || '')}</p>
+            <p class="project-description"
+               ondblclick="event.stopPropagation(); toggleProjectDescriptionEdit('${project.id}', '${escapeHtml(project.description || '').replace(/'/g, '\\\'')}')"
+               id="description-${project.id}">${escapeHtml(project.description || 'Click to add description...')}</p>
             <div class="project-meta">
                 <div class="priority-badge ${priorityClass}">${project.priority || 'medium'} priority</div>
                 <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
@@ -760,15 +1273,36 @@ function renderMessages() {
  */
 function renderMessage(message) {
     const date = new Date(message.timestamp || message.created).toLocaleString();
-    
+    const isUnread = message.status === 'unread';
+    const priorityClass = `priority-${message.priority || 'normal'}`;
+
+    // Truncate content for preview
+    const content = message.body || message.content || message.message || '';
+    const preview = content.length > 100 ? content.substring(0, 100) + '...' : content;
+
     return `
-        <div class="message-item">
-            <div class="message-header">
-                <div class="message-from">${escapeHtml(message.from || 'System')}</div>
-                <div class="message-time">${date}</div>
+        <div class="message-item ${isUnread ? 'unread' : 'read'}"
+             onclick="showMessageDetail('${message.id}')"
+             style="cursor: pointer; transition: all 0.2s; ${isUnread ? 'font-weight: bold; border-left: 4px solid var(--primary-color);' : ''}"
+             onmouseover="this.style.background='var(--background-secondary)'"
+             onmouseout="this.style.background='var(--background-color)'">
+            <div class="message-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div class="message-from" style="font-weight: ${isUnread ? 'bold' : 'normal'};">
+                    ${isUnread ? '🔵 ' : ''}${escapeHtml(message.from || 'System')}
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--text-secondary);">
+                    <span class="priority-badge ${priorityClass}" style="font-size: 0.7rem; padding: 2px 6px;">
+                        ${message.priority || 'normal'}
+                    </span>
+                    <div class="message-time">${date}</div>
+                </div>
             </div>
-            <div class="message-subject">${escapeHtml(message.subject || 'No Subject')}</div>
-            <div class="message-content">${escapeHtml(message.content || message.message || '')}</div>
+            <div class="message-subject" style="font-weight: ${isUnread ? 'bold' : 'normal'}; margin-bottom: 5px; color: var(--text-color);">
+                ${escapeHtml(message.subject || 'No Subject')}
+            </div>
+            <div class="message-content" style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4;">
+                ${escapeHtml(preview)}
+            </div>
         </div>
     `;
 }
@@ -858,10 +1392,6 @@ function showCreateTask() {
     document.getElementById('taskModal').style.display = 'block';
 }
 
-function showCreateProject() {
-    // Project creation functionality - for future implementation
-    showSuccessMessage('Project creation will be available in next update!');
-}
 
 function showSendMessage() {
     populateInstanceOptions();
@@ -935,38 +1465,174 @@ function populateTaskProjectOptions() {
 /**
  * Send Message
  */
+/**
+ * Toggle custom recipient input visibility
+ */
+function toggleCustomRecipient() {
+    const select = document.getElementById('messageRecipient');
+    const customGroup = document.getElementById('customRecipientGroup');
+
+    if (select.value === 'custom') {
+        customGroup.style.display = 'block';
+        document.getElementById('customRecipient').focus();
+    } else {
+        customGroup.style.display = 'none';
+        document.getElementById('customRecipient').value = '';
+    }
+}
+
 async function sendMessage() {
-    const recipient = document.getElementById('messageRecipient').value;
+    let recipient = document.getElementById('messageRecipient').value;
     const subject = document.getElementById('messageSubject').value;
     const content = document.getElementById('messageContent').value;
     const priority = document.getElementById('messagePriority').value;
-    
+
+    // Handle custom recipient
+    if (recipient === 'custom') {
+        const customRecipient = document.getElementById('customRecipient').value.trim();
+        if (!customRecipient) {
+            showErrorMessage('Please enter a custom recipient name');
+            return;
+        }
+        recipient = customRecipient;
+    }
+
     if (!recipient || !subject || !content) {
         showErrorMessage('Please fill in all required fields');
         return;
     }
-    
+
+    logInfo('🚀 ATTEMPTING TO SEND MESSAGE', {
+        to: recipient,
+        from: CONFIG.EXECUTIVE_INSTANCE_ID,
+        subject,
+        content: content.substring(0, 50) + '...',
+        priority,
+        actualInstanceId: 'aria-ui-dev'
+    });
+
     try {
-        await mcpCall('send_message', {
+        const messagePayload = {
             to: recipient,
             from: CONFIG.EXECUTIVE_INSTANCE_ID,
             subject: subject,
             content: content,
             priority: priority
-        });
-        
-        showSuccessMessage(`Message sent to ${recipient}`);
+        };
+
+        logInfo('📤 Message payload being sent to MCP:', messagePayload);
+
+        const result = await mcpCall('send_message', messagePayload);
+
+        logInfo('📨 Send message MCP result:', result);
+
+        if (result && result.success !== false) {
+            showSuccessMessage(`✅ Message sent successfully to ${recipient}!`);
+            logInfo('✅ Message confirmed sent successfully');
+        } else {
+            logError('❌ Send message failed - server returned error:', result);
+            showErrorMessage('Failed to send message: ' + (result?.error?.message || result?.message || 'Unknown server error'));
+            return;
+        }
         closeMessageModal();
-        
+
+        // Clear form
+        document.getElementById('messageRecipient').value = '';
+        document.getElementById('messageSubject').value = '';
+        document.getElementById('messageContent').value = '';
+        document.getElementById('messagePriority').value = 'normal';
+        document.getElementById('customRecipient').value = '';
+        document.getElementById('customRecipientGroup').style.display = 'none';
+
         // Refresh messages to show the sent message
         await loadMessages();
         if (document.querySelector('#messages.active')) {
             renderMessages();
         }
-        
+
     } catch (error) {
-        console.error('Failed to send message:', error);
+        logError('Failed to send message', error);
         showErrorMessage('Failed to send message: ' + error.message);
+    }
+}
+
+/**
+ * Create Project Modal Functions
+ */
+function showCreateProject() {
+    document.getElementById('createProjectModal').style.display = 'block';
+    // Auto-generate a project ID based on the current timestamp
+    document.getElementById('projectId').value = '';
+    document.getElementById('projectName').focus();
+}
+
+function closeCreateProjectModal() {
+    document.getElementById('createProjectModal').style.display = 'none';
+    // Clear form
+    document.getElementById('projectId').value = '';
+    document.getElementById('projectName').value = '';
+    document.getElementById('projectDescription').value = '';
+    document.getElementById('projectPriority').value = 'medium';
+    document.getElementById('projectAssignee').value = '';
+}
+
+async function createProject() {
+    try {
+        const projectId = document.getElementById('projectId').value.trim();
+        const projectName = document.getElementById('projectName').value.trim();
+        const projectDescription = document.getElementById('projectDescription').value.trim();
+        const projectPriority = document.getElementById('projectPriority').value;
+        const projectAssignee = document.getElementById('projectAssignee').value.trim();
+
+        // Validation
+        if (!projectId) {
+            showErrorMessage('Please enter a project ID');
+            return;
+        }
+
+        if (!projectName) {
+            showErrorMessage('Please enter a project name');
+            return;
+        }
+
+        if (!projectDescription) {
+            showErrorMessage('Please enter a project description');
+            return;
+        }
+
+        // Validate project ID format (lowercase, hyphens, no spaces)
+        if (!/^[a-z0-9-]+$/.test(projectId)) {
+            showErrorMessage('Project ID must be lowercase letters, numbers, and hyphens only');
+            return;
+        }
+
+        logInfo('Creating new project', { projectId, projectName, projectPriority });
+
+        const result = await mcpCall('create_project', {
+            id: projectId,
+            name: projectName,
+            description: projectDescription,
+            priority: projectPriority,
+            assignee: projectAssignee || undefined,
+            status: 'active'
+        });
+
+        if (result.success) {
+            showSuccessMessage(`Project "${projectName}" created successfully!`);
+            closeCreateProjectModal();
+
+            // Refresh projects display
+            await loadProjects();
+            if (document.querySelector('#projects.active')) {
+                renderProjects();
+            }
+        } else {
+            showErrorMessage('Failed to create project: ' + (result.error?.message || 'Unknown error'));
+        }
+
+    } catch (error) {
+        logError('Error creating project', error);
+        showErrorMessage('Error creating project: ' + error.message);
     }
 }
 
@@ -1338,33 +2004,6 @@ function showCreateTaskForCurrentProject() {
 }
 
 /**
- * Toggle task status (for quick completion)
- */
-async function toggleTaskStatus(taskId, currentStatus) {
-    try {
-        const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
-        
-        await mcpCall('update_task', {
-            id: taskId,
-            updates: { status: newStatus }
-        });
-        
-        // Refresh project tasks
-        if (currentProjectId) {
-            await loadProjectTasks(currentProjectId);
-        }
-        
-        // Also refresh main dashboard
-        await loadTasks();
-        updateDashboardOverview();
-        
-    } catch (error) {
-        console.error('Failed to toggle task status:', error);
-        alert('Failed to update task status. Please try again.');
-    }
-}
-
-/**
  * Initialize project task search listener
  */
 function initializeProjectTaskSearch() {
@@ -1537,6 +2176,231 @@ function closeProjectEditModal() {
     currentEditingProject = null;
 }
 
+/**
+ * Task Detail Modal Functions
+ */
+function showTaskDetail(taskId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) {
+        showErrorMessage('Task not found');
+        return;
+    }
+
+    // Populate the modal with task data
+    document.getElementById('taskDetailTitle').textContent = `Task: ${task.title}`;
+    document.getElementById('detailTaskTitle').value = task.title || '';
+    document.getElementById('detailTaskDescription').value = task.description || '';
+    document.getElementById('detailTaskPriority').value = task.priority || 'medium';
+    document.getElementById('detailTaskStatus').value = task.status || 'pending';
+    document.getElementById('detailTaskProject').value = task.project_id || '';
+    document.getElementById('detailTaskAssignee').value = task.assigned_to || '';
+    document.getElementById('detailTaskEffort').value = task.estimated_effort || '';
+    document.getElementById('detailTaskCreated').value = task.created_at ? formatDate(task.created_at) : '';
+    document.getElementById('detailTaskId').value = task.id || '';
+
+    // Store current task ID for saving
+    document.getElementById('taskDetailModal').dataset.taskId = taskId;
+
+    // Show the modal
+    document.getElementById('taskDetailModal').style.display = 'block';
+}
+
+function closeTaskDetailModal() {
+    document.getElementById('taskDetailModal').style.display = 'none';
+    // Reset form states
+    document.getElementById('saveTaskBtn').style.display = 'none';
+    resetTaskDetailForm();
+}
+
+function resetTaskDetailForm() {
+    // Make all fields readonly again
+    document.getElementById('detailTaskTitle').readOnly = true;
+    document.getElementById('detailTaskDescription').readOnly = true;
+    document.getElementById('detailTaskPriority').disabled = true;
+
+    // Hide save button
+    document.getElementById('saveTaskBtn').style.display = 'none';
+}
+
+function enableTaskTitleEdit() {
+    document.getElementById('detailTaskTitle').readOnly = false;
+    document.getElementById('detailTaskTitle').focus();
+    document.getElementById('saveTaskBtn').style.display = 'inline-block';
+}
+
+function enableTaskDescriptionEdit() {
+    document.getElementById('detailTaskDescription').readOnly = false;
+    document.getElementById('detailTaskDescription').focus();
+    document.getElementById('saveTaskBtn').style.display = 'inline-block';
+}
+
+// Add event listener for priority changes
+document.addEventListener('DOMContentLoaded', function() {
+    const prioritySelect = document.getElementById('detailTaskPriority');
+    if (prioritySelect) {
+        prioritySelect.addEventListener('change', function() {
+            document.getElementById('detailTaskPriority').disabled = false;
+            document.getElementById('saveTaskBtn').style.display = 'inline-block';
+        });
+    }
+
+    const statusSelect = document.getElementById('detailTaskStatus');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', function() {
+            document.getElementById('saveTaskBtn').style.display = 'inline-block';
+        });
+    }
+});
+
+async function saveTaskDetails() {
+    const taskId = document.getElementById('taskDetailModal').dataset.taskId;
+    if (!taskId) {
+        showErrorMessage('No task selected');
+        return;
+    }
+
+    try {
+        const updates = {
+            title: document.getElementById('detailTaskTitle').value.trim(),
+            description: document.getElementById('detailTaskDescription').value.trim(),
+            priority: document.getElementById('detailTaskPriority').value,
+            status: document.getElementById('detailTaskStatus').value
+        };
+
+        logInfo('Saving task details', { taskId, updates });
+
+        const result = await mcpCall('update_task', {
+            id: taskId,
+            updates: updates
+        });
+
+        if (result && result.success !== false) {
+            showSuccessMessage('Task updated successfully!');
+            closeTaskDetailModal();
+
+            // Refresh tasks to show updated data
+            await loadTasks();
+            renderCurrentView();
+        } else {
+            showErrorMessage('Failed to update task: ' + (result?.error?.message || 'Unknown error'));
+        }
+
+    } catch (error) {
+        logError('Error updating task', error);
+        showErrorMessage('Error updating task: ' + error.message);
+    }
+}
+
+/**
+ * Message Detail Modal Functions
+ */
+let currentMessageId = null;
+
+function showMessageDetail(messageId) {
+    const message = state.messages.find(m => m.id === messageId);
+    if (!message) {
+        showErrorMessage('Message not found');
+        return;
+    }
+
+    currentMessageId = messageId;
+
+    // Populate modal with message data
+    document.getElementById('messageDetailSubject').textContent = message.subject || 'No Subject';
+    document.getElementById('messageDetailFrom').textContent = message.from || 'System';
+    document.getElementById('messageDetailTo').textContent = message.to || 'Unknown';
+    document.getElementById('messageDetailDate').textContent = new Date(message.created || message.timestamp).toLocaleString();
+    document.getElementById('messageDetailId').textContent = message.id;
+
+    // Set priority badge
+    const priorityElement = document.getElementById('messageDetailPriority');
+    priorityElement.textContent = message.priority || 'normal';
+    priorityElement.className = `priority-badge priority-${message.priority || 'normal'}`;
+
+    // Set message body
+    document.getElementById('messageDetailBody').textContent = message.body || message.content || message.message || 'No content';
+
+    // Show/hide mark as read button based on current status
+    const markReadBtn = document.getElementById('markReadBtn');
+    if (message.status === 'unread') {
+        markReadBtn.style.display = 'inline-block';
+        markReadBtn.textContent = '✓ Mark as Read';
+    } else {
+        markReadBtn.style.display = 'none';
+    }
+
+    // Show modal
+    document.getElementById('messageDetailModal').style.display = 'block';
+
+    logInfo('📧 Opened message detail', { messageId, subject: message.subject });
+}
+
+function closeMessageDetailModal() {
+    document.getElementById('messageDetailModal').style.display = 'none';
+    currentMessageId = null;
+}
+
+function replyToMessage() {
+    const message = state.messages.find(m => m.id === currentMessageId);
+    if (!message) {
+        showErrorMessage('Message not found for reply');
+        return;
+    }
+
+    // Close detail modal
+    closeMessageDetailModal();
+
+    // Open send message modal with pre-filled data
+    document.getElementById('messageRecipient').value = message.from;
+    document.getElementById('messageSubject').value = `Re: ${message.subject || 'No Subject'}`;
+    document.getElementById('messageContent').value = `\n\n--- Original Message ---\nFrom: ${message.from}\nDate: ${new Date(message.created || message.timestamp).toLocaleString()}\nSubject: ${message.subject}\n\n${message.body || message.content || message.message || ''}`;
+    document.getElementById('messageContent').focus();
+
+    // Show send message modal
+    showSendMessage();
+
+    logInfo('📧 Replying to message', { originalId: currentMessageId, replyTo: message.from });
+}
+
+async function markMessageAsRead() {
+    if (!currentMessageId) {
+        showErrorMessage('No message selected');
+        return;
+    }
+
+    try {
+        logInfo('📧 Marking message as read', { messageId: currentMessageId });
+
+        // Check if there's an update_message function available
+        const result = await mcpCall('update_message', {
+            id: currentMessageId,
+            updates: { status: 'read' }
+        });
+
+        if (result && result.success !== false) {
+            showSuccessMessage('Message marked as read');
+
+            // Update local state
+            const message = state.messages.find(m => m.id === currentMessageId);
+            if (message) {
+                message.status = 'read';
+            }
+
+            // Refresh messages and close modal
+            await loadMessages();
+            renderMessages();
+            closeMessageDetailModal();
+
+        } else {
+            showErrorMessage('Failed to mark message as read: ' + (result?.error?.message || 'Unknown error'));
+        }
+
+    } catch (error) {
+        logError('Error marking message as read', error);
+        showErrorMessage('Error marking message as read: ' + error.message);
+    }
+}
+
 window.ExecutiveDashboard = {
     state,
     loadDashboardData,
@@ -1556,5 +2420,22 @@ window.ExecutiveDashboard = {
     toggleTaskStatus,
     showProjectEditor,
     closeProjectEditModal,
-    saveProjectChanges
+    saveProjectChanges,
+    showTaskDetail,
+    closeTaskDetailModal,
+    enableTaskTitleEdit,
+    enableTaskDescriptionEdit,
+    saveTaskDetails,
+    togglePriorityEdit,
+    updateTaskPriority,
+    toggleTitleEdit,
+    updateTaskTitle,
+    toggleProjectDescriptionEdit,
+    updateProjectDescription,
+    downloadLogs,
+    toggleDebugPanel,
+    showMessageDetail,
+    closeMessageDetailModal,
+    replyToMessage,
+    markMessageAsRead
 };

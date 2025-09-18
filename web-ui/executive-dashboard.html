@@ -161,10 +161,12 @@
             transition: all 0.2s;
             white-space: nowrap;
             min-width: fit-content;
+            color: var(--text-secondary);
         }
 
         .nav-tab:hover {
             background: var(--background-color);
+            color: var(--text-primary);
         }
 
         .nav-tab.active {
@@ -292,25 +294,43 @@
             font-weight: 500;
         }
 
+        /* Priority Color Coding */
         .priority-critical {
-            background: #fef2f2;
-            color: var(--danger-color);
+            background-color: #fecaca; /* Pastel red */
+            color: #dc2626;
         }
-
         .priority-high {
-            background: #fff7ed;
-            color: var(--warning-color);
+            background-color: #bfdbfe; /* Light blue */
+            color: #2563eb;
         }
-
         .priority-medium {
-            background: #eff6ff;
-            color: var(--primary-color);
+            background-color: #fef3c7; /* Light yellow */
+            color: #d97706;
+        }
+        .priority-low {
+            background-color: #d1fae5; /* Light green */
+            color: #059669;
         }
 
-        .priority-low {
-            background: #f0fdf4;
-            color: var(--success-color);
+        /* Dark mode priority colors */
+        [data-theme="dark"] .priority-critical {
+            background-color: #fee2e2;
+            color: #ef4444;
         }
+        [data-theme="dark"] .priority-high {
+            background-color: #dbeafe;
+            color: #3b82f6;
+        }
+        [data-theme="dark"] .priority-medium {
+            background-color: #fef9c3;
+            color: #f59e0b;
+        }
+        [data-theme="dark"] .priority-low {
+            background-color: #dcfce7;
+            color: #10b981;
+        }
+
+        /* Removed - replaced with mobile-friendly colors above */
 
         /* Project Cards */
         .project-grid {
@@ -779,8 +799,10 @@
                 <input type="text" class="search-input" placeholder="Search tasks..." id="task-search">
                 <div class="filter-chips">
                     <span class="filter-chip active" data-filter="all">All</span>
+                    <span class="filter-chip" data-filter="active">Active</span>
                     <span class="filter-chip" data-filter="pending">Pending</span>
                     <span class="filter-chip" data-filter="in-progress">In Progress</span>
+                    <span class="filter-chip" data-filter="completed">Completed</span>
                     <span class="filter-chip" data-filter="critical">Critical</span>
                     <span class="filter-chip" data-filter="high">High Priority</span>
                 </div>
@@ -962,18 +984,33 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label for="messageRecipient">To:</label>
-                    <select id="messageRecipient" class="form-control">
+                    <select id="messageRecipient" class="form-control" onchange="toggleCustomRecipient()">
                         <option value="">Select recipient...</option>
+                        <optgroup label="Broadcast">
+                            <option value="ALL">ALL (Everyone)</option>
+                        </optgroup>
                         <optgroup label="Roles">
                             <option value="COO">COO</option>
                             <option value="PA">PA</option>
                             <option value="PM">PM</option>
+                            <option value="Executive">Executive</option>
+                            <option value="Developer">Developer</option>
+                            <option value="Tester">Tester</option>
+                            <option value="Designer">Designer</option>
                             <option value="Genevieve">Genevieve</option>
                         </optgroup>
                         <optgroup label="Active Instances" id="instanceOptions">
                             <!-- Populated dynamically -->
                         </optgroup>
+                        <optgroup label="Custom">
+                            <option value="custom">Other (Type name...)</option>
+                        </optgroup>
                     </select>
+                </div>
+                <div class="form-group" id="customRecipientGroup" style="display: none;">
+                    <label for="customRecipient">Custom Recipient:</label>
+                    <input type="text" id="customRecipient" class="form-control" placeholder="Enter recipient name or instance ID...">
+                    <small class="form-text">For someone not yet registered in the system</small>
                 </div>
                 <div class="form-group">
                     <label for="messageSubject">Subject:</label>
@@ -1040,6 +1077,177 @@
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeTaskModal()">Cancel</button>
                 <button class="btn" onclick="createTask()">Create Task</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Project Modal -->
+    <div id="createProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Project</h2>
+                <span class="close" onclick="closeCreateProjectModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="projectId">Project ID:</label>
+                    <input type="text" id="projectId" class="form-control" placeholder="unique-project-id">
+                    <small class="form-text">Unique identifier (lowercase, hyphens allowed)</small>
+                </div>
+                <div class="form-group">
+                    <label for="projectName">Project Name:</label>
+                    <input type="text" id="projectName" class="form-control" placeholder="Enter project name...">
+                </div>
+                <div class="form-group">
+                    <label for="projectDescription">Description:</label>
+                    <textarea id="projectDescription" class="form-control" rows="4" placeholder="Describe the project objectives and scope..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="projectPriority">Priority:</label>
+                    <select id="projectPriority" class="form-control">
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="projectAssignee">Project Manager/Architect:</label>
+                    <input type="text" id="projectAssignee" class="form-control" placeholder="Instance ID or name (optional)">
+                    <small class="form-text">Who will lead this project</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeCreateProjectModal()">Cancel</button>
+                <button class="btn" onclick="createProject()">Create Project</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Detail Modal -->
+    <div id="taskDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2 id="taskDetailTitle">Task Details</h2>
+                <span class="close" onclick="closeTaskDetailModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <div class="form-group">
+                            <label>Task Title:</label>
+                            <input type="text" id="detailTaskTitle" class="form-control" readonly>
+                            <button class="btn-secondary" onclick="enableTaskTitleEdit()" style="margin-top: 5px; font-size: 0.8rem;">Edit</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Description:</label>
+                            <textarea id="detailTaskDescription" class="form-control" rows="4" readonly></textarea>
+                            <button class="btn-secondary" onclick="enableTaskDescriptionEdit()" style="margin-top: 5px; font-size: 0.8rem;">Edit</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Priority:</label>
+                            <select id="detailTaskPriority" class="form-control" disabled>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-group">
+                            <label>Status:</label>
+                            <select id="detailTaskStatus" class="form-control">
+                                <option value="pending">Pending</option>
+                                <option value="claimed">Claimed</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="blocked">Blocked</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Project:</label>
+                            <input type="text" id="detailTaskProject" class="form-control" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Assigned To:</label>
+                            <input type="text" id="detailTaskAssignee" class="form-control" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Estimated Effort:</label>
+                            <input type="text" id="detailTaskEffort" class="form-control" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Created:</label>
+                            <input type="text" id="detailTaskCreated" class="form-control" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Task ID:</label>
+                            <input type="text" id="detailTaskId" class="form-control" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeTaskDetailModal()">Close</button>
+                <button class="btn" onclick="saveTaskDetails()" id="saveTaskBtn" style="display: none;">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Detail Modal -->
+    <div id="messageDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 id="messageDetailSubject">Message Details</h2>
+                <span class="close" onclick="closeMessageDetailModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="message-detail-content">
+                    <div class="message-meta" style="background: var(--background-secondary); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.9rem;">
+                            <div>
+                                <strong>From:</strong> <span id="messageDetailFrom"></span>
+                            </div>
+                            <div>
+                                <strong>To:</strong> <span id="messageDetailTo"></span>
+                            </div>
+                            <div>
+                                <strong>Date:</strong> <span id="messageDetailDate"></span>
+                            </div>
+                            <div>
+                                <strong>Priority:</strong> <span id="messageDetailPriority" class="priority-badge"></span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <strong>Message ID:</strong> <span id="messageDetailId" style="font-family: monospace; font-size: 0.8rem; color: var(--text-secondary);"></span>
+                        </div>
+                    </div>
+
+                    <div class="message-body-container">
+                        <h4 style="margin: 0 0 10px 0; color: var(--text-color);">Message:</h4>
+                        <div id="messageDetailBody" style="
+                            background: var(--background-color);
+                            border: 1px solid var(--border-color);
+                            border-radius: 8px;
+                            padding: 20px;
+                            min-height: 100px;
+                            white-space: pre-wrap;
+                            font-family: inherit;
+                            line-height: 1.6;
+                            color: var(--text-color);
+                        "></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeMessageDetailModal()">Close</button>
+                <button class="btn" onclick="replyToMessage()" style="margin-left: 10px;">
+                    📧 Reply
+                </button>
+                <button class="btn-secondary" onclick="markMessageAsRead()" id="markReadBtn" style="margin-left: 10px;">
+                    ✓ Mark as Read
+                </button>
             </div>
         </div>
     </div>
