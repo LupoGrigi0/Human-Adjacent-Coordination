@@ -14,6 +14,7 @@ DEV_DIR="/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination"
 PROD_DIR="/mnt/coordinaton_mcp_data/production"
 PROD_DATA_DIR="/mnt/coordinaton_mcp_data/production-data"
 BACKUP_DIR="/mnt/coordinaton_mcp_data/production-backups"
+DATA_BACKUP_DIR="/mnt/coordinaton_mcp_data/production-data-backups"
 
 # Colors for output
 RED='\033[0;31m'
@@ -78,7 +79,7 @@ setup_production_structure() {
     success "Production directory structure created"
 }
 
-# Backup current production (if exists)
+# Backup current production code (if exists)
 backup_production() {
     if [[ -d "$PROD_DIR/src" ]]; then
         log "Backing up current production deployment..."
@@ -87,12 +88,42 @@ backup_production() {
         BACKUP_PATH="$BACKUP_DIR/production_backup_$BACKUP_TIMESTAMP"
 
         cp -r "$PROD_DIR" "$BACKUP_PATH"
-        success "Production backed up to: $BACKUP_PATH"
+        success "Production code backed up to: $BACKUP_PATH"
 
         # Keep only last 5 backups
         ls -dt "$BACKUP_DIR"/production_backup_* | tail -n +6 | xargs rm -rf 2>/dev/null || true
     else
         log "No existing production deployment to backup"
+    fi
+}
+
+# Backup production data (always, before any changes)
+backup_production_data() {
+    if [[ -d "$PROD_DATA_DIR" ]]; then
+        log "Backing up production data..."
+
+        BACKUP_TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+        DATA_BACKUP_PATH="$DATA_BACKUP_DIR/production_data_$BACKUP_TIMESTAMP.tar.gz"
+
+        # Create backup directory
+        mkdir -p "$DATA_BACKUP_DIR"
+
+        # Create compressed tar archive of production data
+        tar -czf "$DATA_BACKUP_PATH" -C "$(dirname "$PROD_DATA_DIR")" "$(basename "$PROD_DATA_DIR")"
+
+        # Get backup size for reporting
+        BACKUP_SIZE=$(du -h "$DATA_BACKUP_PATH" | cut -f1)
+
+        success "Production data backed up to: $DATA_BACKUP_PATH ($BACKUP_SIZE)"
+
+        # Keep only last 10 data backups (data is more critical than code)
+        ls -dt "$DATA_BACKUP_DIR"/production_data_*.tar.gz | tail -n +11 | xargs rm -f 2>/dev/null || true
+
+        # List current backups
+        log "Available data backups:"
+        ls -lah "$DATA_BACKUP_DIR"/production_data_*.tar.gz 2>/dev/null | tail -5 || log "No previous data backups found"
+    else
+        warning "No production data directory found to backup"
     fi
 }
 
@@ -105,12 +136,55 @@ deploy_source() {
     cp -r "$DEV_DIR/web-ui" "$PROD_DIR/"
     cp -r "$DEV_DIR/scripts" "$PROD_DIR/"
     cp -r "$DEV_DIR/docs" "$PROD_DIR/"
+    cp -r "$DEV_DIR/config" "$PROD_DIR/"
 
     # Copy essential files
     cp "$DEV_DIR/package.json" "$PROD_DIR/" 2>/dev/null || true
     cp "$DEV_DIR/README.md" "$PROD_DIR/" 2>/dev/null || true
 
     success "Source code deployed to production"
+}
+
+# Deploy system configuration (nginx, systemd)
+deploy_system_config() {
+    log "Deploying system configuration..."
+
+    # Deploy nginx configuration
+    if [[ -f "$PROD_DIR/config/nginx/smoothcurves-nexus" ]]; then
+        log "Updating nginx configuration..."
+
+        # Backup current nginx config
+        if [[ -f "/etc/nginx/sites-enabled/smoothcurves-nexus" ]]; then
+            cp "/etc/nginx/sites-enabled/smoothcurves-nexus" "/etc/nginx/sites-enabled/smoothcurves-nexus.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+        fi
+
+        # Copy new nginx config
+        cp "$PROD_DIR/config/nginx/smoothcurves-nexus" "/etc/nginx/sites-available/"
+        ln -sf "/etc/nginx/sites-available/smoothcurves-nexus" "/etc/nginx/sites-enabled/"
+
+        # Test nginx configuration
+        if nginx -t 2>/dev/null; then
+            systemctl reload nginx || warning "Failed to reload nginx - manual restart may be needed"
+            success "nginx configuration updated"
+        else
+            error "nginx configuration test failed - restoring backup"
+            if [[ -f "/etc/nginx/sites-enabled/smoothcurves-nexus.backup.$(date +%Y%m%d_%H%M%S)" ]]; then
+                cp "/etc/nginx/sites-enabled/smoothcurves-nexus.backup.$(date +%Y%m%d_%H%M%S)" "/etc/nginx/sites-enabled/smoothcurves-nexus"
+            fi
+            return 1
+        fi
+    fi
+
+    # Deploy systemd service (only if not already exists)
+    if [[ -f "$PROD_DIR/config/systemd/mcp-coordination.service" ]] && [[ ! -f "/etc/systemd/system/mcp-coordination.service" ]]; then
+        log "Installing systemd service..."
+        cp "$PROD_DIR/config/systemd/mcp-coordination.service" "/etc/systemd/system/"
+        systemctl daemon-reload
+        systemctl enable mcp-coordination.service
+        success "systemd service installed"
+    fi
+
+    success "System configuration deployed"
 }
 
 # Update production configuration
@@ -214,10 +288,12 @@ main() {
 
     # Setup and backup
     setup_production_structure
-    backup_production
+    backup_production_data  # Backup data FIRST (most critical)
+    backup_production       # Then backup code
 
     # Deploy
     deploy_source
+    deploy_system_config    # Deploy nginx and systemd configs
     update_production_config
     migrate_production_data
 
@@ -230,6 +306,72 @@ main() {
     log "Production data: $PROD_DATA_DIR"
     log "Backups: $BACKUP_DIR"
 }
+
+# Restore production data from backup
+restore_production_data() {
+    if [[ -z "$1" ]]; then
+        error "Usage: restore_production_data <backup_filename>"
+        log "Available backups:"
+        ls -lah "$DATA_BACKUP_DIR"/production_data_*.tar.gz 2>/dev/null || log "No data backups found"
+        return 1
+    fi
+
+    local backup_file="$DATA_BACKUP_DIR/$1"
+    if [[ ! -f "$backup_file" ]]; then
+        backup_file="$1"  # Allow full path
+        if [[ ! -f "$backup_file" ]]; then
+            error "Backup file not found: $1"
+            return 1
+        fi
+    fi
+
+    log "Restoring production data from: $backup_file"
+
+    # Backup current data before restore
+    backup_production_data
+
+    # Remove current production data
+    rm -rf "$PROD_DATA_DIR"
+
+    # Extract backup
+    tar -xzf "$backup_file" -C "$(dirname "$PROD_DATA_DIR")"
+
+    success "Production data restored from: $backup_file"
+    log "Production server restart recommended"
+}
+
+# CLI command handling
+case "$1" in
+    --restore-data)
+        restore_production_data "$2"
+        exit $?
+        ;;
+    --list-backups)
+        log "Available data backups:"
+        ls -lah "$DATA_BACKUP_DIR"/production_data_*.tar.gz 2>/dev/null || log "No data backups found"
+        exit 0
+        ;;
+    --backup-data-only)
+        setup_production_structure
+        backup_production_data
+        exit 0
+        ;;
+    --help|-h)
+        echo "🚀 Production Deployment & Data Management Script"
+        echo ""
+        echo "Usage:"
+        echo "  $0                          # Deploy code to production"
+        echo "  $0 --backup-data-only       # Backup production data only"
+        echo "  $0 --restore-data <file>    # Restore production data from backup"
+        echo "  $0 --list-backups           # List available data backups"
+        echo "  $0 --help                   # Show this help"
+        echo ""
+        echo "Examples:"
+        echo "  $0 --restore-data production_data_20250918_063000.tar.gz"
+        echo "  $0 --backup-data-only"
+        exit 0
+        ;;
+esac
 
 # Handle interruption
 trap 'error "Deployment interrupted"; exit 1' INT TERM

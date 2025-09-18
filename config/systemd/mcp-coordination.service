@@ -1,0 +1,35 @@
+[Unit]
+Description=MCP Coordination System - Streamable HTTP Server
+Documentation=https://github.com/LupoGrigi0/Human-Adjacent-Coordination
+After=network.target nginx.service
+Wants=nginx.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/mnt/coordinaton_mcp_data/production
+ExecStart=/usr/bin/node src/streamable-http-server.js
+Environment=NODE_ENV=production
+Environment=SSE_PORT=3444
+Environment=SSE_HOST=localhost
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mcp-coordination
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/mnt/coordinaton_mcp_data/production-data
+ReadWritePaths=/mnt/coordinaton_mcp_data/production-data-backups
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
