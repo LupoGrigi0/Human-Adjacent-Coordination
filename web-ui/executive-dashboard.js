@@ -39,15 +39,81 @@ const state = {
     bootstrap: null
 };
 
+// Enhanced logging system
+const LOG_LEVELS = {
+    DEBUG: 0,
+    INFO: 1,
+    WARN: 2,
+    ERROR: 3
+};
+
+let currentLogLevel = LOG_LEVELS.DEBUG;
+const logs = [];
+
+function log(level, message, data = null) {
+    if (level < currentLogLevel) return;
+
+    const timestamp = new Date().toISOString();
+    const levelNames = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+    const logEntry = {
+        timestamp,
+        level: levelNames[level],
+        message,
+        data
+    };
+
+    logs.push(logEntry);
+
+    // Console output with colors
+    const colors = ['color: #666', 'color: #0066ff', 'color: #ff9900', 'color: #ff0000'];
+    console.log(`%c[${timestamp}] ${levelNames[level]}: ${message}`, colors[level], data || '');
+
+    // Keep only last 100 logs
+    if (logs.length > 100) {
+        logs.shift();
+    }
+}
+
+function logDebug(message, data) { log(LOG_LEVELS.DEBUG, message, data); }
+function logInfo(message, data) { log(LOG_LEVELS.INFO, message, data); }
+function logWarn(message, data) { log(LOG_LEVELS.WARN, message, data); }
+function logError(message, data) { log(LOG_LEVELS.ERROR, message, data); }
+
+// Export logs function for debugging
+window.getDashboardLogs = () => logs;
+window.clearDashboardLogs = () => logs.length = 0;
+window.downloadLogs = () => {
+    const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dashboard-logs-${new Date().toISOString()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 Executive Dashboard - Initializing...');
-    console.log(`🌐 Network Config - SSE: ${CONFIG.SSE_SERVER_URL}`);
-    console.log(`🌐 Network Config - HTTP: ${CONFIG.HTTP_SERVER_URL}`);
-    console.log(`📱 Host detected: ${window.location.hostname}`);
-    initializeTheme();
-    initializeDashboard();
-    initializeProjectTaskSearch();
+    logInfo('🚀 Executive Dashboard - Starting initialization');
+    logInfo(`🌐 Network Config - SSE: ${CONFIG.SSE_SERVER_URL}`);
+    logInfo(`🌐 Network Config - HTTP: ${CONFIG.HTTP_SERVER_URL}`);
+    logInfo(`📱 Host detected: ${window.location.hostname}`);
+    logInfo(`🔧 Current URL: ${window.location.href}`);
+    logInfo(`📊 User agent: ${navigator.userAgent}`);
+
+    try {
+        initializeTheme();
+        logInfo('✅ Theme system initialized');
+
+        initializeDashboard();
+        logInfo('✅ Dashboard initialization started');
+
+        initializeProjectTaskSearch();
+        logInfo('✅ Search system initialized');
+
+    } catch (error) {
+        logError('❌ Critical initialization error', error);
+    }
 });
 
 /**
@@ -151,30 +217,42 @@ function setupEventHandlers() {
  * Connect to MCP System (try SSE first, fallback to HTTP)
  */
 async function connectToMCPSystem() {
+    logInfo('🔌 Starting MCP connection process');
     updateConnectionStatus('Connecting...', false);
-    
+
     try {
         // Try SSE server first
-        console.log('Attempting SSE connection...');
+        logInfo('🔄 Attempting SSE connection...', { url: CONFIG.SSE_SERVER_URL });
         await testSSEConnection();
         state.serverType = 'sse';
+        logInfo('✅ SSE connection successful');
+
         await bootstrapExecutive();
         updateConnectionStatus('Connected (SSE)', true);
+        logInfo('🚀 MCP system connected via SSE');
         return;
-        
+
     } catch (sseError) {
-        console.log('SSE connection failed, trying HTTP fallback:', sseError.message);
-        
+        logWarn('⚠️ SSE connection failed, trying HTTP fallback', sseError);
+
         try {
             // Fallback to HTTP server
+            logInfo('🔄 Attempting HTTP connection...', { url: CONFIG.HTTP_SERVER_URL });
             await testHTTPConnection();
             state.serverType = 'http';
+            logInfo('✅ HTTP connection successful');
+
             await bootstrapExecutive();
             updateConnectionStatus('Connected (HTTP)', true);
+            logInfo('🚀 MCP system connected via HTTP');
             return;
-            
+
         } catch (httpError) {
-            console.error('Both connection attempts failed:', httpError);
+            logError('❌ Both connection attempts failed', {
+                sseError: sseError.message,
+                httpError: httpError.message
+            });
+            updateConnectionStatus('Connection Failed', false);
             throw new Error(`Connection failed: SSE (${sseError.message}) | HTTP (${httpError.message})`);
         }
     }
@@ -276,8 +354,8 @@ async function mcpCall(functionName, params = {}) {
         };
     }
     
-    console.log(`📞 MCP Call [${state.serverType.toUpperCase()}]: ${functionName}`, params);
-    console.log(`📞 Request Payload:`, requestData);
+    logInfo(`📞 MCP Call [${state.serverType.toUpperCase()}]: ${functionName}`, { params, url });
+    logDebug(`📞 Request Payload:`, requestData);
     
     const response = await fetch(url, {
         method: 'POST',
@@ -296,7 +374,7 @@ async function mcpCall(functionName, params = {}) {
     }
     
     const result = await response.json();
-    console.log(`✅ MCP Response [${state.serverType.toUpperCase()}]:`, result);
+    logInfo(`✅ MCP Response [${state.serverType.toUpperCase()}]:`, result);
     
     // Handle different response formats
     if (result.error) {

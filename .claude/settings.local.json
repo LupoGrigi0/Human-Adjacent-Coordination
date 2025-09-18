@@ -54,7 +54,9 @@
       "mcp__CoordinationSystem__get_projects",
       "mcp__CoordinationSystem__get_tasks",
       "mcp__CoordinationSystem__get_messages",
-      "mcp__CoordinationSystem__send_message"
+      "mcp__CoordinationSystem__send_message",
+      "Bash(./scripts/deploy-to-production.sh:*)",
+      "Read(//mnt/coordinaton_mcp_data/production/**)"
     ],
     "deny": [],
     "ask": []
