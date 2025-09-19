@@ -1105,19 +1105,31 @@ IP.2 = ::1
   async handleToolCall(name, args, session) {
     try {
       const callResult = await this.mcpServer.call(name, args || {});
-      
-      if (callResult.success) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(callResult, null, 2)
-            }
-          ]
-        };
-      } else {
+
+      if (callResult && callResult.success === false) {
         throw new Error(callResult.error?.message || 'Tool call failed');
       }
+
+      const payload = {
+        success: callResult?.success !== false,
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(callResult ?? {}, null, 2)
+          }
+        ],
+        data: callResult ?? null
+      };
+
+      if (callResult?.metadata !== undefined) {
+        payload.metadata = callResult.metadata;
+      }
+
+      if (callResult?.tools !== undefined) {
+        payload.tools = callResult.tools;
+      }
+
+      return payload;
     } catch (error) {
       await logger.error(`Tool call error: ${name}`, error.message);
       throw error;

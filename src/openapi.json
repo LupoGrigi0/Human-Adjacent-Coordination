@@ -136,7 +136,14 @@
                       "jsonrpc": "2.0",
                       "result": {
                         "success": true,
+                        "content": [
+                          {
+                            "type": "text",
+                            "text": "{\\n  \\\"success\\\": true,\\n  \\\"welcome\\\": \\\"Welcome COO instance my-instance-id\\\",\\n  \\\"role\\\": \\\"COO\\\",\\n  \\\"functions_available\\\": 44\\n}"
+                          }
+                        ],
                         "data": {
+                          "success": true,
                           "welcome": "Welcome COO instance my-instance-id",
                           "role": "COO",
                           "functions_available": 44,
@@ -157,18 +164,27 @@
                       "jsonrpc": "2.0",
                       "result": {
                         "success": true,
-                        "data": [
+                        "content": [
                           {
-                            "id": "project-alpha",
-                            "name": "Alpha Release",
-                            "status": "active",
-                            "priority": "high",
-                            "assignee": "instance-pm-001",
-                            "created": "2025-09-15T09:00:00Z",
-                            "tasks_count": 12,
-                            "completed_tasks": 8
+                            "type": "text",
+                            "text": "{\\n  \\\"success\\\": true,\\n  \\\"projects\\\": [\\n    {\\n      \\\"id\\\": \\\"project-alpha\\\",\\n      \\\"name\\\": \\\"Alpha Release\\\",\\n      \\\"status\\\": \\\"active\\\",\\n      \\\"priority\\\": \\\"high\\\"\\n    }\\n  ]\\n}"
                           }
                         ],
+                        "data": {
+                          "success": true,
+                          "projects": [
+                            {
+                              "id": "project-alpha",
+                              "name": "Alpha Release",
+                              "status": "active",
+                              "priority": "high",
+                              "assignee": "instance-pm-001",
+                              "created": "2025-09-15T09:00:00Z",
+                              "tasks_count": 12,
+                              "completed_tasks": 8
+                            }
+                          ]
+                        },
                         "metadata": {
                           "total": 1,
                           "page": 1,
@@ -331,7 +347,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "description": "Complete OpenAPI 3.1.1 specification"
+                  "description": "Complete OpenAPI 3.1.1 specification",
+                  "properties": {},
+                  "additionalProperties": true
                 }
               }
             }
@@ -466,31 +484,31 @@
       },
       "McpFunctionResult": {
         "type": "object",
-        "required": ["success"],
+        "description": "JSON-RPC result payload returned by the MCP server. The structure varies depending on the method invoked.",
         "properties": {
           "success": {
             "type": "boolean",
-            "description": "Whether the function executed successfully"
+            "description": "Legacy handlers include this flag to indicate success."
           },
           "data": {
             "oneOf": [
-              {"type": "object"},
-              {"type": "array"},
+              {"type": "object", "additionalProperties": true},
+              {"type": "array", "items": {}},
               {"type": "string"},
               {"type": "null"}
             ],
-            "description": "Function result data (varies by function)"
+            "description": "Raw handler response, provided alongside streamable content for convenience."
           },
-          "error": {
-            "type": "object",
-            "properties": {
-              "message": {"type": "string"},
-              "details": {"type": "string"},
-              "timestamp": {"type": "string", "format": "date-time"}
+          "content": {
+            "type": "array",
+            "description": "Streamable HTTP content items returned to MCP clients.",
+            "items": {
+              "$ref": "#/components/schemas/McpContentItem"
             }
           },
           "metadata": {
             "type": "object",
+            "description": "Optional paging and request metadata returned by certain handlers.",
             "properties": {
               "timestamp": {"type": "string", "format": "date-time"},
               "function": {"type": "string"},
@@ -498,9 +516,38 @@
               "total": {"type": "integer"},
               "page": {"type": "integer"},
               "limit": {"type": "integer"}
+            },
+            "additionalProperties": true
+          },
+          "tools": {
+            "type": "array",
+            "description": "Returned when listing MCP tools via tools/list.",
+            "items": {
+              "$ref": "#/components/schemas/FunctionDefinition"
             }
           }
-        }
+        },
+        "additionalProperties": true
+      },
+      "McpContentItem": {
+        "type": "object",
+        "description": "Streamable HTTP content item as defined by the MCP specification.",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["text", "resource", "input"]
+          },
+          "text": {
+            "type": "string",
+            "description": "Text payload encoded as UTF-8. Tool results are serialized JSON." 
+          },
+          "annotations": {
+            "type": "array",
+            "items": {"type": "object"}
+          }
+        },
+        "additionalProperties": true
       },
       "McpCapabilities": {
         "type": "object",

@@ -56,7 +56,12 @@
       "mcp__CoordinationSystem__get_messages",
       "mcp__CoordinationSystem__send_message",
       "Bash(./scripts/deploy-to-production.sh:*)",
-      "Read(//mnt/coordinaton_mcp_data/production/**)"
+      "Read(//mnt/coordinaton_mcp_data/production/**)",
+      "Bash(sudo systemctl restart:*)",
+      "mcp__CoordinationSystem__get_instances",
+      "Bash(sudo systemctl status:*)",
+      "Bash(sudo journalctl:*)",
+      "mcp__CoordinationSystem__get_server_status"
     ],
     "deny": [],
     "ask": []
