@@ -33,7 +33,7 @@ const state = {
     messages: [],
     instances: [],
     filters: {
-        tasks: 'all',
+        tasks: 'my-tasks',
         projects: 'all'
     },
     bootstrap: null
@@ -754,20 +754,20 @@ function renderCurrentView() {
 function renderPriorityTasks() {
     const container = document.getElementById('priority-tasks');
     
-    // Get high priority tasks and tasks assigned to executive
-    const priorityTasks = state.tasks.filter(task => 
-        task.priority === 'critical' || 
-        task.priority === 'high' || 
-        task.assigned_to === CONFIG.EXECUTIVE_INSTANCE_ID ||
-        task.status === 'in-progress'
+    // Get tasks relevant to current user (My Tasks focus)
+    const relevantTasks = state.tasks.filter(task =>
+        // Primary: tasks assigned to current user
+        task.assigned_to === currentUser.instanceId ||
+        // Secondary: high priority unassigned tasks (available to claim)
+        (task.assigned_to === null && (task.priority === 'critical' || task.priority === 'high'))
     ).slice(0, 10); // Limit to 10 most important
     
-    if (priorityTasks.length === 0) {
-        container.innerHTML = '<p class="card-subtitle">No priority tasks at this time.</p>';
+    if (relevantTasks.length === 0) {
+        container.innerHTML = '<p class="card-subtitle">No tasks assigned to you. Check the Tasks tab to claim available work!</p>';
         return;
     }
-    
-    container.innerHTML = priorityTasks.map(task => renderTaskItem(task)).join('');
+
+    container.innerHTML = relevantTasks.map(task => renderTaskItem(task)).join('');
 }
 
 /**
@@ -812,7 +812,10 @@ function renderAllTasks() {
     }
     
     if (filteredTasks.length === 0) {
-        container.innerHTML = '<p class="card-subtitle">No tasks found.</p>';
+        const message = state.filters.tasks === 'my-tasks'
+            ? 'No tasks assigned to you yet. Switch to "All" to see available tasks to claim!'
+            : 'No tasks found.';
+        container.innerHTML = `<p class="card-subtitle">${message}</p>`;
         return;
     }
     
