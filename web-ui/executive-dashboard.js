@@ -781,6 +781,9 @@ function renderAllTasks() {
     if (state.filters.tasks !== 'all') {
         filteredTasks = filteredTasks.filter(task => {
             switch (state.filters.tasks) {
+                case 'my-tasks':
+                    // Show tasks assigned to current user
+                    return task.assigned_to === currentUser.instanceId;
                 case 'pending':
                     return task.status === 'pending';
                 case 'in-progress':
@@ -839,6 +842,7 @@ function renderTaskItem(task) {
                           id="priority-${task.id}">${task.priority || 'medium'}</span>
                     ${task.project_id ? `• Project: ${task.project_id}` : ''}
                     ${task.assigned_to ? `• Assigned: ${task.assigned_to}` : ''}
+                    ${getTaskCreatedInfo(task)}
                 </div>
             </div>
         </div>
@@ -1717,6 +1721,38 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+/**
+ * Get task creation information for display
+ */
+function getTaskCreatedInfo(task) {
+    if (!task.created) return '';
+
+    const createdDate = new Date(task.created);
+    const timeAgo = getTimeAgo(createdDate);
+
+    // Check for creator in metadata (API limitation - no direct creator field)
+    const creator = task.metadata?.created_by ||
+                   task.metadata?.creator ||
+                   (task.created && getCreatorFromTaskId(task.id));
+
+    if (creator) {
+        return ` • Created by ${creator} ${timeAgo}`;
+    } else {
+        return ` • Created ${timeAgo}`;
+    }
+}
+
+/**
+ * Try to infer creator from task ID pattern (fallback method)
+ */
+function getCreatorFromTaskId(taskId) {
+    // Some tasks have creator info in the ID pattern
+    if (taskId.includes('ui-task-')) return 'Genevieve';
+    if (taskId.includes('cs-task-')) return 'Genevieve';
+    if (taskId.includes('docs-')) return 'Genevieve';
+    return null;
 }
 
 function escapeHtml(text) {
