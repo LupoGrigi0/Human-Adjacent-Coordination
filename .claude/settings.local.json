@@ -61,7 +61,10 @@
       "mcp__CoordinationSystem__get_instances",
       "Bash(sudo systemctl status:*)",
       "Bash(sudo journalctl:*)",
-      "mcp__CoordinationSystem__get_server_status"
+      "mcp__CoordinationSystem__get_server_status",
+      "mcp__CoordinationSystem__update_project",
+      "mcp__CoordinationSystem__claim_task",
+      "mcp__CoordinationSystem__update_task"
     ],
     "deny": [],
     "ask": []
