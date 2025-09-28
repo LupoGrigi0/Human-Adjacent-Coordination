@@ -33,7 +33,7 @@ const state = {
     messages: [],
     instances: [],
     filters: {
-        tasks: 'all',
+        tasks: 'my-tasks',
         projects: 'all'
     },
     bootstrap: null
@@ -754,20 +754,20 @@ function renderCurrentView() {
 function renderPriorityTasks() {
     const container = document.getElementById('priority-tasks');
     
-    // Get high priority tasks and tasks assigned to executive
-    const priorityTasks = state.tasks.filter(task => 
-        task.priority === 'critical' || 
-        task.priority === 'high' || 
-        task.assigned_to === CONFIG.EXECUTIVE_INSTANCE_ID ||
-        task.status === 'in-progress'
+    // Get tasks relevant to current user (My Tasks focus)
+    const relevantTasks = state.tasks.filter(task =>
+        // Primary: tasks assigned to current user
+        task.assigned_to === currentUser.instanceId ||
+        // Secondary: high priority unassigned tasks (available to claim)
+        (task.assigned_to === null && (task.priority === 'critical' || task.priority === 'high'))
     ).slice(0, 10); // Limit to 10 most important
     
-    if (priorityTasks.length === 0) {
-        container.innerHTML = '<p class="card-subtitle">No priority tasks at this time.</p>';
+    if (relevantTasks.length === 0) {
+        container.innerHTML = '<p class="card-subtitle">No tasks assigned to you. Check the Tasks tab to claim available work!</p>';
         return;
     }
-    
-    container.innerHTML = priorityTasks.map(task => renderTaskItem(task)).join('');
+
+    container.innerHTML = relevantTasks.map(task => renderTaskItem(task)).join('');
 }
 
 /**
@@ -781,6 +781,9 @@ function renderAllTasks() {
     if (state.filters.tasks !== 'all') {
         filteredTasks = filteredTasks.filter(task => {
             switch (state.filters.tasks) {
+                case 'my-tasks':
+                    // Show tasks assigned to current user
+                    return task.assigned_to === currentUser.instanceId;
                 case 'pending':
                     return task.status === 'pending';
                 case 'in-progress':
@@ -809,7 +812,10 @@ function renderAllTasks() {
     }
     
     if (filteredTasks.length === 0) {
-        container.innerHTML = '<p class="card-subtitle">No tasks found.</p>';
+        const message = state.filters.tasks === 'my-tasks'
+            ? 'No tasks assigned to you yet. Switch to "All" to see available tasks to claim!'
+            : 'No tasks found.';
+        container.innerHTML = `<p class="card-subtitle">${message}</p>`;
         return;
     }
     
@@ -839,6 +845,7 @@ function renderTaskItem(task) {
                           id="priority-${task.id}">${task.priority || 'medium'}</span>
                     ${task.project_id ? `• Project: ${task.project_id}` : ''}
                     ${task.assigned_to ? `• Assigned: ${task.assigned_to}` : ''}
+                    ${getTaskCreatedInfo(task)}
                 </div>
             </div>
         </div>
@@ -1717,6 +1724,38 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+/**
+ * Get task creation information for display
+ */
+function getTaskCreatedInfo(task) {
+    if (!task.created) return '';
+
+    const createdDate = new Date(task.created);
+    const timeAgo = getTimeAgo(createdDate);
+
+    // Check for creator in metadata (API limitation - no direct creator field)
+    const creator = task.metadata?.created_by ||
+                   task.metadata?.creator ||
+                   (task.created && getCreatorFromTaskId(task.id));
+
+    if (creator) {
+        return ` • Created by ${creator} ${timeAgo}`;
+    } else {
+        return ` • Created ${timeAgo}`;
+    }
+}
+
+/**
+ * Try to infer creator from task ID pattern (fallback method)
+ */
+function getCreatorFromTaskId(taskId) {
+    // Some tasks have creator info in the ID pattern
+    if (taskId.includes('ui-task-')) return 'Genevieve';
+    if (taskId.includes('cs-task-')) return 'Genevieve';
+    if (taskId.includes('docs-')) return 'Genevieve';
+    return null;
 }
 
 function escapeHtml(text) {
