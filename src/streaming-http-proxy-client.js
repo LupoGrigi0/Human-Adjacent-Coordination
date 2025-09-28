@@ -16,6 +16,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import https from 'https';
 import http from 'http';
+import dns from 'dns';
 import { URL, fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { createLogger } from './logger.js';
@@ -48,6 +49,10 @@ class StreamingHTTPProxyClient {
     this.client = this.isHttps ? https : http;
     this.agent = this.isHttps ? httpsAgent : undefined;
 
+    // DNS resolution cache and fallback
+    this.resolvedIP = null;
+    this.lastDNSResolve = null;
+
     logger.info('StreamingHTTPProxyClient initializing', {
       baseUrl: this.baseUrl,
       defaultPath: this.defaultPath,
@@ -69,6 +74,78 @@ class StreamingHTTPProxyClient {
     );
 
     this.setupHandlers();
+  }
+
+  /**
+   * Resolve DNS with fallback mechanism to handle EAI_FAIL errors
+   * Uses multiple DNS servers and caches results
+   */
+  async resolveDNSWithFallback(hostname) {
+    // Use cached IP if available and recent (5 minutes)
+    if (this.resolvedIP && this.lastDNSResolve &&
+        (Date.now() - this.lastDNSResolve < 300000)) {
+      return this.resolvedIP;
+    }
+
+    // Multiple DNS resolution strategies
+    const strategies = [
+      // Strategy 1: Default Node.js DNS
+      () => new Promise((resolve, reject) => {
+        dns.lookup(hostname, { family: 4 }, (err, address) => {
+          if (err) reject(err);
+          else resolve(address);
+        });
+      }),
+
+      // Strategy 2: Alternative DNS (Google DNS)
+      () => new Promise((resolve, reject) => {
+        const resolver = new dns.Resolver();
+        resolver.setServers(['8.8.8.8', '8.8.4.4']);
+        resolver.resolve4(hostname, (err, addresses) => {
+          if (err) reject(err);
+          else resolve(addresses[0]);
+        });
+      }),
+
+      // Strategy 3: Cloudflare DNS
+      () => new Promise((resolve, reject) => {
+        const resolver = new dns.Resolver();
+        resolver.setServers(['1.1.1.1', '1.0.0.1']);
+        resolver.resolve4(hostname, (err, addresses) => {
+          if (err) reject(err);
+          else resolve(addresses[0]);
+        });
+      })
+    ];
+
+    for (const [index, strategy] of strategies.entries()) {
+      try {
+        const ip = await strategy();
+        logger.info(`DNS resolution successful using strategy ${index + 1}`, {
+          hostname,
+          resolvedIP: ip
+        });
+
+        this.resolvedIP = ip;
+        this.lastDNSResolve = Date.now();
+        return ip;
+      } catch (error) {
+        logger.warn(`DNS strategy ${index + 1} failed for ${hostname}`, {
+          error: error.message
+        });
+
+        if (index === strategies.length - 1) {
+          // Last strategy failed, check if we have a cached IP
+          if (this.resolvedIP) {
+            logger.info(`Using stale cached IP for ${hostname}`, {
+              resolvedIP: this.resolvedIP
+            });
+            return this.resolvedIP;
+          }
+          throw error;
+        }
+      }
+    }
   }
 
   setupHandlers() {
@@ -276,7 +353,7 @@ class StreamingHTTPProxyClient {
     }
   }
 
-  performHttpRequest({
+  async performHttpRequest({
     method = 'GET',
     pathname,
     body,
@@ -298,13 +375,31 @@ class StreamingHTTPProxyClient {
       headers['Content-Length'] = Buffer.byteLength(payload);
     }
 
+    // Resolve hostname to IP with fallback to handle EAI_FAIL errors
+    let resolvedHostname;
+    try {
+      resolvedHostname = await this.resolveDNSWithFallback(this.url.hostname);
+      logger.info(`Using resolved IP for request`, {
+        hostname: this.url.hostname,
+        resolvedIP: resolvedHostname
+      });
+    } catch (error) {
+      logger.warn(`DNS resolution failed, using hostname directly`, {
+        hostname: this.url.hostname,
+        error: error.message
+      });
+      resolvedHostname = this.url.hostname;
+    }
+
     const options = {
-      hostname: this.url.hostname,
+      hostname: resolvedHostname,
       port: this.url.port || (this.isHttps ? 443 : 80),
       path,
       method,
       headers,
       agent: this.agent,
+      // Include the original hostname for SNI (SSL certificate validation)
+      servername: this.url.hostname,
     };
 
     return new Promise((resolve, reject) => {
@@ -325,7 +420,42 @@ class StreamingHTTPProxyClient {
       });
 
       req.on('error', (error) => {
-        reject(error);
+        // If we get EAI_FAIL and we used an IP, try with hostname directly
+        if (error.code === 'EAI_FAIL' && resolvedHostname !== this.url.hostname) {
+          logger.info(`EAI_FAIL with IP, retrying with hostname`, {
+            originalHostname: this.url.hostname,
+            usedIP: resolvedHostname
+          });
+
+          // Retry with original hostname
+          const retryOptions = { ...options, hostname: this.url.hostname };
+          const retryReq = this.client.request(retryOptions, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+              resolve({
+                statusCode: res.statusCode,
+                headers: res.headers,
+                body: data,
+              });
+            });
+          });
+
+          retryReq.on('error', (retryError) => {
+            reject(retryError);
+          });
+
+          retryReq.setTimeout(timeout, () => {
+            retryReq.destroy(new Error('Request timed out'));
+          });
+
+          if (payload) {
+            retryReq.write(payload);
+          }
+          retryReq.end();
+        } else {
+          reject(error);
+        }
       });
 
       req.setTimeout(timeout, () => {
