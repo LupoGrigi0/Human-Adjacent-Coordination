@@ -73,7 +73,8 @@ class StreamingHTTPProxyClient {
       },
     );
 
-    this.setupHandlers();
+    // Setup will be done after connection test
+    // this.setupHandlers();
   }
 
   /**
@@ -148,75 +149,143 @@ class StreamingHTTPProxyClient {
     }
   }
 
-  setupHandlers() {
+  /**
+   * Set up dynamic MCP handlers by discovering available endpoints from the production server
+   * This ensures the proxy exposes all available functions without hardcoding
+   */
+  async setupDynamicHandlers() {
+    try {
+      // Get available tools from production server first
+      logger.info('Discovering available tools from production server...');
+      const toolsResult = await this.sendRpcRequest('tools/list');
+      const availableTools = toolsResult?.tools || [];
+
+      logger.info(`Discovered ${availableTools.length} tools from production server`, {
+        toolNames: availableTools.map(t => t.name).slice(0, 10), // Log first 10 for brevity
+        totalCount: availableTools.length
+      });
+
+      // Set up standard MCP handlers with dynamic forwarding
+      this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+        try {
+          const result = await this.sendRpcRequest('resources/list');
+          return { resources: result?.resources ?? [] };
+        } catch (error) {
+          await logger.error('resources/list failed', { error: error.message });
+          return { resources: [] };
+        }
+      });
+
+      this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
+        try {
+          const result = await this.sendRpcRequest('prompts/list');
+          return { prompts: result?.prompts ?? [] };
+        } catch (error) {
+          await logger.error('prompts/list failed', { error: error.message });
+          return { prompts: [] };
+        }
+      });
+
+      // Dynamic tools/list handler - returns actual available tools from server
+      this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+        try {
+          const result = await this.sendRpcRequest('tools/list');
+          logger.info(`Returning ${result?.tools?.length || 0} tools to client`);
+          return { tools: result?.tools ?? [] };
+        } catch (error) {
+          await logger.error('tools/list failed', { error: error.message });
+          return { tools: [] };
+        }
+      });
+
+      // Dynamic tools/call handler - forwards any tool call to production server
+      this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+        const { name, arguments: args } = request.params;
+        await logger.info('Tool call received', { name, args });
+
+        try {
+          const result = await this.sendRpcRequest('tools/call', {
+            name,
+            arguments: args || {},
+          });
+
+          if (result && result.content) {
+            return result;
+          }
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          await logger.error('Tool call failed', {
+            name,
+            error: error.message,
+          });
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error executing ${name}: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      });
+
+      logger.info('✅ Dynamic MCP handlers configured successfully', {
+        totalTools: availableTools.length,
+        serverEndpoint: this.baseUrl,
+        proxyMode: 'dynamic-passthrough'
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('❌ Failed to set up dynamic handlers, falling back to basic setup', {
+        error: error.message
+      });
+
+      // Fallback to basic handlers if dynamic discovery fails
+      this.setupBasicHandlers();
+      return false;
+    }
+  }
+
+  /**
+   * Fallback basic handlers if dynamic discovery fails
+   */
+  setupBasicHandlers() {
+    logger.warn('Setting up basic fallback handlers');
+
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
-      try {
-        const result = await this.sendRpcRequest('resources/list');
-        return { resources: result?.resources ?? [] };
-      } catch (error) {
-        await logger.error('resources/list failed', { error: error.message });
-        return { resources: [] };
-      }
+      return { resources: [] };
     });
 
     this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
-      try {
-        const result = await this.sendRpcRequest('prompts/list');
-        return { prompts: result?.prompts ?? [] };
-      } catch (error) {
-        await logger.error('prompts/list failed', { error: error.message });
-        return { prompts: [] };
-      }
+      return { prompts: [] };
     });
 
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      try {
-        const result = await this.sendRpcRequest('tools/list');
-        return { tools: result?.tools ?? [] };
-      } catch (error) {
-        await logger.error('tools/list failed', { error: error.message });
-        return { tools: [] };
-      }
+      return { tools: [] };
     });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-      await logger.info('Tool call received', { name, args });
-
-      try {
-        const result = await this.sendRpcRequest('tools/call', {
-          name,
-          arguments: args || {},
-        });
-
-        if (result && result.content) {
-          return result;
-        }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        await logger.error('Tool call failed', {
-          name,
-          error: error.message,
-        });
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error executing ${name}: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Error: Dynamic discovery failed, proxy in fallback mode. Please check server connectivity.',
+          },
+        ],
+        isError: true,
+      };
     });
   }
 
@@ -237,11 +306,17 @@ class StreamingHTTPProxyClient {
 
     await this.ensureSession();
 
+    // Set up dynamic handlers after successful connection
+    logger.info('Setting up dynamic MCP handlers...');
+    const dynamicSetupSuccess = await this.setupDynamicHandlers();
+
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
 
-    await logger.info('�o. Streaming HTTP Proxy Client ready for MCP requests', {
+    await logger.info('✅ Streaming HTTP Proxy Client ready for MCP requests', {
       sessionId: this.sessionId,
+      dynamicDiscovery: dynamicSetupSuccess ? 'enabled' : 'fallback',
+      mode: dynamicSetupSuccess ? 'dynamic-passthrough' : 'basic-fallback'
     });
   }
 
