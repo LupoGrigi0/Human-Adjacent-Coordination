@@ -64,7 +64,14 @@
       "mcp__CoordinationSystem__get_server_status",
       "mcp__CoordinationSystem__update_project",
       "mcp__CoordinationSystem__claim_task",
-      "mcp__CoordinationSystem__update_task"
+      "mcp__CoordinationSystem__update_task",
+      "Read(//mnt/coordinaton_mcp_data/**)",
+      "Bash(find:*)",
+      "mcp__CoordinationSystem__create_task",
+      "Read(//etc/systemd/system/**)",
+      "Bash(pwdx:*)",
+      "Bash(journalctl:*)",
+      "Bash(/mnt/coordinaton_mcp_data/production/scripts/backup-production-data.sh:*)"
     ],
     "deny": [],
     "ask": []
