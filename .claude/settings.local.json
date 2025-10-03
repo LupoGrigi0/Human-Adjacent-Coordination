@@ -64,7 +64,11 @@
       "mcp__CoordinationSystem__get_server_status",
       "mcp__CoordinationSystem__update_project",
       "mcp__CoordinationSystem__claim_task",
-      "mcp__CoordinationSystem__update_task"
+      "mcp__CoordinationSystem__update_task",
+      "mcp__coordination-system__bootstrap",
+      "mcp__coordination-system__get_projects",
+      "mcp__coordination-system__create_task",
+      "mcp__coordination-system__update_task"
     ],
     "deny": [],
     "ask": []
