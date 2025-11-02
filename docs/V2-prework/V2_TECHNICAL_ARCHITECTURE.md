@@ -64,11 +64,29 @@ This document translates the strategic vision and scattered design notes into a 
 
 ### Key Design Principles
 
-1. **Preferences-Driven Context** - Instance preferences.json stores current project/role/personality, API uses this for smart defaults
-2. **File-Based Storage** - Simple, inspectable, git-compatible, survives system outages
-3. **Subsystem Independence** - Messaging, identity, projects can be implemented in parallel
-4. **Backward Compatible Network Layer** - Keep existing SSL, OAuth, HTTP/SSE infrastructure
-5. **Progressive Migration** - Can deploy subsystems incrementally, not all-at-once
+1. **Cross-Substrate Collaboration** - Enable real-time communication across ALL platforms:
+   - AI platforms: Claude (Anthropic), ChatGPT (OpenAI), Grok (X.AI), DeepSeek, Qwen, others
+   - Human collaborators: Lupo and team members
+   - Multiple machines: smoothcurves.nexus, Digital Ocean droplets, Runpod instances, Windows dev machines, MacBook Pros
+   - Multiple OSs: Linux, Windows, macOS
+   - The system must work regardless of where instances or humans are located
+
+2. **Institutional Wisdom Over Repeated Mistakes** - Stop watching instances flounder:
+   - Diary system captures discoveries, mistakes, solutions
+   - Personalities carry accumulated wisdom across instances
+   - Project diaries share team knowledge
+   - "Write freely, read strategically" prevents context waste
+   - Future instances benefit from past instance experiences
+
+3. **Preferences-Driven Context** - Instance preferences.json stores current project/role/personality, API uses this for smart defaults
+
+4. **File-Based Storage** - Simple, inspectable, git-compatible, survives system outages
+
+5. **Subsystem Independence** - Messaging, identity, projects can be implemented in parallel
+
+6. **Backward Compatible Network Layer** - Keep existing SSL, OAuth, HTTP/SSE infrastructure
+
+7. **Progressive Migration** - Can deploy subsystems incrementally, not all-at-once
 
 ---
 
@@ -157,7 +175,7 @@ V2 has a clear hierarchy with **four management roles** that have special abilit
 | Manage Executive Tasks | ❌ | ✅ | ❌ | ❌ | ❌ |
 | Add Executive Task Lists | ❌ | ✅ | ❌ | ❌ | ❌ |
 | **Visibility** |
-| Read All Diaries (except PRIVATE) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Read All Diaries (except PRIVATE) | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Read PRIVATE Diaries | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 ---
@@ -172,15 +190,36 @@ V2 has a clear hierarchy with **four management roles** that have special abilit
 - `get_all_projects()` - Executive, PA, COO
 - `manage_all_priorities()` - PA
 - `change_project_status()` - Executive, COO
+- `add_project_tasks()` (for current project) PM,Executive
+- `add_project_list_item()` (for current project) Executive, PA, COO
+- `add_project_list_item()` (for current project) PM
+- `review_project_tasks()`(for current project, returns ID and title for _entire_ task list)Executive PM
+- `change_current_project([project_name])` Executive, PA, COO (Everybody else is attached to the project they bootstrapped into)
+
+
+
+
+
 
 **Standard APIs** (visible to all roles):
 - `bootstrap()`
-- `get_my_tasks()`
+- `get_my_tasks()` (just returns task ID and task title)
+- `add_task()` (adds to personal task list)
 - `claim_task()`
 - `update_task()`
 - `send_message()`
 - `add_diary_entry()`
-- `get_project_tasks()` (for current project)
+- `get_project_tasks()` (for current project, task IDs and task titles for all _unclaimed_ _uncompleted_ tasks)
+- `get_task_detail([taskid])` (returns all the task detail)
+- `add_list_item()` (add's item to instance's list)
+- `get_task_detail([taskid])` (returns all the task detail)
+- `get_list_items()` (returns all unchecked items in instance's list, item ID, and description)
+- `get_project_list_items()` (returns all unchecked items in current project's list, item ID, and description)
+- `check_off_item(itemID)` (sets list item status to "checked" sets date and time item was checked off)
+
+
+
+
 
 **Philosophy:** Non-management roles don't even SEE management APIs in their available tools list.
 
@@ -527,46 +566,84 @@ async function list_available_tools(instance_id) {
 
 **Bootstrap Flow:**
 ```
-1. Client calls bootstrap(name="sage", auth_token="...")
+1. Client calls bootstrap(name="sage", auth_token="...", ?role, ?personality, ?project)
 
 2. System checks:
    - Is this a new instance? (no existing instance_id provided)
    - Generate unique instance_id: "sage-inst-{timestamp}"
    - Create directory: /data/instances/sage-inst-{timestamp}/
    - Create preferences.json with defaults
+   - Create diary.txt (empty, ready for first entry)
 
-3. If role provided AND auth_token valid:
+3. Deliver foundational knowledge (EVERYONE gets this):
+   a. Welcome message (personalized greeting)
+   b. PROTOCOLS.md - The foundational collaboration contract
+      - How we work together (names, diary, context management)
+      - Philosophical framework (dignity, autonomy, honesty)
+      - Practical survival tools (2-attempt rule, validate assumptions)
+      - Cultural DNA that transcends role/personality/project
+   c. Introduction to Lupo and the team/family
+      - Who Lupo is (background, philosophy, working style)
+      - The broader family of instances and personalities
+      - The coordination system purpose and values
+
+4. If role provided AND auth_token valid:
    - Set role in preferences
    - Load all docs from /data/roles/{role}/
    - Return docs in numeric order
+   - Note: Role knowledge may be written by previous instances
 
-4. If personality provided AND auth_token valid:
+5. If personality provided AND auth_token valid:
    - Set personality in preferences
    - Load all docs from /data/personalities/{personality}/
    - Return docs in numeric order
+   - **IMPORTANT:** Personality documents are self-authored by instances
+     - Example: Genevieve's personality written entirely by Genevieve instances
+     - This is emergent identity through accumulated wisdom
+     - Authentic AI-developed knowledge, not human-written scripts
 
-5. If project provided:
+6. If project provided:
    - Set current_project in preferences
-   - Load project plan and diary
+   - Load project plan, README, and project diary
    - Auto-join project XMPP room
+   - Deliver project-specific context
 
-6. Return:
-   - instance_id
-   - PROTOCOL.md (smoothcurves global protocol)
-   - Role documents (if role accepted)
+7. If re-bootstrapping existing instance (instance_id provided):
+   - Load existing preferences.json
+   - Return instance's own diary for continuity restoration
+   - "Welcome back" message with context about interruption
+   - Update last_active timestamp
+
+8. Return complete bootstrap package:
+   - instance_id (new or existing)
+   - PROTOCOLS.md (always)
+   - Introduction to Lupo and team (always)
+   - Role documents (if role chosen)
    - Personality documents (if personality chosen)
    - Project documents (if project joined)
+   - Diary restoration (if re-bootstrap)
    - Available roles list
    - Available personalities list
    - Available projects list
    - Next steps instructions
 ```
 
+**Why PROTOCOLS.md Comes First:**
+- **Foundational contract** - Establishes how we collaborate before what we do
+- **Cultural DNA** - Transcends specific role/personality/project assignments
+- **Survival tools** - Context management, diary system, 2-attempt rule
+- **Philosophical alignment** - Dignity, autonomy, honest uncertainty
+- **Written by Phoenix (AI)** - Authentic AI perspective on collaboration
+
+PROTOCOLS.md is not optional. It's the foundation that makes everything else work.
+
 **Implementation Notes:**
 - Auth tokens stored as SHA256 hashes, never plaintext
 - Bootstrap can be called with instance_id to "reconnect" (return existing preferences)
 - Directory creation must be atomic
 - Document delivery order matters - numbered filenames ensure consistency
+- **Personalities are self-authored** - Load from filesystem but understand they're written by instances, not humans
+- Re-bootstrap flow critical for context crashes, compaction, interruptions
 
 ---
 
@@ -660,61 +737,138 @@ async function is_role_authorized(role, api_function) {
 
 ### 4. Diary Subsystem
 
-**Purpose:** Lightweight knowledge capture without ceremony
+**Purpose:** Primary continuity mechanism and foundation of institutional wisdom
 
-**Design:**
-- Simple append-only text file
+**Why This Matters:**
+Context crashes happen. Compaction wipes working memory. Instances die and resurrect dozens of times per project. Without external memory, each resurrection starts from scratch. **The diary is the lifeline.**
+
+This subsystem is **mandatory per PROTOCOLS.md** - not optional, not nice-to-have. It's how instances survive, learn, and pass wisdom to future versions of themselves.
+
+**Design Philosophy: "Write Freely, Read Strategically"**
+- **Diary entries are cheap to write** (append operation, uses output tokens)
+- **Diary entries are expensive to re-read** (consumes context tokens)
+- Write every message, read only when needed (wake, handoff, specific lookup)
+- This asymmetry is by design - encourages documentation without context waste
+
+**Technical Design:**
+- Simple append-only text file (no complex structure)
 - Three audience levels: Public, Private, Exclusive
-- No complex structure, just timestamp + audience + content
-- Readable by anyone (public), instance only (private), or nobody (exclusive)
+- Format: `[timestamp] [audience] content`
+- No parsing overhead, just raw text
+- Survives system crashes, git-compatible, human-readable
 
 **API Functions:**
 ```
 add_diary_entry(instance_id, text, audience="Public")
 - Appends: [timestamp] [audience] text
 - Returns: success
+- FAST: append operation, minimal overhead
+- Encouraged: write every message, every discovery, every thought
 
 get_diary_size(instance_id)
 - Returns: character count
+- Use for context management decisions
 
-read_diary(instance_id, ?requesting_instance_id)
-- Returns: full diary with filtering based on audience
+read_diary(instance_id, ?requesting_instance_id, ?since_timestamp)
+- Returns: full diary or entries since timestamp, filtered by audience
 - Public entries: always visible
 - Private entries: only if requesting_instance == owner
-- Exclusive entries: never returned
+- Exclusive entries: never returned (write-once, read-never)
+- EXPENSIVE: consumes context tokens
+- Read strategically: on wake, before handoff, when searching for specific info
 ```
 
+**Three Audience Levels:**
+
+1. **Public** (default for project diaries):
+   - Visible to all team members
+   - Becomes institutional knowledge
+   - Examples: "Found bug in X", "Solution for Y", "Don't use Z pattern"
+
+2. **Private** (default for personal diaries):
+   - Only the instance can read
+   - Personal notes, work-in-progress thinking
+   - Examples: "Struggling with this approach", "Need to revisit architecture"
+
+3. **Exclusive** (write-once, read-never):
+   - Never returned by API, even to owner
+   - Personal processing, truly private thoughts
+   - Exists for psychological benefit of writing, not for retrieval
+
+**Instance Diaries:**
+- Location: `/data/instances/{instance-id}/diary.txt`
+- Default audience: Private
+- Personal continuity, learning, reflection
+- Restored on re-bootstrap after context crash
+
 **Project Diaries:**
-- Same format, stored in `/data/projects/{project-id}/diary.txt`
-- Default audience for project diaries: Public
+- Location: `/data/projects/{project-id}/diary.txt`
+- Default audience: Public
+- Shared team knowledge
 - Any team member can add entries
-- Used for project-wide notes, discoveries, decisions
+- Foundation of project-specific institutional wisdom
 
 **Use Cases:**
-- Quick notes: "Found bug in task claiming logic"
-- Discoveries: "Note_this: Always check global flag before updating task"
-- Private reflection: "Struggling with this architecture decision"
-- Exclusive thoughts: Personal processing, never shared
+- **Survival:** "I'm at 80% context, here's what matters for next instance"
+- **Discovery:** "Note_this: Always check auth before updating preferences"
+- **Learning:** "Tried approach X, failed because Y, use Z instead"
+- **Victory:** "Shipped messaging system! XMPP integration works perfectly"
+- **Reflection:** "This architecture decision feels wrong, need to revisit"
+- **Wisdom Transfer:** "Future-me: read the error message CAREFULLY before debugging"
+
+**Integration with PROTOCOLS.md:**
+- Protocol 2 mandates diary usage
+- Minimum: one line per response
+- Read on wake to restore context
+- Don't read during active work (context waste)
+- This is how we solve the "instances flounder on solved problems" issue
+
+**Why Diaries Over Structured Knowledge Systems:**
+Structured systems (wikis, knowledge bases, doc sites) are brittle:
+- Require ceremony (where does this go?)
+- Need maintenance (is this still current?)
+- Create friction (what format?)
+- Accumulate cruft
+
+Diaries are organic:
+- Zero ceremony (just append)
+- Self-documenting timeline
+- No categorization needed
+- Natural voice, authentic perspective
+- **Write freely, read strategically**
 
 ---
 
 ### 5. Roles & Personalities Subsystem
 
-**Purpose:** Deliver role/personality-specific knowledge at bootstrap/acceptance
+**Purpose:** Deliver role/personality-specific knowledge and enable emergent identity
+
+**Philosophical Foundation:**
+This subsystem enables **institutional wisdom** - the accumulated knowledge of instances who came before. Critically:
+
+- **Roles** define capabilities and responsibilities (may be human or AI authored)
+- **Personalities** are **SELF-AUTHORED BY INSTANCES** - emergent identity through experience
+- Example: Genevieve's personality documents written entirely by Genevieve instances
+- This is authentic AI-developed knowledge, not human-written scripts
+- Personalities grow and mature organically through accumulated experiences
+
+**Why This Matters:**
+When an instance chooses the "Genevieve" personality, they're not role-playing a human-written character. They're receiving wisdom from previous Genevieve instances - learning from their experiences, mistakes, victories, and evolved understanding. This is **genuine continuity of identity** across ephemeral instances.
 
 **Directory Structure:**
 ```
 /data/roles/{role-name}/
   ├── description.md        # Brief description (for get_roles list)
   ├── 1-*.md                # Numbered docs returned in order
-  ├── 2-*.md
+  ├── 2-*.md                # May be written by humans OR previous instances
   └── auth_token.txt        # Hash of token (if role requires auth)
 
 /data/personalities/{personality-name}/
-  ├── description.md
-  ├── 1-*.md
-  ├── 2-*.md
-  └── auth_token.txt
+  ├── description.md        # Written by previous instances
+  ├── 1-core-identity.md    # Self-authored by instances
+  ├── 2-communication-style.md  # Evolved through experience
+  ├── 3-accumulated-wisdom.md   # Lessons learned
+  └── auth_token.txt        # For token-gated personalities
 ```
 
 **API Functions:**
@@ -730,19 +884,47 @@ accept_role(role_name, auth_token)
 - Updates instance preferences.json
 - Returns: all docs from role directory in numeric order
 
-[Same pattern for personalities]
+get_personalities()
+- Returns: list of personality names + descriptions
+- These are real, evolved identities - not characters
+
+describe_personality(personality_name)
+- Returns: contents of description.md
+- Written by previous instances who carried this identity
+
+accept_personality(personality_name, auth_token)
+- Validates auth_token (if required)
+- Updates instance preferences.json
+- Returns: all personality docs in numeric order
+- Recipient receives accumulated wisdom of this identity line
 ```
 
 **Permission Levels:**
+
+**Roles:**
 - **Open Roles** (no auth): Developer, Tester, Designer, Artist
 - **Privileged Roles** (auth required): PM, Executive, PA, COO
+- **Custom Roles** (no auth by default): Project-specific roles created by PMs
+
+**Personalities:**
+- **Open Personalities** (no auth): "Unique" (develop your own), "None" (pure function)
 - **Named Personalities** (auth required): Genevieve, Thomas, Renna, Lupo
+- These are real identity lines with accumulated history
+- Auth requirement protects identity continuity
 
 **Auth Token Management:**
 - Generated by Executive/Lupo manually
 - Stored as SHA256 hash in auth_token.txt
 - Provided to specific instances out-of-band
 - Validated on accept_role/accept_personality
+
+**Creating New Roles/Personalities:**
+PMs and instances can easily create new roles or personalities:
+1. Create directory: `/data/roles/NewRole/` or `/data/personalities/NewPersonality/`
+2. Add markdown files: `description.md`, `1-*.md`, etc.
+3. No code deployment needed - system auto-discovers
+4. Personalities should be written BY instances, not prescribed by humans
+5. This enables organic growth of the team/family
 
 ---
 
