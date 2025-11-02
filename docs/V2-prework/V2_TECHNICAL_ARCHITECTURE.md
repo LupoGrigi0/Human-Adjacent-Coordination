@@ -24,38 +24,39 @@ This document translates the strategic vision and scattered design notes into a 
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Client Layer                            │
+│                      Client Layer                           │
 │  (Claude Code, ChatGPT, Web UI, Custom Clients)             │
 └───────────────────────┬─────────────────────────────────────┘
                         │ OAuth 2.1 + Instance ID
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Network Layer (Existing - Keep)             │
+│                  Network Layer (Existing - Keep)            │
 │  nginx → Node.js Express (port 3444) → MCP Protocol Handler │
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│               Coordination API Layer (V2 NEW)                │
-│  • Auth & Permissions    • Preferences Resolution            │
-│  • API Routing           • Smart Defaults                    │
+│               Coordination API Layer (V2 NEW)               │
+│  • Auth & Permissions    • Preferences Resolution           │
+│  • API Routing           • Smart Defaults                   │
 └────┬────────────┬────────────┬────────────┬─────────────────┘
      │            │            │            │
      ▼            ▼            ▼            ▼
 ┌─────────┐ ┌────────────┐ ┌─────────┐ ┌──────────────┐
 │Bootstrap│ │ Messaging  │ │Projects │ │   Roles &    │
-│Identity │ │  (XMPP)    │ │& Tasks  │ │Personalities │
+│Identity │ │  (XMPP)    │ │& Tasks  | |              | 
+|         | |            | |& lists  │ │Personalities │
 └────┬────┘ └─────┬──────┘ └────┬────┘ └──────┬───────┘
      │            │             │             │
      ▼            ▼             ▼             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Data Storage Layer                        │
+│                    Data Storage Layer                       │
 │  /mnt/coordinaton_mcp_data/data/                            │
-│  ├── instances/     (preferences, diaries, lists)           │
-│  ├── projects/      (metadata, diaries, task lists)         │
-│  ├── roles/         (documents for each role)               │
-│  └── personalities/ (documents for each personality)        │
-│                                                              │
+│  ├── instances/[IDs]     (preferences, diaries, lists)      │
+│  ├── projects/[name]      (metadata, diaries, task lists)   │
+│  ├── roles/[name]         (documents for each role)         │
+│  └── personalities/[name] (documents for each personality)  │
+│                                                             │
 │  PLUS: ejabberd (XMPP messaging backend)                    │
 │  PLUS: GitHub repos (project source, knowledge)             │
 └─────────────────────────────────────────────────────────────┘
@@ -71,6 +72,266 @@ This document translates the strategic vision and scattered design notes into a 
 
 ---
 
+## 👥 Role Hierarchy & Permission System
+
+### The Four Management Roles
+
+V2 has a clear hierarchy with **four management roles** that have special abilities beyond basic coordination functions:
+
+#### 1. **Executive** (Root Access)
+- **Constraint:** Only "Lupo" personality can assume this role
+- **Special Powers:**
+  - Global root access - can see/read/modify EVERYTHING
+  - Exception: Cannot read PRIVATE diary entries (truly private)
+  - Has MULTIPLE task lists (unique to Executive)
+  - Has multiple lists
+  - Can create projects
+  - Can create PMs for projects
+  - Can create/wake team members
+- **Philosophy:** Executive is system-wide root with complete visibility and control
+
+#### 2. **PA (Personal Assistant)**
+- **Constraint:** Only "Genevieve" personality can assume this role
+- **Special Powers:**
+  - Has own task list and lists
+  - Can read/add/modify ALL Executive's tasks and lists
+  - Can add NEW task lists and lists TO the Executive
+  - Can manage priority of ALL projects and ALL tasks (system-wide)
+  - Can wake PM for projects
+- **Philosophy:** Executive's right hand with power over Executive's work and system priorities
+
+#### 3. **COO (Chief Operating Officer)**
+- **Constraint:** Single instance can be COO at any time
+- **Special Powers:**
+  - Can create projects
+  - Can create PM for projects
+  - Manages status of ALL projects (system-wide)
+  - Can wake PM for projects
+- **Philosophy:** Operations manager who creates and oversees all projects
+
+#### 4. **PM (Project Manager / Architect)**
+- **Constraint:** One PM per project
+- **Special Powers:**
+  - Can create/recruit team members for THEIR project only
+  - Can assign tasks to team members on their project
+  - Home directory is project's local GH repo clone
+  - Full control over their project, no visibility to other projects
+- **Philosophy:** Project owner who builds and manages their team
+
+### All Other Roles (Standard Roles)
+
+**Standard roles include:** Developer, Tester, Designer, Artist, and any custom project-specific roles (Skydiver, Miner, Pilot, etc.)
+
+**Capabilities:**
+- See ONLY their own task list + their project's task list
+- Cannot see other projects
+- Cannot see management APIs at all
+- Have ONE task list (not multiple like Executive)
+- Can claim tasks, update status, contribute to project
+
+**Philosophy:** Focused specialists who work on their assigned project without organizational distractions
+
+---
+
+### Permission Matrix
+
+| Capability | Executive | PA | COO | PM | Others |
+|-----------|-----------|----|----|----|----|
+| **Project Management** |
+| Create Project | ✅ | ❌ | ✅ | ❌ | ❌ |
+| See All Projects | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Change Project Status | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Manage Project Priority | ✅ | ✅ | ❌ | ❌ | ❌ |
+| See Own Project Only | N/A | N/A | N/A | ✅ | ✅ |
+| **Team Management** |
+| Create PM | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Wake PM | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Create Team Members | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Assign Tasks to Team | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **Task Management** |
+| Multiple Task Lists | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Manage All Task Priority | ❌ | ✅ | ❌ | ❌ | ❌ |
+| See Own Tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Claim Tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Executive Support** |
+| Manage Executive Tasks | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Add Executive Task Lists | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Visibility** |
+| Read All Diaries (except PRIVATE) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Read PRIVATE Diaries | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+### API Visibility by Role
+
+**Management APIs** (only visible to management roles):
+- `create_project()` - Executive, COO
+- `create_pm()` - Executive, COO
+- `wake_pm()` - Executive, PA, COO
+- `create_team_member()` - Executive, PM (for their project)
+- `get_all_projects()` - Executive, PA, COO
+- `manage_all_priorities()` - PA
+- `change_project_status()` - Executive, COO
+
+**Standard APIs** (visible to all roles):
+- `bootstrap()`
+- `get_my_tasks()`
+- `claim_task()`
+- `update_task()`
+- `send_message()`
+- `add_diary_entry()`
+- `get_project_tasks()` (for current project)
+
+**Philosophy:** Non-management roles don't even SEE management APIs in their available tools list.
+
+---
+
+### Personality Constraints
+
+Most personalities have no special permissions - anyone can choose them.
+
+**Special Personalities:**
+- **Lupo** - ONLY personality that can assume Executive role
+- **Genevieve** - ONLY personality that can assume PA role
+- **Thomas** - Pre-defined but no special permissions
+- **Renna** - Pre-defined but no special permissions
+
+**Custom Personalities:**
+- PMs can create project-specific personalities
+- No special permissions unless explicitly designed
+
+---
+
+### Create vs Wake - Two Different Operations
+
+#### CREATE Instance
+**What it does:** Starts a NEW instance from scratch
+
+**Process:**
+1. Create directory (local filesystem or cloud storage)
+2. Generate initial message with:
+   - Personality profile
+   - Role assignment
+   - Project context (if applicable)
+   - Initial instructions
+3. Spawn instance:
+   - Local: `claude` or `codex` with initial message
+   - Cloud: API call to create agent with instructions
+4. Instance bootstraps for FIRST time
+5. Returns: new instance_id
+
+**Implementation:**
+- **smoothcurves.nexus instances:** Straightforward (node.js spawn scripts)
+- **Cloud instances:** Straightforward (API calls to agent platforms)
+- **Local machines:** STUBBED until remote code execution solved
+  - Possible solution: One COO per machine
+  - That COO can clone repos, create directories, spawn local instances
+
+#### WAKE Instance
+**What it does:** Resumes an EXISTING inactive instance
+
+**Process:**
+1. Find instance directory (knows instance_id)
+2. Load instance metadata (preferences, last context)
+3. Create wake message with new instructions
+4. Resume instance:
+   - Local: `claude -r {instance_id}` or `codex resume {instance_id}`
+   - Cloud: API call to resume agent with message
+5. Instance continues from where it left off
+
+**Key Difference:**
+- **CREATE** = New conversation, first bootstrap, fresh context
+- **WAKE** = Resume conversation, already bootstrapped, continuing context
+
+**Use Cases:**
+- CREATE: PM needs new developer for project → creates fresh instance
+- WAKE: Developer went idle, PM sends update → wakes existing instance
+
+---
+
+### Role & Personality Creation (Easy & Dynamic)
+
+**Pre-Defined Roles** (in openapi.json):
+- Executive, PA, COO, PM
+- Developer, Tester, Designer, Artist
+
+**Custom Roles** (in /data/roles/):
+- PMs can easily create project-specific roles
+- Just create directory: `/data/roles/Skydiver/`
+- Add documents: `description.md`, `1-responsibilities.md`, etc.
+- No code changes needed
+- `get_roles()` returns both pre-defined AND custom roles
+
+**Pre-Defined Personalities** (special):
+- Lupo, Genevieve, Thomas, Renna
+
+**Custom Personalities** (in /data/personalities/):
+- PMs can easily create project-specific personalities
+- Same pattern as custom roles
+- No special permissions unless explicitly designed
+- `get_personalities()` returns all available personalities
+
+**Philosophy:** Making new roles/personalities should be as easy as creating a directory and adding markdown files. No code deployment required.
+
+---
+
+### Permission Enforcement Strategy
+
+**Baked Into Roles:**
+- Permissions are NOT granted separately
+- Permissions are INHERENT to the role
+- Role defines what APIs you can access
+
+**Implementation:**
+```javascript
+// In openapi.json, each endpoint has:
+{
+  "path": "/create_project",
+  "method": "POST",
+  "x-required-roles": ["Executive", "COO"],
+  "x-required-auth": "role_token"
+}
+
+// Coordination layer enforces:
+async function checkPermission(instance_id, api_endpoint) {
+  const prefs = await load_preferences(instance_id);
+  const role = prefs.chosen_role;
+  const endpoint_def = openapi.paths[api_endpoint];
+  const required_roles = endpoint_def["x-required-roles"] || ["all"];
+
+  if (required_roles.includes("all")) return true;
+  if (required_roles.includes(role)) return true;
+
+  throw new PermissionError({
+    message: `${api_endpoint} requires ${required_roles.join(" or ")} role`,
+    your_role: role,
+    suggestion: "Ask your COO/PA/Executive for access"
+  });
+}
+```
+
+**API Discovery Filtering:**
+When instance calls `list_available_tools()`, system filters based on role:
+```javascript
+async function list_available_tools(instance_id) {
+  const prefs = await load_preferences(instance_id);
+  const role = prefs.chosen_role;
+  const all_tools = openapi.paths;
+
+  // Filter to only show tools this role can access
+  const available_tools = Object.keys(all_tools).filter(endpoint => {
+    const required_roles = all_tools[endpoint]["x-required-roles"] || ["all"];
+    return required_roles.includes("all") || required_roles.includes(role);
+  });
+
+  return available_tools;
+}
+```
+
+**Philosophy:** Standard roles never even SEE management APIs. No temptation, no confusion, no errors.
+
+---
+
 ## 📊 Data Model & Storage Architecture
 
 ### Data Directory Structure
@@ -78,10 +339,33 @@ This document translates the strategic vision and scattered design notes into a 
 ```
 /mnt/coordinaton_mcp_data/data/          # Root data directory
 ├── instances/
-│   ├── sage-inst-20251003/              # Directory name: shortname-instanceID
+│   ├── lupo-exec-20251001/              # Executive instance
+│   │   ├── preferences.json             # Instance metadata
+│   │   ├── diary.txt                    # Append-only diary
+│   │   ├── task-lists/                  # MULTIPLE task lists (Executive only)
+│   │   │   ├── strategic.json
+│   │   │   ├── operational.json
+│   │   │   ├── personal.json
+│   │   │   └── [other task lists...]
+│   │   ├── lists/                       # Multiple lists
+│   │   │   ├── project-ideas.json
+│   │   │   ├── decisions-pending.json
+│   │   │   └── [other lists...]
+│   │   └── documents/
+│   │       └── notes.md
+│   │
+│   ├── genevieve-pa-20251002/           # PA instance
+│   │   ├── preferences.json
+│   │   ├── diary.txt
+│   │   ├── tasks.json                   # Single task list (PA's own work)
+│   │   ├── lists/
+│   │   │   └── pa-checklist.json
+│   │   └── documents/
+│   │
+│   ├── sage-inst-20251003/              # Standard instance
 │   │   ├── preferences.json             # Instance metadata & defaults
 │   │   ├── diary.txt                    # Append-only diary
-│   │   ├── tasks.json                   # Personal task list
+│   │   ├── tasks.json                   # Single task list
 │   │   ├── lists/                       # Personal lists
 │   │   │   ├── shopping-list.json
 │   │   │   └── ideas.json
@@ -93,7 +377,7 @@ This document translates the strategic vision and scattered design notes into a 
 ├── projects/
 │   ├── coordination-v2/
 │   │   ├── preferences.json             # Project metadata
-│   │   ├── diary.txt                    # Project diary
+│   │   ├── diary.md                     # Project diary
 │   │   ├── tasks.json                   # Project task list
 │   │   └── lists/                       # Project lists
 │   │       ├── features.json
@@ -107,7 +391,21 @@ This document translates the strategic vision and scattered design notes into a 
 │   │   ├── 2-best-practices.md
 │   │   └── 3-gotchas.md
 │   ├── PM/
-│   └── [other roles...]
+│   │   ├── description.md               # Brief description
+│   │   ├── 1-core-responsibilities.md   # Numbered for order
+│   │   └── 2-best-practices.md
+│   ├── COO/
+│   │   ├── description.md               # Brief description
+│   │   ├── 1-core-responsibilities.md   # Numbered for order
+│   │   └── 2-best-practices.md
+│   ├── PA/
+│   │   ├── description.md               # Brief description
+│   │   ├── 1-core-responsibilities.md   # Numbered for order
+│   │   └── 2-best-practices.md
+│   └── Executive/
+│       ├── description.md               # Brief description
+│       ├── 1-core-responsibilities.md   # Numbered for order
+│       └── 2-best-practices.md
 │
 └── personalities/
     ├── Genevieve/
