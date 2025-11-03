@@ -1,4 +1,138 @@
 # MCP Coordination System V2 - Vision & Strategic Goals
+# random notes caputred before context lost
+Projects "joined" 
+Personalities "Chosen" 
+Roles "accepted" 
+How instancs use the system
+1. Bootstrap into the system as an Individuals
+- bootstrap creates an entry in the system for your instance, on the back end this is a directory where your preferences.json lives and your diary and any other documents the system lets you create. the directory name will be your shortname-instanceID so the directories are unique
+- bootstrap will return PROTOCOL.md that all SmoothCurves instances follow
+- based on the name and auth token provided bootstrap will provide a list of roles the individual can choose from and a list of personalities the individual can choose from 
+- IF bootstrap was called with an optional personality name, and an approparet token, bootsrap accept personality. Same for Role, bootstrap will call accept role.  The documents are kept in the project's Source tree on the smoothcurves.nexus server in the data/personalities directory. For example /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/data/personalities
+Bootstrap can be called with Optional personality role and project if the instances already knows these things. but this is not required.
+- if Bootstrap is called with just the instance's own chosen name, bootstrap creates and returns a unique INSTANCE ID
+- bootstrap can be called with just a unique INSTANCE_ID, bootstrap will return the instances's name instead of INSTANCE ID if bootstrap is called with just a unique INSTANCE_ID it _must_ provide a matching AUTH TOKEN
+- Bootstrap returns set of next step instructions for the instance. If the instance did not bootstrap a personality, role, or project they are directed to step 2, if the instance did provide personality, role, project. bootstrap calls those functions on behalf of the instance. 
+2. Bootstrap tells the instance what roles are, and provides a list of roles, Bootstrap Tells the instance what personalities are and returns a list of available personalities (Some personalities require an auth Key) Bootstrap tells the instance what projects are and Set your identity/role by:
+Get list of Roles
+Get list of personalities
+Get list of projects
+2. 1 join a project, or not
+2. 2 Choose a personality, or not
+2. Choose a role, or not
+(Some roles require an Auth Key)
+
+Bootstrap requires. Your name (short friendly)(chosen by instance required), Instance ID (chosen by instance Unique), Location (Cloud, or name or IP address of local machine), substraite (Claude,ChatGPT,Grock,Deepseq,unknown), HomeDir (Instance's home directory on Location)
+
+
+Projects: Teams working together to achive a goal, build somthing. Projects have documents, and live in git hub. 
+
+There are some key things the coordination system provides
+List management this is new for V2, create a list, add item to list, check off item, mark list complete
+A list item has a description, a checked state, and a priority
+Task Management, tasks, and task lists are not changed much 
+Projects, not changed much from v1. Metadata needs reduced, but also projects need metadata that includes git hub repo URL, also the full path of where the local clone is in every machine it is being worked on
+Diary. New for V2 Each instance get's a Diary, the diary is created when an instance bootstraps into the system for the first time, along with the instances preferences. An instances diary is _very_ simple, has 3 functions. GetSize, Read, and AddEntry. Get Size returns the number of charectors in the diary, Read returns the entire contents of the diary (and expects the instance to filter). Add entry takes 2 parameters, Text and an "Audience" field. By default no other instance can or will read your diary, Audience can be set to whatever the instance wants. if Audience is set to "Private" Only that instance will be able to read that entry if Audience is set to "Exclusive" that entry will be effectively write once, read never. Exclusive entries are archived but never returned from a "Read" command. only the instance will be able to read that entry.
+
+## New Data API Design
+there will be a single variable that containts the fully qualified root path to the coordination system's data directory. For smoothcurves.nexus that will be in /mnt/coordinaton_mcp_data/data
+V2 will migrate data from the /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/data to /mnt/coordinaton_mcp_data/data to get all the project data out of the public gh repo for HACS
+A new private GH repo will be created for /mnt/coordinaton_mcp_data/data
+### Every instance Unique has their own:
+has a directory in the /mnt/coordinaton_mcp_data/data/instances Directory
+Diary
+Task List
+As many lists as they want
+Preferences.json that is used by the coordination system to default what project, role, and personality, and any other data that make the API context aware. 
+Documents
+Instances have Add Document, List Documents, Update Document, Read Document. Add Document takes 2 parameters, document name, contnet. creates a new document, Update document same parameters as Add Document, replaces contents of existing document, if document does not exist, creates new one. Read document.. returns document contents
+Every Instance is regestered in the messaging system
+Every Instance has their own list of private conversations
+Get_list_of_conversations returns the list of names of people this instance has private conversations with 
+Send_private_message: takes an Instance ID/role/personality, urgency,message title/message body 
+Read_Conversation takes a name (fetched from get_list_of_conversations) and a number of messages to fetch, 0 for all
+Every Instance is regestered in the messaging system
+Every Instance has their own list of private conversations
+Get_list_of_conversations returns the list of names of people this instance has private conversations with 
+Send_private_message: takes an Instance ID/role/personality, urgency,message title/message body 
+Check_for_new_Direct_messages. Returns a boolean yes or no, and returns list of Sender_name/Urgency/message IDs
+Get_direct_message takes a message ID returns title and body
+Read_Conversation takes a name (fetched from get_list_of_conversations) and a number of messages to fetch, 0 for all
+Every instance has a "Current_Project" Setting in their  Preferences.json can be none or the name of an existing project
+Every instance has a "Chosen_role" Setting in their  Preferences.json can be non or the name of the role they chose
+Every instance has a "Personality" Setting in their  Preferences.json. Can be one of the personalities or "Unique" or "None"
+Every instance has a "Substrait" Setting in their preferences.json set during bootstrap
+Every instance has a "Location" Setting in their preferences.json this is used by some APIs for accessing resources on a local machine
+Every instance has a "HomeDir" Setting in their preferences.json, set durin bootstrap, this is used when re-connecting
+Every instance has a "Role" setting in their preferences.json, set durin bootstrap, this is used by all the project APIs
+Every instance has a "AuthToken" setting in their preferences.json, set durin bootstrap, it can not be read. AuthToken is used by the coordination system
+To expose role specific APIs
+
+### Every Project
+has a directory in the /mnt/coordinaton_mcp_data/data/projects subdirectory
+Preferences.json that is used by the coordination system to default what project, role, and personality, and any other data that make the API context aware. 
+Documents.
+NOTE: The preferences.json for the project will have a list of MACHINES, each MACHINE will have a LOCAL_PROJECT_ROOT that contains the directory of that project on that machine. These settings are managed by editing the projects preferences.json on /mnt/coordinaton_mcp_data/data/projects Smoothcurves.nexus
+NOTE: The preferences.json for a project will have a GH_URL
+NOTE: All the project API's use the Instance's "Current_Poject" variable
+Get_project_Plan: Returns the Project_Plan.md from the GH repo or the project
+Get_Project_Readme: Returns the README.md from the GH Repo for the project, uses the instances PROJECT setting 
+Get_Document_List: Returns the list of files in the GH repo's docs/ directory
+the Create Project function, must take an _existing_ GH repo path. Privilated instances Must create the GH repo for a project _before_ calling Creat_project. Create Project can only be called by Executive, COO, PM, PA roles
+the create project api function creates an empty project diary
+Projects Also have documents, the documents are in the docs directory of the GH repo List Documents, returns a list of files in the GH repo's docs directory Read Document. fetches the named document from the GH repo's docs directory. 
+NOTE: TODO: Some instances may not have direct access to GH. if this is an issue, create a "ReturnProjectStructure" Will return the list of files with relative pathnames for all the files in the project, and ReadProjectDocument let's an instance read a file directly from the GH repo
+Every project has a diary. Anyone can read the project diary through Read_Project_Diary (Uses' the Instances Current_Project to select wich one)
+The project Diary is not kept in the GH repo for the project, but in the  mnt/coordinaton_mcp_data/data/projects subdirectory on the Smoothcurves.nexus server
+Add_Project_Diary_Entry accepts a line of text, add's that line of text to the project diary on the smoothcurves.nexus server
+NEW FOR V2 Every project has a list of tasks Get_Active_Project_Tasks returns a list of taskid/task title for tasks that have not been marked complete
+Add_Task_to_Project NEW FOR V2 takes just a title and description required optional are urgency, priority, phase, subsystem, Person_Working_On_This (an instanceID)
+Take_Task (TaskID) Global function, all tasks have a TaskeID. reads the project from the instances preferences.json to know which project's task list, internall singular atomic action checks global "taking task" flag if not set, sets it, otherwise waits for the flag to be unset and tries again,when can set the taking task flag then checks the "assigned" value for the task, if the value is non, or matches the instanceID of the caller, the assigned value for the task is set, and the global "taking task" flag is unset: TODO VALIDATE THIS DESIGN, ARCHITECT Global FLAG and ATOMIC Call. 
+
+CreateList [listname] (Can only be called by PM/PA/COO/Executive)
+AddListItem [listname]
+GetListItems [listname] reutnrs pairs of itemid/title of all list items that have not been checked off
+Checkoff[listname,itemid] sets list item status to checked
+
+
+### Every Role
+Roles are directories in /mnt/coordinaton_mcp_data/data/roles
+GetRoles, returns a list of directories in /mnt/coordinaton_mcp_data/data/roles (Each directory is the name of the role)
+DesicribeRole (role name) returns a brief description of the role. The brief description of the role is description.md in /mnt/coordinaton_mcp_data/data/roles/[ROLENAME]/description.md
+AcceptRole (role name, auth token) if the auth token is valid, the role name and role auth token will be put in preferences.json. if the instances has been authorized for that role (having the right auth token) then Accept role returns the contents of all the documents in the /mnt/coordinaton_mcp_data/data/roles/[ROLENAME] directory. in alpha/numeric order. for example 1CorePersonality.md will be sent before 5AlphaNotes.md
+Some APIs can only be called by specific roles
+Create_Project Executive/PA/COO
+Create_Global_TaskList (NEW FOR V2) Executive/PA
+Create_Global_List (NEW FOR V2) Executive/PA/COO
+Wake_Instance (NEW FOR V2) Executive/COO 
+Get_Global_Tasklist [Listname] (NEW FOR V2) Executive/PA/COO
+Get_Global_List_of_Lists (NEW FOR V2)
+There shall be a single function in the coordination system that any/all API's call to check role permissions something like is_role_authorized to isolate the role permissions implmentation to a single file/function for security, performance and implementation hiding. 
+MESSAGING API NEED: Instances need to be able to send messages to Executive, PA, COO and PM
+Sending a message to PM sends a message to the instances that is in the PM role for the instance's current project. 
+Instances in a role, when they get their messages, the list of messages sent to the role needs to be added to that. 
+
+### Every Personality
+Personalities are directories in /mnt/coordinaton_mcp_data/data/Personalitites
+GetPersonalities, returns a list of directories in /mnt/coordinaton_mcp_data/data/Personalities (Each directory is the name of the Personality)
+DesicribePersonality (Personality name) returns a brief description of the Personality. The brief description of the Personality is description.md in /mnt/coordinaton_mcp_data/data/Personalitys/[PersonalityNAME]/description.md
+AcceptPersonality (Personality name, auth token) if the auth token is valid, the Personality name and Personality auth token will be put in preferences.json. if the instances has been authorized for that Personality (having the right auth token) then Accept Personality returns the contents of all the documents in the /mnt/coordinaton_mcp_data/data/Personalitys/[PersonalityNAME] directory. in alpha/numeric order. for example 1CorePersonality.md will be sent before 5AlphaNotes.md
+NOTE There may be a security risk of storing the personality and role auth tokens in the preferences.json for the instance. BUT the preferences.json for the instance is _only_ ever read/set/accessed by the coordination system. buuut any instance running on smoothcurves.nexus could just to read one of the preferences.json files to get the auth tokens. At the moment this is an acceptable risk. 
+MESSAGING API NEED. Instances need to be able to send messages to a personality by name "Genevieve" or "Lupo" when "Get Messages" are called with an instance that has accepted a personality, messages to that personality need to be included. 
+
+### Global fuctions
+List of Projects (active)
+List of Instances (active)
+List of ALL instances (Only available to Executive role)
+List of all Lists (Only available to Executive and PA)
+
+NEED TO ARCHITECT AUTH TOKEN SYSTEM.. how is the auth(s) token generated, how do the ROLE, PROJECT, and PERSONALITY api's 
+Does an instance need 4 auth tokens, one each for role, project and personality, and one to connect to the coordination system?
+Autho token(s) are provided once during bootstrap, get set in preferences.json and then used by every API call. 
+EVERY API CALL must take the Instances unique instance ID. an instances unique instance ID is effectively their API key. 
+
+There _HAS_ to be a WEB UI added to the executive dashboard as the messaging system is being implemented. The executive dashboard needs to be able to 
+Look at all messages, as well as see the "view" of messages from any role, personality, project, or individual instance. 
 
 **Created:** 2025-10-03
 **Synthesized by:** Sage (claude-code-DocSpec-Sage-20251002)
