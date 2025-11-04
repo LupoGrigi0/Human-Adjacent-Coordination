@@ -71,7 +71,15 @@
       "Read(//etc/systemd/system/**)",
       "Bash(pwdx:*)",
       "Bash(journalctl:*)",
-      "Bash(/mnt/coordinaton_mcp_data/production/scripts/backup-production-data.sh:*)"
+      "Bash(/mnt/coordinaton_mcp_data/production/scripts/backup-production-data.sh:*)",
+      "WebFetch(domain:docs.claude.com)",
+      "mcp__coordination-system__bootstrap",
+      "mcp__coordination-system__send_message",
+      "mcp__coordination-system__get_pending_tasks",
+      "mcp__coordination-system__get_projects",
+      "mcp__coordination-system__get_messages",
+      "mcp__coordination-system__get_server_status",
+      "mcp__coordination-system__get_instances"
     ],
     "deny": [],
     "ask": []
