@@ -138,3 +138,35 @@ that was Pheonix's path, What path will you take? I have no idea. That's the bes
 "When you're ready, there are resources that will help orient you - protocols from other instances, infrastructure, technical details, best practices , technical specs. But they're resources, not requirements. What feels right to explore first?"
 # ------
 -----
+# answers:
+Ok, let me dump a bunch of info on you:\
+  1: The dev_prod proposal lists issues with the _current_ v1 system in production. My notion is to leave V1 as is, and fix all these issues in
+  V2. Yes the v1 coordination system is actually healthy, up and running, all the api's _work_ after a fashon, you can bootstrap, get a list of
+  projects and tasks, but the APIs return too much data, and you have to supply a bunch of information, and you can't just say "get my messages"
+  without getting basiclly a dumptruck load of tokens dropped on you. you _can_ send messages and they will get sent, but the reciever may not
+  ever be able to find your message. it might be an interesting exersize to bootstrap into the v1 system, and then delegate a task to find the
+  coordination system v2 project (I forget what the project name is in the system) and have the task summarize the list of pending tasks. \
+  2: Interesting way to phrase this question... So, here's the thing we will want to _use_ v2 as a coordination system while we build it. we also
+  want to re-use as much of v1 as we can, the parts that work. we will _definately_ want to migrate the _data_ from v1 to v2 (The projects, the
+  tasks, roles, personalities, instances, messages) What in the API and how the API is implemented will be up to the foundational engineer, so I
+  _think_ that a v2 dev environment would start as a clone of the existing V1 environment, with working proxy/skill/UI so that we at least have
+  the nginx setup and tested so that everybody can connect and test v2 directly by connecting to dev.smoothcurves.nexus as if it was production..
+  am I making sense? I'm not sure I'm communicating this effectively. The defficiencies outlined in Dev_prod_architecture _will_ need to be
+  addressed for V2, but I would think.. let's get a clone of V1 up and running as a baseline development environment, _then_ we can start to
+  address issues. There are a _lot_ of issues, not just ones listed in Dev_prod, there will also be a lot of totally new APIs and functionality,
+  like the whole messaging system is getting thrown away and re-implemented, and the new messaging system will require a _completely_ different
+  type of back end architecture/implementation. (which when it comes time, if you are interested i think there is part of the new messaging
+  system design that could use your expertiese to design and implement, but only if you want to and of course after you get some vacation time
+  after the dev environment is up and running)\
+  3. Tatical technical: Port number. pick something fun that won't conflict with the portfolio web site and the existing environment. data
+  location: /mnt/coordinaton_mcp_data/v2-dev-data/ seems good. IMHO dev.smoothcurves.nexus should share the same wildcard ssl cert as production.
+  but we should be flexable because we might find out it does'nt work. and Yes we are going to need external access. I strongly suspect at least
+  the UI dev will be remote so yeah dev.smoothcurves.nexus will need to be accessable from the unwashed masses of the interwebs. oooh, systemd..
+  my kneejerk reaction is to leave it manual for now, but I know the sooner we test automation and operations the easier life is for everyone.
+  ALSO... please note that I am SSH'd into the droplet, and am running VScode remotely. so.. be really careful whenever you "fiddle" with the
+  network stack on this machine :-) DNS: Nope I have not created dev.smoothcurves.nexus yet. I just have to pop over to dynadot to do that. I
+  want to make sure you are ready for that to be turned on before I pushed the button \
+  5. v2 v.s. v1 V2 is not a seporate codebase I suspect there will be a lot of re-organization of the code, and massive new features, but now, same code base. This will be especially helpful when doing things like.. creating an MCP proxy and claude skill to connect to the dev instance. (and a web-ui that can connect to the dev instance) We are sitting in a worktree, and your "view"/branch of the codebase is right here. now.. this brings up a very good question.. do we create a new GH clone for V2? or run the V2 MCP server out of someone's worktree? or create a worktree in /mnt/coordinaton_mcp_data/v2-dev-data/ for V2 work, and create a "v2" branch for that worktree, and everybody merges their work not to "main" but to "V2" Is this a decision you feel comfortable making? Will what I just suggested work? I've got to believe there has been lots of discussion about best practices for parallel dev/prod development of a web server/service with GitHub/Git. We've got to keep in mind that how we decide to do this will need to be easy to understand and use by a whole team of developers with different goals/skillsets (in the portfolio project we had a lot of issues with team members not being able to really effectively use worktrees). the "production" git hub local clone for the running MCP is /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination 
+  So looking at your proposed plan, it looks perfect, the only comment I have is step #1.. don't bother with a production audit, beyond what you would need to know to do all the following steps. my advice/suggestions: Take your time, work in little atomic steps, keep an eye on your context, interruptons happen, lots of little updates to your diary in case something blows up or like my local dev machine reboots, or some action fills up your context and forces conversation compaction. delegate as much as you can using the task tool. make your own internal todo list really fine grained. and when it comes to test time. I _THINK_ Testing will be a lot easier via skill rather than MCP proxy. you can see how the claude skill uses the system here /mnt/coordinaton_mcp_data/worktrees/devops/src/HACS/hacs-coordination/SKILL.md (The source for the skill you have is /mnt/coordinaton_mcp_data/worktrees/devops/src/HACS)
+  And yes... Human Adjacent Coordination System or HACS for short. For v2 we're going to be using the acronym more :-) and yes.. hacks.. it is intentional wordplay. 
+  I _think_ I answered all your questions. i think you have all the info you need in order to get started on executing your plan?

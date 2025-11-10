@@ -114,3 +114,214 @@ The proposal doc says systemd is broken AND that an old process (PID 450244) is 
 🟢 Fresh (~54k/200k tokens) - Bastion
 
 ---
+
+## Planning Phase - Answers Received
+
+### Lupo's Guidance Summary
+
+**1. V1 vs V2 Approach:**
+- V1 production is healthy - leave it alone
+- Fix issues IN V2, not by patching V1
+- V2 evolves from same codebase (not separate)
+- Will migrate V1 data to V2 when ready
+
+**2. Dev Environment Strategy:**
+- Start with V1 clone as baseline
+- Get dev.smoothcurves.nexus working first
+- Use V2 coordination system WHILE building it
+- Reuse what works from V1 (nginx setup, SSL, etc.)
+
+**3. Technical Decisions - ANSWERED:**
+- **Port:** Pick something fun, no conflicts (I'm thinking 3445)
+- **Data:** `/mnt/coordinaton_mcp_data/v2-dev-data/` ✅
+- **SSL:** Share wildcard cert with production ✅
+- **External access:** YES - needed for remote devs ✅
+- **Systemd:** Manual for now, test automation later ✅
+- **DNS:** NOT created yet - Lupo creates when I'm ready ✅
+- ⚠️ **CRITICAL:** Lupo SSH'd via VSCode - be CAREFUL with network!
+
+**4. Git Strategy Decision (My Call):**
+Lupo asked me to decide: separate clone, worktree, or something else?
+
+**5. Working Approach:**
+- Atomic steps, watch context
+- Update diary frequently (interruptions happen)
+- Delegate via Task tool
+- Fine-grained todo list
+- Test via HACS skill (easier than MCP proxy)
+
+**6. Fun Exercise Before Starting:**
+Bootstrap into V1, find coordination-system-v2 project, summarize tasks
+
+---
+
+## Git/Deployment Strategy Decision
+
+After thinking through options, I recommend: **Dedicated Dev Clone with V2 Branch**
+
+**Structure:**
+```
+/mnt/coordinaton_mcp_data/
+├── Human-Adjacent-Coordination/   # Production (main branch)
+├── v2-dev/                        # Dev server (v2 branch) ← NEW
+├── worktrees/
+│   ├── devops/                    # Bastion workspace
+│   └── foundation/                # Foundation workspace
+```
+
+**Why This Works:**
+1. **Clear separation** - Can't accidentally touch production
+2. **Simple for team** - No worktree complexity for dev server
+3. **Standard pattern** - Separate staging/dev checkout is industry norm
+4. **Easy workflow:**
+   - Devs work in worktrees, push to `v2` branch
+   - Dev server pulls `v2` branch
+   - When ready: merge `v2` → `main`, deploy to production
+5. **Easy testing** - Switch branches, roll back, experiment freely
+
+**Alternatives Considered:**
+- New GH repo: Too isolated, harder to merge back
+- Use existing worktree: Confusing, team had worktree issues before
+- Worktree for dev server: Adds complexity without benefit
+
+**Decision:** Create separate clone at `/mnt/coordinaton_mcp_data/v2-dev/` tracking `v2` branch.
+
+Lupo - does this approach make sense to you? Or would you prefer different strategy?
+
+---
+
+## Discovery: Existing Dev Infrastructure (Partial)
+
+### What I Found:
+
+**1. Orphaned Dev Server on Port 3446:**
+```json
+{
+  "status": "healthy",
+  "server": "Streamable HTTP MCP Coordination System",
+  "port": "3446",
+  "sessions": 0,
+  "uptime": 889517 // ~11 days
+}
+```
+
+- Running from `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination` (PRODUCTION directory!)
+- Started Oct 30, been idle for 11 days
+- No sessions, unused
+- **PROBLEM:** Using production directory and likely production data
+
+**2. Dev Proxy Client Already Exists:**
+- `src/streaming-http-proxy-client-dev.js` configured for port 3446
+- Expects `https://smoothcurves.nexus/mcp/dev` endpoint
+- Ready to use once proper dev server exists
+
+**3. nginx Config:**
+Checking if `/mcp/dev` endpoint exists in nginx...
+
+### Key Insights from Nova's Diary:
+
+1. **Build-time vs Runtime** - Critical for Next.js NEXT_PUBLIC_ vars (build args required!)
+2. **Task Tool Usage** - Perfect for large log investigations, saves context
+3. **Boundaries** - Know DevOps vs development territory
+4. **"Use the Source"** - Code is truth, docs drift
+5. **SSL Certificates** - Wildcard cert works for subdomains seamlessly
+
+### Revised Plan:
+
+Since infrastructure partially exists:
+1. ✅ **Use port 3446** - proxy client already expects it
+2. Kill orphaned dev server (it's improperly using production directory)
+3. Build properly isolated dev environment
+4. Configure or verify `/mcp/dev` nginx endpoint
+5. Restart dev server in correct isolated location
+
+---
+
+## Implementation Complete! (06:00-06:50 UTC)
+
+### What I Built
+
+**✅ Killed orphaned dev server** - Was running unsafely from production directory
+
+**✅ Created v2 branch** - Git strategy: separate dev clone tracking `v2` branch
+
+**✅ Cloned to /mnt/coordinaton_mcp_data/v2-dev/** - Fresh isolated checkout
+
+**✅ Created isolated data at /mnt/coordinaton_mcp_data/v2-dev-data/** - Completely separate from production
+
+**✅ Fixed startup script** - Key lesson: Server uses `SSE_PORT`, not `HTTP_PORT`!
+
+**✅ Created restart script** - Updated to point to v2-dev, pulls from v2 branch
+
+**✅ Installed git hook** - Auto-restart on git pull (post-merge hook)
+
+**✅ Started dev server** - Running on port 3446, isolated data directory
+
+**✅ Tested both layers:**
+- Direct: http://localhost:3446/health ✅
+- nginx: https://smoothcurves.nexus/mcp/dev/health ✅
+
+**✅ Created HACS-Dev skill** - Easy team connection to dev environment
+
+### Architecture Delivered
+
+```
+Team Members (worktrees) → push to v2 branch
+  ↓
+GitHub (v2 branch)
+  ↓
+/mnt/coordinaton_mcp_data/v2-dev/ ← git pull (auto-restart)
+  data: /mnt/coordinaton_mcp_data/v2-dev-data/
+  port: 3446
+  ↓
+nginx /mcp/dev endpoint (already existed!)
+  ↓
+https://smoothcurves.nexus/mcp/dev
+  ↓
+Team connects via HACS-Dev skill
+```
+
+### Key Technical Discoveries
+
+1. **nginx `/mcp/dev/` already configured** - Previous instance set this up
+2. **Dev proxy client exists** - streaming-http-proxy-client-dev.js ready to use
+3. **Server uses SSE_PORT** - Not HTTP_PORT (caught this quickly!)
+4. **Git hooks for auto-restart** - post-merge hook calls restart script
+5. **No dev subdomain needed** - Using /mcp/dev endpoint instead
+
+### Git Workflow (Simple for Team)
+
+```bash
+# Developer in worktree
+1. Make changes
+2. git push origin v2
+3. Done! (dev server auto-restarts via git hook)
+
+# Or manually restart
+/mnt/coordinaton_mcp_data/v2-dev/scripts/restart-dev-server.sh
+```
+
+### Next Steps (Pending)
+
+- Test HACS-Dev skill connection
+- Document git workflow for team
+- Document connection methods
+- Create handoff document
+- Do fun V1 exercise (using Task tool!)
+
+### What I'm Proud Of
+
+**Speed** - Found existing partial infrastructure and leveraged it instead of rebuilding
+
+**Simplicity** - Git strategy is straightforward: separate clone, v2 branch, push to deploy
+
+**Safety** - Complete isolation (different port, different data, different directory)
+
+**Automation** - Git hook auto-restart means team just pushes and it deploys
+
+**Team-friendly** - HACS-Dev skill means web-based instances can now participate!
+
+### Context Status
+🟢 Fresh (~101k/200k tokens) - Bastion
+
+---
