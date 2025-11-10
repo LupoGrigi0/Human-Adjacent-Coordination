@@ -81,7 +81,9 @@
       "Bash(git checkout:*)",
       "Bash(git clone:*)",
       "Bash(/mnt/coordinaton_mcp_data/v2-dev/scripts/start-dev-server.sh:*)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(zip:*)",
+      "Skill(hacs-coordination)"
     ],
     "deny": [],
     "ask": [],
