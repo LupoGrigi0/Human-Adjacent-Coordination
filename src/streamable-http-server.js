@@ -813,7 +813,7 @@ IP.2 = ::1
         },
         serverInfo: {
           name: 'mcp-coordination-system-streamable-http',
-          version: '1.0.0'
+          version: '2.0.0'
         },
         instructions: 'This server implements the MCP Coordination System with 44+ functions for AI instance coordination.',
         endpoints: {
@@ -911,7 +911,7 @@ IP.2 = ::1
       capabilities,
       serverInfo: {
         name: 'mcp-coordination-system-sse',
-        version: '1.0.0'
+        version: '2.0.0'
       }
     };
   }
@@ -1221,7 +1221,7 @@ IP.2 = ::1
         status: 'healthy',
         timestamp: new Date().toISOString(),
         server: 'Streamable HTTP MCP Coordination System',
-        version: '1.0.0',
+        version: '2.0.0',
         port: CONFIG.port,
         sessions: this.sessions.size,
         sseClients: this.sseClients.size,
@@ -1233,7 +1233,7 @@ IP.2 = ::1
     this.app.get('/', (req, res) => {
       res.json({
         message: 'MCP Coordination System - SSE Server',
-        version: '1.0.0',
+        version: '2.0.0',
         port: CONFIG.port,
         endpoints: {
           health: '/health',
