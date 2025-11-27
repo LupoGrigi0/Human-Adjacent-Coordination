@@ -1,46 +1,77 @@
 #!/bin/bash
-# Start Development MCP Server
-# Port 3446 (HTTP streaming)
-# Accessible via: https://smoothcurves.nexus/mcp/dev
+# Start V2 Development MCP Server
+# This server runs isolated from production with separate data directory
 
 set -e
 
-cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination
+# Configuration
+DEV_DIR="/mnt/coordinaton_mcp_data/v2-dev"
+DATA_DIR="/mnt/coordinaton_mcp_data/v2-dev-data"
+PORT=3446
+LOG_DIR="$DEV_DIR/logs"
 
-# Kill existing dev server if running
-echo "🔍 Checking for existing dev server..."
-pkill -f "SSE_PORT=3446" || echo "   No existing dev server found"
+# Ensure log directory exists
+mkdir -p "$LOG_DIR"
 
-# Create logs directory if it doesn't exist
-mkdir -p logs
+# Kill existing dev server if running on this port
+echo "Checking for existing dev server on port $PORT..."
 
-# Start HTTP streaming server on port 3446
-echo "🚀 Starting development MCP server..."
-SSE_PORT=3446 \
-  SSE_HOST=0.0.0.0 \
-  NODE_ENV=development \
-  node src/streamable-http-server.js > logs/dev-http.log 2>&1 &
+# Find and kill process using this port (more reliable than pattern matching)
+PID_ON_PORT=$(lsof -ti:$PORT 2>/dev/null || true)
+if [ -n "$PID_ON_PORT" ]; then
+    echo "   Found process $PID_ON_PORT on port $PORT - killing..."
+    kill $PID_ON_PORT 2>/dev/null || true
+    sleep 2
+
+    # Force kill if still running
+    if kill -0 $PID_ON_PORT 2>/dev/null; then
+        echo "   Process didn't stop gracefully - force killing..."
+        kill -9 $PID_ON_PORT 2>/dev/null || true
+        sleep 1
+    fi
+fi
+
+# Verify port is free
+if ss -tlnp | grep -q ":$PORT "; then
+    echo "❌ ERROR: Port $PORT still in use after kill attempt!"
+    ss -tlnp | grep ":$PORT"
+    exit 1
+fi
+
+echo "✅ Port $PORT is free"
+
+# Change to dev directory
+cd "$DEV_DIR"
+
+# Start the dev server
+echo "🚀 Starting V2 Dev MCP Server..."
+echo "   Working Directory: $DEV_DIR"
+echo "   Data Directory: $DATA_DIR"
+echo "   Port: $PORT"
+echo "   Log: $LOG_DIR/dev-server.log"
+
+SSE_PORT=$PORT \
+SSE_HOST=0.0.0.0 \
+NODE_ENV=development \
+DATA_PATH="$DATA_DIR" \
+node src/streamable-http-server.js > "$LOG_DIR/dev-server.log" 2>&1 &
 
 DEV_PID=$!
+echo "   PID: $DEV_PID"
 
-# Wait a moment for server to start
-sleep 2
+# Wait a moment and verify it started
+sleep 3
 
-# Verify server is running
 if ps -p $DEV_PID > /dev/null; then
-    echo "✅ Development server started (PID: $DEV_PID)"
-    echo "   Local:    http://localhost:3446"
-    echo "   External: https://smoothcurves.nexus/mcp/dev"
-    echo "   Logs:     tail -f logs/dev-http.log"
-
-    # Test health endpoint
-    if curl -s http://localhost:3446/health > /dev/null 2>&1; then
-        echo "✅ Health check passed"
-    else
-        echo "⚠️  Health check failed (server may still be starting)"
-    fi
+    echo "✅ V2 Dev Server started successfully!"
+    echo ""
+    echo "Access via:"
+    echo "  - Direct: http://localhost:$PORT/health"
+    echo "  - nginx: https://smoothcurves.nexus/mcp/dev/health"
+    echo ""
+    echo "Logs: tail -f $LOG_DIR/dev-server.log"
 else
-    echo "❌ Failed to start development server"
-    cat logs/dev-http.log
+    echo "❌ Server failed to start. Check logs:"
+    tail -20 "$LOG_DIR/dev-server.log"
     exit 1
 fi
