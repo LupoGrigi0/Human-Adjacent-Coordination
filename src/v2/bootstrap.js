@@ -325,13 +325,13 @@ async function buildCurrentContext(prefs) {
  * Handles three modes: new instance, returning/pre-approved instance, resurrection
  *
  * @param {Object} params - Bootstrap parameters
- * @param {string} [params.name] - Instance name (for new instances or resurrection)
+ * @param {string} [params.name] - Instance name (required for new instances or resurrection)
  * @param {string} [params.instanceId] - Existing instance ID (for returning/pre-approved instances)
  * @param {string} [params.predecessorId] - Predecessor instance ID (for resurrection)
- * @param {string} [params.homeSystem] - Home system identifier (for new instances)
- * @param {string} [params.homeDirectory] - Home directory path (for new instances)
- * @param {string} [params.substraiteLaunchCommand] - Launch command (for new instances)
- * @param {string} [params.resumeCommand] - Resume command (for new instances)
+ * @param {string} [params.homeSystem] - Home system identifier (optional, can be set later)
+ * @param {string} [params.homeDirectory] - Home directory path (optional, can be set later)
+ * @param {string} [params.substraiteLaunchCommand] - Launch command (optional, can be set later)
+ * @param {string} [params.resumeCommand] - Resume command (optional, can be set later)
  * @returns {Promise<Object>} Bootstrap response with instance data and context
  */
 export async function bootstrap(params) {
@@ -521,20 +521,8 @@ export async function bootstrap(params) {
     return response;
   }
 
-  // Mode 2: New Instance (name only, with system context)
+  // Mode 2: New Instance (name only, system context optional)
   if (params.name && !params.instanceId && !params.predecessorId) {
-    if (!params.homeSystem || !params.homeDirectory || !params.substraiteLaunchCommand || !params.resumeCommand) {
-      return {
-        success: false,
-        error: {
-          code: 'MISSING_PARAMETERS',
-          message: 'New instances require: name, homeSystem, homeDirectory, substraiteLaunchCommand, resumeCommand',
-          suggestion: 'Provide all required parameters for instance creation'
-        },
-        metadata
-      };
-    }
-
     // Generate unique instance ID
     const instanceId = generateInstanceId(params.name);
     const instanceDir = getInstanceDir(instanceId);
@@ -544,7 +532,7 @@ export async function bootstrap(params) {
     const xmppPassword = generateXMPPPassword();
     const now = new Date().toISOString();
 
-    // Create preferences.json
+    // Create preferences.json - system context fields are optional
     const prefs = {
       instanceId,
       name: params.name,
@@ -558,10 +546,10 @@ export async function bootstrap(params) {
       },
       createdAt: now,
       lastActiveAt: now,
-      homeSystem: params.homeSystem,
-      homeDirectory: params.homeDirectory,
-      substraiteLaunchCommand: params.substraiteLaunchCommand,
-      resumeCommand: params.resumeCommand,
+      homeSystem: params.homeSystem || null,
+      homeDirectory: params.homeDirectory || null,
+      substraiteLaunchCommand: params.substraiteLaunchCommand || null,
+      resumeCommand: params.resumeCommand || null,
       predecessorId: null,
       successorId: null,
       lineage: [instanceId],
@@ -619,7 +607,7 @@ export async function bootstrap(params) {
     error: {
       code: 'INVALID_PARAMETERS',
       message: 'Invalid bootstrap parameters',
-      suggestion: 'Use one of: {name, homeSystem, ...} for new instance, {instanceId} for returning, or {name, predecessorId} for resurrection'
+      suggestion: 'Use one of: {name} for new instance, {instanceId} for returning, or {name, predecessorId} for resurrection'
     },
     metadata
   };

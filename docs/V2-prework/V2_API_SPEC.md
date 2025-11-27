@@ -22,6 +22,9 @@
   - Added multi-system support for project `localPaths`
   - Added lineage tracking for predecessor chains
   - Personal tasks inherit to successors
+- **v1.2** (2025-11-27): Post-testing fixes
+  - Made system context parameters optional in bootstrap (homeSystem, homeDirectory, etc.)
+  - Added `updateInstance` API for setting instance metadata after creation
 
 ---
 
@@ -655,6 +658,66 @@ Join a project (and receive project context).
 - Adds instance to project's XMPP room
 - Updates instance preferences with current project
 - Returns `localPath` resolved for instance's `homeSystem`
+
+---
+
+#### `updateInstance`
+Update instance metadata (system context, instructions).
+
+**Use Cases:**
+1. Instance setting their own system context after bootstrap
+2. Manager setting up an instance they're about to wake
+3. Manager updating system context for an instance on a different machine
+
+**Request (self-update):**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "homeSystem": "lupo-mac",
+  "homeDirectory": "/Users/lupo/projects",
+  "substraiteLaunchCommand": "claude",
+  "resumeCommand": "claude --resume"
+}
+```
+
+**Request (manager updating another instance):**
+```json
+{
+  "instanceId": "COO-x3k9",
+  "targetInstanceId": "NewDev-j4k8",
+  "homeSystem": "dev-server",
+  "instructions": "Build the auth module. Focus on JWT first."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "targetInstanceId": "NewDev-j4k8",
+  "updatedFields": ["homeSystem", "instructions"],
+  "updates": {
+    "homeSystem": "dev-server",
+    "instructions": "Build the auth module. Focus on JWT first."
+  },
+  "isSelfUpdate": false
+}
+```
+
+**Updatable Fields:**
+- `homeSystem` - System identifier
+- `homeDirectory` - Working directory path
+- `substraiteLaunchCommand` - Command to launch new instance
+- `resumeCommand` - Command to resume instance
+- `instructions` - Instructions for instance (typically set by managers)
+
+**Authorization:**
+- Self-update: Any instance can update their own metadata
+- Cross-update: Executive, PA, COO, PM can update other instances
+
+**Notes:**
+- Role/personality/project are NOT updatable here - use dedicated APIs
+- Manager roles can update any instance, not just their reports
 
 ---
 
