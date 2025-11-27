@@ -57,4 +57,4 @@ sessions/
 # yarn.lock
 
 # Claude Code
-.claude/
+.claude/.claude/settings.local.json
