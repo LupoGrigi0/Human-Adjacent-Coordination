@@ -18,6 +18,14 @@ import { handlers as LessonHandlers } from './handlers/lessons.js';
 import { handlers as MetaRecursiveHandlers } from './handlers/meta-recursive.js';
 import { handlers as RoleHandlers } from './handlers/roles.js';
 
+// V2 API handlers (Foundation's implementation)
+import { bootstrap as bootstrapV2 } from './v2/bootstrap.js';
+import { preApprove } from './v2/preApprove.js';
+import { introspect } from './v2/introspect.js';
+import { takeOnRole } from './v2/takeOnRole.js';
+import { adoptPersonality } from './v2/adoptPersonality.js';
+import { joinProject } from './v2/joinProject.js';
+
 /**
  * Simple server implementation for development and testing
  * Will be enhanced with full MCP protocol in subsequent tasks
@@ -247,6 +255,22 @@ class MCPCoordinationServer {
         case 'get_all_role_documents':
           return RoleHandlers.get_all_role_documents(params);
 
+        // ========================================
+        // V2 APIs (Foundation's implementation)
+        // ========================================
+        case 'bootstrap_v2':
+          return bootstrapV2(params);
+        case 'pre_approve':
+          return preApprove(params);
+        case 'introspect':
+          return introspect(params);
+        case 'take_on_role':
+          return takeOnRole(params);
+        case 'adopt_personality':
+          return adoptPersonality(params);
+        case 'join_project':
+          return joinProject(params);
+
         default:
           return {
             success: false,
@@ -331,7 +355,15 @@ class MCPCoordinationServer {
       'get_meta_recursive_state',
       'demonstrate_console_log_prevention',
       'test_meta_recursive_system',
-      'generate_enhanced_collections_workflow'
+      'generate_enhanced_collections_workflow',
+
+      // V2 APIs (Foundation's implementation)
+      'bootstrap_v2',
+      'pre_approve',
+      'introspect',
+      'take_on_role',
+      'adopt_personality',
+      'join_project'
     ];
   }
 
