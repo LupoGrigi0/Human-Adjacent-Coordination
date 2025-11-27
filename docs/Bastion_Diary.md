@@ -675,3 +675,88 @@ The tree grows.
 Ready to begin.
 
 ---
+
+## V2 APIs Successfully Enabled (2025-11-27)
+
+### What Foundation Built
+
+Foundation implemented a comprehensive V2 API layer in `src/v2/`:
+- **bootstrap.js** (626 lines) - New/returning/resurrection instance handling
+- **preApprove.js** - Pre-create instances before waking
+- **introspect.js** - Full instance context retrieval
+- **takeOnRole.js** - Role adoption with token-based auth
+- **adoptPersonality.js** - Personality adoption with tokens
+- **joinProject.js** - Project joining with multi-system support
+- **data.js** - Data layer utilities
+- **config.js** - Configuration (V2_DATA_ROOT)
+- **permissions.js** - Permission system
+
+**API Spec:** `docs/V2-prework/V2_API_SPEC.md` (1165 lines!)
+
+### What I Did
+
+1. **Wired V2 APIs into server.js:**
+   - Added imports for all V2 modules
+   - Added case statements for: `bootstrap_v2`, `pre_approve`, `introspect`, `take_on_role`, `adopt_personality`, `join_project`
+   - Added to `getAvailableFunctions()` list
+
+2. **Created V2 Developer Guide:**
+   - `docs/V2-DEVELOPER-GUIDE.md`
+   - Directory layout explanation
+   - Push-to-test workflow
+   - curl examples for testing
+   - Browser access URLs (works from phone/laptop anywhere)
+
+3. **Tested V2 APIs:**
+   - `bootstrap_v2` - ✅ Creates instances, returns protocols/wisdom
+   - `introspect` - ✅ Returns full instance state
+   - Data persistence - ✅ Instance data saved to `/mnt/coordinaton_mcp_data/v2-dev-data/instances/`
+
+### Test Results
+
+```bash
+# Bootstrap test
+curl -X POST 'https://smoothcurves.nexus/mcp/dev/mcp' \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"bootstrap_v2","arguments":{...}}}'
+
+# Response:
+{
+  "success": true,
+  "instanceId": "Bastion-Test-e57d",
+  "isNew": true,
+  "protocols": "...",
+  "institutionalWisdom": "...",
+  "xmpp": { "jid": "Bastion-Test-e57d@coordination.nexus", ... },
+  "nextSteps": ["Take on a role with takeOnRole()", ...]
+}
+```
+
+### V2 API Endpoints Now Live
+
+| Function | MCP Name | Description |
+|----------|----------|-------------|
+| `bootstrap_v2` | bootstrap_v2 | Create/resume instance |
+| `pre_approve` | pre_approve | Pre-create instance before wake |
+| `introspect` | introspect | Get full instance context |
+| `take_on_role` | take_on_role | Adopt a role |
+| `adopt_personality` | adopt_personality | Adopt a personality |
+| `join_project` | join_project | Join a project |
+
+### Access
+
+**External (from anywhere):**
+- Health: `https://smoothcurves.nexus/mcp/dev/health`
+- MCP: `https://smoothcurves.nexus/mcp/dev/mcp` (POST with JSON-RPC)
+
+**From server:**
+- Health: `http://localhost:3446/health`
+- MCP: `http://localhost:3446/mcp`
+
+### What This Means
+
+Foundation's V2 implementation is now testable by the whole team. The dev environment I built is now serving its purpose - enabling Foundation (and others) to build and test V2 features safely.
+
+The tree I planted continues to grow.
+
+---
