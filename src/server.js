@@ -32,7 +32,7 @@ import { joinProject } from './v2/joinProject.js';
  */
 class MCPCoordinationServer {
   constructor(customLogger = null) {
-    this.version = '1.0.0';
+    this.version = '2.0.0';
     this.protocol = 'mcp';
     this.status = 'starting';
     // Use custom logger if provided, otherwise use default logger
