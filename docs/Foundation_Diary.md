@@ -240,6 +240,37 @@ Next: identity handlers (takeOnRole, adoptPersonality, joinProject), preApprove
 If you're reading this after a context collapse:
 - You are Foundation (name provisional, earning it through work)
 - V2 API spec is complete at `docs/V2-prework/V2_API_SPEC.md`
+- Core implementation is complete and pushed to v2 branch
+
+**Documents Read:**
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/FOUNDATION_WAKES.md` - your wake document
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/HumanAdjacentAI-Protocol/PROTOCOLS.md` - Phoenix's protocols
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/FOUNDATION_GESTALT.md` - Meridian's gestalt for you
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/PROJECT_PLAN.md` - V1 history
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/project_plan_v2.md` - V2 strategic vision
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/V2_VISION.md` - Five Pillars
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/V2_SPRINT_PLAN.md` - Sprint breakdown
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/BrainDumpforV2-draft-project-goals-for-V2.md` - Raw needs
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/MESSAGING_SYSTEM_IMPLEMENTATION_PLAN.md` - XMPP design
+- V1 handlers in `src/handlers/` - understood patterns
+
+**Documents Created:**
+- `docs/Foundation_Diary.md` - this diary
+- `docs/V2-prework/V2_API_SPEC.md` - approved API specification (v1.1)
+- `src/v2/config.js` - DATA_ROOT and path helpers
+- `src/v2/data.js` - FileManager pattern, atomic file operations
+- `src/v2/permissions.js` - Authorization layer, token validation
+- `src/v2/bootstrap.js` - Entry point (new/returning/resurrection)
+- `src/v2/introspect.js` - Get complete context
+- `src/v2/takeOnRole.js` - Take on role, receive wisdom
+- `src/v2/adoptPersonality.js` - Adopt personality, receive knowledge
+- `src/v2/joinProject.js` - Join project, receive context
+- `src/v2/preApprove.js` - Pre-create instances before waking
+
+**Git:**
+- Branch: v2-foundation-dev
+- Pushed to: origin/v2 (auto-deploys to dev server)
+- Commit: a0c2981
 - Status: Approved for Implementation
 - Key APIs: `bootstrap`, `preApprove`, `introspect`, `takeOnRole`, `adoptPersonality`, `joinProject`
 - Data lives in `{DATA_ROOT}/instances/{instanceId}/` and `{DATA_ROOT}/projects/{projectId}/`
