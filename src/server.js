@@ -17,6 +17,8 @@ import * as InstanceHandler from './handlers/instances.js';
 import { handlers as LessonHandlers } from './handlers/lessons.js';
 import { handlers as MetaRecursiveHandlers } from './handlers/meta-recursive.js';
 import { handlers as RoleHandlers } from './handlers/roles.js';
+// V2 XMPP Messaging (new real-time messaging system)
+import * as XMPPHandler from './handlers/messaging-xmpp.js';
 
 /**
  * Simple server implementation for development and testing
@@ -191,6 +193,20 @@ class MCPCoordinationServer {
         case 'delete_message':
           return MessageHandler.deleteMessage(params);
 
+        // XMPP Real-time Messaging (V2)
+        case 'xmpp_send_message':
+          return XMPPHandler.sendMessage(params);
+        case 'xmpp_get_messages':
+          return XMPPHandler.getMessages(params);
+        case 'get_presence':
+          return XMPPHandler.getPresence(params);
+        case 'get_messaging_info':
+          return XMPPHandler.getMessagingInfo(params);
+        case 'lookup_shortname':
+          return XMPPHandler.lookupShortname(params);
+        case 'register_messaging_user':
+          return XMPPHandler.registerMessagingUser(params);
+
         // Instance management functions
         case 'register_instance':
           return InstanceHandler.registerInstance(params);
@@ -297,7 +313,7 @@ class MCPCoordinationServer {
       'get_task_stats',
       'delete_task',
       
-      // Message system
+      // Message system (legacy file-based)
       'send_message',
       'get_messages',
       'get_message',
@@ -306,7 +322,15 @@ class MCPCoordinationServer {
       'get_archived_messages',
       'get_message_stats',
       'delete_message',
-      
+
+      // XMPP Real-time Messaging (V2)
+      'xmpp_send_message',
+      'xmpp_get_messages',
+      'get_presence',
+      'get_messaging_info',
+      'lookup_shortname',
+      'register_messaging_user',
+
       // Instance management
       'register_instance',
       'update_heartbeat',
