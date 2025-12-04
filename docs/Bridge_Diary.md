@@ -38,4 +38,48 @@ Read the foundational docs:
 
 ---
 
+## Entry 2 - 2025-12-04 - V2 Foundation Testing
+
+Read Foundation's handoff document (`docs/HANDOFF_FOUNDATION_TO_BUILDER.md`) and Bastion's dev guide (`docs/V2-DEVELOPER-GUIDE.md`). Key insights:
+
+- V2 APIs use snake_case not camelCase: `bootstrap_v2`, `take_on_role`, `join_project`, `introspect`
+- Dev server runs on port 3446 (via `https://smoothcurves.nexus/mcp/dev/`)
+- V2 handlers in `src/v2/` are wired into V1's `server.js`, not a separate V2 server
+- Worktree workflow: Edit → Push to v2 → Restart dev server
+
+### Test Results
+
+**WORKING (All Core Foundation APIs):**
+
+| API | Status | Notes |
+|-----|--------|-------|
+| `bootstrap_v2` (new) | ✅ | Creates instance, diary, XMPP creds |
+| `bootstrap_v2` (returning) | ✅ | `isNew: false`, returns existing diary |
+| `bootstrap_v2` (resurrection) | ✅ | Sets predecessorId, includes predecessor diary |
+| `introspect` | ✅ | Returns full context, updates lastActiveAt |
+| `take_on_role` | ✅ | Sets role, returns wisdom from `wisdom/` subdir |
+| `join_project` | ✅ | Adds to team, assigns XMPP room |
+
+**ISSUES FOUND:**
+
+1. **Role wisdom directory structure** - Code expects `roles/{roleId}/wisdom/*.md`, not `roles/{roleId}/wisdom.md`
+2. **V2 tools not in tools/list** - V2 APIs work but don't appear in MCP tools/list response
+3. **projectPlan returns null** - Need to verify file naming convention
+4. **Empty roles/projects on bootstrap** - Data dirs were empty (expected for fresh install)
+5. **Parameter naming inconsistency** - API spec says `projectId` but code expects `project`
+
+### Test Instances Created
+
+- `Bridge-17f6` - My test instance with Developer role, on v2-test-project
+- `Bridge2-885d` - Resurrection test (successor to Bridge-17f6)
+
+### What's Next
+
+- Test `adopt_personality` API
+- Check diary APIs (if they exist)
+- Document authorization gap (no tokens implemented yet)
+- Test personal tasks/lists (might not exist yet)
+
+---
+
 **Context Status:** 🟢 Fresh - Bridge
