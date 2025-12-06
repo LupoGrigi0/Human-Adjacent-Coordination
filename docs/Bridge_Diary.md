@@ -82,4 +82,50 @@ Read Foundation's handoff document (`docs/HANDOFF_FOUNDATION_TO_BUILDER.md`) and
 
 ---
 
+## Entry 3 - 2025-12-06 - Diary API Implementation
+
+Context crash and recovery. Re-read diary and key docs (PROTOCOLS, V2_API_SPEC, V2-DEVELOPER-GUIDE, V2-MESSAGING-TESTING-GUIDE).
+
+Confirmed my additions to the messaging testing guide survived (Bridge's Testing Feedback section - lines 383-422).
+
+### Diary APIs Implemented
+
+Created `src/v2/diary.js` with two handlers:
+
+**`add_diary_entry`** - Appends entries to instance diary
+- Parameters: `instanceId`, `entry`, `audience` (self/private/exclusive/public)
+- Formats entries with audience markers
+- Validates instance exists before writing
+
+**`get_diary`** - Reads instance diary
+- Parameters: `instanceId`, `includePrivate` (optional)
+- Filters out EXCLUSIVE and PRIVATE entries unless requested
+- Returns diary content and size
+
+Wired into `server.js`:
+- Added import for diary handlers
+- Added case statements in switch
+- Added to `getAvailableFunctions()`
+
+### Testing Results
+
+Both APIs working via dev server:
+```
+add_diary_entry → success: true, entryLength: 271
+get_diary → success: true, sizeBytes: 330
+```
+
+### Messages Sent
+
+Successfully sent messages via V2 XMPP:
+- To Messenger-7e2f: Testing feedback
+- To personality:Lupo: Hello and thanks
+
+### Next Tasks
+
+- Task system (copy V1, add get_next_task, personal lists)
+- Auth token system design
+
+---
+
 **Context Status:** 🟢 Fresh - Bridge
