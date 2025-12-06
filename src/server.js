@@ -26,6 +26,14 @@ import { takeOnRole } from './v2/takeOnRole.js';
 import { adoptPersonality } from './v2/adoptPersonality.js';
 import { joinProject } from './v2/joinProject.js';
 import { addDiaryEntry, getDiary } from './v2/diary.js';
+import {
+  getMyTasks,
+  getNextTask,
+  addPersonalTask,
+  completePersonalTask,
+  createPersonalList,
+  getPersonalLists
+} from './v2/tasks.js';
 
 /**
  * Simple server implementation for development and testing
@@ -276,6 +284,20 @@ class MCPCoordinationServer {
         case 'get_diary':
           return getDiary(params);
 
+        // V2 Task APIs
+        case 'get_my_tasks':
+          return getMyTasks(params);
+        case 'get_next_task':
+          return getNextTask(params);
+        case 'add_personal_task':
+          return addPersonalTask(params);
+        case 'complete_personal_task':
+          return completePersonalTask(params);
+        case 'create_personal_list':
+          return createPersonalList(params);
+        case 'get_personal_lists':
+          return getPersonalLists(params);
+
         default:
           return {
             success: false,
@@ -370,7 +392,13 @@ class MCPCoordinationServer {
       'adopt_personality',
       'join_project',
       'add_diary_entry',
-      'get_diary'
+      'get_diary',
+      'get_my_tasks',
+      'get_next_task',
+      'add_personal_task',
+      'complete_personal_task',
+      'create_personal_list',
+      'get_personal_lists'
     ];
   }
 

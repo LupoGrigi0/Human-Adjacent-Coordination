@@ -21,6 +21,16 @@ export { updateInstance } from './updateInstance.js';
 // Diary handlers
 export { addDiaryEntry, getDiary } from './diary.js';
 
+// Task handlers
+export {
+  getMyTasks,
+  getNextTask,
+  addPersonalTask,
+  completePersonalTask,
+  createPersonalList,
+  getPersonalLists
+} from './tasks.js';
+
 // Config and utilities
 export * as config from './config.js';
 export * as data from './data.js';
