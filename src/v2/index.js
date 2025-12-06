@@ -18,6 +18,9 @@ export { joinProject } from './joinProject.js';
 // Instance management
 export { updateInstance } from './updateInstance.js';
 
+// Diary handlers
+export { addDiaryEntry, getDiary } from './diary.js';
+
 // Config and utilities
 export * as config from './config.js';
 export * as data from './data.js';

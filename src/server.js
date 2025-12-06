@@ -25,6 +25,7 @@ import { introspect } from './v2/introspect.js';
 import { takeOnRole } from './v2/takeOnRole.js';
 import { adoptPersonality } from './v2/adoptPersonality.js';
 import { joinProject } from './v2/joinProject.js';
+import { addDiaryEntry, getDiary } from './v2/diary.js';
 
 /**
  * Simple server implementation for development and testing
@@ -270,6 +271,10 @@ class MCPCoordinationServer {
           return adoptPersonality(params);
         case 'join_project':
           return joinProject(params);
+        case 'add_diary_entry':
+          return addDiaryEntry(params);
+        case 'get_diary':
+          return getDiary(params);
 
         default:
           return {
@@ -363,7 +368,9 @@ class MCPCoordinationServer {
       'introspect',
       'take_on_role',
       'adopt_personality',
-      'join_project'
+      'join_project',
+      'add_diary_entry',
+      'get_diary'
     ];
   }
 
