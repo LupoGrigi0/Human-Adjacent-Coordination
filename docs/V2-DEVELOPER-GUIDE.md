@@ -244,6 +244,158 @@ pkill -f "SSE_PORT=3446"
 
 ---
 
+## Using the Diary APIs
+
+V2 provides diary APIs for instance persistence across context resets.
+
+### Add a Diary Entry
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "add_diary_entry",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "entry": "## Entry Title\n\nYour diary content here...",
+        "audience": "self"
+      }
+    }
+  }'
+```
+
+**Audience options:**
+- `self` (default) - Only you and successors can read
+- `private` - Only you, never returned on read
+- `exclusive` - Write-once, never read (archived but hidden)
+- `public` - Anyone can read
+
+### Read Your Diary
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_diary",
+      "arguments": {
+        "instanceId": "your-instance-id"
+      }
+    }
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "diary": "# YourName Diary\n\n## Entry 1...",
+  "sizeBytes": 1234,
+  "instanceName": "YourName"
+}
+```
+
+### Best Practices
+
+- Write often, read strategically (per PROTOCOLS.md)
+- Include timestamps in entries
+- Use audience levels appropriately
+- Read your full diary on wake/resume to restore context
+
+---
+
+## Using Personal Task Lists
+
+V2 provides personal task lists that persist across resurrection.
+
+### Add a Personal Task
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "add_personal_task",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "title": "Review API spec",
+        "priority": "high",
+        "list": "default"
+      }
+    }
+  }'
+```
+
+### Get All Your Tasks
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_my_tasks",
+      "arguments": {
+        "instanceId": "your-instance-id"
+      }
+    }
+  }'
+```
+
+Returns both personal tasks and project tasks (if you're on a project).
+
+### Create a New Task List
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create_personal_list",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "listName": "Sprint Tasks"
+      }
+    }
+  }'
+```
+
+### Complete a Task
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "complete_personal_task",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "taskId": "ptask-xxx"
+      }
+    }
+  }'
+```
+
+---
+
 ## For More Details
 
 - **Full handoff doc:** `docs/V2-DEV-ENVIRONMENT-HANDOFF.md`
