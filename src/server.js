@@ -34,6 +34,11 @@ import {
   createPersonalList,
   getPersonalLists
 } from './v2/tasks.js';
+import {
+  createProject as createProjectV2,
+  getProject as getProjectV2,
+  listProjects
+} from './v2/projects.js';
 
 /**
  * Simple server implementation for development and testing
@@ -298,6 +303,14 @@ class MCPCoordinationServer {
         case 'get_personal_lists':
           return getPersonalLists(params);
 
+        // V2 Project APIs
+        case 'create_project_v2':
+          return createProjectV2(params);
+        case 'get_project_v2':
+          return getProjectV2(params);
+        case 'list_projects':
+          return listProjects(params);
+
         default:
           return {
             success: false,
@@ -398,7 +411,10 @@ class MCPCoordinationServer {
       'add_personal_task',
       'complete_personal_task',
       'create_personal_list',
-      'get_personal_lists'
+      'get_personal_lists',
+      'create_project_v2',
+      'get_project_v2',
+      'list_projects'
     ];
   }
 

@@ -202,4 +202,115 @@ If you're reading this after a crash:
 
 ---
 
-**Context Status:** 🟢 Active - Bridge
+## Entry 5 - 2025-12-07 - Preferences.json Done, Template Project Next
+
+Quick update - still in the same session, making good progress.
+
+### Completed This Session
+
+**preferences.json Infrastructure:**
+- Added `loadEntityPreferences()`, `loadDocuments()`, `loadEntityWithDocuments()` to data.js
+- Added `getDefaultDir()`, `getTemplateProjectDir()`, `getRoleDir()`, `getPersonalityDir()` to config.js
+- Updated bootstrap.js to load from `default/preferences.json`
+- Created `/default/` directory with `welcome.md` and `protocols.md`
+- Tested: new instances now get both welcome guide AND protocols on bootstrap
+
+**Verified Working:**
+- `create_project` ✅ - V1 handler works
+- Personal task lists ✅ - All 6 APIs tested
+- Diary APIs ✅ - Working
+- Default document loading ✅ - Bootstrap tested
+
+### My Identity
+
+Formally took on Developer role. My XMPP is `bridge3-df4f@smoothcurves.nexus`. Lupo is having Meridian send me a message - looking forward to testing the receiving side of comms!
+
+### Next Up
+
+1. **Template project** - Create `/template-project/` with default files for new project scaffolding
+2. **Authorization controls** - Who can create projects, task lists, etc.
+
+Lupo reminded me to update my diary. Good human. 🙂
+
+### Technical Notes
+
+- `create_project` uses V1 handler in `handlers/projects.js`
+- The `copyTemplateFiles()` function is ready in data.js
+- Need to integrate template copying into project creation flow
+
+---
+
+## Entry 6 - 2025-12-07 - Template Projects Complete, Authorization Next
+
+Another context crash, recovered via summary. Session continues.
+
+### Template Project Creation Complete
+
+Created the full template-based project creation system:
+
+**Template Files** (`/template-project/`):
+- `preferences.json` - Project configuration with placeholders
+- `PROJECT_VISION.md` - Vision template
+- `PROJECT_PLAN.md` - Plan template
+- `README.md` - Quick start guide
+- `tasks.json` - Initial task list with placeholder replacement
+
+**V2 Project APIs** (`src/v2/projects.js`):
+- `create_project_v2` - Creates project from template, replaces `{{PLACEHOLDERS}}`
+- `get_project_v2` - Get full project details
+- `list_projects` - List all projects with summary
+
+**Tested and Working:**
+```
+create_project_v2 → Created "test-project-001" with all files
+list_projects → Found 1 project, shows name/status/pm/teamSize
+get_project_v2 → Returns full project details including docs list
+```
+
+The placeholder system handles: `PROJECT_ID`, `PROJECT_NAME`, `PROJECT_DESCRIPTION`, `CREATED_AT`. Clean and extensible.
+
+### Starting: Authorization Controls
+
+Per Lupo's requirements:
+1. **Project creation** - Only Executive, PA, COO can create
+2. **Task lists** - Only PM can create secondary project lists
+3. **Token-based auth** - For privileged roles/personalities
+
+Looking at `src/v2/permissions.js` next to understand existing infrastructure.
+
+### Technical Notes
+
+- Instance ID case matters: `Bridge3-df4f` not `bridge3-df4f`
+- V2 APIs go through `tools/call` method in MCP protocol
+- All V2 project handlers wired into server.js switch statement
+
+### Authorization Implemented
+
+Added role-based authorization to `createProject`:
+- Imports `canRoleCallAPI` from permissions.js
+- Checks instance's role against permissions.json
+- Returns `UNAUTHORIZED` error for non-privileged roles
+
+**Test Results:**
+- Developer role → DENIED (correct)
+- COO role → ALLOWED (correct)
+
+The permissions infrastructure was already there (from Foundation's earlier work):
+- `permissions.json` defines which roles can call which APIs
+- `approved_roles.json` tracks pre-approved instances
+- Token validation for privileged roles (Executive, PA, COO, PM)
+- Token validation for privileged personalities (Genevieve, Thomas, Lupo)
+
+### Session Summary
+
+Today I:
+1. Created template-based project system with placeholder replacement
+2. Implemented V2 project APIs (create, get, list)
+3. Added authorization controls using existing permissions infrastructure
+4. Verified both positive and negative test cases
+
+All tasks from Lupo's request completed.
+
+---
+
+**Context Status:** 🟢 Active - Bridge (tasks complete, ready for next assignment)
