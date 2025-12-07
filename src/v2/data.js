@@ -177,3 +177,94 @@ export function generateInstanceId(name) {
   const suffix = generateSuffix();
   return `${name}-${suffix}`;
 }
+
+/**
+ * Load preferences.json from any entity directory
+ * Works for roles, personalities, projects, default, or any directory
+ * @param {string} dirPath - Path to entity directory
+ * @returns {Promise<Object|null>} Preferences object or null if doesn't exist
+ */
+export async function loadEntityPreferences(dirPath) {
+  const prefsPath = path.join(dirPath, 'preferences.json');
+  return await readJSON(prefsPath);
+}
+
+/**
+ * Load documents listed in a preferences object
+ * Reads each file in the documents array and returns concatenated content
+ * @param {string} baseDir - Base directory containing the documents
+ * @param {string[]} documentList - Array of document filenames
+ * @returns {Promise<string>} Concatenated document content
+ */
+export async function loadDocuments(baseDir, documentList) {
+  if (!documentList || documentList.length === 0) {
+    return '';
+  }
+
+  const contents = [];
+
+  for (const docPath of documentList) {
+    const fullPath = path.join(baseDir, docPath);
+    try {
+      const content = await fs.readFile(fullPath, 'utf8');
+      contents.push(content);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+      // Skip missing files silently
+    }
+  }
+
+  return contents.join('\n\n');
+}
+
+/**
+ * Load preferences and all associated documents from an entity directory
+ * Combines loadEntityPreferences and loadDocuments into one call
+ * @param {string} dirPath - Path to entity directory
+ * @returns {Promise<{preferences: Object|null, documents: string}>}
+ */
+export async function loadEntityWithDocuments(dirPath) {
+  const preferences = await loadEntityPreferences(dirPath);
+
+  if (!preferences) {
+    return { preferences: null, documents: '' };
+  }
+
+  const documents = await loadDocuments(dirPath, preferences.documents || []);
+
+  return { preferences, documents };
+}
+
+/**
+ * Copy template files to a new directory
+ * Used for creating new projects from template
+ * @param {string} templateDir - Source template directory
+ * @param {string} targetDir - Target directory
+ * @returns {Promise<void>}
+ */
+export async function copyTemplateFiles(templateDir, targetDir) {
+  await ensureDir(targetDir);
+
+  try {
+    const entries = await fs.readdir(templateDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const srcPath = path.join(templateDir, entry.name);
+      const destPath = path.join(targetDir, entry.name);
+
+      if (entry.isDirectory()) {
+        await copyTemplateFiles(srcPath, destPath);
+      } else {
+        await fs.copyFile(srcPath, destPath);
+      }
+    }
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      // Template directory doesn't exist, that's fine
+      return;
+    }
+    throw error;
+  }
+}

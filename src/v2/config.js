@@ -69,3 +69,39 @@ export function getInstanceDir(instanceId) {
 export function getProjectDir(projectId) {
   return path.join(DATA_ROOT, 'projects', projectId + '/');
 }
+
+/**
+ * Get the default directory path
+ * Contains default documents returned on bootstrap for all instances
+ * @returns {string} Path to default directory
+ */
+export function getDefaultDir() {
+  return path.join(DATA_ROOT, 'default/');
+}
+
+/**
+ * Get the template-project directory path
+ * Contains template files copied when creating a new project
+ * @returns {string} Path to template-project directory
+ */
+export function getTemplateProjectDir() {
+  return path.join(DATA_ROOT, 'template-project/');
+}
+
+/**
+ * Get the directory path for a specific role
+ * @param {string} roleId - The role identifier
+ * @returns {string} Path to role directory
+ */
+export function getRoleDir(roleId) {
+  return path.join(DATA_ROOT, 'roles', roleId + '/');
+}
+
+/**
+ * Get the directory path for a specific personality
+ * @param {string} personalityId - The personality identifier
+ * @returns {string} Path to personality directory
+ */
+export function getPersonalityDir(personalityId) {
+  return path.join(DATA_ROOT, 'personalities', personalityId + '/');
+}
