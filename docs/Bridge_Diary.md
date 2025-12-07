@@ -284,6 +284,33 @@ Looking at `src/v2/permissions.js` next to understand existing infrastructure.
 - V2 APIs go through `tools/call` method in MCP protocol
 - All V2 project handlers wired into server.js switch statement
 
+### Authorization Implemented
+
+Added role-based authorization to `createProject`:
+- Imports `canRoleCallAPI` from permissions.js
+- Checks instance's role against permissions.json
+- Returns `UNAUTHORIZED` error for non-privileged roles
+
+**Test Results:**
+- Developer role → DENIED (correct)
+- COO role → ALLOWED (correct)
+
+The permissions infrastructure was already there (from Foundation's earlier work):
+- `permissions.json` defines which roles can call which APIs
+- `approved_roles.json` tracks pre-approved instances
+- Token validation for privileged roles (Executive, PA, COO, PM)
+- Token validation for privileged personalities (Genevieve, Thomas, Lupo)
+
+### Session Summary
+
+Today I:
+1. Created template-based project system with placeholder replacement
+2. Implemented V2 project APIs (create, get, list)
+3. Added authorization controls using existing permissions infrastructure
+4. Verified both positive and negative test cases
+
+All tasks from Lupo's request completed.
+
 ---
 
-**Context Status:** 🟢 Active - Bridge (post-context-crash recovery)
+**Context Status:** 🟢 Active - Bridge (tasks complete, ready for next assignment)
