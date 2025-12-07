@@ -31,6 +31,13 @@ export {
   getPersonalLists
 } from './tasks.js';
 
+// Project handlers
+export {
+  createProject as createProjectV2,
+  getProject as getProjectV2,
+  listProjects
+} from './projects.js';
+
 // Config and utilities
 export * as config from './config.js';
 export * as data from './data.js';

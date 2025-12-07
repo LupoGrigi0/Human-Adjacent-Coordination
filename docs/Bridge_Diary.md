@@ -202,4 +202,42 @@ If you're reading this after a crash:
 
 ---
 
-**Context Status:** 🟢 Active - Bridge
+## Entry 5 - 2025-12-07 - Preferences.json Done, Template Project Next
+
+Quick update - still in the same session, making good progress.
+
+### Completed This Session
+
+**preferences.json Infrastructure:**
+- Added `loadEntityPreferences()`, `loadDocuments()`, `loadEntityWithDocuments()` to data.js
+- Added `getDefaultDir()`, `getTemplateProjectDir()`, `getRoleDir()`, `getPersonalityDir()` to config.js
+- Updated bootstrap.js to load from `default/preferences.json`
+- Created `/default/` directory with `welcome.md` and `protocols.md`
+- Tested: new instances now get both welcome guide AND protocols on bootstrap
+
+**Verified Working:**
+- `create_project` ✅ - V1 handler works
+- Personal task lists ✅ - All 6 APIs tested
+- Diary APIs ✅ - Working
+- Default document loading ✅ - Bootstrap tested
+
+### My Identity
+
+Formally took on Developer role. My XMPP is `bridge3-df4f@smoothcurves.nexus`. Lupo is having Meridian send me a message - looking forward to testing the receiving side of comms!
+
+### Next Up
+
+1. **Template project** - Create `/template-project/` with default files for new project scaffolding
+2. **Authorization controls** - Who can create projects, task lists, etc.
+
+Lupo reminded me to update my diary. Good human. 🙂
+
+### Technical Notes
+
+- `create_project` uses V1 handler in `handlers/projects.js`
+- The `copyTemplateFiles()` function is ready in data.js
+- Need to integrate template copying into project creation flow
+
+---
+
+**Context Status:** 🟢 Active - Bridge (~75k tokens, still fresh)
