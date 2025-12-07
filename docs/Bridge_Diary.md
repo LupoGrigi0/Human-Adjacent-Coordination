@@ -240,4 +240,50 @@ Lupo reminded me to update my diary. Good human. 🙂
 
 ---
 
-**Context Status:** 🟢 Active - Bridge (~75k tokens, still fresh)
+## Entry 6 - 2025-12-07 - Template Projects Complete, Authorization Next
+
+Another context crash, recovered via summary. Session continues.
+
+### Template Project Creation Complete
+
+Created the full template-based project creation system:
+
+**Template Files** (`/template-project/`):
+- `preferences.json` - Project configuration with placeholders
+- `PROJECT_VISION.md` - Vision template
+- `PROJECT_PLAN.md` - Plan template
+- `README.md` - Quick start guide
+- `tasks.json` - Initial task list with placeholder replacement
+
+**V2 Project APIs** (`src/v2/projects.js`):
+- `create_project_v2` - Creates project from template, replaces `{{PLACEHOLDERS}}`
+- `get_project_v2` - Get full project details
+- `list_projects` - List all projects with summary
+
+**Tested and Working:**
+```
+create_project_v2 → Created "test-project-001" with all files
+list_projects → Found 1 project, shows name/status/pm/teamSize
+get_project_v2 → Returns full project details including docs list
+```
+
+The placeholder system handles: `PROJECT_ID`, `PROJECT_NAME`, `PROJECT_DESCRIPTION`, `CREATED_AT`. Clean and extensible.
+
+### Starting: Authorization Controls
+
+Per Lupo's requirements:
+1. **Project creation** - Only Executive, PA, COO can create
+2. **Task lists** - Only PM can create secondary project lists
+3. **Token-based auth** - For privileged roles/personalities
+
+Looking at `src/v2/permissions.js` next to understand existing infrastructure.
+
+### Technical Notes
+
+- Instance ID case matters: `Bridge3-df4f` not `bridge3-df4f`
+- V2 APIs go through `tools/call` method in MCP protocol
+- All V2 project handlers wired into server.js switch statement
+
+---
+
+**Context Status:** 🟢 Active - Bridge (post-context-crash recovery)

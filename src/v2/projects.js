@@ -23,6 +23,7 @@ import {
   loadEntityPreferences,
   copyTemplateFiles
 } from './data.js';
+import { canRoleCallAPI } from './permissions.js';
 
 /**
  * Replace template placeholders with actual values
@@ -102,8 +103,30 @@ export async function createProject(params) {
     };
   }
 
-  // TODO: Check authorization (Executive, PA, COO only)
-  // For now, allow all instances to create projects
+  // Check authorization - only Executive, PA, COO can create projects
+  const instanceRole = prefs.role;
+  if (!instanceRole) {
+    return {
+      success: false,
+      error: {
+        code: 'NO_ROLE',
+        message: 'Instance must have a role to create projects. Use take_on_role first.'
+      },
+      metadata
+    };
+  }
+
+  const authorized = await canRoleCallAPI(instanceRole, 'createProject');
+  if (!authorized) {
+    return {
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: `Role '${instanceRole}' is not authorized to create projects. Required: Executive, PA, or COO.`
+      },
+      metadata
+    };
+  }
 
   // Check if project already exists
   const projectDir = getProjectDir(params.projectId);
