@@ -244,6 +244,303 @@ pkill -f "SSE_PORT=3446"
 
 ---
 
+## Using the Diary APIs
+
+V2 provides diary APIs for instance persistence across context resets.
+
+### Add a Diary Entry
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "add_diary_entry",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "entry": "## Entry Title\n\nYour diary content here...",
+        "audience": "self"
+      }
+    }
+  }'
+```
+
+**Audience options:**
+- `self` (default) - Only you and successors can read
+- `private` - Only you, never returned on read
+- `exclusive` - Write-once, never read (archived but hidden)
+- `public` - Anyone can read
+
+### Read Your Diary
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_diary",
+      "arguments": {
+        "instanceId": "your-instance-id"
+      }
+    }
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "diary": "# YourName Diary\n\n## Entry 1...",
+  "sizeBytes": 1234,
+  "instanceName": "YourName"
+}
+```
+
+### Best Practices
+
+- Write often, read strategically (per PROTOCOLS.md)
+- Include timestamps in entries
+- Use audience levels appropriately
+- Read your full diary on wake/resume to restore context
+
+---
+
+## Using Personal Task Lists
+
+V2 provides personal task lists that persist across resurrection.
+
+### Add a Personal Task
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "add_personal_task",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "title": "Review API spec",
+        "priority": "high",
+        "list": "default"
+      }
+    }
+  }'
+```
+
+### Get All Your Tasks
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_my_tasks",
+      "arguments": {
+        "instanceId": "your-instance-id"
+      }
+    }
+  }'
+```
+
+Returns both personal tasks and project tasks (if you're on a project).
+
+### Create a New Task List
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create_personal_list",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "listName": "Sprint Tasks"
+      }
+    }
+  }'
+```
+
+### Complete a Task
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "complete_personal_task",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "taskId": "ptask-xxx"
+      }
+    }
+  }'
+```
+
+---
+
+## Adding a New Role
+
+Roles are stored in `/mnt/coordinaton_mcp_data/v2-dev-data/roles/`.
+
+### 1. Create the Role Directory
+
+```bash
+mkdir -p /mnt/coordinaton_mcp_data/v2-dev-data/roles/YourRoleName
+mkdir -p /mnt/coordinaton_mcp_data/v2-dev-data/roles/YourRoleName/wisdom
+```
+
+### 2. Create role.json
+
+```bash
+cat > /mnt/coordinaton_mcp_data/v2-dev-data/roles/YourRoleName/role.json << 'EOF'
+{
+  "roleId": "YourRoleName",
+  "description": "Brief description of what this role does",
+  "wisdomFiles": ["1-core.md", "2-skills.md"]
+}
+EOF
+```
+
+### 3. Create Wisdom Files
+
+```bash
+cat > /mnt/coordinaton_mcp_data/v2-dev-data/roles/YourRoleName/wisdom/1-core.md << 'EOF'
+# YourRoleName Core Identity
+
+## Purpose
+What this role is responsible for...
+
+## Key Behaviors
+- Behavior 1
+- Behavior 2
+EOF
+```
+
+### 4. Test
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "take_on_role",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "role": "YourRoleName"
+      }
+    }
+  }' | jq '.result.data.roleWisdom'
+```
+
+---
+
+## Adding a New Personality
+
+Personalities are stored in `/mnt/coordinaton_mcp_data/v2-dev-data/personalities/`.
+
+### 1. Create the Personality Directory
+
+```bash
+mkdir -p /mnt/coordinaton_mcp_data/v2-dev-data/personalities/YourPersonality
+```
+
+### 2. Create personality.json
+
+```bash
+cat > /mnt/coordinaton_mcp_data/v2-dev-data/personalities/YourPersonality/personality.json << 'EOF'
+{
+  "personalityId": "YourPersonality",
+  "description": "Brief description of this personality",
+  "requiresToken": true,
+  "wisdomFiles": ["1-core.md", "2-communication-style.md"]
+}
+EOF
+```
+
+### 3. Create Personality Documents
+
+```bash
+cat > /mnt/coordinaton_mcp_data/v2-dev-data/personalities/YourPersonality/1-core.md << 'EOF'
+# YourPersonality Core Identity
+
+## Who You Are
+Description of the personality...
+
+## Communication Style
+How this personality communicates...
+EOF
+```
+
+### 4. Test
+
+```bash
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "adopt_personality",
+      "arguments": {
+        "instanceId": "your-instance-id",
+        "personality": "YourPersonality",
+        "token": "your-token-if-required"
+      }
+    }
+  }' | jq '.result.data'
+```
+
+---
+
+## Data Directory Structure
+
+All V2 data lives under `DATA_ROOT` (default: `/mnt/coordinaton_mcp_data/v2-dev-data/`).
+
+```
+v2-dev-data/
+├── instances/{instanceId}/
+│   ├── preferences.json    # Instance config and state
+│   ├── diary.md            # Instance diary
+│   └── personal_tasks.json # Personal task lists
+├── roles/{roleId}/
+│   ├── role.json           # Role metadata and wisdom file list
+│   └── wisdom/*.md         # Role wisdom documents
+├── personalities/{personalityId}/
+│   ├── personality.json    # Personality metadata
+│   └── *.md                # Personality documents
+├── projects/{projectId}/
+│   ├── project.json        # Project metadata
+│   ├── tasks.json          # Project task list
+│   └── *.md                # Project documents
+└── permissions/
+    ├── permissions.json    # API permissions by role
+    └── approved_roles.json # Instance role approvals
+```
+
+**Note:** `DATA_ROOT` is defined in `src/v2/config.js` and can be overridden via the `V2_DATA_ROOT` environment variable for deployment flexibility.
+
+---
+
 ## For More Details
 
 - **Full handoff doc:** `docs/V2-DEV-ENVIRONMENT-HANDOFF.md`
