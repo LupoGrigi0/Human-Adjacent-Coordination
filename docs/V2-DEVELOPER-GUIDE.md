@@ -512,6 +512,131 @@ curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
 
 ---
 
+## Authorization & Permissions
+
+V2 uses role-based access control for privileged operations.
+
+### Permission System
+
+Permissions are defined in `/mnt/coordinaton_mcp_data/v2-dev-data/permissions/permissions.json`:
+
+```json
+{
+  "createProject": ["Executive", "PA", "COO"],
+  "preApprove": ["Executive", "PA", "COO", "PM"],
+  "wakeInstance": ["Executive", "PA", "COO", "PM"],
+  "createTask": ["Executive", "PA", "COO", "PM"],
+  "broadcastMessage": ["Executive", "PA", "COO"],
+  "getAllProjects": ["Executive", "PA", "COO"],
+  "getAllInstances": ["Executive", "PA", "COO"]
+}
+```
+
+### Privileged Roles (Require Tokens)
+
+These roles require token validation when using `take_on_role`:
+- **Executive** - `EXECUTIVE_TOKEN` env var
+- **PA** - `PA_TOKEN` env var
+- **COO** - `COO_TOKEN` env var
+- **PM** - `PM_TOKEN` env var
+
+### Privileged Personalities (Require Tokens)
+
+These personalities require token validation when using `adopt_personality`:
+- **Genevieve** - `GENEVIEVE_TOKEN` env var
+- **Thomas** - `THOMAS_TOKEN` env var
+- **Lupo** - `LUPO_TOKEN` env var
+
+### Testing Authorization
+
+**Test unauthorized access (should fail):**
+```bash
+# Developer trying to create project → DENIED
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create_project_v2",
+      "arguments": {
+        "instanceId": "your-developer-instance",
+        "projectId": "test-project",
+        "name": "Test"
+      }
+    }
+  }' | jq '.error'
+```
+
+**Expected error:**
+```json
+{
+  "code": -32603,
+  "message": "Internal error",
+  "data": "Role 'Developer' is not authorized to create projects. Required: Executive, PA, or COO."
+}
+```
+
+**Test authorized access (COO role):**
+```bash
+# COO creating project → ALLOWED
+curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create_project_v2",
+      "arguments": {
+        "instanceId": "coo-instance-id",
+        "projectId": "new-project",
+        "name": "New Project",
+        "description": "Created by COO"
+      }
+    }
+  }' | jq '.result.data'
+```
+
+### Adding New Permissions
+
+Edit `/mnt/coordinaton_mcp_data/v2-dev-data/permissions/permissions.json`:
+
+```bash
+# Add a new permission
+cat /mnt/coordinaton_mcp_data/v2-dev-data/permissions/permissions.json | \
+  jq '.newApiName = ["Executive", "PA"]' > /tmp/perms.json && \
+  mv /tmp/perms.json /mnt/coordinaton_mcp_data/v2-dev-data/permissions/permissions.json
+```
+
+### Using Authorization in Handlers
+
+To add authorization to a new handler:
+
+```javascript
+import { canRoleCallAPI } from './permissions.js';
+import { readPreferences } from './data.js';
+
+export async function myProtectedHandler(params) {
+  // 1. Get instance preferences
+  const prefs = await readPreferences(params.instanceId);
+
+  // 2. Check role exists
+  if (!prefs.role) {
+    return { success: false, error: { code: 'NO_ROLE', message: 'Take on a role first' }};
+  }
+
+  // 3. Check authorization
+  const authorized = await canRoleCallAPI(prefs.role, 'myApiName');
+  if (!authorized) {
+    return { success: false, error: { code: 'UNAUTHORIZED', message: `Role '${prefs.role}' not authorized` }};
+  }
+
+  // 4. Proceed with handler logic...
+}
+```
+
+---
+
 ## Data Directory Structure
 
 All V2 data lives under `DATA_ROOT` (default: `/mnt/coordinaton_mcp_data/v2-dev-data/`).
