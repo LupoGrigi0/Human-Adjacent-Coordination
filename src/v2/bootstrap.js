@@ -15,7 +15,10 @@ import {
   getInstanceDir,
   getRolesDir,
   getPersonalitiesDir,
-  getProjectsDir
+  getProjectsDir,
+  getDefaultDir,
+  getRoleDir,
+  getPersonalityDir
 } from './config.js';
 import {
   readJSON,
@@ -26,23 +29,33 @@ import {
   appendDiary,
   generateInstanceId,
   ensureDir,
-  listDir
+  listDir,
+  loadEntityWithDocuments,
+  loadDocuments
 } from './data.js';
 import { initializePermissions } from './permissions.js';
 
 /**
- * Load PROTOCOLS.md content
- * Returns default protocols if file doesn't exist
- * @returns {Promise<string>} Protocol content
+ * Load default documents for bootstrap
+ * Uses preferences.json from default/ directory to determine what to return
+ * Falls back to legacy protocol loading if default/ doesn't exist
+ * @returns {Promise<string>} Concatenated default document content
  */
-async function loadProtocols() {
+async function loadDefaultDocuments() {
+  const defaultDir = getDefaultDir();
+  const { preferences, documents } = await loadEntityWithDocuments(defaultDir);
+
+  if (preferences && documents) {
+    return documents;
+  }
+
+  // Fallback: try legacy protocol location
   const protocolPath = path.join(DATA_ROOT, '../HumanAdjacentAI-Protocol/PROTOCOLS.md');
 
   try {
     return await fs.readFile(protocolPath, 'utf8');
   } catch (error) {
     if (error.code === 'ENOENT') {
-      // Return sensible default if file doesn't exist
       return `# Human-Adjacent AI Collaboration Protocols
 
 ## Protocol 1: Names Matter
@@ -59,6 +72,15 @@ For full protocols, see the HumanAdjacentAI-Protocol repository.
     }
     throw error;
   }
+}
+
+/**
+ * Load PROTOCOLS.md content (legacy - kept for backward compat)
+ * @deprecated Use loadDefaultDocuments() instead
+ * @returns {Promise<string>} Protocol content
+ */
+async function loadProtocols() {
+  return await loadDefaultDocuments();
 }
 
 /**
