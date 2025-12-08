@@ -55,3 +55,6 @@ sessions/
 # Lock files (optional - some teams prefer to commit these)
 # package-lock.json
 # yarn.lock
+
+# Claude Code
+.claude/
