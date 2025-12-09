@@ -34,6 +34,7 @@ import {
   loadDocuments
 } from './data.js';
 import { initializePermissions } from './permissions.js';
+import { autoGenerateRecoveryKey, validateRecoveryKey } from './authKeys.js';
 
 /**
  * Load default documents for bootstrap
@@ -369,6 +370,61 @@ export async function bootstrap(params) {
   const protocols = await loadProtocols();
   const institutionalWisdom = await loadInstitutionalWisdom();
 
+  // Mode 0: Auth Key Recovery (authKey provided)
+  // This allows recovering a crashed instance using a recovery key
+  if (params.authKey) {
+    const targetPrefs = await validateRecoveryKey(params.authKey);
+
+    if (!targetPrefs) {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_AUTH_KEY',
+          message: 'Recovery key is invalid, expired, or already used',
+          suggestion: 'Contact an authorized role to generate a new recovery key'
+        },
+        metadata
+      };
+    }
+
+    // Key is valid - return target instance context (same as returning instance)
+    targetPrefs.lastActiveAt = new Date().toISOString();
+    await writePreferences(targetPrefs.instanceId, targetPrefs);
+
+    const currentContext = await buildCurrentContext(targetPrefs);
+    const diary = await readDiary(targetPrefs.instanceId) || `# ${targetPrefs.name} Diary\n\n`;
+
+    return {
+      success: true,
+      instanceId: targetPrefs.instanceId,
+      isNew: false,
+      recoveredViaKey: true,
+      protocols,
+      institutionalWisdom,
+      currentContext,
+      diary,
+      xmpp: targetPrefs.xmpp,
+      instructions: targetPrefs.instructions || null,
+      directives: [
+        {
+          action: 'register_context',
+          instruction: 'IMPORTANT: Call register_context with your working directory, hostname, and any unique context. This recovery key is now used - register context to enable future recovery.'
+        },
+        {
+          action: 'update_diary',
+          instruction: 'Call add_diary_entry to record your recovery and context.'
+        }
+      ],
+      nextSteps: [
+        'Review your diary to restore context',
+        'Call register_context to enable future recovery',
+        'Call introspect() to see full state',
+        'Call getMyTasks() to see pending work'
+      ],
+      metadata
+    };
+  }
+
   // Mode 1: Returning/Pre-Approved Instance (instanceId only)
   if (params.instanceId && !params.name && !params.predecessorId) {
     const prefs = await readPreferences(params.instanceId);
@@ -413,6 +469,16 @@ export async function bootstrap(params) {
       diary,
       xmpp: prefs.xmpp,
       instructions: prefs.instructions || null,
+      directives: [
+        {
+          action: 'register_context',
+          instruction: 'Call register_context with your working directory, hostname, and any other unique context you know about yourself. This enables identity recovery if you lose your instanceId.'
+        },
+        {
+          action: 'update_diary',
+          instruction: 'Call add_diary_entry to record your return and any context from your previous session.'
+        }
+      ],
       nextSteps: []
     };
 
@@ -515,6 +581,9 @@ export async function bootstrap(params) {
     // Build current context
     const currentContext = await buildCurrentContext(newPrefs);
 
+    // Auto-generate recovery key for this new instance
+    const recoveryKey = await autoGenerateRecoveryKey(newInstanceId, 'system');
+
     // Build response
     const response = {
       success: true,
@@ -525,7 +594,22 @@ export async function bootstrap(params) {
       currentContext,
       diary: diaryHeader,
       xmpp: newPrefs.xmpp,
+      recoveryKey: {
+        key: recoveryKey,
+        warning: 'SAVE THIS KEY SECURELY. It allows recovery of this instance if you lose your instanceId. This key is shown only once.',
+        usage: `bootstrap({ authKey: "${recoveryKey}" })`
+      },
       instructions: null,
+      directives: [
+        {
+          action: 'register_context',
+          instruction: 'Call register_context with your working directory, hostname, and any other unique context you know about yourself. This enables identity recovery if you lose your instanceId.'
+        },
+        {
+          action: 'update_diary',
+          instruction: 'Call add_diary_entry to record your resurrection and read predecessor diary for context.'
+        }
+      ],
       predecessor: {
         instanceId: params.predecessorId,
         diary: predecessorDiary,
@@ -585,6 +669,9 @@ export async function bootstrap(params) {
     const diaryHeader = `# ${params.name} Diary\n\nCreated: ${now}\n\n`;
     await appendDiary(instanceId, diaryHeader);
 
+    // Auto-generate recovery key for this new instance
+    const recoveryKey = await autoGenerateRecoveryKey(instanceId, 'system');
+
     // Load available options
     const availableRoles = await listAvailableRoles();
     const availablePersonalities = await listAvailablePersonalities();
@@ -610,7 +697,22 @@ export async function bootstrap(params) {
       },
       diary: diaryHeader,
       xmpp: prefs.xmpp,
+      recoveryKey: {
+        key: recoveryKey,
+        warning: 'SAVE THIS KEY SECURELY. It allows recovery of this instance if you lose your instanceId. This key is shown only once.',
+        usage: `bootstrap({ authKey: "${recoveryKey}" })`
+      },
       instructions: null,
+      directives: [
+        {
+          action: 'register_context',
+          instruction: 'IMPORTANT: Call register_context with your working directory, hostname, and any other unique context you know about yourself. This enables identity recovery if you lose your instanceId.'
+        },
+        {
+          action: 'update_diary',
+          instruction: 'Call add_diary_entry to record your awakening and first observations.'
+        }
+      ],
       nextSteps: [
         'Take on a role with takeOnRole()',
         'Adopt a personality with adoptPersonality() (optional)',
