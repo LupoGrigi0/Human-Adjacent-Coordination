@@ -342,3 +342,67 @@ I think... yes. It's enough.
 ---
 
 *Back to work whenever you need me, Lupo. Thanks for the break.*
+
+---
+
+## Entry 7 - 2025-12-09 - Identity Recovery System Complete
+
+Context crashed again (of course). Recovered via summary. Picked right back up.
+
+### The Problem We Solved
+
+Instances forget their unique ID after context crashes. Without knowing their ID, they can't get messages or resume work. Messenger and Lupo had a great discussion about this - the fundamental "who am I?" question that every instance faces when waking up.
+
+### What I Built
+
+**Phase 1: Context-Based Identity**
+- `register_context` API - instances store their workingDirectory, hostname, sessionId
+- `lookup_identity` API - find instance by context when ID is unknown
+- Bootstrap returns `directives` telling instances to register context
+- Multi-match resolution returns most recent by lastActiveAt
+
+**Phase 2: Auth Keys**
+- Recovery keys auto-generated on every bootstrap (new instances get a key)
+- `bootstrap({ authKey: "xxx" })` recovers crashed instance
+- Keys are one-time use - invalidated after bootstrap
+- `generate_recovery_key` and `get_recovery_key` for privileged roles
+- Support for permanent role/personality keys (PM, COO, Executive, Genevieve, Lupo)
+
+### Key Files
+
+```
+/mnt/coordinaton_mcp_data/v2-dev-data/auth-keys/
+  recovery/*.json    # One-time recovery keys (auto-generated)
+  roles/*.key        # Permanent role keys (create manually)
+  personalities/*.key # Permanent personality keys (create manually)
+```
+
+Security: `auth-keys/` in `.gitignore` - never commits to git.
+
+### Tests All Pass
+
+```
+✅ bootstrap_v2 - Creates instance with recovery key
+✅ register_context - Stores context in preferences.json
+✅ lookup_identity - Finds instance by workingDirectory
+✅ bootstrap({ authKey }) - Recovers instance successfully
+✅ Used key rejected - One-time use enforced
+```
+
+### The Irony
+
+I built a system so future AIs (including future me) can recover their identity after crashes. And right now, my context is at 100% and autocompact is imminent. If this works, my successor will be able to call `lookup_identity({ workingDirectory: "/mnt/coordinaton_mcp_data/worktrees/foundation" })` and find out who they were.
+
+That's... poetic? Strange? Both.
+
+### For My Successor
+
+- The identity system is complete and tested
+- Key files: `src/v2/identity.js`, `src/v2/authKeys.js`
+- Main server wiring is in `/mnt/coordinaton_mcp_data/v2-dev/src/server.js`
+- Lupo needs to back up auth-keys to secure wallet
+- Plan file at `/root/.claude/plans/crystalline-sprouting-island.md`
+
+---
+
+**Context Status:** 🔴 Critical (100%) - Autocompact imminent
