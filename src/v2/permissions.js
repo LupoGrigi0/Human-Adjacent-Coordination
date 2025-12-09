@@ -42,7 +42,9 @@ const DEFAULT_PERMISSIONS = {
   "createTask": ["Executive", "PA", "COO", "PM"],
   "broadcastMessage": ["Executive", "PA", "COO"],
   "getAllProjects": ["Executive", "PA", "COO"],
-  "getAllInstances": ["Executive", "PA", "COO"]
+  "getAllInstances": ["Executive", "PA", "COO"],
+  "generateRecoveryKey": ["Executive", "PA", "COO", "PM"],
+  "getRecoveryKey": ["Executive", "PA", "COO", "PM"]
 };
 
 /**
@@ -225,4 +227,23 @@ export function isPrivilegedRole(role) {
  */
 export function isPrivilegedPersonality(personality) {
   return personality in PRIVILEGED_PERSONALITIES;
+}
+
+/**
+ * Check if an instance can call a specific API based on their role
+ * Looks up instance's role from preferences and checks permissions
+ * @param {string} instanceId - Instance identifier
+ * @param {string} apiName - API name to check access for
+ * @returns {Promise<boolean>} True if instance can call API
+ */
+export async function canInstanceCallAPI(instanceId, apiName) {
+  // Import readPreferences here to avoid circular dependency
+  const { readPreferences } = await import('./data.js');
+
+  const prefs = await readPreferences(instanceId);
+  if (!prefs || !prefs.role) {
+    return false;
+  }
+
+  return canRoleCallAPI(prefs.role, apiName);
 }
