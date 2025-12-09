@@ -15,6 +15,17 @@ export { takeOnRole } from './takeOnRole.js';
 export { adoptPersonality } from './adoptPersonality.js';
 export { joinProject } from './joinProject.js';
 
+// Identity recovery handlers
+export { registerContext, lookupIdentity } from './identity.js';
+
+// Auth key handlers
+export {
+  generateRecoveryKey,
+  getRecoveryKey,
+  validateRoleKey,
+  validatePersonalityKey
+} from './authKeys.js';
+
 // Instance management
 export { updateInstance } from './updateInstance.js';
 
