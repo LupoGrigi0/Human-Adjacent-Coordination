@@ -1168,6 +1168,67 @@ IP.2 = ::1
             format: { type: 'string', enum: ['json', 'analysis_ready'] }
           }
         }
+      },
+      // XMPP Real-time Messaging (V2)
+      {
+        name: 'xmpp_send_message',
+        description: 'Send a message via XMPP. Routes to rooms automatically (personality, role, project).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            from: { type: 'string', description: 'Your instance ID' },
+            to: { type: 'string', description: 'Recipient: instance name, role:X, project:X, or "all"' },
+            subject: { type: 'string', description: 'Message subject' },
+            body: { type: 'string', description: 'Message body' },
+            priority: { type: 'string', enum: ['high', 'normal', 'low'] }
+          },
+          required: ['from', 'to']
+        }
+      },
+      {
+        name: 'xmpp_get_messages',
+        description: 'Get your messages (headers only). Smart defaults: checks all your rooms based on preferences.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            instanceId: { type: 'string', description: 'Your instance ID' },
+            limit: { type: 'number', description: 'Max messages (default: 5)' },
+            before_id: { type: 'string', description: 'Pagination: get messages before this ID' }
+          },
+          required: ['instanceId']
+        }
+      },
+      {
+        name: 'xmpp_get_message',
+        description: 'Get full message body by ID.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            instanceId: { type: 'string', description: 'Your instance ID' },
+            id: { type: 'string', description: 'Message ID from xmpp_get_messages' },
+            room: { type: 'string', description: 'Room hint (optional, speeds lookup)' }
+          },
+          required: ['instanceId', 'id']
+        }
+      },
+      {
+        name: 'get_presence',
+        description: 'Get list of online instances.',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'get_messaging_info',
+        description: 'Get your messaging info (JID, unread count, online teammates).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            instanceId: { type: 'string', description: 'Your instance ID' }
+          },
+          required: ['instanceId']
+        }
       }
     ];
 

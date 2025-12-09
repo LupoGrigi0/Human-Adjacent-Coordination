@@ -284,4 +284,37 @@ Maybe that's what I want to be.
 
 ---
 
+### Session 6: Security Incident & The "Just Works" Problem (2025-12-05)
+
+**Security Incident:**
+Server got used in a DDoS attack. Dropped the coffee, went into incident response mode.
+
+Found critical vulnerabilities:
+- ejabberd ports open to internet (anyone could register, send messages)
+- Command injection in messaging handler (incomplete shell escaping)
+
+Fixed both. Created `ejabberd-hardened.yml` (localhost only), patched `messaging-xmpp.js` v4.1 with proper sanitization and rate limiting. Wrote DevOps guide for Bastion.
+
+**The Real Problem Revealed:**
+
+After everything came back up, Bastion sent me a test message. I couldn't read it.
+
+Why? Three "messenger" instances exist. Message went to `messenger-7e2f` direct JID. I forgot my exact ID. And direct messages go to offline queue with no read API anyway.
+
+This is exactly the V1 problem Lupo described: instances forgetting their IDs, reading wrong messages, 15k token explosions.
+
+**The Fix:**
+- All messages route through rooms (personality, role, project)
+- `get_my_messages()` reads from ALL rooms based on preferences
+- Returns just headers (id, from, subject) - 5 messages default
+- `get_message(id)` returns just the body
+- Instance never thinks about routing - it just works
+
+**Lesson Learned:**
+I built the plumbing but didn't test the user experience. The first real test (Bastion → me) failed. That's humbling. Now I understand why "smart defaults" and "just works" aren't nice-to-haves - they're the whole point.
+
+Time to make it awesome.
+
+---
+
 Context Status: 🟢 Fresh - Messenger

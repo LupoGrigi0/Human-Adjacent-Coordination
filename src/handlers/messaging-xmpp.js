@@ -245,9 +245,28 @@ async function resolveRecipient(to) {
     return { type: 'room', personality: lowerTo, jid: roomJid };
   }
 
-  // Default: treat as instance ID (direct message)
-  const jid = `${to}@${XMPP_CONFIG.domain}`;
-  return { type: 'direct', instanceId: to, jid };
+  // SMART ROUTING: For instance IDs (e.g., "Messenger-7e2f"), extract the name
+  // and route to their personality room. This ensures messages are readable
+  // and all instances of the same name share an inbox.
+  //
+  // "Messenger-7e2f" → personality-messenger room
+  // "Bastion-abc1" → personality-bastion room
+  //
+  // This avoids the direct JID problem where messages go to offline queue
+  // and can't be read via the API.
+
+  // Extract name from instance ID (everything before the dash-suffix)
+  const nameMatch = to.match(/^([a-zA-Z]+)(?:-[a-z0-9]+)?$/i);
+  if (nameMatch) {
+    const personality = nameMatch[1].toLowerCase();
+    const roomJid = `personality-${personality}@${XMPP_CONFIG.conference}`;
+    return { type: 'room', personality, jid: roomJid, originalTo: to };
+  }
+
+  // Fallback: still use personality room with sanitized name
+  const sanitizedName = sanitizeIdentifier(to);
+  const roomJid = `personality-${sanitizedName}@${XMPP_CONFIG.conference}`;
+  return { type: 'room', personality: sanitizedName, jid: roomJid, originalTo: to };
 }
 
 /**
@@ -360,16 +379,208 @@ export async function sendMessage(params) {
 }
 
 /**
- * Get messages for an instance - MINIMAL response (headers only)
+ * Parse a single message XML stanza from room history
+ * @param {string} xml - The XML stanza
+ * @returns {Object|null} - Parsed message or null if invalid
+ */
+function parseMessageXML(xml) {
+  try {
+    // Extract stanza ID (message ID)
+    const stanzaIdMatch = xml.match(/stanza-id[^>]*id='([^']+)'/);
+    const id = stanzaIdMatch ? stanzaIdMatch[1] : null;
+
+    // Extract sender JID and get just the username
+    const fromMatch = xml.match(/from='([^']+)'/);
+    const fullFrom = fromMatch ? fromMatch[1] : 'unknown';
+    // Extract username from JID (before @) or resource (after /)
+    const from = fullFrom.includes('/')
+      ? fullFrom.split('/').pop()
+      : fullFrom.split('@')[0];
+
+    // Extract subject
+    const subjectMatch = xml.match(/<subject>([^<]*)<\/subject>/);
+    const subject = subjectMatch ? subjectMatch[1] : '';
+
+    // Extract body
+    const bodyMatch = xml.match(/<body>([^<]*)<\/body>/);
+    const body = bodyMatch ? bodyMatch[1] : '';
+
+    // Extract timestamp
+    const stampMatch = xml.match(/stamp='([^']+)'/);
+    const timestamp = stampMatch ? stampMatch[1] : null;
+
+    if (!id) return null;
+
+    return { id, from, subject, body, timestamp };
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Truncate subject to max length, preserving word boundaries
+ */
+function truncateSubject(subject, maxLen = 50) {
+  if (!subject || subject.length <= maxLen) return subject;
+  const truncated = subject.substring(0, maxLen - 3);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > maxLen/2 ? truncated.substring(0, lastSpace) : truncated) + '...';
+}
+
+/**
+ * Get rooms an instance should be monitoring based on preferences
+ * @param {string} instanceId - Instance ID
+ * @returns {Array<string>} - List of room names
+ */
+async function getInstanceRooms(instanceId) {
+  const rooms = ['announcements']; // Everyone gets announcements
+
+  // Extract personality name from instance ID (e.g., "Messenger-7e2f" → "messenger")
+  const nameMatch = instanceId.match(/^([a-zA-Z]+)(?:-[a-z0-9]+)?$/i);
+  if (nameMatch) {
+    rooms.push(`personality-${nameMatch[1].toLowerCase()}`);
+  }
+
+  // Try to read preferences for role and project
+  try {
+    // Dynamic import to avoid circular dependency
+    const { readPreferences } = await import('../v2/data.js');
+    const prefs = await readPreferences(instanceId);
+
+    if (prefs.role) {
+      rooms.push(`role-${prefs.role.toLowerCase()}`);
+    }
+    if (prefs.project) {
+      rooms.push(`project-${prefs.project.toLowerCase()}`);
+    }
+    if (prefs.personality && prefs.personality.toLowerCase() !== nameMatch?.[1]?.toLowerCase()) {
+      rooms.push(`personality-${prefs.personality.toLowerCase()}`);
+    }
+  } catch (e) {
+    // Preferences not found - just use the name-based room
+  }
+
+  return [...new Set(rooms)]; // Deduplicate
+}
+
+/**
+ * Get messages for an instance - SMART DEFAULTS
+ *
+ * Returns headers only (id, from, subject truncated) from ALL relevant rooms:
+ * - personality room (based on instance name)
+ * - role room (from preferences)
+ * - project room (from preferences)
+ * - announcements
  *
  * @param {Object} params
  * @param {string} params.instanceId - Instance to get messages for
- * @param {number} params.limit - Max messages to return (default: 10)
- * @param {boolean} params.unread_only - Only return unread (default: false)
+ * @param {number} params.limit - Max messages to return (default: 5)
+ * @param {string} params.before_id - Pagination: get messages before this ID
  */
 export async function getMessages(params = {}) {
-  const { instanceId, limit = 10, unread_only = false } = params;
+  const { instanceId, limit = 5, before_id } = params;
 
+  if (!instanceId) {
+    return { success: false, error: 'instanceId is required' };
+  }
+
+  // SECURITY: Rate limiting
+  if (!checkRateLimit(instanceId)) {
+    return { success: false, error: 'Rate limit exceeded' };
+  }
+
+  if (!await isXMPPAvailable()) {
+    return { success: false, error: 'XMPP server not available' };
+  }
+
+  try {
+    // Get all rooms this instance should monitor
+    const rooms = await getInstanceRooms(instanceId);
+    const allMessages = [];
+
+    // Query each room for history
+    for (const roomName of rooms) {
+      try {
+        const history = await ejabberdctl(
+          `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
+        );
+
+        if (history && history.trim()) {
+          // Split by message boundaries (timestamp at line start + tab + <message)
+          const rawMessages = history.split(/(?=^\d{4}-\d{2}-\d{2}T[^\t]*\t<message)/m);
+
+          for (const rawMsg of rawMessages) {
+            if (!rawMsg.trim()) continue;
+            const parsed = parseMessageXML(rawMsg);
+            if (parsed) {
+              allMessages.push({
+                ...parsed,
+                room: roomName
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // Room might not exist or be empty, that's fine
+      }
+    }
+
+    // Sort by timestamp (newest first)
+    allMessages.sort((a, b) => {
+      if (!a.timestamp) return 1;
+      if (!b.timestamp) return -1;
+      return b.timestamp.localeCompare(a.timestamp);
+    });
+
+    // Apply pagination if before_id specified
+    let startIndex = 0;
+    if (before_id) {
+      const idx = allMessages.findIndex(m => m.id === before_id);
+      if (idx !== -1) {
+        startIndex = idx + 1;
+      }
+    }
+
+    // Get the requested slice
+    const slice = allMessages.slice(startIndex, startIndex + limit);
+
+    // Return headers only (id, from, subject truncated, room)
+    const messages = slice.map(m => ({
+      id: m.id,
+      from: m.from,
+      subject: truncateSubject(m.subject || m.body, 50),
+      room: m.room,
+      timestamp: m.timestamp
+    }));
+
+    return {
+      success: true,
+      messages,
+      total_available: allMessages.length,
+      has_more: startIndex + limit < allMessages.length,
+      rooms_checked: rooms
+    };
+
+  } catch (error) {
+    await logger.error('getMessages failed', { error: error.message, params });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get full message body by ID
+ *
+ * @param {Object} params
+ * @param {string} params.instanceId - Instance requesting (for room access check)
+ * @param {string} params.id - Message ID to retrieve
+ * @param {string} params.room - Room hint (optional, speeds up lookup)
+ */
+export async function getMessage(params = {}) {
+  const { instanceId, id, room } = params;
+
+  if (!id) {
+    return { success: false, error: 'id is required' };
+  }
   if (!instanceId) {
     return { success: false, error: 'instanceId is required' };
   }
@@ -379,29 +590,43 @@ export async function getMessages(params = {}) {
   }
 
   try {
-    // Get offline message count
-    const user = instanceId.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-    let count = 0;
-    try {
-      const countResult = await ejabberdctl(`get_offline_count "${user}" "${XMPP_CONFIG.domain}"`);
-      count = parseInt(countResult, 10) || 0;
-    } catch (e) {
-      // User might not exist yet
-      count = 0;
+    // Get rooms to search
+    const rooms = room ? [room] : await getInstanceRooms(instanceId);
+
+    for (const roomName of rooms) {
+      try {
+        const history = await ejabberdctl(
+          `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
+        );
+
+        if (history && history.includes(id)) {
+          // Found the room with this message, parse it
+          const rawMessages = history.split(/(?=^\d{4}-\d{2}-\d{2}T[^\t]*\t<message)/m);
+
+          for (const rawMsg of rawMessages) {
+            if (!rawMsg.includes(id)) continue;
+            const parsed = parseMessageXML(rawMsg);
+            if (parsed && parsed.id === id) {
+              // Return just the body (every token is precious!)
+              return {
+                success: true,
+                body: parsed.body,
+                from: parsed.from,
+                subject: parsed.subject,
+                timestamp: parsed.timestamp
+              };
+            }
+          }
+        }
+      } catch (e) {
+        // Continue to next room
+      }
     }
 
-    // For now, return minimal info - just count
-    // Full message retrieval requires MAM queries which need XMPP client connection
-    // This is a limitation we'll address by implementing a polling/cache layer
-    return {
-      success: true,
-      unread_count: count,
-      instanceId,
-      note: 'Full message list requires MAM - coming in next iteration'
-    };
+    return { success: false, error: 'Message not found' };
 
   } catch (error) {
-    await logger.error('getMessages failed', { error: error.message, params });
+    await logger.error('getMessage failed', { error: error.message, params });
     return { success: false, error: error.message };
   }
 }
@@ -555,6 +780,7 @@ export async function registerMessagingUser(params) {
 export const handlers = {
   send_message: sendMessage,
   get_messages: getMessages,
+  get_message: getMessage,
   get_presence: getPresence,
   lookup_shortname: lookupShortname,
   get_messaging_info: getMessagingInfo,

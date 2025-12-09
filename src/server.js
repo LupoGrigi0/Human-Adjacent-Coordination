@@ -220,6 +220,8 @@ class MCPCoordinationServer {
           return XMPPHandler.sendMessage(params);
         case 'xmpp_get_messages':
           return XMPPHandler.getMessages(params);
+        case 'xmpp_get_message':
+          return XMPPHandler.getMessage(params);
         case 'get_presence':
           return XMPPHandler.getPresence(params);
         case 'get_messaging_info':
@@ -390,6 +392,7 @@ class MCPCoordinationServer {
       // XMPP Real-time Messaging (V2)
       'xmpp_send_message',
       'xmpp_get_messages',
+      'xmpp_get_message',
       'get_presence',
       'get_messaging_info',
       'lookup_shortname',
