@@ -130,10 +130,11 @@ api_permissions:
           - acl: admin
     what: "*"
 
-  # MCP server access - localhost only, limited commands
+  # MCP server access via HTTP API - limited commands
+  # IP restriction handled by listener binding to 127.0.0.1 on port 5280
   "mcp_server":
     from:
-      - "127.0.0.1"
+      - mod_http_api
     who: all
     what:
       - status

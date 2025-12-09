@@ -1,33 +1,39 @@
 ###
-### ejabberd configuration for V2 Messaging System
-### Minimal config - just what we need
+### ejabberd configuration - HARDENED POST-INCIDENT
 ### Author: Messenger
-### Date: 2025-12-04
+### Date: 2025-12-05
+### SECURITY LOCKDOWN - API only access via localhost
 ###
 
 hosts:
   - smoothcurves.nexus
 
-loglevel: info
+loglevel: warning
 
 listen:
+  # XMPP client port - LOCALHOST ONLY
+  # External clients cannot connect directly
   - port: 5222
-    ip: "::"
+    ip: "127.0.0.1"
     module: ejabberd_c2s
-    max_stanza_size: 262144
-    starttls_required: false
+    max_stanza_size: 65536
+    starttls_required: true
+    access: c2s
 
+  # HTTP API - LOCALHOST ONLY
+  # Only MCP server on same host can access
   - port: 5280
-    ip: "::"
+    ip: "127.0.0.1"
     module: ejabberd_http
     tls: false
     request_handlers:
-      /admin: ejabberd_web_admin
       /api: mod_http_api
-      /bosh: mod_bosh
-      /ws: ejabberd_http_ws
+      # REMOVED: /admin - no web admin exposed
+      # REMOVED: /bosh - no browser XMPP
+      # REMOVED: /ws - no websocket access
 
 auth_method: internal
+auth_password_format: scram
 
 acl:
   admin:
@@ -36,26 +42,33 @@ acl:
       - system@smoothcurves.nexus
   local:
     user_regexp: ""
+  # Blocked users/IPs can be added here
+  blocked:
+    user: []
 
 access_rules:
   local:
     allow: local
   c2s:
-    allow: all
+    deny: blocked
+    allow: local
   announce:
     allow: admin
   configure:
     allow: admin
   muc_create:
-    allow: local
+    allow: admin
+  register:
+    deny: all
 
+# Rate limiting - aggressive
 shaper:
-  normal: 3000
-  fast: 100000
+  normal: 1000
+  fast: 50000
 
 shaper_rules:
-  max_user_sessions: 50
-  max_user_offline_messages: 5000
+  max_user_sessions: 10
+  max_user_offline_messages: 100
   c2s_shaper:
     none: admin
     normal: all
@@ -65,7 +78,6 @@ modules:
   mod_admin_extra: {}
   mod_announce:
     access: announce
-  mod_bosh: {}
   mod_caps: {}
   mod_configure: {}
   mod_disco: {}
@@ -74,10 +86,11 @@ modules:
   mod_mam:
     assume_mam_usage: true
     default: always
+    request_activates_archiving: false
 
   mod_muc:
     access:
-      - allow
+      - allow: local
     access_admin:
       - allow: admin
     access_create: muc_create
@@ -86,57 +99,59 @@ modules:
       mam: true
       persistent: true
       public: false
-      members_only: false
+      members_only: true
+      allow_subscription: false
+      anonymous: false
 
   mod_muc_admin: {}
   mod_offline:
     access_max_user_messages: max_user_offline_messages
   mod_ping: {}
-  mod_privacy: {}
   mod_private: {}
   mod_roster:
     versioning: true
   mod_vcard: {}
-  mod_version: {}
 
+  # REMOVED: mod_bosh - no browser connections
+  # REMOVED: mod_privacy - not needed for API-only
+
+# API permissions - LOCKED DOWN
 api_permissions:
   "console commands":
     from:
       - ejabberd_ctl
     who: all
     what: "*"
+
   "admin access":
     who:
       access:
         allow:
           - acl: admin
     what: "*"
-  "public commands":
+
+  # MCP server access via HTTP API - limited commands
+  # IP restriction handled by listener binding to 127.0.0.1 on port 5280
+  "mcp_server":
+    from:
+      - mod_http_api
     who: all
     what:
       - status
       - connected_users_number
-      - register
-      - unregister
       - check_account
       - send_message
       - send_message_chat
-      - user_sessions_info
-      - connected_users
-      - connected_users_vhost
       - set_presence
       - get_presence
-      - create_room
-      - create_room_with_opts
-      - destroy_room
-      - get_room_affiliations
-      - set_room_affiliation
       - get_room_occupants
       - get_room_occupants_number
       - subscribe_room
       - unsubscribe_room
-      - send_direct_invitation
       - get_user_rooms
-      - get_roster
-      - add_rosteritem
-      - delete_rosteritem
+      - get_room_history
+      # REMOVED: register - only via ejabberdctl
+      # REMOVED: create_room - only via admin
+      # REMOVED: destroy_room - only via admin
+
+  # NO PUBLIC COMMANDS - everything requires authentication or localhost
