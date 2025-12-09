@@ -3,6 +3,7 @@ how does an instance join a chantroom? Some instances/roles/personalities will w
 Can new chatrooms be created not associated with a project? 
 does "assume role" and "join project" join the instance to the approprate chatrooms?
 Lupo will "bootstrap" as executive role, genevieve will bootstrap as PM, PA, COO, or ... how do we get messages from our different chatrooms or are they all lumpted together when we get messages. e.g. Genevieve bootsraps as COO, she will have her unique ID, she will need to be able to access the genevieve chatroom (Well, read messages sent to Genevieve, and also messages sent to COO, as well as her personal messages. Same with Lupo, who will join/bootstrap as Executive, and the UI will need to show Lupo's messages, as well as messages sent to executive, and likely need to be able to see messages from any project. (kinda by default Lupo/executive is a member of all projects...))
+i'm not remembering if the introspect api has been implemented yet, can it be used for an instance to retrieve it's xmpp ID?
 
 # V2 Messaging System - User Scenarios & Design
 

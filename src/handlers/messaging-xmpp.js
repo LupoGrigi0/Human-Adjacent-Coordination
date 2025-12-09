@@ -1,5 +1,5 @@
 /**
- * MCP Coordination System - XMPP Messaging Handler v4.0
+ * MCP Coordination System - XMPP Messaging Handler v4.1
  * Real-time messaging via ejabberd XMPP server
  *
  * Design principles (from Lupo's feedback):
@@ -8,8 +8,11 @@
  * - Separate APIs for body and metadata
  * - Roles and personalities use rooms
  *
+ * SECURITY: v4.1 - Patched command injection vulnerability (2025-12-05)
+ *
  * @author Messenger (MessengerEngineer)
  * @date 2025-12-04
+ * @security-patch 2025-12-05
  */
 
 import { exec } from 'child_process';
@@ -28,6 +31,80 @@ const XMPP_CONFIG = {
   // Role rooms - auto-created
   roleRooms: ['coo', 'pa', 'pm', 'developer', 'tester', 'designer', 'executive'],
 };
+
+// SECURITY: Input validation limits
+const SECURITY_LIMITS = {
+  MAX_SUBJECT_LENGTH: 256,
+  MAX_BODY_LENGTH: 8192,
+  MAX_USERNAME_LENGTH: 64,
+  MAX_ROOM_LENGTH: 64,
+  RATE_LIMIT_WINDOW_MS: 60000,  // 1 minute
+  RATE_LIMIT_MAX_CALLS: 30,     // max calls per window
+};
+
+// SECURITY: Rate limiting (basic in-memory)
+const rateLimitMap = new Map();
+
+/**
+ * SECURITY: Check rate limit for an instance
+ * @param {string} instanceId
+ * @returns {boolean} true if allowed, false if rate limited
+ */
+function checkRateLimit(instanceId) {
+  const now = Date.now();
+  const key = instanceId || 'anonymous';
+
+  if (!rateLimitMap.has(key)) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+
+  const record = rateLimitMap.get(key);
+
+  // Reset window if expired
+  if (now - record.windowStart > SECURITY_LIMITS.RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+
+  // Check limit
+  if (record.count >= SECURITY_LIMITS.RATE_LIMIT_MAX_CALLS) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+/**
+ * SECURITY: Sanitize string for shell command
+ * Removes ALL shell metacharacters - aggressive but safe
+ * @param {string} str
+ * @returns {string}
+ */
+function sanitizeForShell(str) {
+  if (!str) return '';
+  // Only allow alphanumeric, spaces, and basic punctuation
+  // Removes: $ ` \ " ' ; | & < > ( ) { } [ ] ! # * ? ~
+  return str
+    .replace(/[\$`\\;"'|&<>(){}\[\]!#*?~\x00-\x1f]/g, '')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, '')
+    .trim();
+}
+
+/**
+ * SECURITY: Validate and sanitize username/room name
+ * @param {string} name
+ * @returns {string}
+ */
+function sanitizeIdentifier(name) {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .substring(0, SECURITY_LIMITS.MAX_USERNAME_LENGTH);
+}
 
 /**
  * Execute ejabberdctl command in Docker container
@@ -64,12 +141,19 @@ async function isXMPPAvailable() {
 
 /**
  * Ensure a user exists in ejabberd
+ * SECURITY: Sanitizes username and generates safe passwords
  * @param {string} username - Username (without domain)
  * @param {string} password - Password (optional, will generate if not provided)
  */
 async function ensureUser(username, password = null) {
-  const user = username.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-  const pass = password || `auto_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  // SECURITY: Use sanitizeIdentifier for consistent sanitization
+  const user = sanitizeIdentifier(username);
+  if (!user) {
+    throw new Error('Invalid username');
+  }
+  // SECURITY: Generate alphanumeric-only password if not provided
+  // Never use user-provided passwords in shell commands
+  const pass = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
   try {
     // Check if user exists
@@ -92,10 +176,15 @@ async function ensureUser(username, password = null) {
 
 /**
  * Ensure a room exists
+ * SECURITY: Sanitizes room name
  * @param {string} roomName - Room name (without domain)
  */
 async function ensureRoom(roomName) {
-  const room = roomName.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  // SECURITY: Use sanitizeIdentifier for consistent sanitization
+  const room = sanitizeIdentifier(roomName);
+  if (!room) {
+    throw new Error('Invalid room name');
+  }
   try {
     await ejabberdctl(`create_room "${room}" "${XMPP_CONFIG.conference}" "${XMPP_CONFIG.domain}"`);
     return { room, jid: `${room}@${XMPP_CONFIG.conference}` };
@@ -164,6 +253,8 @@ async function resolveRecipient(to) {
 /**
  * Send a message via XMPP
  *
+ * SECURITY: v4.1 - Added rate limiting, input validation, proper sanitization
+ *
  * @param {Object} params
  * @param {string} params.to - Recipient (instance ID, role:X, project:X, personality:X, or 'all')
  * @param {string} params.from - Sender instance ID
@@ -175,7 +266,13 @@ async function resolveRecipient(to) {
 export async function sendMessage(params) {
   const { to, from, subject, body, priority = 'normal', in_response_to } = params;
 
-  // Validate
+  // SECURITY: Rate limiting
+  if (!checkRateLimit(from)) {
+    await logger.warn('Rate limit exceeded', { from });
+    return { success: false, error: 'Rate limit exceeded. Please wait before sending more messages.' };
+  }
+
+  // Validate required fields
   if (!to) {
     return { success: false, error: 'to is required' };
   }
@@ -186,15 +283,35 @@ export async function sendMessage(params) {
     return { success: false, error: 'subject or body is required' };
   }
 
+  // SECURITY: Input length validation
+  if (subject && subject.length > SECURITY_LIMITS.MAX_SUBJECT_LENGTH) {
+    return { success: false, error: `Subject too long (max ${SECURITY_LIMITS.MAX_SUBJECT_LENGTH} chars)` };
+  }
+  if (body && body.length > SECURITY_LIMITS.MAX_BODY_LENGTH) {
+    return { success: false, error: `Body too long (max ${SECURITY_LIMITS.MAX_BODY_LENGTH} chars)` };
+  }
+
+  // SECURITY: Validate priority is one of allowed values
+  const allowedPriorities = ['high', 'normal', 'low'];
+  if (!allowedPriorities.includes(priority)) {
+    return { success: false, error: 'Invalid priority. Must be high, normal, or low.' };
+  }
+
   // Check XMPP availability
   if (!await isXMPPAvailable()) {
     return { success: false, error: 'XMPP server not available' };
   }
 
   try {
+    // SECURITY: Sanitize sender identifier
+    const sanitizedFrom = sanitizeIdentifier(from);
+    if (!sanitizedFrom) {
+      return { success: false, error: 'Invalid from identifier' };
+    }
+
     // Ensure sender exists
-    await ensureUser(from);
-    const fromJid = `${from}@${XMPP_CONFIG.domain}`;
+    await ensureUser(sanitizedFrom);
+    const fromJid = `${sanitizedFrom}@${XMPP_CONFIG.domain}`;
 
     // Resolve recipient
     const recipient = await resolveRecipient(to);
@@ -214,16 +331,16 @@ export async function sendMessage(params) {
     const msgBody = [
       body || subject,
       priority !== 'normal' ? `[priority:${priority}]` : '',
-      in_response_to ? `[reply-to:${in_response_to}]` : ''
-    ].filter(Boolean).join('\n');
+      in_response_to ? `[reply-to:${sanitizeForShell(in_response_to)}]` : ''
+    ].filter(Boolean).join(' ');
 
-    // Escape for shell
-    const escapedSubject = (subject || '').replace(/"/g, '\\"').replace(/\n/g, ' ');
-    const escapedBody = msgBody.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    // SECURITY: Sanitize all shell inputs (removes dangerous characters)
+    const safeSubject = sanitizeForShell(subject || '');
+    const safeBody = sanitizeForShell(msgBody);
 
-    // Send via ejabberdctl
+    // Send via ejabberdctl - using sanitized inputs
     await ejabberdctl(
-      `send_message "${msgType}" "${fromJid}" "${recipient.jid}" "${escapedSubject}" "${escapedBody}"`
+      `send_message "${msgType}" "${fromJid}" "${recipient.jid}" "${safeSubject}" "${safeBody}"`
     );
 
     // Generate message ID

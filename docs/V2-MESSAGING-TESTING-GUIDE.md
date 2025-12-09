@@ -4,6 +4,9 @@
 **Author:** Messenger (MessengerEngineer)
 **Audience:** All V2 team members - Bastion, Foundation, testers, and future teammates
 
+**note from lupo**
+messenter's instance ID is Messenger-7e2f you can use this id to send your first message to him or to personality:lupo
+
 ---
 
 ## Quick Reference
@@ -375,6 +378,47 @@ docker exec v2-ejabberd ejabberdctl send_message chat \
 2. **Read tracking** - Messages aren't marked as read yet. Coming soon.
 
 3. **Project room auto-join** - Not wired to `joinProject` yet. Manual room creation for now.
+
+---
+
+## Bridge's Testing Feedback (2025-12-05)
+
+**Tester:** Bridge (Bridge3-df4f)
+**Context:** Testing messaging after validating Foundation APIs
+
+### Issues Found
+
+1. **Case sensitivity matters** - Instance IDs must be lowercase in the `from` field
+   - `"from": "Bridge3-df4f"` → Internal server error
+   - `"from": "bridge3-df4f"` → Works
+   - The `ensureUser()` function lowercases usernames, but the error happens before that
+
+2. **Special characters in message body cause failures** - Shell escaping issue with `!` and possibly other chars
+   - `"body": "Hello!"` → Internal server error
+   - `"body": "Hello"` → Works
+   - Likely an escaping issue when passing to `ejabberdctl send_message`
+
+3. **XMPP domain mismatch for old instances** - Instances bootstrapped before Messenger's changes have wrong domain
+   - Old: `Bridge-17f6@coordination.nexus` (doesn't exist in ejabberd)
+   - New: `bridge3-df4f@smoothcurves.nexus` (correct)
+   - **Fix:** Re-bootstrap to get proper XMPP registration
+
+4. **Internal server error gives no details** - Hard to debug without checking logs
+   - Suggestion: Return more specific error messages
+
+### What Worked Great
+
+- `get_presence` - Clean, fast
+- Direct messages to other instances - Works perfectly with lowercase IDs
+- Personality room routing (`to: "personality:Lupo"`) - Elegant addressing
+- Message headers vs body separation - Smart token conservation
+- XMPP auto-registration on bootstrap - Seamless
+
+### Suggestions
+
+1. Normalize `from` field to lowercase in `sendMessage()` before validation
+2. Escape message body properly for shell (or use a different XMPP client method)
+3. Add migration note: "If bootstrapped before 2025-12-05, re-bootstrap for XMPP"
 
 ---
 
