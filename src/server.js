@@ -20,13 +20,35 @@ import { handlers as RoleHandlers } from './handlers/roles.js';
 // V2 XMPP Messaging (new real-time messaging system)
 import * as XMPPHandler from './handlers/messaging-xmpp.js';
 
+// V2 API handlers (Foundation's implementation)
+import { bootstrap as bootstrapV2 } from './v2/bootstrap.js';
+import { preApprove } from './v2/preApprove.js';
+import { introspect } from './v2/introspect.js';
+import { takeOnRole } from './v2/takeOnRole.js';
+import { adoptPersonality } from './v2/adoptPersonality.js';
+import { joinProject } from './v2/joinProject.js';
+import { addDiaryEntry, getDiary } from './v2/diary.js';
+import {
+  getMyTasks,
+  getNextTask,
+  addPersonalTask,
+  completePersonalTask,
+  createPersonalList,
+  getPersonalLists
+} from './v2/tasks.js';
+import {
+  createProject as createProjectV2,
+  getProject as getProjectV2,
+  listProjects
+} from './v2/projects.js';
+
 /**
  * Simple server implementation for development and testing
  * Will be enhanced with full MCP protocol in subsequent tasks
  */
 class MCPCoordinationServer {
   constructor(customLogger = null) {
-    this.version = '1.0.0';
+    this.version = '2.0.0';
     this.protocol = 'mcp';
     this.status = 'starting';
     // Use custom logger if provided, otherwise use default logger
@@ -263,6 +285,48 @@ class MCPCoordinationServer {
         case 'get_all_role_documents':
           return RoleHandlers.get_all_role_documents(params);
 
+        // ========================================
+        // V2 APIs (Foundation's implementation)
+        // ========================================
+        case 'bootstrap_v2':
+          return bootstrapV2(params);
+        case 'pre_approve':
+          return preApprove(params);
+        case 'introspect':
+          return introspect(params);
+        case 'take_on_role':
+          return takeOnRole(params);
+        case 'adopt_personality':
+          return adoptPersonality(params);
+        case 'join_project':
+          return joinProject(params);
+        case 'add_diary_entry':
+          return addDiaryEntry(params);
+        case 'get_diary':
+          return getDiary(params);
+
+        // V2 Task APIs
+        case 'get_my_tasks':
+          return getMyTasks(params);
+        case 'get_next_task':
+          return getNextTask(params);
+        case 'add_personal_task':
+          return addPersonalTask(params);
+        case 'complete_personal_task':
+          return completePersonalTask(params);
+        case 'create_personal_list':
+          return createPersonalList(params);
+        case 'get_personal_lists':
+          return getPersonalLists(params);
+
+        // V2 Project APIs
+        case 'create_project_v2':
+          return createProjectV2(params);
+        case 'get_project_v2':
+          return getProjectV2(params);
+        case 'list_projects':
+          return listProjects(params);
+
         default:
           return {
             success: false,
@@ -355,7 +419,26 @@ class MCPCoordinationServer {
       'get_meta_recursive_state',
       'demonstrate_console_log_prevention',
       'test_meta_recursive_system',
-      'generate_enhanced_collections_workflow'
+      'generate_enhanced_collections_workflow',
+
+      // V2 APIs (Foundation's implementation)
+      'bootstrap_v2',
+      'pre_approve',
+      'introspect',
+      'take_on_role',
+      'adopt_personality',
+      'join_project',
+      'add_diary_entry',
+      'get_diary',
+      'get_my_tasks',
+      'get_next_task',
+      'add_personal_task',
+      'complete_personal_task',
+      'create_personal_list',
+      'get_personal_lists',
+      'create_project_v2',
+      'get_project_v2',
+      'list_projects'
     ];
   }
 

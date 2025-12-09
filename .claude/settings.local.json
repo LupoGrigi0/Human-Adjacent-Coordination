@@ -77,9 +77,19 @@
       "Bash(/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/scripts/start-dev-server.sh:*)",
       "Bash(cat:*)",
       "Bash(HTTP_PORT=3446 SSE_HOST=0.0.0.0 NODE_ENV=development timeout 5s node src/streamable-http-server.js)",
-      "Bash(git worktree:*)"
+      "Bash(env)",
+      "Bash(git checkout:*)",
+      "Bash(git clone:*)",
+      "Bash(/mnt/coordinaton_mcp_data/v2-dev/scripts/start-dev-server.sh:*)",
+      "Bash(npm install)",
+      "Bash(zip:*)",
+      "Skill(hacs-coordination)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "/mnt/coordinaton_mcp_data/v2-dev/",
+      "/mnt"
+    ]
   }
 }
