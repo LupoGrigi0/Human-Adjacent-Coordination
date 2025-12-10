@@ -41,6 +41,8 @@ import {
   getProject as getProjectV2,
   listProjects
 } from './v2/projects.js';
+// Identity recovery (Bridge's implementation)
+import { registerContext, lookupIdentity } from './v2/identity.js';
 
 /**
  * Simple server implementation for development and testing
@@ -230,6 +232,12 @@ class MCPCoordinationServer {
           return XMPPHandler.lookupShortname(params);
         case 'register_messaging_user':
           return XMPPHandler.registerMessagingUser(params);
+
+        // Identity Recovery (Bridge's v2 identity system)
+        case 'lookup_identity':
+          return lookupIdentity(params);
+        case 'register_context':
+          return registerContext(params);
 
         // Instance management functions
         case 'register_instance':

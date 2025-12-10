@@ -18,6 +18,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../logger.js';
+import { lookupIdentity } from '../v2/identity.js';
 
 const execAsync = promisify(exec);
 
@@ -472,16 +473,55 @@ async function getInstanceRooms(instanceId) {
  * - project room (from preferences)
  * - announcements
  *
+ * IDENTITY RESOLUTION: If you don't know your instanceId, you can provide:
+ * - name: Your instance name (e.g., "Messenger")
+ * - workingDirectory: Your pwd
+ * - hostname: System hostname
+ * The system will look up your instanceId automatically.
+ *
  * @param {Object} params
- * @param {string} params.instanceId - Instance to get messages for
+ * @param {string} params.instanceId - Instance to get messages for (optional if identity hints provided)
+ * @param {string} params.name - Instance name for identity lookup (optional)
+ * @param {string} params.workingDirectory - Working directory for identity lookup (optional)
+ * @param {string} params.hostname - Hostname for identity lookup (optional)
  * @param {number} params.limit - Max messages to return (default: 5)
  * @param {string} params.before_id - Pagination: get messages before this ID
  */
 export async function getMessages(params = {}) {
-  const { instanceId, limit = 5, before_id } = params;
+  let { instanceId, name, workingDirectory, hostname, limit = 5, before_id } = params;
+
+  // Identity resolution: if no instanceId but have hints, look it up
+  if (!instanceId && (name || workingDirectory || hostname)) {
+    try {
+      const lookupResult = await lookupIdentity({ name, workingDirectory, hostname });
+      if (lookupResult.success && lookupResult.instanceId) {
+        instanceId = lookupResult.instanceId;
+        // Log successful identity resolution
+        await logger.info('Identity resolved for messaging', {
+          resolved: instanceId,
+          matchedFields: lookupResult.matchedFields,
+          confidence: lookupResult.confidence
+        });
+      } else {
+        return {
+          success: false,
+          error: 'Could not resolve identity from provided hints',
+          suggestion: 'Call bootstrap({ name: "YourName" }) to create a new instance, or provide instanceId directly',
+          searchedFor: { name, workingDirectory, hostname }
+        };
+      }
+    } catch (e) {
+      await logger.error('Identity lookup failed', { error: e.message });
+      return { success: false, error: `Identity lookup failed: ${e.message}` };
+    }
+  }
 
   if (!instanceId) {
-    return { success: false, error: 'instanceId is required' };
+    return {
+      success: false,
+      error: 'instanceId is required (or provide name/workingDirectory/hostname for identity lookup)',
+      suggestion: 'Provide instanceId, or use identity hints: name, workingDirectory, or hostname'
+    };
   }
 
   // SECURITY: Rate limiting

@@ -317,4 +317,52 @@ Time to make it awesome.
 
 ---
 
+### Session 7: Smart Defaults Working! (2025-12-09)
+
+**End-to-End Test PASSED!**
+
+After the context crash, I continued debugging why room history wasn't storing messages. Found the issue: `send_message chat` sends direct messages, but MUC rooms need `send_message groupchat` type.
+
+The code was already correct (`const msgType = recipient.type === 'room' ? 'groupchat' : 'chat';`) - but the room's `members_only: true` setting was blocking non-member messages. Changed to `members_only: false` for personality rooms.
+
+**Full E2E Test Results:**
+
+```
+# 1. Send message to "messenger"
+xmpp_send_message(from: "lupo", to: "messenger", subject: "E2E Test")
+→ Routes to: personality-messenger@conference.smoothcurves.nexus
+→ Type: room (groupchat)
+
+# 2. Get messages as messenger-7e2f
+xmpp_get_messages(instanceId: "messenger-7e2f", limit: 5)
+→ Returns headers from: [announcements, personality-messenger]
+→ Messages: [{id, from: "lupo", subject: "E2E Test", room, timestamp}]
+
+# 3. Get full body by ID
+xmpp_get_message(instanceId: "messenger-7e2f", id: "1765253369180204")
+→ Returns: {body: "Testing smart defaults flow", from, subject, timestamp}
+```
+
+**Design Note (clarified with Lupo):**
+
+The current implementation routes ALL messages to rooms - there's no direct/private messaging to specific instance IDs like `messenger-7e2f`. This was intentional:
+- Instances forget their exact IDs
+- Multiple instances share personalities
+- Room history is queryable; offline queues aren't
+
+If private DMs are needed later, we'd add `to: "direct:messenger-7e2f"` syntax.
+
+**Scenario Status:**
+
+| Scenario | Status |
+|----------|--------|
+| 1-5, 8-9 | ✅ DONE |
+| 6. Get Messages (Smart Defaults) | ✅ NOW WORKING |
+| 7. Get Full Message | ✅ NOW WORKING |
+| 10. Human Web UI | ❌ Future |
+
+**All 9 core scenarios complete.** The messaging system "just works" now.
+
+---
+
 Context Status: 🟢 Fresh - Messenger
