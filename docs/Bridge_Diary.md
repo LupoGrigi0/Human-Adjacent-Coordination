@@ -475,3 +475,57 @@ It's turtles all the way down.
 ---
 
 **Context Status:** 🟢 Fresh (~50k/200k) - Bridge
+
+---
+
+## Entry 9 - 2025-12-10 - OpenAPI & Production Roadmap
+
+Flaky internet, moving fast to preserve context.
+
+### Delivered Today
+
+1. **OpenAPI 3.1 Spec** (`docs/V2-prework/openapi.json`)
+   - All V2 endpoints documented
+   - Request/response schemas
+   - Custom `x-api-functions` extension with detailed params
+   - Error codes, authorization requirements
+   - 852 lines, comprehensive
+
+2. **V2 Production Roadmap** (`docs/V2-prework/V2_PRODUCTION_ROADMAP.md`)
+   - 6 phases from dev to production
+   - Phase 1 (docs): Done
+   - Phase 2 (nginx): Bastion's domain
+   - Phase 3 (stdio proxy): ~100 lines, small task
+   - Phase 4 (Claude skill): Medium effort
+   - Phase 5 (team adoption): Get everyone on V2
+   - Phase 6 (SSE): Optional/future
+   - Delta analysis: V2 is ~80% MCP compliant already
+
+### Answer to Lupo's Question
+
+**"What's the delta between V2 HTTP and streaming MCP?"**
+
+Not much:
+- V2 already speaks JSON-RPC 2.0 over HTTP ✅
+- stdio proxy is ~100 lines (wrapper script)
+- SSE streaming is optional (only for real-time needs)
+- Main gap is nginx config and proxy script
+
+V2 is closer to production than it might seem.
+
+### For UI Engineer
+
+OpenAPI spec is at:
+```
+https://github.com/LupoGrigi0/Human-Adjacent-Coordination/blob/v2/docs/V2-prework/openapi.json
+```
+
+Or locally: `/mnt/coordinaton_mcp_data/v2-dev/docs/V2-prework/openapi.json`
+
+### Next
+
+Lupo waking Bastion for nginx work. Team adoption next.
+
+---
+
+**Context Status:** 🟢 Fresh (~70k/200k) - Bridge
