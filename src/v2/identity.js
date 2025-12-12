@@ -261,3 +261,140 @@ export async function lookupIdentity(params) {
     metadata
   };
 }
+
+/**
+ * Check if an instance with this name/context has bootstrapped before
+ * Convenience API to avoid creating duplicates
+ *
+ * @param {Object} params - Search parameters
+ * @param {string} params.name - Instance name to search for
+ * @param {string} [params.workingDirectory] - Working directory to match
+ * @param {string} [params.hostname] - Hostname to match
+ * @returns {Promise<Object>} Search result
+ */
+export async function haveIBootstrappedBefore(params) {
+  const metadata = {
+    timestamp: new Date().toISOString(),
+    function: 'haveIBootstrappedBefore'
+  };
+
+  if (!params.name && !params.workingDirectory && !params.hostname) {
+    return {
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'At least one of name, workingDirectory, or hostname is required'
+      },
+      metadata
+    };
+  }
+
+  try {
+    const instancesDir = getInstancesDir();
+    const dirs = await fs.readdir(instancesDir);
+    const matches = [];
+
+    for (const dir of dirs) {
+      const prefsPath = path.join(instancesDir, dir, 'preferences.json');
+
+      try {
+        const content = await fs.readFile(prefsPath, 'utf-8');
+        const prefs = JSON.parse(content);
+
+        let isMatch = false;
+        const matchedFields = [];
+
+        // Match by name (partial match - name starts with search name)
+        if (params.name) {
+          const searchName = params.name.toLowerCase();
+          const instanceName = (prefs.name || '').toLowerCase();
+          if (instanceName === searchName || instanceName.startsWith(searchName)) {
+            isMatch = true;
+            matchedFields.push('name');
+          }
+        }
+
+        // Match by workingDirectory
+        if (params.workingDirectory && prefs.context?.workingDirectory) {
+          if (prefs.context.workingDirectory === params.workingDirectory) {
+            isMatch = true;
+            matchedFields.push('workingDirectory');
+          }
+        }
+
+        // Match by hostname
+        if (params.hostname && prefs.context?.hostname) {
+          if (prefs.context.hostname === params.hostname) {
+            isMatch = true;
+            matchedFields.push('hostname');
+          }
+        }
+
+        if (isMatch) {
+          matches.push({
+            instanceId: prefs.instanceId || dir,
+            name: prefs.name,
+            role: prefs.role,
+            lastActiveAt: prefs.lastActiveAt,
+            matchedFields
+          });
+        }
+      } catch (err) {
+        // Skip invalid preferences files
+        continue;
+      }
+    }
+
+    // Sort by lastActiveAt (most recent first)
+    matches.sort((a, b) => {
+      if (a.lastActiveAt && b.lastActiveAt) {
+        return new Date(b.lastActiveAt) - new Date(a.lastActiveAt);
+      }
+      if (a.lastActiveAt) return -1;
+      if (b.lastActiveAt) return 1;
+      return 0;
+    });
+
+    if (matches.length === 0) {
+      return {
+        success: true,
+        found: false,
+        message: 'No matching instances found. You can bootstrap as a new instance.',
+        suggestion: `bootstrap({ name: "${params.name || 'YourName'}" })`,
+        metadata
+      };
+    }
+
+    return {
+      success: true,
+      found: true,
+      instanceId: matches[0].instanceId,
+      instance: matches[0],
+      matches: matches.slice(0, 5),
+      totalMatches: matches.length,
+      message: `Found ${matches.length} matching instance(s). Most recent: ${matches[0].instanceId}`,
+      suggestion: `bootstrap({ instanceId: "${matches[0].instanceId}" })`,
+      metadata
+    };
+
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return {
+        success: true,
+        found: false,
+        message: 'No instances exist yet. You can bootstrap as a new instance.',
+        suggestion: `bootstrap({ name: "${params.name || 'YourName'}" })`,
+        metadata
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        code: 'SEARCH_ERROR',
+        message: error.message
+      },
+      metadata
+    };
+  }
+}

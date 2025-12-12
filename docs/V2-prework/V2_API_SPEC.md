@@ -25,6 +25,14 @@
 - **v1.2** (2025-11-27): Post-testing fixes
   - Made system context parameters optional in bootstrap (homeSystem, homeDirectory, etc.)
   - Added `updateInstance` API for setting instance metadata after creation
+- **v1.3** (2025-12-09): Identity Recovery System (Bridge)
+  - Added `register_context` API for storing identity context
+  - Added `lookup_identity` API for finding instance by context
+  - Added `generate_recovery_key` and `get_recovery_key` APIs
+  - Added auth key recovery mode to bootstrap (`authKey` parameter)
+  - Bootstrap now returns `recoveryKey` for new instances
+  - Bootstrap now returns `directives` array with recommended follow-up actions
+  - Added `INVALID_AUTH_KEY` and `NO_CONTEXT_MATCH` error codes
 
 ---
 
@@ -163,7 +171,6 @@
   "createProject": ["Executive", "PA", "COO"],
   "preApprove": ["Executive", "PA", "COO", "PM"],
   "wakeInstance": ["Executive", "PA", "COO", "PM"],
-  "createTask": ["Executive", "PA", "COO", "PM"],
   "broadcastMessage": ["Executive", "PA", "COO"],
   "getAllProjects": ["Executive", "PA", "COO"],
   "getAllInstances": ["Executive", "PA", "COO"]
@@ -1120,6 +1127,177 @@ Generate wake instructions for a pre-approved instance.
 
 ---
 
+### Identity Recovery APIs
+
+#### `register_context`
+Register context information for identity recovery. Call after bootstrap.
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "workingDirectory": "/path/to/working/dir",
+  "hostname": "my-machine",
+  "sessionId": "web-session-123",
+  "tabName": "Claude Tab 1"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "instanceId": "Phoenix-k3m7",
+  "stored": {
+    "workingDirectory": "/path/to/working/dir",
+    "hostname": "my-machine"
+  },
+  "message": "Context registered. Future instances can find you via lookup_identity."
+}
+```
+
+**Notes:**
+- All context fields are optional except instanceId
+- Overwrites previous context for this instance
+- Enables identity recovery when instance forgets its ID
+
+---
+
+#### `lookup_identity`
+Find your instance ID by context when you don't know it.
+
+**Request:**
+```json
+{
+  "workingDirectory": "/path/to/working/dir",
+  "hostname": "my-machine",
+  "name": "Phoenix"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "instanceId": "Phoenix-k3m7",
+  "instance": {
+    "instanceId": "Phoenix-k3m7",
+    "name": "Phoenix",
+    "role": "Developer",
+    "lastActiveAt": "2025-12-09T10:30:00Z"
+  },
+  "confidence": "exact",
+  "matchedFields": ["workingDirectory", "hostname"],
+  "otherCandidates": [],
+  "nextStep": "Call bootstrap({ instanceId: \"Phoenix-k3m7\" }) to resume"
+}
+```
+
+**Notes:**
+- Returns most recent match by lastActiveAt when multiple candidates
+- `confidence`: "exact" (all fields match), "partial" (some fields), "multiple" (multiple candidates)
+- No authentication required - this is for recovery
+
+---
+
+#### `generate_recovery_key`
+Generate a one-time recovery key for an instance.
+
+**Request:**
+```json
+{
+  "instanceId": "COO-x3k9",
+  "targetInstanceId": "Phoenix-k3m7"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "recoveryKey": "abc123-def456-ghi789",
+  "targetInstance": {
+    "instanceId": "Phoenix-k3m7",
+    "name": "Phoenix",
+    "role": "Developer"
+  },
+  "instructions": "Give this to the recovering instance: bootstrap({ authKey: 'abc123-def456-ghi789' })",
+  "warning": "Key is one-time use. Once used, it cannot be used again."
+}
+```
+
+**Authorization:** Executive, PA, COO, PM
+
+**Notes:**
+- Keys auto-generated on bootstrap (returned in bootstrap response)
+- This API regenerates a key (invalidates old one)
+- Keys stored hashed, plaintext shown only once
+
+---
+
+#### `get_recovery_key`
+Get info about an existing recovery key (not the key itself).
+
+**Request:**
+```json
+{
+  "instanceId": "COO-x3k9",
+  "targetInstanceId": "Phoenix-k3m7"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "targetInstanceId": "Phoenix-k3m7",
+  "hasKey": true,
+  "used": false,
+  "createdAt": "2025-12-09T10:30:00Z",
+  "createdBy": "system"
+}
+```
+
+**Authorization:** Executive, PA, COO, PM
+
+**Notes:**
+- Does not return the actual key (security)
+- Use generate_recovery_key to create a new key
+
+---
+
+#### Bootstrap with Auth Key (Recovery Mode)
+
+**Request:**
+```json
+{
+  "authKey": "abc123-def456-ghi789"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "instanceId": "Phoenix-k3m7",
+  "isNew": false,
+  "recoveredViaKey": true,
+  "currentContext": { ... },
+  "diary": "...",
+  "directives": [
+    { "action": "register_context", "instruction": "..." }
+  ],
+  "nextSteps": ["Review diary", "Register context", "Call introspect()"]
+}
+```
+
+**Notes:**
+- Key is invalidated after successful use (one-time)
+- Invalid/used keys return `INVALID_AUTH_KEY` error
+- Recovered instance gets full context as if returning normally
+
+---
+
 ## Error Handling
 
 ### Standard Error Response
@@ -1150,6 +1328,8 @@ Generate wake instructions for a pre-approved instance.
 | `XMPP_ERROR` | Communication system error |
 | `RATE_LIMITED` | Too many requests |
 | `BRUTE_FORCE_DETECTED` | Security: too many failed instanceId lookups |
+| `INVALID_AUTH_KEY` | Recovery key is invalid, expired, or already used |
+| `NO_CONTEXT_MATCH` | lookup_identity found no matching instances |
 
 ---
 
@@ -1224,5 +1404,37 @@ Stored in separate file with restricted permissions:
 ---
 
 **Document Status:** Approved for Implementation
-**Last Updated:** 2025-11-27
-**Authors:** Foundation, with feedback from Lupo and Meridian
+**Last Updated:** 2025-12-10
+**Authors:** Foundation, Bridge, with feedback from Lupo and Meridian
+-==-- some notes from lupo & bridge --==--
+  | Question                        | Answer
+  |
+  |---------------------------------|---------------------------------------------------------------------------------------
+  |
+  | Create personality              | Create dir in /v2-dev-data/personalities/{name}/ with personality.json + wisdom files
+  |
+  | Existing roles                  | Executive, PA, COO, PM (privileged); Developer, Designer, Tester (open)
+  |
+  | Add roles without code?         | Yes for open roles. Privileged roles require code change to PRIVILEGED_ROLES
+  |
+  | Do all personalities need keys? | No. Only Genevieve, Thomas, Lupo require tokens. Others are open.
+  |
+  | Edit default bootstrap docs     | Edit /v2-dev-data/default/preferences.json documents array, add .md files there
+  |
+  API Spec Updated:
+
+  - Added Identity Recovery APIs section (register_context, lookup_identity, generate_recovery_key, get_recovery_key)
+  - Added Bootstrap auth key mode documentation
+  - Added new error codes
+  - Updated revision history to v1.3
+
+  Data Locations:
+
+  /mnt/coordinaton_mcp_data/v2-dev-data/
+    default/           # Bootstrap default documents
+    roles/             # Role definitions + wisdom
+    personalities/     # Personality definitions + wisdom
+    instances/         # Instance data
+    auth-keys/         # Recovery keys (gitignored)
+
+  Ready for your next question, or to help set up roles/personalities.

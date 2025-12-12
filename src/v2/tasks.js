@@ -5,12 +5,15 @@
  * @module tasks
  * @author Bridge
  * @created 2025-12-06
+ * @updated 2025-12-11 - Added assign_task_to_instance with messaging
  */
 
 import fs from 'fs/promises';
 import path from 'path';
 import { DATA_ROOT, getInstanceDir, getProjectsDir } from './config.js';
 import { readJSON, writeJSON, ensureDir, readPreferences } from './data.js';
+// Import XMPP messaging for task assignment notifications
+import * as XMPPHandler from '../handlers/messaging-xmpp.js';
 
 /**
  * Get path to project's task file
@@ -567,6 +570,191 @@ export async function getPersonalLists(params) {
   return {
     success: true,
     lists,
+    metadata
+  };
+}
+
+/**
+ * Assign a project task to a specific instance
+ * Sends a notification message to the assignee
+ *
+ * @param {Object} params - Parameters
+ * @param {string} params.instanceId - Caller's instance ID (required, for auth and "from")
+ * @param {string} params.taskId - Task ID to assign (required)
+ * @param {string} params.assigneeInstanceId - Instance to assign the task to (required)
+ * @param {string} [params.projectId] - Project ID (defaults to caller's current project)
+ * @param {string} [params.message] - Optional message to include in notification
+ * @returns {Promise<Object>} Result with assignment details
+ */
+export async function assignTaskToInstance(params) {
+  const metadata = {
+    timestamp: new Date().toISOString(),
+    function: 'assignTaskToInstance'
+  };
+
+  // Validate required params
+  if (!params.instanceId) {
+    return {
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'instanceId is required (caller ID)'
+      },
+      metadata
+    };
+  }
+
+  if (!params.taskId) {
+    return {
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'taskId is required'
+      },
+      metadata
+    };
+  }
+
+  if (!params.assigneeInstanceId) {
+    return {
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'assigneeInstanceId is required'
+      },
+      metadata
+    };
+  }
+
+  // Verify caller exists
+  const callerPrefs = await readPreferences(params.instanceId);
+  if (!callerPrefs) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_INSTANCE_ID',
+        message: `Caller instance ${params.instanceId} not found`
+      },
+      metadata
+    };
+  }
+
+  // Verify assignee exists
+  const assigneePrefs = await readPreferences(params.assigneeInstanceId);
+  if (!assigneePrefs) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_ASSIGNEE',
+        message: `Assignee instance ${params.assigneeInstanceId} not found`
+      },
+      metadata
+    };
+  }
+
+  // Determine project
+  const projectId = params.projectId || callerPrefs.project;
+  if (!projectId) {
+    return {
+      success: false,
+      error: {
+        code: 'NO_PROJECT',
+        message: 'No project specified and caller has no current project'
+      },
+      metadata
+    };
+  }
+
+  // Load project tasks
+  const taskFile = getProjectTaskFile(projectId);
+  const projectData = await readJSON(taskFile);
+
+  if (!projectData || !projectData.tasks) {
+    return {
+      success: false,
+      error: {
+        code: 'NO_TASKS',
+        message: `No tasks found for project ${projectId}`
+      },
+      metadata
+    };
+  }
+
+  // Find the task
+  const taskIndex = projectData.tasks.findIndex(t => t.id === params.taskId);
+  if (taskIndex === -1) {
+    return {
+      success: false,
+      error: {
+        code: 'TASK_NOT_FOUND',
+        message: `Task ${params.taskId} not found in project ${projectId}`
+      },
+      metadata
+    };
+  }
+
+  const task = projectData.tasks[taskIndex];
+  const previousAssignee = task.assigned_to;
+  const now = new Date().toISOString();
+
+  // Update the task
+  projectData.tasks[taskIndex] = {
+    ...task,
+    assigned_to: params.assigneeInstanceId,
+    assigned_by: params.instanceId,
+    assigned_at: now,
+    updated: now
+  };
+  projectData.last_updated = now;
+
+  await writeJSON(taskFile, projectData);
+
+  // Send notification message to assignee
+  let messageSent = false;
+  let messageError = null;
+
+  try {
+    const notificationSubject = `Task Assigned: ${task.title}`;
+    const notificationBody = params.message
+      ? `You've been assigned a task.\n\nTask ID: ${params.taskId}\nTitle: ${task.title}\nPriority: ${task.priority || 'medium'}\nProject: ${projectId}\n\nMessage from ${callerPrefs.name || params.instanceId}:\n${params.message}`
+      : `You've been assigned a task.\n\nTask ID: ${params.taskId}\nTitle: ${task.title}\nPriority: ${task.priority || 'medium'}\nProject: ${projectId}`;
+
+    const messageResult = await XMPPHandler.sendMessage({
+      to: params.assigneeInstanceId,
+      from: params.instanceId,
+      subject: notificationSubject,
+      body: notificationBody,
+      priority: task.priority === 'critical' ? 'high' : 'normal'
+    });
+
+    messageSent = messageResult.success;
+    if (!messageResult.success) {
+      messageError = messageResult.error;
+    }
+  } catch (error) {
+    messageError = error.message;
+  }
+
+  return {
+    success: true,
+    task: {
+      taskId: params.taskId,
+      title: task.title,
+      priority: task.priority,
+      status: task.status,
+      assignedTo: params.assigneeInstanceId,
+      assignedBy: params.instanceId,
+      assignedAt: now
+    },
+    previousAssignee: previousAssignee || null,
+    project: projectId,
+    notification: {
+      sent: messageSent,
+      error: messageError
+    },
+    message: messageSent
+      ? `Task assigned to ${assigneePrefs.name || params.assigneeInstanceId} and notification sent`
+      : `Task assigned to ${assigneePrefs.name || params.assigneeInstanceId} (notification failed: ${messageError})`,
     metadata
   };
 }

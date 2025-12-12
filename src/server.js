@@ -34,7 +34,8 @@ import {
   addPersonalTask,
   completePersonalTask,
   createPersonalList,
-  getPersonalLists
+  getPersonalLists,
+  assignTaskToInstance
 } from './v2/tasks.js';
 import {
   createProject as createProjectV2,
@@ -42,7 +43,9 @@ import {
   listProjects
 } from './v2/projects.js';
 // Identity recovery (Bridge's implementation)
-import { registerContext, lookupIdentity } from './v2/identity.js';
+import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
+import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
+import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
 
 /**
  * Simple server implementation for development and testing
@@ -328,6 +331,8 @@ class MCPCoordinationServer {
           return createPersonalList(params);
         case 'get_personal_lists':
           return getPersonalLists(params);
+        case 'assign_task_to_instance':
+          return assignTaskToInstance(params);
 
         // V2 Project APIs
         case 'create_project_v2':
@@ -336,6 +341,26 @@ class MCPCoordinationServer {
           return getProjectV2(params);
         case 'list_projects':
           return listProjects(params);
+
+        // V2 Identity Recovery APIs
+        case 'register_context':
+          return registerContext(params);
+        case 'lookup_identity':
+          return lookupIdentity(params);
+        case 'have_i_bootstrapped_before':
+          return haveIBootstrappedBefore(params);
+
+        // V2 Auth Key APIs
+        case 'generate_recovery_key':
+          return generateRecoveryKey(params);
+        case 'get_recovery_key':
+          return getRecoveryKey(params);
+
+        // V2 Instance APIs
+        case 'get_all_instances':
+          return getAllInstances(params);
+        case 'get_instance_v2':
+          return getInstanceV2(params);
 
         default:
           return {
@@ -447,9 +472,20 @@ class MCPCoordinationServer {
       'complete_personal_task',
       'create_personal_list',
       'get_personal_lists',
+      'assign_task_to_instance',
       'create_project_v2',
       'get_project_v2',
-      'list_projects'
+      'list_projects',
+      // Identity recovery
+      'register_context',
+      'lookup_identity',
+      'have_i_bootstrapped_before',
+      // Auth keys
+      'generate_recovery_key',
+      'get_recovery_key',
+      // Instance management (V2)
+      'get_all_instances',
+      'get_instance_v2'
     ];
   }
 
