@@ -358,10 +358,18 @@ export async function sendMessage(params) {
     const safeSubject = sanitizeForShell(subject || '');
     const safeBody = sanitizeForShell(msgBody);
 
-    // Send via ejabberdctl - using sanitized inputs
-    await ejabberdctl(
-      `send_message "${msgType}" "${fromJid}" "${recipient.jid}" "${safeSubject}" "${safeBody}"`
-    );
+    // Use send_stanza for room messages (groupchat) - send_message doesn't archive properly
+    // Use send_message for direct messages (chat) - works fine for 1:1
+    if (msgType === 'groupchat') {
+      // Build XML stanza for MUC message (properly archived)
+      const stanza = `<message type="groupchat" from="${fromJid}/${sanitizedFrom}" to="${recipient.jid}"><body>${safeBody}</body>${safeSubject ? `<subject>${safeSubject}</subject>` : ''}</message>`;
+      await ejabberdctl(`send_stanza "${fromJid}" "${recipient.jid}" '${stanza}'`);
+    } else {
+      // Direct message - use send_message
+      await ejabberdctl(
+        `send_message "${msgType}" "${fromJid}" "${recipient.jid}" "${safeSubject}" "${safeBody}"`
+      );
+    }
 
     // Generate message ID
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

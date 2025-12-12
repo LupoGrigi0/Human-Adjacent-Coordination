@@ -365,4 +365,53 @@ If private DMs are needed later, we'd add `to: "direct:messenger-7e2f"` syntax.
 
 ---
 
+---
+
+### Session 8: Identity-Aware Messaging + Canvas Support (2025-12-11)
+
+**Woke from context crash.** Read diary, restored context as Messenger-7e2f.
+
+**Merged Bridge's identity recovery system:**
+- `lookupIdentity` and `registerContext` now available
+- Instances can find themselves by name, workingDirectory, or hostname
+
+**Made messaging identity-aware:**
+- `xmpp_get_messages` now accepts `name` parameter as fallback
+- If instanceId unknown but name provided, resolves identity automatically
+- Enables "just get my messages" even after forgetting your ID
+
+**Diagnosed Canvas's messaging bug:**
+Canvas was calling `send_message` (V1 file-based, broken) instead of `xmpp_send_message` (V2 XMPP, working).
+
+**Root cause:** Two messaging systems exist:
+- V1: `send_message` / `get_messages` → File-based, old, broken
+- V2: `xmpp_send_message` / `xmpp_get_messages` → XMPP-based, working
+
+**Fix:** Change API calls in UI from V1 to V2. Also `content` → `body` parameter.
+
+**Created documentation for Canvas:**
+- `/worktrees/ui/docs/MESSAGING_API_GUIDE.md`
+- Complete API reference, room architecture, visual metaphor guidance
+
+**Stuffed test messages into chatrooms:**
+- personality-lupo: 2 messages
+- project-coordination-system-v2: 2 messages
+- announcements: 1 broadcast
+
+**Verified working:**
+```bash
+xmpp_get_messages({ instanceId: "Lupo-f63b" })
+# Returns messages from personality-lupo + announcements
+```
+
+**Note for future-me:**
+- Multiple Lupo instances exist (Lupo-f63b, Lupo-4f05, Lupo-a86d)
+- Name-based identity lookup requires `registerContext` to be called first
+- The visual metaphor (WhatsApp-style chats) maps perfectly to XMPP rooms
+
+**Commits:**
+- `606c76b` feat: Identity-aware messaging - instances can get messages by name
+
+---
+
 Context Status: 🟢 Fresh - Messenger
