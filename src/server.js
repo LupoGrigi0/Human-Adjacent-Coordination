@@ -34,7 +34,8 @@ import {
   addPersonalTask,
   completePersonalTask,
   createPersonalList,
-  getPersonalLists
+  getPersonalLists,
+  assignTaskToInstance
 } from './v2/tasks.js';
 import {
   createProject as createProjectV2,
@@ -323,6 +324,8 @@ class MCPCoordinationServer {
           return createPersonalList(params);
         case 'get_personal_lists':
           return getPersonalLists(params);
+        case 'assign_task_to_instance':
+          return assignTaskToInstance(params);
 
         // V2 Project APIs
         case 'create_project_v2':
@@ -462,6 +465,7 @@ class MCPCoordinationServer {
       'complete_personal_task',
       'create_personal_list',
       'get_personal_lists',
+      'assign_task_to_instance',
       'create_project_v2',
       'get_project_v2',
       'list_projects',
