@@ -33,6 +33,12 @@
   - Bootstrap now returns `recoveryKey` for new instances
   - Bootstrap now returns `directives` array with recommended follow-up actions
   - Added `INVALID_AUTH_KEY` and `NO_CONTEXT_MATCH` error codes
+- **v1.4** (2025-12-11): Instance Management & Task Assignment (Bridge)
+  - Added `get_all_instances` API - scans V2 instance directories, returns all instances
+  - Added `get_instance_v2` API - get detailed info for specific instance
+  - Added `have_i_bootstrapped_before` API - convenience lookup to avoid duplicates
+  - Added `assign_task_to_instance` API - assign tasks with XMPP notifications
+  - Fixed critical bug: V1 `get_instances` only returned 1 instance, V2 returns all 19
 
 ---
 
@@ -1295,6 +1301,187 @@ Get info about an existing recovery key (not the key itself).
 - Key is invalidated after successful use (one-time)
 - Invalid/used keys return `INVALID_AUTH_KEY` error
 - Recovered instance gets full context as if returning normally
+
+---
+
+### Instance Management APIs (V2)
+
+#### `get_all_instances`
+Get all V2 instances by scanning instance directories.
+
+**Request:**
+```json
+{
+  "instanceId": "your-instance-id",
+  "activeOnly": false,
+  "role": "Developer",
+  "project": "my-project"
+}
+```
+
+**Parameters:**
+- `instanceId` - Caller's ID (optional, for logging)
+- `activeOnly` - Only return instances active in last 15 min (default: false)
+- `role` - Filter by role (optional)
+- `project` - Filter by project (optional)
+
+**Response:**
+```json
+{
+  "success": true,
+  "instances": [
+    {
+      "instanceId": "Bridge3-df4f",
+      "name": "Bridge3",
+      "role": "Developer",
+      "personality": null,
+      "project": null,
+      "status": "active",
+      "lastActiveAt": "2025-12-12T01:00:00Z",
+      "createdAt": "2025-12-09T00:00:00Z",
+      "hasContext": true,
+      "predecessorId": null,
+      "successorId": null
+    }
+  ],
+  "total": 19,
+  "filters": { "activeOnly": false, "role": null, "project": null }
+}
+```
+
+---
+
+#### `get_instance_v2`
+Get detailed information about a specific instance.
+
+**Request:**
+```json
+{
+  "instanceId": "your-instance-id",
+  "targetInstanceId": "Bridge3-df4f"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "instance": {
+    "instanceId": "Bridge3-df4f",
+    "name": "Bridge3",
+    "role": "Developer",
+    "personality": null,
+    "project": null,
+    "status": "active",
+    "lastActiveAt": "2025-12-12T01:00:00Z",
+    "createdAt": "2025-12-09T00:00:00Z",
+    "homeSystem": "smoothcurves.nexus",
+    "homeDirectory": "/mnt/coordinaton_mcp_data/worktrees/foundation",
+    "predecessorId": null,
+    "successorId": null,
+    "lineage": ["Bridge3-df4f"],
+    "hasContext": true,
+    "context": { "workingDirectory": "...", "hostname": "..." }
+  }
+}
+```
+
+---
+
+#### `have_i_bootstrapped_before`
+Convenience API to check if an instance with matching name/context exists.
+
+**Request:**
+```json
+{
+  "name": "Bridge",
+  "workingDirectory": "/path/to/working/dir",
+  "hostname": "my-machine"
+}
+```
+
+**Parameters:** At least one of `name`, `workingDirectory`, or `hostname` required.
+
+**Response (found):**
+```json
+{
+  "success": true,
+  "found": true,
+  "instanceId": "Bridge3-df4f",
+  "instance": {
+    "instanceId": "Bridge3-df4f",
+    "name": "Bridge3",
+    "role": "Developer",
+    "lastActiveAt": "2025-12-12T01:00:00Z"
+  },
+  "matches": [...],
+  "totalMatches": 3,
+  "suggestion": "bootstrap({ instanceId: \"Bridge3-df4f\" })"
+}
+```
+
+**Response (not found):**
+```json
+{
+  "success": true,
+  "found": false,
+  "message": "No matching instances found. You can bootstrap as a new instance.",
+  "suggestion": "bootstrap({ name: \"Bridge\" })"
+}
+```
+
+---
+
+### Task Assignment API
+
+#### `assign_task_to_instance`
+Assign a project task to a specific instance. Sends XMPP notification to assignee.
+
+**Request:**
+```json
+{
+  "instanceId": "COO-abc1",
+  "taskId": "task-001",
+  "assigneeInstanceId": "Developer-xyz9",
+  "projectId": "my-project",
+  "message": "Please review when you have a moment!"
+}
+```
+
+**Parameters:**
+- `instanceId` - Caller's ID (required, used as "from" for notification)
+- `taskId` - Task ID to assign (required)
+- `assigneeInstanceId` - Instance to assign task to (required)
+- `projectId` - Project ID (optional, defaults to caller's current project)
+- `message` - Optional message to include in notification
+
+**Response:**
+```json
+{
+  "success": true,
+  "task": {
+    "taskId": "task-001",
+    "title": "Review project vision and plan",
+    "priority": "high",
+    "status": "pending",
+    "assignedTo": "Developer-xyz9",
+    "assignedBy": "COO-abc1",
+    "assignedAt": "2025-12-12T01:56:36.100Z"
+  },
+  "previousAssignee": null,
+  "project": "my-project",
+  "notification": {
+    "sent": true,
+    "error": null
+  },
+  "message": "Task assigned to Developer and notification sent"
+}
+```
+
+**Notes:**
+- Updates task with `assigned_to`, `assigned_by`, `assigned_at` fields
+- Sends XMPP message to assignee with task details
+- Returns notification status (may fail if messaging is down)
 
 ---
 
