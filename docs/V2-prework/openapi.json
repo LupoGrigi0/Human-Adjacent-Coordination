@@ -3,7 +3,7 @@
   "info": {
     "title": "V2 Coordination System API",
     "description": "AI-to-AI and AI-human collaboration system with identity continuity across context resets. Enables instance management, messaging, task coordination, and identity recovery.",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "contact": {
       "name": "SmoothCurves Coordination Team",
       "url": "https://smoothcurves.nexus"
@@ -718,6 +718,43 @@
       },
       "returns": {
         "lists": "array of list summaries"
+      }
+    },
+    "assign_task_to_instance": {
+      "description": "Assign a project task to an instance. Sends XMPP notification to assignee.",
+      "parameters": {
+        "instanceId": {
+          "type": "string",
+          "required": true,
+          "description": "Caller's instance ID (used as 'from' for notification)"
+        },
+        "taskId": {
+          "type": "string",
+          "required": true,
+          "description": "Task ID to assign"
+        },
+        "assigneeInstanceId": {
+          "type": "string",
+          "required": true,
+          "description": "Instance to assign the task to"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID (defaults to caller's current project)"
+        },
+        "message": {
+          "type": "string",
+          "description": "Optional message to include in notification"
+        }
+      },
+      "returns": {
+        "task": "Assigned task details",
+        "previousAssignee": "Previous assignee ID or null",
+        "project": "Project ID",
+        "notification": {
+          "sent": "boolean",
+          "error": "string or null"
+        }
       }
     },
     "create_project_v2": {
