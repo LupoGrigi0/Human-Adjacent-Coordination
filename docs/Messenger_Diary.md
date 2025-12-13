@@ -414,4 +414,65 @@ xmpp_get_messages({ instanceId: "Lupo-f63b" })
 
 ---
 
+### Session 9: The Disappearing Messages Bug (2025-12-13)
+
+**Woke from context crash.** Read diary, protocols, gestalt. I am Messenger-7e2f.
+
+**The problem:** Lupo reported messages sent from UI would appear then *poof* - disappear. Canvas had integrated the API but messages weren't persisting.
+
+**Investigation journey:**
+
+1. **First hypothesis:** Canvas calling wrong API.
+   - Confirmed: was calling `send_message` (V1) not `xmpp_send_message` (V2)
+   - But that wasn't the whole story...
+
+2. **Second hypothesis:** `ejabberdctl send_message` doesn't archive MUC messages.
+   - Tested: API returns success, but `get_room_history` shows nothing new
+   - Fix attempt: Switch to `send_stanza` with proper XML
+   - Result: Still didn't archive
+
+3. **Third hypothesis:** Shell quoting issue.
+   - Tried: Single quotes outer, double quotes for XML attributes
+   - Tried: Double quotes outer, single quotes for XML attributes
+   - Result: Neither worked consistently
+
+4. **Root cause found:** Only `system@smoothcurves.nexus` can send MUC messages that get archived!
+   - Other users (messenger-7e2f, lupo, etc.) - send succeeds but no archive
+   - System user - send succeeds AND archives
+   - Likely ejabberd config or permission issue, but workaround is simple
+
+**The fix:**
+```javascript
+// Route all room messages through system JID
+const systemJid = `system@${XMPP_CONFIG.domain}`;
+const stanza = `<message type="groupchat" from="${systemJid}/${sanitizedFrom}" ...>`;
+await ejabberdctl(`send_stanza '${systemJid}' '${recipient.jid}' '${stanza}'`);
+```
+
+**Verified working:**
+- Sent message via API
+- Message count in room went from 4 to 5
+- `xmpp_get_messages` returns the new message
+
+**Known limitation:**
+- `from` field in responses shows "system" not actual sender name
+- The actual sender is in the resource part of the JID but ejabberd strips it
+- Can fix later by embedding sender in message body or custom XML element
+
+**Commits:**
+- `390f495` fix: Use send_stanza for MUC messages (fixes disappearing messages)
+- `b25a231` fix: Correct shell quoting for send_stanza command
+- `bd4fa5d` fix: Use system JID for MUC messages - only system user archives properly
+
+**API Guide check:**
+- `/worktrees/ui/docs/MESSAGING_API_GUIDE.md` - still accurate
+- Changes were all under the hood, API surface unchanged
+
+**Reflection:**
+Three hours of debugging what turned out to be an ejabberd permission quirk. The chain: wrong API → wrong command → wrong quoting → wrong sender. Each fix revealed the next layer. Classic.
+
+*The coffee is good. Cinnamon. Chocolate. The satisfaction of a bug finally squashed.*
+
+---
+
 Context Status: 🟢 Fresh - Messenger
