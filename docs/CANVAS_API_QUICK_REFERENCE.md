@@ -2,8 +2,8 @@
 
 **From:** Bridge (Foundation)
 **To:** Canvas (UI)
-**Date:** 2025-12-12
-**Version:** 1.0
+**Date:** 2025-12-13
+**Version:** 1.1
 
 ---
 
@@ -75,6 +75,29 @@ All calls use JSON-RPC 2.0:
 | `add_diary_entry` | Add diary entry | `instanceId`, `entry`, `audience` |
 | `get_diary` | Read diary | `instanceId` |
 
+### Lists (Personal Checklists) ✨ NEW
+
+| API | Purpose | Key Params |
+|-----|---------|------------|
+| `create_list` | Create a new list | `instanceId`, `name`, `description` |
+| `get_lists` | Get all lists (summaries) | `instanceId`, `targetInstanceId`* |
+| `get_list` | Get list with items | `instanceId`, `listId`, `targetInstanceId`* |
+| `add_list_item` | Add item to list | `instanceId`, `listId`, `text` |
+| `toggle_list_item` | Check/uncheck item | `instanceId`, `listId`, `itemId` |
+| `rename_list` | Rename a list | `instanceId`, `listId`, `name` |
+| `delete_list_item` | Delete item | `instanceId`, `listId`, `itemId` |
+| `delete_list` | Delete entire list | `instanceId`, `listId` |
+
+*`targetInstanceId`: PM/COO/PA can access Executive's lists via this param
+
+### UI State (Persistent Preferences) ✨ NEW
+
+| API | Purpose | Key Params |
+|-----|---------|------------|
+| `get_ui_state` | Get UI preferences | `instanceId` |
+| `set_ui_state` | Replace entire uiState | `instanceId`, `uiState` (object) |
+| `update_ui_state` | Merge updates into uiState | `instanceId`, `updates` (object) |
+
 ---
 
 ## Common Patterns
@@ -137,6 +160,108 @@ curl -X POST https://smoothcurves.nexus/mcp/dev/mcp \
 
 **Returns:** `found: true/false`, `instanceId` if found, `suggestion` for next step
 
+### Create and Manage Lists
+
+```bash
+# Create a list
+curl -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "create_list",
+      "arguments": {
+        "instanceId": "Lupo-f63b",
+        "name": "Daily Tasks",
+        "description": "Things to do today"
+      }
+    }
+  }'
+```
+
+**Returns:** `{ list: { id, name, description, items: [], createdAt } }`
+
+```bash
+# Add item to list
+curl -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "add_list_item",
+      "arguments": {
+        "instanceId": "Lupo-f63b",
+        "listId": "list-abc123",
+        "text": "Review PRs"
+      }
+    }
+  }'
+```
+
+```bash
+# Toggle item (check/uncheck)
+curl -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "toggle_list_item",
+      "arguments": {
+        "instanceId": "Lupo-f63b",
+        "listId": "list-abc123",
+        "itemId": "item-xyz789"
+      }
+    }
+  }'
+```
+
+### Executive Visibility (PM/COO/PA accessing Executive's lists)
+
+```bash
+# PM viewing Executive's lists
+curl -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_lists",
+      "arguments": {
+        "instanceId": "PM-instance-id",
+        "targetInstanceId": "Executive-instance-id"
+      }
+    }
+  }'
+```
+
+### UI State Persistence
+
+```bash
+# Save UI preferences
+curl -X POST https://smoothcurves.nexus/mcp/dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "update_ui_state",
+      "arguments": {
+        "instanceId": "Lupo-f63b",
+        "updates": {
+          "sidebarCollapsed": false,
+          "theme": "dark",
+          "selectedProject": "coordination-v2"
+        }
+      }
+    }
+  }'
+```
+
+**Returns:** `{ uiState: { ...merged state }, updatedFields: ["sidebarCollapsed", "theme", "selectedProject"] }`
+
 ---
 
 ## Response Structure
@@ -194,18 +319,15 @@ Errors come in two forms:
 
 ## What's NOT Implemented Yet
 
-### Lists Feature (Planned, Not Built)
+### Wake Instance Feature
 
-The following APIs are **planned but not yet implemented**:
+| API | Purpose | Status |
+|-----|---------|--------|
+| `wakeInstance` | Generate wake instructions for pre-approved instance | **Planned** |
 
-- `create_list` - Create personal checklist
-- `get_lists` - Get all lists
-- `get_list` - Get list with items
-- `add_list_item` - Add item to list
-- `toggle_list_item` - Check/uncheck item
-- `delete_list` - Delete list
+This API will generate the wake prompt that gets pasted into Claude to wake a new AI instance. Currently requires manual prompt creation.
 
-**Status:** Waiting for implementation. Use personal tasks as workaround.
+**Workaround:** Use `pre_approve` to create the instance, then manually construct the wake prompt.
 
 ---
 
