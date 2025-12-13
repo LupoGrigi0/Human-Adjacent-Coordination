@@ -84,7 +84,11 @@
       "Bash(npm install)",
       "Bash(zip:*)",
       "Skill(hacs-coordination)",
-      "Bash(jq:*)"
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(jq:*)",
+      "Bash(/mnt/coordinaton_mcp_data/v2-dev/scripts/restart-dev-server.sh:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": [],
