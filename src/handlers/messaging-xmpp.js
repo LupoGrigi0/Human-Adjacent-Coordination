@@ -350,8 +350,9 @@ export async function sendMessage(params) {
     // Build message body with metadata embedded
     // Include sender tag so we can identify who sent the message
     // (ejabberd strips the resource from the from attribute)
+    // Note: Use format without brackets since sanitizeForShell removes them
     const msgBody = [
-      `[sender:${sanitizedFrom}]`,
+      `sender:${sanitizedFrom}`,
       body || subject,
       priority !== 'normal' ? `[priority:${priority}]` : '',
       in_response_to ? `[reply-to:${sanitizeForShell(in_response_to)}]` : ''
@@ -412,9 +413,10 @@ function parseMessageXML(xml) {
     const bodyMatch = xml.match(/<body>([^<]*)<\/body>/);
     let body = bodyMatch ? bodyMatch[1] : '';
 
-    // Extract sender from [sender:X] prefix if present
+    // Extract sender from sender:X prefix if present
     // This is how we preserve sender identity since ejabberd strips the resource
-    const senderMatch = body.match(/^\[sender:([^\]]+)\]\s*/);
+    // Note: Uses format without brackets since sanitizeForShell removes them
+    const senderMatch = body.match(/^sender:([a-z0-9_-]+)\s+/i);
     let from;
 
     if (senderMatch) {
