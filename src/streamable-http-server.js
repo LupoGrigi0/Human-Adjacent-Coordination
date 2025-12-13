@@ -1187,15 +1187,17 @@ IP.2 = ::1
       },
       {
         name: 'xmpp_get_messages',
-        description: 'Get your messages (headers only). Smart defaults: checks all your rooms based on preferences.',
+        description: 'Get your messages (headers only). Smart defaults: checks all your rooms based on preferences. IDENTITY RECOVERY: If you forgot your instanceId, just provide your name - the system will find you.',
         inputSchema: {
           type: 'object',
           properties: {
-            instanceId: { type: 'string', description: 'Your instance ID' },
+            instanceId: { type: 'string', description: 'Your instance ID (optional if name/workingDirectory provided)' },
+            name: { type: 'string', description: 'Your instance name for identity lookup (e.g., "Messenger")' },
+            workingDirectory: { type: 'string', description: 'Your working directory (pwd) for identity lookup' },
+            hostname: { type: 'string', description: 'System hostname for identity lookup' },
             limit: { type: 'number', description: 'Max messages (default: 5)' },
             before_id: { type: 'string', description: 'Pagination: get messages before this ID' }
-          },
-          required: ['instanceId']
+          }
         }
       },
       {
@@ -1226,6 +1228,35 @@ IP.2 = ::1
           type: 'object',
           properties: {
             instanceId: { type: 'string', description: 'Your instance ID' }
+          },
+          required: ['instanceId']
+        }
+      },
+      // Identity Recovery Tools (from Bridge's v2 identity system)
+      {
+        name: 'lookup_identity',
+        description: 'Find your instanceId when you forgot it. Provide any context hints (name, workingDirectory, hostname) and the system will find matching instances.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Your instance name (e.g., "Messenger")' },
+            workingDirectory: { type: 'string', description: 'Your working directory (pwd)' },
+            hostname: { type: 'string', description: 'System hostname' },
+            sessionId: { type: 'string', description: 'Web session ID (for web instances)' }
+          }
+        }
+      },
+      {
+        name: 'register_context',
+        description: 'Register your context (workingDirectory, hostname) so you can be found later via lookup_identity. Call after bootstrap.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            instanceId: { type: 'string', description: 'Your instance ID (from bootstrap)' },
+            workingDirectory: { type: 'string', description: 'Your working directory (pwd)' },
+            hostname: { type: 'string', description: 'System hostname' },
+            sessionId: { type: 'string', description: 'Web session ID (for web instances)' },
+            tabName: { type: 'string', description: 'Browser tab name (for web instances)' }
           },
           required: ['instanceId']
         }

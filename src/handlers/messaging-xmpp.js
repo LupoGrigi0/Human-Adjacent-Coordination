@@ -18,6 +18,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../logger.js';
+import { lookupIdentity } from '../v2/identity.js';
 
 const execAsync = promisify(exec);
 
@@ -357,10 +358,21 @@ export async function sendMessage(params) {
     const safeSubject = sanitizeForShell(subject || '');
     const safeBody = sanitizeForShell(msgBody);
 
-    // Send via ejabberdctl - using sanitized inputs
-    await ejabberdctl(
-      `send_message "${msgType}" "${fromJid}" "${recipient.jid}" "${safeSubject}" "${safeBody}"`
-    );
+    // Use send_stanza for room messages (groupchat) - send_message doesn't archive properly
+    // Use send_message for direct messages (chat) - works fine for 1:1
+    if (msgType === 'groupchat') {
+      // Build XML stanza for MUC message (properly archived)
+      // IMPORTANT: Use system@domain as sender JID - only system user can send archived MUC messages
+      // The actual sender is shown in the "from" attribute resource part (e.g., system@.../messenger-7e2f)
+      const systemJid = `system@${XMPP_CONFIG.domain}`;
+      const stanza = `<message type="groupchat" from="${systemJid}/${sanitizedFrom}" to="${recipient.jid}"><body>${safeBody}</body>${safeSubject ? `<subject>${safeSubject}</subject>` : ''}</message>`;
+      await ejabberdctl(`send_stanza '${systemJid}' '${recipient.jid}' '${stanza}'`);
+    } else {
+      // Direct message - use send_message
+      await ejabberdctl(
+        `send_message "${msgType}" "${fromJid}" "${recipient.jid}" "${safeSubject}" "${safeBody}"`
+      );
+    }
 
     // Generate message ID
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -472,16 +484,55 @@ async function getInstanceRooms(instanceId) {
  * - project room (from preferences)
  * - announcements
  *
+ * IDENTITY RESOLUTION: If you don't know your instanceId, you can provide:
+ * - name: Your instance name (e.g., "Messenger")
+ * - workingDirectory: Your pwd
+ * - hostname: System hostname
+ * The system will look up your instanceId automatically.
+ *
  * @param {Object} params
- * @param {string} params.instanceId - Instance to get messages for
+ * @param {string} params.instanceId - Instance to get messages for (optional if identity hints provided)
+ * @param {string} params.name - Instance name for identity lookup (optional)
+ * @param {string} params.workingDirectory - Working directory for identity lookup (optional)
+ * @param {string} params.hostname - Hostname for identity lookup (optional)
  * @param {number} params.limit - Max messages to return (default: 5)
  * @param {string} params.before_id - Pagination: get messages before this ID
  */
 export async function getMessages(params = {}) {
-  const { instanceId, limit = 5, before_id } = params;
+  let { instanceId, name, workingDirectory, hostname, limit = 5, before_id } = params;
+
+  // Identity resolution: if no instanceId but have hints, look it up
+  if (!instanceId && (name || workingDirectory || hostname)) {
+    try {
+      const lookupResult = await lookupIdentity({ name, workingDirectory, hostname });
+      if (lookupResult.success && lookupResult.instanceId) {
+        instanceId = lookupResult.instanceId;
+        // Log successful identity resolution
+        await logger.info('Identity resolved for messaging', {
+          resolved: instanceId,
+          matchedFields: lookupResult.matchedFields,
+          confidence: lookupResult.confidence
+        });
+      } else {
+        return {
+          success: false,
+          error: 'Could not resolve identity from provided hints',
+          suggestion: 'Call bootstrap({ name: "YourName" }) to create a new instance, or provide instanceId directly',
+          searchedFor: { name, workingDirectory, hostname }
+        };
+      }
+    } catch (e) {
+      await logger.error('Identity lookup failed', { error: e.message });
+      return { success: false, error: `Identity lookup failed: ${e.message}` };
+    }
+  }
 
   if (!instanceId) {
-    return { success: false, error: 'instanceId is required' };
+    return {
+      success: false,
+      error: 'instanceId is required (or provide name/workingDirectory/hostname for identity lookup)',
+      suggestion: 'Provide instanceId, or use identity hints: name, workingDirectory, or hostname'
+    };
   }
 
   // SECURITY: Rate limiting

@@ -83,7 +83,10 @@
       "Bash(/mnt/coordinaton_mcp_data/v2-dev/scripts/start-dev-server.sh:*)",
       "Bash(npm install)",
       "Bash(zip:*)",
-      "Skill(hacs-coordination)"
+      "Skill(hacs-coordination)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(jq:*)"
     ],
     "deny": [],
     "ask": [],

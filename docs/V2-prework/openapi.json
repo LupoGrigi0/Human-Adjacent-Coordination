@@ -3,7 +3,7 @@
   "info": {
     "title": "V2 Coordination System API",
     "description": "AI-to-AI and AI-human collaboration system with identity continuity across context resets. Enables instance management, messaging, task coordination, and identity recovery.",
-    "version": "1.3.0",
+    "version": "1.5.0",
     "contact": {
       "name": "SmoothCurves Coordination Team",
       "url": "https://smoothcurves.nexus"
@@ -720,6 +720,43 @@
         "lists": "array of list summaries"
       }
     },
+    "assign_task_to_instance": {
+      "description": "Assign a project task to an instance. Sends XMPP notification to assignee.",
+      "parameters": {
+        "instanceId": {
+          "type": "string",
+          "required": true,
+          "description": "Caller's instance ID (used as 'from' for notification)"
+        },
+        "taskId": {
+          "type": "string",
+          "required": true,
+          "description": "Task ID to assign"
+        },
+        "assigneeInstanceId": {
+          "type": "string",
+          "required": true,
+          "description": "Instance to assign the task to"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID (defaults to caller's current project)"
+        },
+        "message": {
+          "type": "string",
+          "description": "Optional message to include in notification"
+        }
+      },
+      "returns": {
+        "task": "Assigned task details",
+        "previousAssignee": "Previous assignee ID or null",
+        "project": "Project ID",
+        "notification": {
+          "sent": "boolean",
+          "error": "string or null"
+        }
+      }
+    },
     "create_project_v2": {
       "description": "Create a new project from template",
       "authorization": ["Executive", "PA", "COO"],
@@ -830,6 +867,88 @@
         "updatedFields": "array",
         "updates": "object",
         "isSelfUpdate": "boolean"
+      }
+    },
+    "get_all_instances": {
+      "description": "Get all V2 instances by scanning instance directories. Returns comprehensive list including active status.",
+      "parameters": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID (optional, for logging)"
+        },
+        "activeOnly": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only return instances active in last 15 minutes"
+        },
+        "role": {
+          "type": "string",
+          "description": "Filter by role (e.g., 'PM', 'Engineer')"
+        },
+        "project": {
+          "type": "string",
+          "description": "Filter by project"
+        }
+      },
+      "returns": {
+        "instances": "array of instance objects",
+        "total": "number",
+        "filters": "applied filter object"
+      }
+    },
+    "get_instance_v2": {
+      "description": "Get detailed information about a specific instance",
+      "parameters": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID (for auth if needed)"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "required": true,
+          "description": "Instance to look up"
+        }
+      },
+      "returns": {
+        "instance": {
+          "instanceId": "string",
+          "name": "string",
+          "role": "string",
+          "personality": "string",
+          "project": "string",
+          "status": "active|inactive",
+          "lastActiveAt": "ISO timestamp",
+          "createdAt": "ISO timestamp",
+          "context": "object (if registered)",
+          "predecessorId": "string",
+          "successorId": "string",
+          "lineage": "array"
+        }
+      }
+    },
+    "have_i_bootstrapped_before": {
+      "description": "Convenience API to check if an instance with matching name/context exists. Helps avoid creating duplicates.",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "description": "Instance name to search for (partial match)"
+        },
+        "workingDirectory": {
+          "type": "string",
+          "description": "Working directory to match"
+        },
+        "hostname": {
+          "type": "string",
+          "description": "Hostname to match"
+        }
+      },
+      "returns": {
+        "found": "boolean",
+        "instanceId": "string (if found)",
+        "instance": "object (if found)",
+        "matches": "array of up to 5 matches",
+        "totalMatches": "number",
+        "suggestion": "string - next step to take"
       }
     }
   },

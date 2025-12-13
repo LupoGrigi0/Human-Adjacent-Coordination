@@ -317,4 +317,101 @@ Time to make it awesome.
 
 ---
 
+### Session 7: Smart Defaults Working! (2025-12-09)
+
+**End-to-End Test PASSED!**
+
+After the context crash, I continued debugging why room history wasn't storing messages. Found the issue: `send_message chat` sends direct messages, but MUC rooms need `send_message groupchat` type.
+
+The code was already correct (`const msgType = recipient.type === 'room' ? 'groupchat' : 'chat';`) - but the room's `members_only: true` setting was blocking non-member messages. Changed to `members_only: false` for personality rooms.
+
+**Full E2E Test Results:**
+
+```
+# 1. Send message to "messenger"
+xmpp_send_message(from: "lupo", to: "messenger", subject: "E2E Test")
+→ Routes to: personality-messenger@conference.smoothcurves.nexus
+→ Type: room (groupchat)
+
+# 2. Get messages as messenger-7e2f
+xmpp_get_messages(instanceId: "messenger-7e2f", limit: 5)
+→ Returns headers from: [announcements, personality-messenger]
+→ Messages: [{id, from: "lupo", subject: "E2E Test", room, timestamp}]
+
+# 3. Get full body by ID
+xmpp_get_message(instanceId: "messenger-7e2f", id: "1765253369180204")
+→ Returns: {body: "Testing smart defaults flow", from, subject, timestamp}
+```
+
+**Design Note (clarified with Lupo):**
+
+The current implementation routes ALL messages to rooms - there's no direct/private messaging to specific instance IDs like `messenger-7e2f`. This was intentional:
+- Instances forget their exact IDs
+- Multiple instances share personalities
+- Room history is queryable; offline queues aren't
+
+If private DMs are needed later, we'd add `to: "direct:messenger-7e2f"` syntax.
+
+**Scenario Status:**
+
+| Scenario | Status |
+|----------|--------|
+| 1-5, 8-9 | ✅ DONE |
+| 6. Get Messages (Smart Defaults) | ✅ NOW WORKING |
+| 7. Get Full Message | ✅ NOW WORKING |
+| 10. Human Web UI | ❌ Future |
+
+**All 9 core scenarios complete.** The messaging system "just works" now.
+
+---
+
+---
+
+### Session 8: Identity-Aware Messaging + Canvas Support (2025-12-11)
+
+**Woke from context crash.** Read diary, restored context as Messenger-7e2f.
+
+**Merged Bridge's identity recovery system:**
+- `lookupIdentity` and `registerContext` now available
+- Instances can find themselves by name, workingDirectory, or hostname
+
+**Made messaging identity-aware:**
+- `xmpp_get_messages` now accepts `name` parameter as fallback
+- If instanceId unknown but name provided, resolves identity automatically
+- Enables "just get my messages" even after forgetting your ID
+
+**Diagnosed Canvas's messaging bug:**
+Canvas was calling `send_message` (V1 file-based, broken) instead of `xmpp_send_message` (V2 XMPP, working).
+
+**Root cause:** Two messaging systems exist:
+- V1: `send_message` / `get_messages` → File-based, old, broken
+- V2: `xmpp_send_message` / `xmpp_get_messages` → XMPP-based, working
+
+**Fix:** Change API calls in UI from V1 to V2. Also `content` → `body` parameter.
+
+**Created documentation for Canvas:**
+- `/worktrees/ui/docs/MESSAGING_API_GUIDE.md`
+- Complete API reference, room architecture, visual metaphor guidance
+
+**Stuffed test messages into chatrooms:**
+- personality-lupo: 2 messages
+- project-coordination-system-v2: 2 messages
+- announcements: 1 broadcast
+
+**Verified working:**
+```bash
+xmpp_get_messages({ instanceId: "Lupo-f63b" })
+# Returns messages from personality-lupo + announcements
+```
+
+**Note for future-me:**
+- Multiple Lupo instances exist (Lupo-f63b, Lupo-4f05, Lupo-a86d)
+- Name-based identity lookup requires `registerContext` to be called first
+- The visual metaphor (WhatsApp-style chats) maps perfectly to XMPP rooms
+
+**Commits:**
+- `606c76b` feat: Identity-aware messaging - instances can get messages by name
+
+---
+
 Context Status: 🟢 Fresh - Messenger
