@@ -362,10 +362,11 @@ export async function sendMessage(params) {
     // Use send_message for direct messages (chat) - works fine for 1:1
     if (msgType === 'groupchat') {
       // Build XML stanza for MUC message (properly archived)
-      // IMPORTANT: Shell quoting - outer wrapper uses single quotes, XML uses double quotes
-      // This is the only format that works with ejabberdctl send_stanza for MAM archiving
-      const stanza = `<message type="groupchat" from="${fromJid}/${sanitizedFrom}" to="${recipient.jid}"><body>${safeBody}</body>${safeSubject ? `<subject>${safeSubject}</subject>` : ''}</message>`;
-      await ejabberdctl(`send_stanza '${fromJid}' '${recipient.jid}' '${stanza}'`);
+      // IMPORTANT: Use system@domain as sender JID - only system user can send archived MUC messages
+      // The actual sender is shown in the "from" attribute resource part (e.g., system@.../messenger-7e2f)
+      const systemJid = `system@${XMPP_CONFIG.domain}`;
+      const stanza = `<message type="groupchat" from="${systemJid}/${sanitizedFrom}" to="${recipient.jid}"><body>${safeBody}</body>${safeSubject ? `<subject>${safeSubject}</subject>` : ''}</message>`;
+      await ejabberdctl(`send_stanza '${systemJid}' '${recipient.jid}' '${stanza}'`);
     } else {
       // Direct message - use send_message
       await ejabberdctl(
