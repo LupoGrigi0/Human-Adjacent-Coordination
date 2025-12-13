@@ -46,6 +46,19 @@ import {
 import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
 import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
 import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
+// V2 Lists (personal checklists with Executive visibility)
+import {
+  createList,
+  getLists,
+  getList,
+  addListItem,
+  toggleListItem,
+  renameList,
+  deleteListItem,
+  deleteList
+} from './v2/lists.js';
+// V2 UI State (persistent UI preferences)
+import { getUiState, setUiState, updateUiState } from './v2/uiState.js';
 
 /**
  * Simple server implementation for development and testing
@@ -362,6 +375,32 @@ class MCPCoordinationServer {
         case 'get_instance_v2':
           return getInstanceV2(params);
 
+        // V2 Lists APIs (personal checklists)
+        case 'create_list':
+          return createList(params);
+        case 'get_lists':
+          return getLists(params);
+        case 'get_list':
+          return getList(params);
+        case 'add_list_item':
+          return addListItem(params);
+        case 'toggle_list_item':
+          return toggleListItem(params);
+        case 'rename_list':
+          return renameList(params);
+        case 'delete_list_item':
+          return deleteListItem(params);
+        case 'delete_list':
+          return deleteList(params);
+
+        // V2 UI State APIs
+        case 'get_ui_state':
+          return getUiState(params);
+        case 'set_ui_state':
+          return setUiState(params);
+        case 'update_ui_state':
+          return updateUiState(params);
+
         default:
           return {
             success: false,
@@ -485,7 +524,20 @@ class MCPCoordinationServer {
       'get_recovery_key',
       // Instance management (V2)
       'get_all_instances',
-      'get_instance_v2'
+      'get_instance_v2',
+      // Lists (personal checklists)
+      'create_list',
+      'get_lists',
+      'get_list',
+      'add_list_item',
+      'toggle_list_item',
+      'rename_list',
+      'delete_list_item',
+      'delete_list',
+      // UI State (persistent preferences)
+      'get_ui_state',
+      'set_ui_state',
+      'update_ui_state'
     ];
   }
 
