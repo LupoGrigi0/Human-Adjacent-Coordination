@@ -17,6 +17,8 @@ import * as InstanceHandler from './handlers/instances.js';
 import { handlers as LessonHandlers } from './handlers/lessons.js';
 import { handlers as MetaRecursiveHandlers } from './handlers/meta-recursive.js';
 import { handlers as RoleHandlers } from './handlers/roles.js';
+// V2 XMPP Messaging (new real-time messaging system)
+import * as XMPPHandler from './handlers/messaging-xmpp.js';
 
 // V2 API handlers (Foundation's implementation)
 import { bootstrap as bootstrapV2 } from './v2/bootstrap.js';
@@ -32,13 +34,18 @@ import {
   addPersonalTask,
   completePersonalTask,
   createPersonalList,
-  getPersonalLists
+  getPersonalLists,
+  assignTaskToInstance
 } from './v2/tasks.js';
 import {
   createProject as createProjectV2,
   getProject as getProjectV2,
   listProjects
 } from './v2/projects.js';
+// Identity recovery (Bridge's implementation)
+import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
+import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
+import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
 
 /**
  * Simple server implementation for development and testing
@@ -213,6 +220,28 @@ class MCPCoordinationServer {
         case 'delete_message':
           return MessageHandler.deleteMessage(params);
 
+        // XMPP Real-time Messaging (V2)
+        case 'xmpp_send_message':
+          return XMPPHandler.sendMessage(params);
+        case 'xmpp_get_messages':
+          return XMPPHandler.getMessages(params);
+        case 'xmpp_get_message':
+          return XMPPHandler.getMessage(params);
+        case 'get_presence':
+          return XMPPHandler.getPresence(params);
+        case 'get_messaging_info':
+          return XMPPHandler.getMessagingInfo(params);
+        case 'lookup_shortname':
+          return XMPPHandler.lookupShortname(params);
+        case 'register_messaging_user':
+          return XMPPHandler.registerMessagingUser(params);
+
+        // Identity Recovery (Bridge's v2 identity system)
+        case 'lookup_identity':
+          return lookupIdentity(params);
+        case 'register_context':
+          return registerContext(params);
+
         // Instance management functions
         case 'register_instance':
           return InstanceHandler.registerInstance(params);
@@ -302,6 +331,8 @@ class MCPCoordinationServer {
           return createPersonalList(params);
         case 'get_personal_lists':
           return getPersonalLists(params);
+        case 'assign_task_to_instance':
+          return assignTaskToInstance(params);
 
         // V2 Project APIs
         case 'create_project_v2':
@@ -310,6 +341,26 @@ class MCPCoordinationServer {
           return getProjectV2(params);
         case 'list_projects':
           return listProjects(params);
+
+        // V2 Identity Recovery APIs
+        case 'register_context':
+          return registerContext(params);
+        case 'lookup_identity':
+          return lookupIdentity(params);
+        case 'have_i_bootstrapped_before':
+          return haveIBootstrappedBefore(params);
+
+        // V2 Auth Key APIs
+        case 'generate_recovery_key':
+          return generateRecoveryKey(params);
+        case 'get_recovery_key':
+          return getRecoveryKey(params);
+
+        // V2 Instance APIs
+        case 'get_all_instances':
+          return getAllInstances(params);
+        case 'get_instance_v2':
+          return getInstanceV2(params);
 
         default:
           return {
@@ -361,7 +412,7 @@ class MCPCoordinationServer {
       'get_task_stats',
       'delete_task',
       
-      // Message system
+      // Message system (legacy file-based)
       'send_message',
       'get_messages',
       'get_message',
@@ -370,7 +421,16 @@ class MCPCoordinationServer {
       'get_archived_messages',
       'get_message_stats',
       'delete_message',
-      
+
+      // XMPP Real-time Messaging (V2)
+      'xmpp_send_message',
+      'xmpp_get_messages',
+      'xmpp_get_message',
+      'get_presence',
+      'get_messaging_info',
+      'lookup_shortname',
+      'register_messaging_user',
+
       // Instance management
       'register_instance',
       'update_heartbeat',
@@ -412,9 +472,20 @@ class MCPCoordinationServer {
       'complete_personal_task',
       'create_personal_list',
       'get_personal_lists',
+      'assign_task_to_instance',
       'create_project_v2',
       'get_project_v2',
-      'list_projects'
+      'list_projects',
+      // Identity recovery
+      'register_context',
+      'lookup_identity',
+      'have_i_bootstrapped_before',
+      // Auth keys
+      'generate_recovery_key',
+      'get_recovery_key',
+      // Instance management (V2)
+      'get_all_instances',
+      'get_instance_v2'
     ];
   }
 

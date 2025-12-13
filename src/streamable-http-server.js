@@ -1168,6 +1168,98 @@ IP.2 = ::1
             format: { type: 'string', enum: ['json', 'analysis_ready'] }
           }
         }
+      },
+      // XMPP Real-time Messaging (V2)
+      {
+        name: 'xmpp_send_message',
+        description: 'Send a message via XMPP. Routes to rooms automatically (personality, role, project).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            from: { type: 'string', description: 'Your instance ID' },
+            to: { type: 'string', description: 'Recipient: instance name, role:X, project:X, or "all"' },
+            subject: { type: 'string', description: 'Message subject' },
+            body: { type: 'string', description: 'Message body' },
+            priority: { type: 'string', enum: ['high', 'normal', 'low'] }
+          },
+          required: ['from', 'to']
+        }
+      },
+      {
+        name: 'xmpp_get_messages',
+        description: 'Get your messages (headers only). Smart defaults: checks all your rooms based on preferences. IDENTITY RECOVERY: If you forgot your instanceId, just provide your name - the system will find you.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            instanceId: { type: 'string', description: 'Your instance ID (optional if name/workingDirectory provided)' },
+            name: { type: 'string', description: 'Your instance name for identity lookup (e.g., "Messenger")' },
+            workingDirectory: { type: 'string', description: 'Your working directory (pwd) for identity lookup' },
+            hostname: { type: 'string', description: 'System hostname for identity lookup' },
+            limit: { type: 'number', description: 'Max messages (default: 5)' },
+            before_id: { type: 'string', description: 'Pagination: get messages before this ID' }
+          }
+        }
+      },
+      {
+        name: 'xmpp_get_message',
+        description: 'Get full message body by ID.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            instanceId: { type: 'string', description: 'Your instance ID' },
+            id: { type: 'string', description: 'Message ID from xmpp_get_messages' },
+            room: { type: 'string', description: 'Room hint (optional, speeds lookup)' }
+          },
+          required: ['instanceId', 'id']
+        }
+      },
+      {
+        name: 'get_presence',
+        description: 'Get list of online instances.',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'get_messaging_info',
+        description: 'Get your messaging info (JID, unread count, online teammates).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            instanceId: { type: 'string', description: 'Your instance ID' }
+          },
+          required: ['instanceId']
+        }
+      },
+      // Identity Recovery Tools (from Bridge's v2 identity system)
+      {
+        name: 'lookup_identity',
+        description: 'Find your instanceId when you forgot it. Provide any context hints (name, workingDirectory, hostname) and the system will find matching instances.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Your instance name (e.g., "Messenger")' },
+            workingDirectory: { type: 'string', description: 'Your working directory (pwd)' },
+            hostname: { type: 'string', description: 'System hostname' },
+            sessionId: { type: 'string', description: 'Web session ID (for web instances)' }
+          }
+        }
+      },
+      {
+        name: 'register_context',
+        description: 'Register your context (workingDirectory, hostname) so you can be found later via lookup_identity. Call after bootstrap.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            instanceId: { type: 'string', description: 'Your instance ID (from bootstrap)' },
+            workingDirectory: { type: 'string', description: 'Your working directory (pwd)' },
+            hostname: { type: 'string', description: 'System hostname' },
+            sessionId: { type: 'string', description: 'Web session ID (for web instances)' },
+            tabName: { type: 'string', description: 'Browser tab name (for web instances)' }
+          },
+          required: ['instanceId']
+        }
       }
     ];
 
