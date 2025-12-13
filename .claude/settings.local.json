@@ -84,8 +84,6 @@
       "Bash(npm install)",
       "Bash(zip:*)",
       "Skill(hacs-coordination)",
-      "Bash(git fetch:*)",
-      "Bash(git merge:*)",
       "Bash(jq:*)"
     ],
     "deny": [],
