@@ -362,8 +362,9 @@ export async function sendMessage(params) {
     // Use send_message for direct messages (chat) - works fine for 1:1
     if (msgType === 'groupchat') {
       // Build XML stanza for MUC message (properly archived)
-      const stanza = `<message type="groupchat" from="${fromJid}/${sanitizedFrom}" to="${recipient.jid}"><body>${safeBody}</body>${safeSubject ? `<subject>${safeSubject}</subject>` : ''}</message>`;
-      await ejabberdctl(`send_stanza "${fromJid}" "${recipient.jid}" '${stanza}'`);
+      // Note: XML uses single quotes for attributes to avoid shell double-quote conflicts
+      const stanza = `<message type='groupchat' from='${fromJid}/${sanitizedFrom}' to='${recipient.jid}'><body>${safeBody}</body>${safeSubject ? `<subject>${safeSubject}</subject>` : ''}</message>`;
+      await ejabberdctl(`send_stanza "${fromJid}" "${recipient.jid}" "${stanza}"`);
     } else {
       // Direct message - use send_message
       await ejabberdctl(
