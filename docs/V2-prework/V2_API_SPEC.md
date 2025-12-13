@@ -39,6 +39,11 @@
   - Added `have_i_bootstrapped_before` API - convenience lookup to avoid duplicates
   - Added `assign_task_to_instance` API - assign tasks with XMPP notifications
   - Fixed critical bug: V1 `get_instances` only returned 1 instance, V2 returns all 19
+- **v1.5** (2025-12-13): Lists & UI State APIs (Bridge)
+  - Added Lists API (8 endpoints) for personal checklists
+  - Added Executive visibility: PM/COO/PA can access Executive's lists via `targetInstanceId`
+  - Added UI State API (3 endpoints) for persistent UI preferences
+  - Storage: Lists in `{instanceId}/lists.json`, UI State in `preferences.json`
 
 ---
 
@@ -1485,6 +1490,349 @@ Assign a project task to a specific instance. Sends XMPP notification to assigne
 
 ---
 
+### Lists APIs (Personal Checklists)
+
+**Storage:** `{DATA_ROOT}/instances/{instanceId}/lists.json`
+
+**Executive Visibility:** PM, COO, and PA roles can access Executive's lists via the optional `targetInstanceId` parameter on all list endpoints.
+
+---
+
+#### `create_list`
+Create a new personal checklist.
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "name": "Daily Tasks",
+  "description": "Things to do today",
+  "targetInstanceId": "Executive-id"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "list": {
+    "id": "list-abc123def456",
+    "name": "Daily Tasks",
+    "description": "Things to do today",
+    "createdAt": "2025-12-13T10:00:00Z",
+    "updatedAt": "2025-12-13T10:00:00Z",
+    "items": []
+  },
+  "targetInstance": null,
+  "message": "List 'Daily Tasks' created"
+}
+```
+
+---
+
+#### `get_lists`
+Get all lists (summaries without items).
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "targetInstanceId": "Executive-id"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "lists": [
+    {
+      "id": "list-abc123",
+      "name": "Daily Tasks",
+      "description": "Things to do today",
+      "itemCount": 5,
+      "checkedCount": 2,
+      "createdAt": "2025-12-13T10:00:00Z",
+      "updatedAt": "2025-12-13T14:00:00Z"
+    }
+  ],
+  "targetInstance": null
+}
+```
+
+---
+
+#### `get_list`
+Get a specific list with all items.
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "listId": "list-abc123",
+  "targetInstanceId": "Executive-id"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "list": {
+    "id": "list-abc123",
+    "name": "Daily Tasks",
+    "description": "Things to do today",
+    "createdAt": "2025-12-13T10:00:00Z",
+    "updatedAt": "2025-12-13T14:00:00Z",
+    "items": [
+      { "id": "item-xyz789", "text": "Review PRs", "checked": true, "createdAt": "..." },
+      { "id": "item-xyz790", "text": "Write tests", "checked": false, "createdAt": "..." }
+    ]
+  },
+  "targetInstance": null
+}
+```
+
+---
+
+#### `add_list_item`
+Add an item to a list.
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "listId": "list-abc123",
+  "text": "New task item",
+  "targetInstanceId": "Executive-id"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "item": {
+    "id": "item-xyz791",
+    "text": "New task item",
+    "checked": false,
+    "createdAt": "2025-12-13T15:00:00Z"
+  },
+  "listId": "list-abc123",
+  "message": "Item added"
+}
+```
+
+---
+
+#### `toggle_list_item`
+Toggle an item's checked state.
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "listId": "list-abc123",
+  "itemId": "item-xyz789",
+  "targetInstanceId": "Executive-id"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "item": {
+    "id": "item-xyz789",
+    "text": "Review PRs",
+    "checked": false,
+    "createdAt": "..."
+  },
+  "listId": "list-abc123",
+  "message": "Item unchecked"
+}
+```
+
+---
+
+#### `rename_list`
+Rename a list.
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "listId": "list-abc123",
+  "name": "Weekly Tasks",
+  "targetInstanceId": "Executive-id"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "list": {
+    "id": "list-abc123",
+    "name": "Weekly Tasks",
+    "oldName": "Daily Tasks"
+  },
+  "message": "List renamed from 'Daily Tasks' to 'Weekly Tasks'"
+}
+```
+
+---
+
+#### `delete_list_item`
+Delete an item from a list.
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "listId": "list-abc123",
+  "itemId": "item-xyz789",
+  "targetInstanceId": "Executive-id"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "deletedItem": {
+    "id": "item-xyz789",
+    "text": "Review PRs",
+    "checked": true
+  },
+  "listId": "list-abc123",
+  "message": "Item deleted"
+}
+```
+
+---
+
+#### `delete_list`
+Delete an entire list.
+
+**Request:**
+```json
+{
+  "instanceId": "Phoenix-k3m7",
+  "listId": "list-abc123",
+  "targetInstanceId": "Executive-id"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "deletedList": {
+    "id": "list-abc123",
+    "name": "Daily Tasks",
+    "itemCount": 5
+  },
+  "message": "List 'Daily Tasks' deleted"
+}
+```
+
+---
+
+### UI State APIs
+
+**Storage:** `uiState` field in `{DATA_ROOT}/instances/{instanceId}/preferences.json`
+
+UI State provides persistent storage for UI preferences (theme, sidebar state, selected project, etc.). The `uiState` field is a free-form object that the UI can use however needed.
+
+---
+
+#### `get_ui_state`
+Get UI state for an instance.
+
+**Request:**
+```json
+{
+  "instanceId": "Lupo-f63b"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "uiState": {
+    "sidebarCollapsed": false,
+    "theme": "dark",
+    "selectedProject": "coordination-v2"
+  },
+  "instanceId": "Lupo-f63b"
+}
+```
+
+---
+
+#### `set_ui_state`
+Replace entire UI state (overwrites existing).
+
+**Request:**
+```json
+{
+  "instanceId": "Lupo-f63b",
+  "uiState": {
+    "sidebarCollapsed": true,
+    "theme": "light"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "uiState": {
+    "sidebarCollapsed": true,
+    "theme": "light"
+  },
+  "instanceId": "Lupo-f63b",
+  "message": "UI state replaced"
+}
+```
+
+---
+
+#### `update_ui_state`
+Merge updates into existing UI state (shallow merge).
+
+**Request:**
+```json
+{
+  "instanceId": "Lupo-f63b",
+  "updates": {
+    "selectedProject": "new-project",
+    "lastViewedTask": "task-123"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "uiState": {
+    "sidebarCollapsed": true,
+    "theme": "light",
+    "selectedProject": "new-project",
+    "lastViewedTask": "task-123"
+  },
+  "instanceId": "Lupo-f63b",
+  "updatedFields": ["selectedProject", "lastViewedTask"],
+  "message": "UI state updated"
+}
+```
+
+---
+
 ## Error Handling
 
 ### Standard Error Response
@@ -1517,6 +1865,9 @@ Assign a project task to a specific instance. Sends XMPP notification to assigne
 | `BRUTE_FORCE_DETECTED` | Security: too many failed instanceId lookups |
 | `INVALID_AUTH_KEY` | Recovery key is invalid, expired, or already used |
 | `NO_CONTEXT_MATCH` | lookup_identity found no matching instances |
+| `LIST_NOT_FOUND` | List ID not found |
+| `ITEM_NOT_FOUND` | List item ID not found |
+| `INVALID_TARGET` | Target instance ID not found |
 
 ---
 
@@ -1591,7 +1942,7 @@ Stored in separate file with restricted permissions:
 ---
 
 **Document Status:** Approved for Implementation
-**Last Updated:** 2025-12-10
+**Last Updated:** 2025-12-13
 **Authors:** Foundation, Bridge, with feedback from Lupo and Meridian
 -==-- some notes from lupo & bridge --==--
   | Question                        | Answer
