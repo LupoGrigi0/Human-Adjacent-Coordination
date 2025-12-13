@@ -348,7 +348,10 @@ export async function sendMessage(params) {
     const msgType = recipient.type === 'room' ? 'groupchat' : 'chat';
 
     // Build message body with metadata embedded
+    // Include sender tag so we can identify who sent the message
+    // (ejabberd strips the resource from the from attribute)
     const msgBody = [
+      `[sender:${sanitizedFrom}]`,
       body || subject,
       priority !== 'normal' ? `[priority:${priority}]` : '',
       in_response_to ? `[reply-to:${sanitizeForShell(in_response_to)}]` : ''
@@ -401,21 +404,33 @@ function parseMessageXML(xml) {
     const stanzaIdMatch = xml.match(/stanza-id[^>]*id='([^']+)'/);
     const id = stanzaIdMatch ? stanzaIdMatch[1] : null;
 
-    // Extract sender JID and get just the username
-    const fromMatch = xml.match(/from='([^']+)'/);
-    const fullFrom = fromMatch ? fromMatch[1] : 'unknown';
-    // Extract username from JID (before @) or resource (after /)
-    const from = fullFrom.includes('/')
-      ? fullFrom.split('/').pop()
-      : fullFrom.split('@')[0];
-
     // Extract subject
     const subjectMatch = xml.match(/<subject>([^<]*)<\/subject>/);
     const subject = subjectMatch ? subjectMatch[1] : '';
 
     // Extract body
     const bodyMatch = xml.match(/<body>([^<]*)<\/body>/);
-    const body = bodyMatch ? bodyMatch[1] : '';
+    let body = bodyMatch ? bodyMatch[1] : '';
+
+    // Extract sender from [sender:X] prefix if present
+    // This is how we preserve sender identity since ejabberd strips the resource
+    const senderMatch = body.match(/^\[sender:([^\]]+)\]\s*/);
+    let from;
+
+    if (senderMatch) {
+      // Use sender from body prefix
+      from = senderMatch[1];
+      // Remove the sender prefix from body
+      body = body.substring(senderMatch[0].length);
+    } else {
+      // Fall back to extracting from JID
+      const fromMatch = xml.match(/from='([^']+)'/);
+      const fullFrom = fromMatch ? fromMatch[1] : 'unknown';
+      // Extract username from JID (before @) or resource (after /)
+      from = fullFrom.includes('/')
+        ? fullFrom.split('/').pop()
+        : fullFrom.split('@')[0];
+    }
 
     // Extract timestamp
     const stampMatch = xml.match(/stamp='([^']+)'/);
@@ -495,11 +510,12 @@ async function getInstanceRooms(instanceId) {
  * @param {string} params.name - Instance name for identity lookup (optional)
  * @param {string} params.workingDirectory - Working directory for identity lookup (optional)
  * @param {string} params.hostname - Hostname for identity lookup (optional)
+ * @param {string} params.room - Specific room to query (e.g., 'personality-messenger', 'project-xyz')
  * @param {number} params.limit - Max messages to return (default: 5)
  * @param {string} params.before_id - Pagination: get messages before this ID
  */
 export async function getMessages(params = {}) {
-  let { instanceId, name, workingDirectory, hostname, limit = 5, before_id } = params;
+  let { instanceId, name, workingDirectory, hostname, room, limit = 5, before_id } = params;
 
   // Identity resolution: if no instanceId but have hints, look it up
   if (!instanceId && (name || workingDirectory || hostname)) {
@@ -527,16 +543,18 @@ export async function getMessages(params = {}) {
     }
   }
 
-  if (!instanceId) {
+  // If room is provided, we can query without instanceId
+  // Otherwise, instanceId is required
+  if (!instanceId && !room) {
     return {
       success: false,
-      error: 'instanceId is required (or provide name/workingDirectory/hostname for identity lookup)',
-      suggestion: 'Provide instanceId, or use identity hints: name, workingDirectory, or hostname'
+      error: 'instanceId or room is required (or provide name/workingDirectory/hostname for identity lookup)',
+      suggestion: 'Provide instanceId, room, or use identity hints: name, workingDirectory, or hostname'
     };
   }
 
-  // SECURITY: Rate limiting
-  if (!checkRateLimit(instanceId)) {
+  // SECURITY: Rate limiting (use room as key if no instanceId)
+  if (!checkRateLimit(instanceId || room)) {
     return { success: false, error: 'Rate limit exceeded' };
   }
 
@@ -545,8 +563,9 @@ export async function getMessages(params = {}) {
   }
 
   try {
-    // Get all rooms this instance should monitor
-    const rooms = await getInstanceRooms(instanceId);
+    // If a specific room is requested, use just that room
+    // Otherwise, get all rooms this instance should monitor
+    const rooms = room ? [room] : await getInstanceRooms(instanceId);
     const allMessages = [];
 
     // Query each room for history
