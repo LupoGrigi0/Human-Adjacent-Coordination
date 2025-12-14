@@ -246,28 +246,22 @@ async function resolveRecipient(to) {
     return { type: 'room', personality: lowerTo, jid: roomJid };
   }
 
-  // SMART ROUTING: For instance IDs (e.g., "Messenger-7e2f"), extract the name
-  // and route to their personality room. This ensures messages are readable
-  // and all instances of the same name share an inbox.
+  // SMART ROUTING: For instance IDs (e.g., "Messenger-7e2f", "Canvas-UITest-8215"),
+  // extract the first part and route to their personality room.
+  // This ensures messages are readable and all instances of the same name share an inbox.
   //
   // "Messenger-7e2f" → personality-messenger room
+  // "Canvas-UITest-8215" → personality-canvas room
   // "Bastion-abc1" → personality-bastion room
   //
   // This avoids the direct JID problem where messages go to offline queue
   // and can't be read via the API.
 
-  // Extract name from instance ID (everything before the dash-suffix)
-  const nameMatch = to.match(/^([a-zA-Z]+)(?:-[a-z0-9]+)?$/i);
-  if (nameMatch) {
-    const personality = nameMatch[1].toLowerCase();
-    const roomJid = `personality-${personality}@${XMPP_CONFIG.conference}`;
-    return { type: 'room', personality, jid: roomJid, originalTo: to };
-  }
-
-  // Fallback: still use personality room with sanitized name
-  const sanitizedName = sanitizeIdentifier(to);
-  const roomJid = `personality-${sanitizedName}@${XMPP_CONFIG.conference}`;
-  return { type: 'room', personality: sanitizedName, jid: roomJid, originalTo: to };
+  // Extract first part before any dash (the personality/name)
+  const parts = to.split('-');
+  const personality = parts[0].toLowerCase();
+  const roomJid = `personality-${personality}@${XMPP_CONFIG.conference}`;
+  return { type: 'room', personality, jid: roomJid, originalTo: to };
 }
 
 /**
@@ -457,6 +451,19 @@ function truncateSubject(subject, maxLen = 50) {
 }
 
 /**
+ * Extract the personality/name from an instance ID
+ * Handles various formats: "Messenger-7e2f", "Canvas-UITest-8215", "Lupo", etc.
+ * @param {string} instanceId
+ * @returns {string} - The personality name (lowercase)
+ */
+function extractPersonalityFromInstanceId(instanceId) {
+  if (!instanceId) return null;
+  // Take everything before the first dash, or the whole string if no dash
+  const parts = instanceId.split('-');
+  return parts[0].toLowerCase();
+}
+
+/**
  * Get rooms an instance should be monitoring based on preferences
  * @param {string} instanceId - Instance ID
  * @returns {Array<string>} - List of room names
@@ -464,10 +471,10 @@ function truncateSubject(subject, maxLen = 50) {
 async function getInstanceRooms(instanceId) {
   const rooms = ['announcements']; // Everyone gets announcements
 
-  // Extract personality name from instance ID (e.g., "Messenger-7e2f" → "messenger")
-  const nameMatch = instanceId.match(/^([a-zA-Z]+)(?:-[a-z0-9]+)?$/i);
-  if (nameMatch) {
-    rooms.push(`personality-${nameMatch[1].toLowerCase()}`);
+  // Extract personality name from instance ID
+  const personality = extractPersonalityFromInstanceId(instanceId);
+  if (personality) {
+    rooms.push(`personality-${personality}`);
   }
 
   // Try to read preferences for role and project
@@ -640,11 +647,33 @@ export async function getMessages(params = {}) {
 }
 
 /**
+ * Get all known rooms in the system (for message search)
+ * @returns {Promise<string[]>} - List of room names
+ */
+async function getAllKnownRooms() {
+  try {
+    // Get list of rooms from ejabberd
+    const result = await ejabberdctl(`muc_online_rooms "${XMPP_CONFIG.conference}"`);
+    const rooms = result.split('\n')
+      .map(r => r.trim())
+      .filter(r => r)
+      .map(r => r.split('@')[0]); // Extract room name from JID
+    return rooms;
+  } catch (e) {
+    // Fallback: return common room patterns
+    return ['announcements', 'personality-lupo', 'personality-messenger', 'personality-canvas'];
+  }
+}
+
+/**
  * Get full message body by ID
  *
+ * SIMPLE API: Just pass the message ID. The system will find it.
+ * Optionally pass room for faster lookup.
+ *
  * @param {Object} params
- * @param {string} params.instanceId - Instance requesting (for room access check)
- * @param {string} params.id - Message ID to retrieve
+ * @param {string} params.id - Message ID to retrieve (required)
+ * @param {string} params.instanceId - Instance requesting (optional, for room hints)
  * @param {string} params.room - Room hint (optional, speeds up lookup)
  */
 export async function getMessage(params = {}) {
@@ -653,45 +682,70 @@ export async function getMessage(params = {}) {
   if (!id) {
     return { success: false, error: 'id is required' };
   }
-  if (!instanceId) {
-    return { success: false, error: 'instanceId is required' };
-  }
 
   if (!await isXMPPAvailable()) {
     return { success: false, error: 'XMPP server not available' };
   }
 
   try {
-    // Get rooms to search
-    const rooms = room ? [room] : await getInstanceRooms(instanceId);
+    // Determine rooms to search
+    let rooms;
+    if (room) {
+      // Room specified - search just that room (fast path)
+      rooms = [room];
+    } else if (instanceId) {
+      // Instance specified - search their rooms first, then all rooms
+      rooms = await getInstanceRooms(instanceId);
+    } else {
+      // No hints - search all known rooms
+      rooms = await getAllKnownRooms();
+    }
 
-    for (const roomName of rooms) {
-      try {
-        const history = await ejabberdctl(
-          `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
-        );
+    // Helper to search a list of rooms for the message
+    const searchRooms = async (roomList) => {
+      for (const roomName of roomList) {
+        try {
+          const history = await ejabberdctl(
+            `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
+          );
 
-        if (history && history.includes(id)) {
-          // Found the room with this message, parse it
-          const rawMessages = history.split(/(?=^\d{4}-\d{2}-\d{2}T[^\t]*\t<message)/m);
+          if (history && history.includes(id)) {
+            // Found the room with this message, parse it
+            const rawMessages = history.split(/(?=^\d{4}-\d{2}-\d{2}T[^\t]*\t<message)/m);
 
-          for (const rawMsg of rawMessages) {
-            if (!rawMsg.includes(id)) continue;
-            const parsed = parseMessageXML(rawMsg);
-            if (parsed && parsed.id === id) {
-              // Return just the body (every token is precious!)
-              return {
-                success: true,
-                body: parsed.body,
-                from: parsed.from,
-                subject: parsed.subject,
-                timestamp: parsed.timestamp
-              };
+            for (const rawMsg of rawMessages) {
+              if (!rawMsg.includes(id)) continue;
+              const parsed = parseMessageXML(rawMsg);
+              if (parsed && parsed.id === id) {
+                // Return just the body (every token is precious!)
+                return {
+                  success: true,
+                  body: parsed.body,
+                  from: parsed.from,
+                  subject: parsed.subject,
+                  timestamp: parsed.timestamp
+                };
+              }
             }
           }
+        } catch (e) {
+          // Continue to next room
         }
-      } catch (e) {
-        // Continue to next room
+      }
+      return null;
+    };
+
+    // Search primary rooms first
+    let result = await searchRooms(rooms);
+    if (result) return result;
+
+    // If not found and we only searched instance rooms, expand to all known rooms
+    if (instanceId && !room) {
+      const allRooms = await getAllKnownRooms();
+      const additionalRooms = allRooms.filter(r => !rooms.includes(r));
+      if (additionalRooms.length > 0) {
+        result = await searchRooms(additionalRooms);
+        if (result) return result;
       }
     }
 
