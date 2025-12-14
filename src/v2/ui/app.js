@@ -1309,6 +1309,9 @@ function renderProjectRooms() {
 
 // Show message detail view for inbox messages
 async function showMessageDetail(messageId, senderName, subject, room) {
+    // Pause polling while viewing detail
+    state.viewingMessageDetail = true;
+
     const container = document.getElementById('chat-messages');
     container.innerHTML = '<div class="loading-placeholder">Loading message...</div>';
 
@@ -1383,6 +1386,9 @@ function dismissQuote() {
 }
 
 async function selectConversation(type, id) {
+    // Clear detail view flag (resuming normal polling)
+    state.viewingMessageDetail = false;
+
     state.currentConversation = id;
     state.conversationType = type;
 
@@ -1948,7 +1954,8 @@ async function pollMessages() {
         state.messages = newMessages;
 
         // If viewing a conversation, refresh it
-        if (state.currentConversation) {
+        // BUT skip refresh if user is viewing message detail or composing a reply
+        if (state.currentConversation && !state.viewingMessageDetail && !state.replyQuote) {
             await loadConversationMessages(state.conversationType, state.currentConversation);
         }
 
