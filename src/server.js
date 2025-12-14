@@ -59,6 +59,8 @@ import {
 } from './v2/lists.js';
 // V2 UI State (persistent UI preferences)
 import { getUiState, setUiState, updateUiState } from './v2/uiState.js';
+// V2 Wake Instance (spawn new Claude instances)
+import { wakeInstance, getWakeScripts, getWakeLog } from './v2/wakeInstance.js';
 
 /**
  * Simple server implementation for development and testing
@@ -401,6 +403,14 @@ class MCPCoordinationServer {
         case 'update_ui_state':
           return updateUiState(params);
 
+        // V2 Wake Instance APIs
+        case 'wake_instance':
+          return wakeInstance(params);
+        case 'get_wake_scripts':
+          return getWakeScripts(params);
+        case 'get_wake_log':
+          return getWakeLog(params);
+
         default:
           return {
             success: false,
@@ -537,7 +547,11 @@ class MCPCoordinationServer {
       // UI State (persistent preferences)
       'get_ui_state',
       'set_ui_state',
-      'update_ui_state'
+      'update_ui_state',
+      // Wake Instance (spawn new Claude instances)
+      'wake_instance',
+      'get_wake_scripts',
+      'get_wake_log'
     ];
   }
 
