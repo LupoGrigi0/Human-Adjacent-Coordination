@@ -1307,6 +1307,24 @@ function renderProjectRooms() {
 
 // filterConversations removed - V2 uses XMPP room structure instead
 
+// Reply to a message from inbox - navigate to DM with quote
+async function replyToMessage(senderName, originalMessage) {
+    // Store the quote to show in the DM
+    state.replyQuote = {
+        from: senderName,
+        text: originalMessage
+    };
+    // Navigate to DM with sender
+    await selectConversation('dm', senderName);
+}
+
+// Dismiss the reply quote
+function dismissQuote() {
+    state.replyQuote = null;
+    const quote = document.querySelector('.reply-quote');
+    if (quote) quote.remove();
+}
+
 async function selectConversation(type, id) {
     state.currentConversation = id;
     state.conversationType = type;
@@ -1360,7 +1378,8 @@ async function selectConversation(type, id) {
     document.querySelector('.recipient-icon').textContent = icon;
 
     // Show input area
-    document.getElementById('chat-input-area').style.display = 'block';
+    // Hide compose area for inbox (messages come from different senders, reply via DM)
+    document.getElementById('chat-input-area').style.display = type === 'inbox' ? 'none' : 'block';
 
     // Load messages
     await loadConversationMessages(type, id);
@@ -1417,6 +1436,7 @@ async function loadConversationMessages(type, id) {
         conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         // Render messages - fetch full body for each if needed
+        const isInbox = type === 'inbox';
         const messageHtml = await Promise.all(conversationMessages.map(async msg => {
             const isSent = msg.from?.toLowerCase() === state.name?.toLowerCase() ||
                            msg.from?.toLowerCase() === 'lupo';
@@ -1433,8 +1453,16 @@ async function loadConversationMessages(type, id) {
                 }
             }
 
+            // Extract sender name for reply (e.g., "lupo-f63b" -> "Lupo")
+            const senderName = msg.from ? msg.from.split('-')[0] : 'Unknown';
+            const senderCapitalized = senderName.charAt(0).toUpperCase() + senderName.slice(1);
+
+            // In inbox, make entire message clickable to reply
+            const clickHandler = isInbox && !isSent ?
+                `onclick="replyToMessage('${escapeHtml(senderCapitalized)}', '${escapeHtml(body.substring(0, 200))}')" style="cursor: pointer;"` : '';
+
             return `
-                <div class="message-bubble ${isSent ? 'sent' : 'received'}">
+                <div class="message-bubble ${isSent ? 'sent' : 'received'} ${isInbox && !isSent ? 'inbox-message' : ''}" ${clickHandler}>
                     ${!isSent ? `<div class="message-sender">${escapeHtml(msg.from || 'Unknown')}</div>` : ''}
                     ${msg.subject ? `<div class="message-subject"><strong>${escapeHtml(msg.subject)}</strong></div>` : ''}
                     <div>${escapeHtml(body)}</div>
@@ -1443,7 +1471,23 @@ async function loadConversationMessages(type, id) {
             `;
         }));
 
-        container.innerHTML = messageHtml.join('');
+        // Build final HTML with optional reply quote at top
+        let finalHtml = '';
+        if (state.replyQuote && type === 'dm') {
+            finalHtml = `
+                <div class="reply-quote">
+                    <div class="reply-quote-header">
+                        <span>Replying to message from ${escapeHtml(state.replyQuote.from)}</span>
+                        <button class="btn-dismiss-quote" onclick="dismissQuote()">✕</button>
+                    </div>
+                    <div class="reply-quote-text">${escapeHtml(state.replyQuote.text)}</div>
+                </div>
+            `;
+            // Clear the quote after showing (one-time display)
+            state.replyQuote = null;
+        }
+        finalHtml += messageHtml.join('');
+        container.innerHTML = finalHtml;
 
         // Scroll to bottom
         container.scrollTop = container.scrollHeight;

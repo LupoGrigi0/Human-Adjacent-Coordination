@@ -591,6 +591,63 @@ body {
     font-size: 0.6875rem;
     margin-top: 0.25rem;
     opacity: 0.7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Clickable inbox messages */
+.inbox-message {
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.inbox-message:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.inbox-message:active {
+    transform: translateY(0);
+}
+
+/* Reply quote shown at top of DM when replying */
+.reply-quote {
+    background: var(--hover-bg);
+    border-left: 3px solid var(--primary-color);
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.reply-quote-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--primary-color);
+}
+
+.btn-dismiss-quote {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0;
+    line-height: 1;
+}
+
+.btn-dismiss-quote:hover {
+    color: var(--text-primary);
+}
+
+.reply-quote-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-style: italic;
 }
 
 .message-sender {
