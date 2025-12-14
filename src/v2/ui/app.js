@@ -1132,6 +1132,25 @@ async function loadMessaging() {
 
     let html = '';
 
+    // --- MY INBOX (personality room for current user) ---
+    const myPersonalityRoom = `personality-${state.name.toLowerCase()}`;
+    const isInboxActive = state.conversationType === 'inbox' && state.currentConversation === myPersonalityRoom;
+    html += `
+        <div class="conversation-section" id="inbox-section">
+            <div class="section-header">MY INBOX</div>
+            <div id="inbox-list">
+                <div class="conversation-item ${isInboxActive ? 'active' : ''}"
+                     data-type="inbox" data-id="${myPersonalityRoom}">
+                    <div class="conversation-avatar">&#128229;</div>
+                    <div class="conversation-details">
+                        <div class="conversation-name">Messages to Me</div>
+                        <div class="conversation-meta">${state.instanceId || state.name}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
     // --- DIRECT MESSAGES ---
     html += `
         <div class="conversation-section" id="dm-section">
@@ -1325,6 +1344,11 @@ async function selectConversation(type, id) {
             status = 'Broadcast Channel';
             icon = '\u{1F4E2}';  // Megaphone icon
             break;
+        case 'inbox':
+            name = 'Messages to Me';
+            status = state.instanceId || state.name;
+            icon = '\u{1F4E9}';  // Envelope icon
+            break;
         default:
             name = id;
             status = 'Chat';
@@ -1370,6 +1394,9 @@ async function loadConversationMessages(type, id) {
             room = `role-${id.toLowerCase()}`;
         } else if (type === 'announcements') {
             room = 'announcements';
+        } else if (type === 'inbox') {
+            // Inbox uses the personality room name directly (id is already "personality-{name}")
+            room = id;
         }
 
         // V2 XMPP API - fetch messages for this specific room

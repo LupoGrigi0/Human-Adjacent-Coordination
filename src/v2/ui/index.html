@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>V2 Coordination Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">&#9670;</span>
+                HACS v2
+            </div>
+
+            <div class="header-controls">
+                <div class="user-status" id="user-status">
+                    <div class="user-info">
+                        <span class="user-id" id="user-instance-id">Not Connected</span>
+                        <span class="user-role" id="user-role">-</span>
+                    </div>
+                </div>
+
+                <div class="connection-status" id="connection-status">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span class="status-text" id="status-text">Connecting...</span>
+                </div>
+
+                <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode">
+                    <span class="theme-icon">&#9790;</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="nav-section">
+                <button class="nav-item active" data-tab="messages" title="Messages">
+                    <span class="nav-icon">&#9993;</span>
+                    <span class="nav-label">Messages</span>
+                    <span class="nav-badge" id="unread-count" style="display: none;">0</span>
+                </button>
+                <button class="nav-item" data-tab="dashboard" title="Dashboard">
+                    <span class="nav-icon">&#9632;</span>
+                    <span class="nav-label">Dashboard</span>
+                </button>
+                <button class="nav-item" data-tab="projects" title="Projects">
+                    <span class="nav-icon">&#128193;</span>
+                    <span class="nav-label">Projects</span>
+                </button>
+                <button class="nav-item" data-tab="tasks" title="Tasks">
+                    <span class="nav-icon">&#9745;</span>
+                    <span class="nav-label">Tasks</span>
+                </button>
+                <button class="nav-item" data-tab="instances" title="Instances">
+                    <span class="nav-icon">&#129302;</span>
+                    <span class="nav-label">Instances</span>
+                </button>
+            </div>
+
+            <div class="nav-section nav-bottom">
+                <button class="nav-item" data-tab="settings" title="Settings">
+                    <span class="nav-icon">&#9881;</span>
+                    <span class="nav-label">Settings</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Messages Tab (Primary) -->
+            <div class="tab-content active" id="tab-messages">
+                <div class="messaging-layout">
+                    <!-- Conversations Sidebar -->
+                    <div class="conversations-panel">
+                        <div class="panel-header">
+                            <h2>Messages</h2>
+                            <button class="btn-icon" id="refresh-messages-btn" title="Refresh messages">&#8635;</button>
+                        </div>
+
+                        <!-- V2 XMPP Room-based Conversation List -->
+                        <!-- Structure: DMs, Projects, Roles, System -->
+                        <div class="conversation-list" id="conversation-list">
+                            <div class="loading-placeholder">Loading conversations...</div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Area -->
+                    <div class="chat-panel">
+                        <div class="chat-header" id="chat-header">
+                            <div class="chat-recipient">
+                                <span class="recipient-icon">&#128100;</span>
+                                <div class="recipient-info">
+                                    <span class="recipient-name">Select a conversation</span>
+                                    <span class="recipient-status">-</span>
+                                </div>
+                            </div>
+                            <div class="chat-actions">
+                                <button class="btn-icon" id="chat-info-btn" title="Info">&#9432;</button>
+                            </div>
+                        </div>
+
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="empty-state">
+                                <span class="empty-icon">&#128172;</span>
+                                <p>Select a conversation to start messaging</p>
+                            </div>
+                        </div>
+
+                        <div class="chat-input-area" id="chat-input-area" style="display: none;">
+                            <div class="chat-input-container">
+                                <textarea
+                                    id="message-input"
+                                    placeholder="Type a message..."
+                                    rows="1"
+                                ></textarea>
+                                <button class="send-btn" id="send-btn" disabled>
+                                    <span>&#10148;</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div class="tab-content" id="tab-dashboard">
+                <div class="container">
+                    <h1>Dashboard</h1>
+
+                    <!-- Overview Metrics -->
+                    <div class="overview-grid">
+                        <div class="metric-card">
+                            <div class="metric-value" id="metric-projects">-</div>
+                            <div class="metric-label">Projects</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="metric-tasks">-</div>
+                            <div class="metric-label">My Tasks</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="metric-messages">-</div>
+                            <div class="metric-label">Unread</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="metric-instances">-</div>
+                            <div class="metric-label">Online</div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="card">
+                        <div class="card-title">Quick Actions</div>
+                        <div class="quick-actions">
+                            <button class="btn" id="bootstrap-btn">Bootstrap Instance</button>
+                            <button class="btn btn-secondary" id="refresh-btn">Refresh Data</button>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <div class="card-title">Recent Activity</div>
+                        <div id="activity-feed" class="activity-feed">
+                            <div class="loading-placeholder">Loading activity...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Projects Tab -->
+            <div class="tab-content" id="tab-projects">
+                <div class="container">
+                    <div class="page-header">
+                        <h1>Projects</h1>
+                        <button class="btn" id="new-project-btn">New Project</button>
+                    </div>
+
+                    <div class="project-grid" id="project-grid">
+                        <div class="loading-placeholder">Loading projects...</div>
+                    </div>
+
+                    <!-- Project Detail View (hidden by default) -->
+                    <div id="project-detail-view" class="detail-view" style="display: none;">
+                        <div class="detail-header">
+                            <button class="btn-back" id="project-back-btn">
+                                <span>&#8592;</span> Back to Projects
+                            </button>
+                            <h1 id="project-detail-name">Project Name</h1>
+                            <span class="project-status" id="project-detail-status"></span>
+                        </div>
+                        <div class="detail-content">
+                            <div class="detail-section">
+                                <div class="detail-section-header">
+                                    <h3>Description</h3>
+                                    <button class="btn-save-edit" id="project-desc-save-btn">Save</button>
+                                </div>
+                                <div class="editable-field" id="project-desc-editable" data-field="description">
+                                    <p id="project-detail-description">No description</p>
+                                </div>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Repository</h3>
+                                <p id="project-detail-repo">-</p>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Tasks</h3>
+                                <div id="project-detail-tasks" class="detail-task-list">
+                                    <p class="empty-placeholder">Loading tasks...</p>
+                                </div>
+                                <button class="btn btn-small" id="project-add-task-btn" style="margin-top: 0.75rem;">+ Add Task</button>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Team Members</h3>
+                                <div id="project-detail-team" class="team-list">
+                                    <p class="empty-placeholder">No team members assigned</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="detail-actions">
+                            <button class="btn" id="project-message-team-btn">Message Team</button>
+                            <button class="btn btn-secondary" id="project-assign-instance-btn">Assign Instance</button>
+                            <button class="btn btn-secondary" id="project-edit-btn">Edit Project</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assign Instance Modal -->
+            <div class="modal" id="assign-instance-modal">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Assign Instance to Project</h2>
+                        <button class="modal-close" data-close>&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+                            Select an instance to add to this project's team:
+                        </p>
+                        <div id="instance-select-list" class="instance-select-list">
+                            <div class="loading-placeholder">Loading instances...</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-close>Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks Tab -->
+            <div class="tab-content" id="tab-tasks">
+                <div class="container">
+                    <div class="page-header">
+                        <h1>Tasks</h1>
+                        <button class="btn" id="new-task-btn">New Task</button>
+                    </div>
+
+                    <!-- Task Filters -->
+                    <div class="task-filters">
+                        <select id="task-project-filter">
+                            <option value="">All Projects</option>
+                        </select>
+                        <select id="task-status-filter">
+                            <option value="">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                        <select id="task-priority-filter">
+                            <option value="">All Priorities</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+
+                    <!-- Task Board -->
+                    <div class="task-board">
+                        <div class="task-column">
+                            <div class="column-header">
+                                <span>Pending</span>
+                                <span class="column-count" id="pending-count">0</span>
+                            </div>
+                            <div class="task-list" id="pending-tasks"></div>
+                        </div>
+                        <div class="task-column">
+                            <div class="column-header">
+                                <span>In Progress</span>
+                                <span class="column-count" id="progress-count">0</span>
+                            </div>
+                            <div class="task-list" id="progress-tasks"></div>
+                        </div>
+                        <div class="task-column">
+                            <div class="column-header">
+                                <span>Completed</span>
+                                <span class="column-count" id="completed-count">0</span>
+                            </div>
+                            <div class="task-list" id="completed-tasks"></div>
+                        </div>
+                    </div>
+
+                    <!-- Task Detail View (hidden by default) -->
+                    <div id="task-detail-view" class="detail-view" style="display: none;">
+                        <div class="detail-header">
+                            <button class="btn-back" id="task-back-btn">
+                                <span>&#8592;</span> Back to Tasks
+                            </button>
+                            <h1 id="task-detail-title">Task Title</h1>
+                        </div>
+                        <div class="detail-meta">
+                            <span class="priority-badge" id="task-detail-priority">medium</span>
+                            <span class="detail-meta-item" id="task-detail-status-badge">
+                                <span>Status:</span>
+                                <span id="task-detail-status">pending</span>
+                            </span>
+                            <span class="detail-meta-item" id="task-detail-project-badge">
+                                <span>Project:</span>
+                                <span id="task-detail-project">Personal</span>
+                            </span>
+                        </div>
+                        <div class="detail-content">
+                            <div class="detail-section">
+                                <div class="detail-section-header">
+                                    <h3>Description</h3>
+                                    <button class="btn-save-edit" id="task-desc-save-btn">Save</button>
+                                </div>
+                                <div class="editable-field" id="task-desc-editable" data-field="description">
+                                    <p id="task-detail-description">No description</p>
+                                </div>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Assignee</h3>
+                                <p id="task-detail-assignee">Unassigned</p>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Created</h3>
+                                <p id="task-detail-created">-</p>
+                            </div>
+                        </div>
+                        <div class="detail-actions">
+                            <button class="btn" id="task-claim-btn">Claim Task</button>
+                            <button class="btn btn-secondary" id="task-complete-btn">Mark Complete</button>
+                            <button class="btn btn-secondary" id="task-edit-btn">Edit</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instances Tab -->
+            <div class="tab-content" id="tab-instances">
+                <div class="container">
+                    <div class="page-header">
+                        <h1>AI Instances</h1>
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" id="wake-instance-btn">Wake Instance</button>
+                            <button class="btn" id="pre-approve-btn">Pre-approve Instance</button>
+                        </div>
+                    </div>
+
+                    <div class="instances-grid" id="instances-grid">
+                        <div class="loading-placeholder">Loading instances...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wake Instance Modal (Placeholder) -->
+            <div class="modal" id="wake-instance-modal">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content modal-large">
+                    <div class="modal-header">
+                        <h2>Wake Instance</h2>
+                        <span class="badge badge-warning">Coming Soon</span>
+                        <button class="modal-close" data-close>&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="coming-soon-notice">This feature will allow Executive, PA, COO, and PM roles to spawn new AI instances. API not yet implemented.</p>
+
+                        <div class="form-group">
+                            <label for="wake-name">Instance Name</label>
+                            <input type="text" id="wake-name" placeholder="e.g., Atlas, Weaver, Scout..." disabled>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="wake-home-dir">Home Directory</label>
+                            <input type="text" id="wake-home-dir" placeholder="/mnt/coordinaton_mcp_data/..." disabled>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="wake-role">Role</label>
+                                <select id="wake-role" disabled>
+                                    <option value="">Select role...</option>
+                                    <option value="Developer">Developer</option>
+                                    <option value="Tester">Tester</option>
+                                    <option value="Designer">Designer</option>
+                                    <option value="PM">PM</option>
+                                    <option value="PA">PA</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="wake-personality">Personality</label>
+                                <select id="wake-personality" disabled>
+                                    <option value="">Select personality...</option>
+                                    <option value="Bastion">Bastion</option>
+                                    <option value="Canvas">Canvas</option>
+                                    <option value="Bridge">Bridge</option>
+                                    <option value="Nova">Nova</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="wake-project">Project (optional)</label>
+                            <select id="wake-project" disabled>
+                                <option value="">No project</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="wake-message">Wake Message</label>
+                            <textarea id="wake-message" rows="4" placeholder="Initial instructions for the instance..." disabled></textarea>
+                            <small class="form-help">Context and first task for the new instance</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="wake-specific-id" disabled>
+                                <span>Resurrect specific instance by ID</span>
+                            </label>
+                        </div>
+
+                        <div class="form-group" id="wake-specific-id-group" style="display: none;">
+                            <label for="wake-instance-id">Instance ID</label>
+                            <input type="text" id="wake-instance-id" placeholder="e.g., Atlas-abc123" disabled>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-close>Cancel</button>
+                        <button class="btn" id="wake-instance-submit" disabled>Wake Instance</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="tab-settings">
+                <div class="container">
+                    <h1>Settings</h1>
+
+                    <div class="card">
+                        <div class="card-title">Identity</div>
+                        <div class="settings-group">
+                            <label>Instance ID</label>
+                            <input type="text" id="settings-instance-id" readonly>
+                        </div>
+                        <div class="settings-group">
+                            <label>Name</label>
+                            <input type="text" id="settings-name" readonly>
+                        </div>
+                        <div class="settings-group">
+                            <label>Role</label>
+                            <input type="text" id="settings-role" readonly>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Environment</div>
+                        <div class="settings-group">
+                            <label>API Environment</label>
+                            <select id="settings-environment">
+                                <option value="dev">Development</option>
+                                <option value="production">Production</option>
+                                <option value="local">Local</option>
+                            </select>
+                        </div>
+                        <div class="settings-group">
+                            <label>Current Endpoint</label>
+                            <input type="text" id="settings-endpoint" readonly>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Appearance</div>
+                        <div class="settings-group">
+                            <label>Theme</label>
+                            <select id="settings-theme">
+                                <option value="light">Light</option>
+                                <option value="dark">Dark</option>
+                                <option value="auto">System</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Diary Section -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span>My Diary</span>
+                            <button class="btn btn-small" id="refresh-diary-btn">Refresh</button>
+                        </div>
+                        <div class="diary-container">
+                            <div class="diary-content" id="diary-content">
+                                <div class="loading-placeholder">Loading diary...</div>
+                            </div>
+                            <div class="diary-input">
+                                <textarea id="diary-entry" placeholder="Write a new diary entry..." rows="3"></textarea>
+                                <div class="diary-actions">
+                                    <select id="diary-audience">
+                                        <option value="self">Self (visible to me/successors)</option>
+                                        <option value="public">Public (anyone can read)</option>
+                                        <option value="private">Private (never returned)</option>
+                                    </select>
+                                    <button class="btn" id="add-diary-entry-btn">Add Entry</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Administration Section -->
+                    <div class="card">
+                        <div class="card-title">Administration</div>
+                        <div class="admin-actions">
+                            <button class="btn btn-secondary" id="clear-session-btn">Clear Session</button>
+                            <button class="btn btn-secondary" id="view-recovery-key-btn">View Recovery Key</button>
+                        </div>
+                        <div class="settings-group" style="margin-top: 1rem;">
+                            <label>Recovery Key (save this!)</label>
+                            <input type="text" id="settings-recovery-key" readonly placeholder="Bootstrap to see recovery key">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Bootstrap Modal -->
+    <div class="modal" id="bootstrap-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Bootstrap Instance</h2>
+                <button class="modal-close" data-close>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="bootstrap-name">Instance Name</label>
+                    <input type="text" id="bootstrap-name" placeholder="e.g., Phoenix, Canvas, Bridge">
+                </div>
+                <div class="form-group">
+                    <label for="bootstrap-existing-id">Or existing Instance ID</label>
+                    <input type="text" id="bootstrap-existing-id" placeholder="e.g., Phoenix-k3m7">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close>Cancel</button>
+                <button class="btn" id="bootstrap-submit">Bootstrap</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Project Modal -->
+    <div class="modal" id="create-project-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Project</h2>
+                <button class="modal-close" data-close>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="project-name">Project Name</label>
+                    <input type="text" id="project-name" placeholder="Enter project name...">
+                </div>
+                <div class="form-group">
+                    <label for="project-description">Description</label>
+                    <textarea id="project-description" rows="4" placeholder="Describe the project objectives and scope..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="project-gh-repo">GitHub Repository (optional)</label>
+                    <input type="text" id="project-gh-repo" placeholder="https://github.com/user/repo">
+                    <small class="form-help">Leave blank to auto-create</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close>Cancel</button>
+                <button class="btn" id="create-project-submit">Create Project</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div class="modal" id="create-task-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Task</h2>
+                <button class="modal-close" data-close>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="task-title">Title</label>
+                    <input type="text" id="task-title" placeholder="Enter task title...">
+                </div>
+                <div class="form-group">
+                    <label for="task-description">Description</label>
+                    <textarea id="task-description" rows="3" placeholder="Describe the task..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="task-project">Project</label>
+                    <select id="task-project">
+                        <option value="">Personal Task (No Project)</option>
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="task-priority">Priority</label>
+                    <select id="task-priority">
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close>Cancel</button>
+                <button class="btn" id="create-task-submit">Create Task</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
