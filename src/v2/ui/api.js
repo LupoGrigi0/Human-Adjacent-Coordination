@@ -368,9 +368,12 @@ export async function getMessages(instanceId, options = {}) {
  * Get full message body by ID (V2)
  * @param {string} instanceId
  * @param {string} messageId - From getMessages response
+ * @param {string} [room] - Optional room (Messenger made this optional)
  */
-export async function getMessageBody(instanceId, messageId) {
-  return rpcCall('xmpp_get_message', { instanceId, id: messageId });
+export async function getMessageBody(instanceId, messageId, room) {
+  const params = { instanceId, id: messageId };
+  if (room) params.room = room;
+  return rpcCall('xmpp_get_message', params);
 }
 
 /**

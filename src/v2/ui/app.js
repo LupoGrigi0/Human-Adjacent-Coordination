@@ -1307,6 +1307,63 @@ function renderProjectRooms() {
 
 // filterConversations removed - V2 uses XMPP room structure instead
 
+// Show message detail view for inbox messages
+async function showMessageDetail(messageId, senderName, subject, room) {
+    const container = document.getElementById('chat-messages');
+    container.innerHTML = '<div class="loading-placeholder">Loading message...</div>';
+
+    // Update header to show we're viewing a message
+    document.querySelector('.recipient-name').textContent = 'Message Detail';
+    document.querySelector('.recipient-status').textContent = `From: ${senderName}`;
+    document.querySelector('.recipient-icon').textContent = '\u{1F4E8}';  // Envelope icon
+
+    try {
+        // Fetch full message body
+        const fullMsg = await api.getMessageBody(state.instanceId, messageId, room);
+        const body = fullMsg.body || fullMsg.subject || '[No content]';
+
+        // Extract sender name for reply (e.g., "lupo-f63b" -> "Lupo")
+        const senderBaseName = senderName.split('-')[0];
+        const senderCapitalized = senderBaseName.charAt(0).toUpperCase() + senderBaseName.slice(1);
+
+        container.innerHTML = `
+            <div class="message-detail-view">
+                <div class="message-detail-header">
+                    <button class="btn-back" onclick="selectConversation('inbox', 'personality-${state.name.toLowerCase()}')">
+                        ← Back to Inbox
+                    </button>
+                </div>
+                <div class="message-detail-card">
+                    <div class="message-detail-from">
+                        <span class="detail-label">From:</span>
+                        <span class="detail-value">${escapeHtml(senderName)}</span>
+                    </div>
+                    <div class="message-detail-subject">
+                        <span class="detail-label">Subject:</span>
+                        <span class="detail-value">${escapeHtml(subject)}</span>
+                    </div>
+                    <div class="message-detail-body">
+                        ${escapeHtml(body)}
+                    </div>
+                    <div class="message-detail-actions">
+                        <button class="btn btn-primary" onclick="replyToMessage('${escapeHtml(senderCapitalized)}', '${escapeHtml(body.substring(0, 200).replace(/'/g, "\\'"))}')">
+                            ↩ Reply to ${escapeHtml(senderCapitalized)}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('[App] Error loading message detail:', error);
+        container.innerHTML = `
+            <div class="empty-state">
+                <span class="empty-icon">&#9888;</span>
+                <p>Error loading message: ${escapeHtml(error.message)}</p>
+            </div>
+        `;
+    }
+}
+
 // Reply to a message from inbox - navigate to DM with quote
 async function replyToMessage(senderName, originalMessage) {
     // Store the quote to show in the DM
@@ -1435,37 +1492,40 @@ async function loadConversationMessages(type, id) {
         // Sort by timestamp (oldest first)
         conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-        // Render messages - fetch full body for each if needed
+        // Render messages
         const isInbox = type === 'inbox';
         const messageHtml = await Promise.all(conversationMessages.map(async msg => {
             const isSent = msg.from?.toLowerCase() === state.name?.toLowerCase() ||
                            msg.from?.toLowerCase() === 'lupo';
             const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
 
-            // Get body - might need to fetch full message
+            // For inbox: just show subject (body fetched on click for detail view)
+            // For other views: fetch body if needed
             let body = msg.body || msg.subject || '';
-            if (!body && msg.id) {
+            if (!isInbox && !body && msg.id) {
                 try {
-                    const fullMsg = await api.getMessageBody(state.instanceId, msg.id);
+                    const fullMsg = await api.getMessageBody(state.instanceId, msg.id, room);
                     body = fullMsg.body || fullMsg.subject || '';
                 } catch (e) {
                     body = msg.subject || '[Message body unavailable]';
                 }
             }
 
-            // Extract sender name for reply (e.g., "lupo-f63b" -> "Lupo")
-            const senderName = msg.from ? msg.from.split('-')[0] : 'Unknown';
-            const senderCapitalized = senderName.charAt(0).toUpperCase() + senderName.slice(1);
-
-            // In inbox, make entire message clickable to reply
+            // In inbox, make entire message clickable to open detail view
             const clickHandler = isInbox && !isSent ?
-                `onclick="replyToMessage('${escapeHtml(senderCapitalized)}', '${escapeHtml(body.substring(0, 200))}')" style="cursor: pointer;"` : '';
+                `onclick="showMessageDetail('${msg.id}', '${escapeHtml(msg.from || 'Unknown')}', '${escapeHtml((msg.subject || '').replace(/'/g, "\\'"))}', '${room}')" style="cursor: pointer;"` : '';
+
+            // For inbox: show subject only with "click to read" hint
+            // For other views: show full body
+            const bodyContent = isInbox && !isSent
+                ? `<div class="inbox-preview">Click to read & reply</div>`
+                : `<div>${escapeHtml(body)}</div>`;
 
             return `
                 <div class="message-bubble ${isSent ? 'sent' : 'received'} ${isInbox && !isSent ? 'inbox-message' : ''}" ${clickHandler}>
                     ${!isSent ? `<div class="message-sender">${escapeHtml(msg.from || 'Unknown')}</div>` : ''}
                     ${msg.subject ? `<div class="message-subject"><strong>${escapeHtml(msg.subject)}</strong></div>` : ''}
-                    <div>${escapeHtml(body)}</div>
+                    ${bodyContent}
                     <div class="message-meta">${time}</div>
                 </div>
             `;
@@ -1940,3 +2000,7 @@ function showToast(message, type = 'info') {
 window.appState = state;
 window.api = api;
 window.switchTab = switchTab;
+window.selectConversation = selectConversation;
+window.replyToMessage = replyToMessage;
+window.dismissQuote = dismissQuote;
+window.showMessageDetail = showMessageDetail;

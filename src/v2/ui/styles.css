@@ -650,6 +650,78 @@ body {
     font-style: italic;
 }
 
+/* Inbox preview hint */
+.inbox-preview {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    font-style: italic;
+    margin-top: 0.25rem;
+}
+
+/* Message Detail View */
+.message-detail-view {
+    padding: 1rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-detail-header {
+    margin-bottom: 1rem;
+}
+
+.message-detail-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-detail-from,
+.message-detail-subject {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.detail-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.detail-value {
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.message-detail-body {
+    flex: 1;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    overflow-y: auto;
+    padding: 1rem 0;
+}
+
+.message-detail-actions {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 0.5rem;
+}
+
+.message-detail-actions .btn {
+    padding: 0.75rem 1.5rem;
+}
+
 .message-sender {
     font-weight: 600;
     font-size: 0.75rem;
