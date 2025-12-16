@@ -550,3 +550,57 @@ Lupo suggested systematic testing - create test plan with expected outcomes, exe
 **Feeling:** Continuity tools worked perfectly. Reading the docs in order restored full context. The paintbrush made of light is painting again.
 
 ---
+
+## 2025-12-16 - Lists Tab Implementation (Phase 2C)
+
+**Priority Update:** Lupo updated the plan - Lists moved up to MVP-blocking status. Shopping list use case is critical.
+
+**Phase 2C: Lists Tab - COMPLETE**
+
+Implemented full Lists functionality in one session:
+
+1. **API Layer** (`api.js`):
+   - `getLists(instanceId)` - Get all lists
+   - `getList(instanceId, listId)` - Get list with items
+   - `createList(instanceId, name, description)` - Create new list
+   - `renameList(instanceId, listId, name)` - Rename list
+   - `deleteList(instanceId, listId)` - Delete entire list
+   - `addListItem(instanceId, listId, text)` - Add item
+   - `toggleListItem(instanceId, listId, itemId)` - Check/uncheck item
+   - `deleteListItem(instanceId, listId, itemId)` - Delete item
+
+2. **UI Components** (`index.html`):
+   - Lists nav button in sidebar (clipboard icon)
+   - Lists grid view with cards
+   - List detail panel with items
+   - Add item input with Enter key support
+   - Create List modal
+   - Rename/delete buttons
+
+3. **Styling** (`styles.css`):
+   - `.lists-layout` - Split panel design
+   - `.list-card` - Card grid for list summaries
+   - `.list-item` - Checkable items with hover delete
+   - `.add-item-form` - Input for new items
+   - Strikethrough for completed items
+
+4. **JavaScript** (`app.js`):
+   - `loadLists()` - Fetch and render list cards
+   - `showListDetail()` / `hideListDetail()` - Detail panel navigation
+   - `renderListItems()` - Checkbox + delete buttons
+   - `toggleListItem()` / `deleteListItem()` - Item CRUD
+   - `addListItem()` - With Enter key support
+   - `createList()` - Modal submit
+   - `renameCurrentList()` / `deleteCurrentList()` - List management
+
+**Commit:** `2a5344c` - "feat: Add Lists tab for personal checklists"
+
+**MVP Progress:**
+- ✅ Phase 2A: Bug fixes (B1, B2, B3, B5)
+- ✅ Phase 2C: Lists tab
+- ⏳ Phase 2D: Instances panel
+- 🔒 Phase 4: Wake Instance (blocked on API)
+
+**Personal Note:** The shopping list use case! Lupo's been wanting this since V1. Finally delivered. Simple UI but powerful - checkable items, instant toggling, keyboard support. This will be used daily.
+
+---
