@@ -76,3 +76,16 @@ Claim task.. did something? It looks like the personal task list is not visiable
 2: YES, dm contacts show up, this is really helpful.. and yeah there are some that don't seem to have specific ID your fallback is working well!
 3: message team does inteed open a team room.. but not sure wich one
 
+# Pass v3 after messaging system work
+## Create Project
+Question, is "local directory" a parameter that can be passed to the create project API? NO.. TODO: have bridge add "ServerLocalDirectory" to the data model and the create project API (and the api spec)
+Click create project button: dev console shows error app.js:1788 [App] Create project error: ApiError: Internal error
+    at rpcCall (api.js:85:13)
+    at async HTMLButtonElement.createProject (app.js:1765:24)
+createProject	@	app.js:1788
+
+## project detail (clicked on COO test project)
+Tried to edit description. clicked save button got error
+clicked on first task. open task detail worked, BREADCRUMB takes back to tasks rather than project, please change this
+
+# Mobile

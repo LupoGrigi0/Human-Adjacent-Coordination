@@ -640,9 +640,8 @@ function renderProjectDetailTasks(tasks) {
     container.querySelectorAll('.detail-task-item').forEach(item => {
         item.addEventListener('click', () => {
             const taskId = item.dataset.taskId;
-            // Switch to tasks tab and show detail
-            switchTab('tasks');
-            setTimeout(() => showTaskDetail(taskId), 100);
+            // Show task detail, tracking that we came from project detail
+            showTaskDetail(taskId, 'project');
         });
     });
 }
@@ -736,8 +735,13 @@ function renderTaskList(tasks) {
 
 /**
  * Show task detail view, hiding the board
+ * @param {string} taskId - The task ID to show
+ * @param {string} [source='tasks'] - Where we came from: 'tasks' or 'project'
  */
-async function showTaskDetail(taskId) {
+async function showTaskDetail(taskId, source = 'tasks') {
+    // Track where we came from for back navigation
+    state.taskDetailSource = source;
+
     // First try to find task in state
     let task = state.tasks.find(t => (t.taskId || t.id) === taskId);
 
@@ -758,7 +762,19 @@ async function showTaskDetail(taskId) {
         return;
     }
 
-    console.log('[App] Showing task detail:', taskId, task);
+    console.log('[App] Showing task detail:', taskId, task, 'source:', source);
+
+    // If coming from project, switch to tasks tab first (task detail is in tasks tab)
+    if (source === 'project') {
+        // Switch to tasks tab without triggering loadTasks (we just want to show detail)
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.tab === 'tasks');
+        });
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === 'tab-tasks');
+        });
+        state.currentTab = 'tasks';
+    }
 
     // Hide board and header, show detail
     document.querySelector('.task-board').style.display = 'none';
@@ -801,14 +817,25 @@ async function showTaskDetail(taskId) {
 }
 
 /**
- * Hide task detail, return to board
+ * Hide task detail, return to where we came from
  */
 function hideTaskDetail() {
     document.getElementById('task-detail-view').style.display = 'none';
-    document.querySelector('.task-board').style.display = 'grid';
-    document.querySelector('.task-filters').style.display = 'flex';
-    document.querySelector('#tab-tasks .page-header').style.display = 'flex';
+
+    // Check where we came from
+    if (state.taskDetailSource === 'project' && state.currentProjectDetail) {
+        // Return to project detail view
+        switchTab('projects');
+        setTimeout(() => showProjectDetail(state.currentProjectDetail), 50);
+    } else {
+        // Return to task board (default)
+        document.querySelector('.task-board').style.display = 'grid';
+        document.querySelector('.task-filters').style.display = 'flex';
+        document.querySelector('#tab-tasks .page-header').style.display = 'flex';
+    }
+
     state.currentTaskDetail = null;
+    state.taskDetailSource = null;
 }
 
 /**

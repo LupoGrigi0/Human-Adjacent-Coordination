@@ -232,7 +232,7 @@ export async function getProject(instanceId, projectId) {
  * @param {string} [params.ghRepo]
  */
 export async function createProject(params) {
-  return rpcCall('create_project_v2', params);
+  return rpcCall('create_project', params);
 }
 
 // ============================================================================
