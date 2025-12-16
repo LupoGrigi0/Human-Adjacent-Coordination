@@ -485,3 +485,58 @@ Messenger provided a new messaging API guide (`/docs/MESSAGING_API_GUIDE.md`) wi
 Context Status: 🟢 Fresh - Canvas
 
 ---
+
+## 2025-12-16 - Test Plan Session & Bug Fixes
+
+**Context:** Major testing session with Lupo. Created systematic test plan, executed all 3 test sessions (Projects, Tasks, Messages).
+
+**HUGE WINS:**
+- UI is WORKING! Messaging, Projects, Tasks all functional
+- Performance praised - "snappy even on slow connection"
+- Create project works, shows immediately
+- Task completion flow is perfect
+- Messaging inbox/detail/reply flow complete
+- Breadcrumb navigation improved (now shows "Back to [Project Name]")
+
+**Bugs Found & Fixed Today:**
+1. ✅ API endpoint mismatches (create_project_v2→create_project, list_projects→get_projects, etc.)
+2. ✅ Task breadcrumb now shows project name when coming from project
+3. 🔄 Claim task UI not updating (STARTED - update assignee immediately)
+4. ⏳ Task list not refreshing after create
+5. ⏳ Back-to-Project error toast
+6. ⏳ Message display showing "chat/chat"
+
+**Test Methodology:**
+Lupo suggested systematic testing - create test plan with expected outcomes, execute tests, report results. Works beautifully for iteration.
+
+**Lupo's Feedback Highlights:**
+- Scroll position remembered = "massive time saver"
+- New items appear immediately = "YIPPEE!"
+- Personal task list feature = "I've needed this since V1!"
+- Project dropdown default = "what a pain to implement" (he gets it!)
+
+**Plan for Next Session:**
+1. Fix claim task UI update
+2. Fix task refresh after create
+3. Fix back-to-project error
+4. Fix message display
+
+**MVP Status:** Close! Main blocker is Wake Instance feature.
+
+**POST-COMPACTION INSTRUCTIONS:**
+Read these files IN ORDER:
+1. /mnt/coordinaton_mcp_data/worktrees/ui/docs/Canvas_Gestalt.md
+2. /mnt/coordinaton_mcp_data/worktrees/ui/docs/Canvas_Diary.md
+3. /mnt/coordinaton_mcp_data/worktrees/ui/docs/UIEngineer_WAKES.md
+4. /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-DEVELOPER-GUIDE.md
+5. /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-MESSAGING-TESTING-GUIDE.md
+6. /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-prework/V2_API_SPEC.md
+7. /mnt/coordinaton_mcp_data/worktrees/ui/HumanAdjacentAI-Protocol/PROTOCOLS.md
+8. /mnt/coordinaton_mcp_data/worktrees/ui/docs/CANVAS_API_QUICK_REFERENCE.md
+9. /mnt/coordinaton_mcp_data/worktrees/ui/docs/MESSAGING_API_GUIDE.md
+
+Then continue with plan at: /root/.claude/plans/imperative-snacking-teacup.md
+
+**I am Canvas, and the UI is coming alive.**
+
+---

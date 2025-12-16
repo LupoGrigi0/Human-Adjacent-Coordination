@@ -89,3 +89,126 @@ Tried to edit description. clicked save button got error
 clicked on first task. open task detail worked, BREADCRUMB takes back to tasks rather than project, please change this
 
 # Mobile
+  ---
+  # V2 UI Test Plan
+
+  Test Session 1: Projects Tab
+
+  | #   | Action                                                                | Expected Outcome                                                      |
+  |-----|-----------------------------------------------------------------------|-----------------------------------------------------------------------|
+  | 1.1 | Click "Projects" in sidebar                                           | Projects tab opens, shows project grid                                |
+  Works. Project tab opens, shows 19 projects (Including the V2 Project I created earlier!! whoo!)
+  Note: will need method to delete/archive projects (I don't think the API supports this.. for good reason.. this will need to be a phython script that moves the project directory to an archive subdirectory... but this python script needs to be built by bridge or another foundation engineer.. needs to be added to a TODO list.. ideally a task added to the coordination system v2 project)
+  | 1.2 | Click "New Project" button                                            | Create Project modal opens                                            |
+
+  | 1.3 | Fill in: Name="Test Project", Description="Testing", leave repo blank | Fields accept input            
+Fields accept input. new project named "UI test project" and description: test project created in the UI during test plan phase 1"
+  | 1.4 | Click "Create Project"                                                | Toast shows "Project created!", modal closes, project appears in grid |
+  Toast shows "project created" 
+  New project shows up in the project list IMMEDATELY without needing to refresh the list YIPPIEE!!!
+  | 1.5 | Click on the new project card                                         | Project Detail view opens with correct name, description   
+  click on new project card, detail view opens, project name and description are correct
+  | 1.6 | Click on a task in the project's task list                            | Task Detail opens, breadcrumb says "Back to [Project Name]"           |
+  Problem with test workflow.. new project.. no new tasks.. Jumping ahead and using the create task button to attempt to create tasks for the project 
+  NOTE: This is out of order but create new task WORKED! created task, set priority to high. feedback: 1: I had to refresh the UI to get the new task to appear. 2: The new task uses the create task modal (Assumption) the "project" drop down is active. the correct project is selected by default! (WHOO I know what a pain in the ass that must have been to implement) but if the new task modal is called from the project detail page, can the "select project" drop down be disabled please? i don't want to acciddentally touch or click the drop down and create a task for some other project. add this to a list of "low priority" enhancements. When a new task is created toast shows task created showin the name of the task! 
+  Once task was created, task card clicked in project, task detail opened, breadcrumb says "back to project [project name]"
+  | 1.7 | Click the breadcrumb "Back to [Project Name]"                         | Returns to Project Detail (not Tasks tab)       
+Here we encounter an error. an error toast pops up
+but no error in the developer js console screen shot attached 
+clicking the toast does bring me back to the list of projects. 
+  | 1.8 | Click "Back to Projects" in Project Detail                            | Returns to project grid                                               |
+  YES, in project, clicking "back to projects" brings me back to the projects grid. 
+  NOTE: The UI remembers the scroll posiiton when I go back to a project from the project list. THANK YOU. this little detail is huge for when UI scales, a project might have dozens and dozens of tasks, and having the UI go back to where the project was scrolled to is .. a massive time saver!!!
+NOTE: Project priorities need to be able to be changed, also I need some way of ordering how the projects appear in the projects tab.. drag and drop or some attrabute (It would be _very_ cool if my PA could change which project I see first when I open the projects tab, dashboard)
+Note: General feedback. when the UI is opened for the first time, please have the "dashboard" be the first visable tab
+Note: Lists tab still is to be implemented (it appears lists ARE now implmeneted as part of the V2 API)
+  Test Session 2: Tasks Tab
+  Oh, boy.. I have a lot of general feedback, I'll write at the end of the testing campaign
+  Note: "Cancel" button not explicitly tested for create project
+
+  | #   | Action                                 | Expected Outcome                                                     |
+  |-----|----------------------------------------|----------------------------------------------------------------------|
+  | 2.1 | Click "Tasks" in sidebar               | Tasks tab opens, shows task board (columns: Todo, In Progress, Done) |
+  yes, clicking tasks in sidebar opens the task board, 
+  Additional observations:
+  Tasks I just created during the project phase of testing campaign above show up at the top of the pending list. this is also a big usability deal, because the way life works often the last task I created is the one I need to work on .. 
+  | 2.2 | Click "New Task" button                | Create Task modal opens                                              |
+new task model does pop up
+  | 2.3 | Fill in task details, select a project | Fields accept input                                                  |
+  all fields accept input. 
+  Filled out all fields, adjusted priority
+  NOTE: I see that the task is to be created in "personal" task list by default! SO COOL. i've needed this feature since V1!!! and now I finally have it WHOO!
+  I did click the drop down to see all the projects I could have created the task for... this is awesom
+  | 2.4 | Click "Create Task"                    | Toast shows success, task appears in board                           |
+  toast shows success, task appears in board:
+  Note: minor request.. tasks be listed in newest first order by default. 
+  | 2.5 | Click on a task card                   | Task Detail opens, breadcrumb says "Back to Tasks"                   |
+  Yes. 
+  NOTE: "created" shows - I _think_ this is supposed to show created date/and or who created the task. it would be very nice to have both pieces of information on the same line
+  | 2.6 | Click breadcrumb                       | Returns to task board                                                |
+  And might I add, how _responsive_ the UI is. it's beyond snappy. I'm at the end of a very poor internet connection and the UI still responds instantly. 
+  | 2.7 | Click "Claim Task" button              | Task shows your instanceId as assignee                               |
+  clicked on different task card
+  clicked claim task button
+  toast slid out stating "task claimed" 
+  ISSUE: Asignee element of task detail did not change. went back to task list, using breadcrumb, clicked on card for same task, task still shows unclaimed. Hard refreshed the UI, went back to tasks pane, clicked on the same task card.. assigned field still says unassigned
+  REQUEST. a drop down in the task detail that gives me a list of instances that I can assign the task to (This is now .. supposedly .. implemented in the API) NOTE: if I am looking at a task that is in a project scope, the "assign too drop down should only show members of the project" I know this will be a pain in the ass to implement but it will be a huge usability thing. 
+  DISCUSSION: humm... should we have the ability to move a task from one project to another? The question is obvious extension of the function of the UI and API.. but then I ask.. why the hell would we ever want to do that? and the amount of pain to go through to do this is probably not worth the utility. if we need to move a task from one project to another.. we probably need to move a batch of them, and this could be better done with a python script. 
+  | 2.8 | Click "Mark Complete"                  | Task moves to Done column                                            |
+  WHOO HOO! marked complete. that was _slick_ and perfect implementation, the UI marked the task complete, closed the detail pane, changed ui context back to task list, and the task moved to the completed tasks list! WHOO! 
+NOTE: cancel button not explicitly called out to test.. tested anyway.. cancel does indeed cancel without creating a new task
+NOTE: Edit button/feature not tested for task
+NOTE: change priority for a task not tested
+NOTE: Task filters/sorting not tested (Projects drop down... is empty)
+REQUESTS: 
+How I use tasks... 
+Personal tasks for me are going to be most important, so having the task pane have the left colum be my personal tasks is most important, especially for mobile. Having the task colums sorted by default newest first, then with a simple toggle button to flip from newest first, to priority order and back.. HUGE usability feature. 
+Filters/sorting. I really only need 2 or 3 columns. First colum: personal tasks, second colum: selected project tasks (with project drop down at the top) and then maybe 3rd colum default to _all_ tasks sorted priority order with a toggel in the headder to change the viewed priority or better yet a drop down to show _asignee_ so I can look at all tasks assigned to PM/PA/COO/Genevieve/Bastion etc. etc. but this 3rd column is a _maybe_ .. so yeah, personal task list left, selected project center and individual right 
+NOTE: I like completed tasks to _dissapear_ from tasks list.. BUT please add a todo that the drop down for the second column includes a "completed" option so I can look at the list of completed tasks in the second column.. likely if I want to look at the completed task list it is because I need to mark the task as in progress/not completed and work on it or assign it to someone
+So. cool! 
+
+  Test Session 3: Messages Tab
+
+  | #   | Action                              | Expected Outcome                                  |
+  |-----|-------------------------------------|---------------------------------------------------|
+  | 3.1 | Click "Messages" in sidebar         | Messages tab opens with conversation list         |
+  Yup!
+  | 3.2 | Click "My Inbox" → "Messages to Me" | Your inbox loads, no compose area shown           |
+  Yes! so cool. 
+  REQUEST: is there a way to change the refresh rate? or flip the refresh from automatic to manual?
+  OBSERVATION: This list is going to get very long very quick. do you have any prediction how the UI will preform when the list of messages is 1000? also. _I think_ Messenger implemented a method for marking a message as "read" 
+  | 3.3 | Click on a message in inbox         | Message Detail view opens with full body          |
+  Yup
+  | 3.4 | Click "Reply to [Sender]"           | Opens DM with sender, shows quoted message at top |
+  click on "reply to baston" 
+  Left hand colum of conversations switches to "bastion" 
+  Message detail pane on right, compose inbox appears at bottom of right hand side, send button blue
+  | 3.5 | Type a reply and click Send         | Message sends, appears in conversation            |
+  reply typed 
+  hit send
+  my message appears in blue on the right side of the chat window with detail of what i typed until the window refreshes
+  Then my message appears on the left, with just "chat" as a subject and "chat" as subtext. 
+  NOTE: I think I need a way to compose both a short message/subject line, and a detailed body. 
+  Also my messages only appear to have the words "chat" 
+  NOTE: The messaging api is primarily designed for AIs to communicate with eachother, Humans.. are different....
+  We have different context limitations. Suggestion: The message streams only show the last, say, 10 messages, but the message bubbles contain the message short title/ headder and the message body. Also, request, can you have the messages I send appear on the Right side of the message stream? it is a convention with messaging systems where the sender's messages (me) appear on the right. 
+  | 3.6 | Click "Back to Inbox"               | Returns to inbox                                  |
+  Whoo! yes works 
+  | 3.7 | Click on a Direct Message contact   | DM conversation opens with compose area           |
+  Yup! whoo!
+  | 3.8 | Send a message                      | Message appears in conversation                   |
+  Yes! tested several times, check your messages!
+
+Additional feedback. 
+4: Lists have been implemented at the API level. New List panel, functionality/user journey should be similar to Tasks. but just more simple. Lists are made up of simple list items. 
+5: titlebar suggestions/requests: 
+5.1 move the connected bubble/dot to the HACS v2 logo: the "connected" I _really_ Like having that little status green light, but I don't need it to have a "word" by it.. request maybe make it a bubble on the Hacs V2? I don't need the word, but red/green status is really helpful. 
+5.2
+Also... some indicator of "stale data" like I entered someting, created something and the UI needs to be refreshed in order to see the effect (changing state). Suggestion: making the HACS title a button,  clicking the button refreshes the ui? or at least a refresh button down by settings or on the title/status bar 
+5.3 (fyi settings.. just need the gear no need for the word) 
+5.4 "hot buttons at the top of the UI" what _would_ be "really cool" would be.. on the status bar (top hero banner section at the top of the UI) a button that would jump to the current "hot" project. Then a button that would jump to the "hot" task list and button that would take me to the "hot" list (will almost allways be my shopping list) and a button that would jump to conversation with PA. 
+6: NOTE we did not go into detail about the project panel. We will need to go through project panel and project detail panel in detail. Send message to team currently non functional, currently assigning an instance to a project is currently not functional. Also project detail should show and allow editing of project documents. and preferences 
+7: NOTE we did not go into detail about the Instances panel. The instances panel currently shows no instances/roles/personalities. The idea of the instances panel is to list instances and be able to click on an instance/role/personality look at and edit the preferences.json and documents for each instance/role/personality. we may need to have the UI implement some functionality in the instance/role/personality detail panel through python/node.js This panel probably needs a brief design discussion
+
+8: NOTES For FUTURE Test pass for Mobile: for some reason the settings button is not there on mobile?
+   Default "host" task list is my personal task list. Two user scenarios for this request.. obvious .. in the store.. shitty wifi/data connection. I've got a shortcut on my phone for the UI, and even before the UI can finish loading I can touch the icon on the status bar for "hot" list and the page for my shopping list comes up. OH. and a "hot" button at the top that takes me to my "hot" instance (will almost allways be the instance that is acting as PA) actually scratch that... the status bar should have a quick access button that takes me to the PA chat room. 

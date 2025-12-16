@@ -830,13 +830,18 @@ async function showTaskDetail(taskId, source = 'tasks') {
 /**
  * Hide task detail, return to where we came from
  */
-function hideTaskDetail() {
+async function hideTaskDetail() {
     document.getElementById('task-detail-view').style.display = 'none';
 
     // Check where we came from
     if (state.taskDetailSource === 'project' && state.currentProjectDetail) {
         // Return to project detail view
         switchTab('projects');
+        // Ensure projects are loaded before showing detail
+        if (!state.projects || state.projects.length === 0) {
+            await loadProjects();
+        }
+        // Small delay to let tab switch complete, then show project detail
         setTimeout(() => showProjectDetail(state.currentProjectDetail), 50);
     } else {
         // Return to task board (default)
@@ -861,8 +866,16 @@ async function claimCurrentTask() {
             instanceId: state.instanceId
         });
         showToast('Task claimed!', 'success');
-        // Refresh the task detail
-        showTaskDetail(state.currentTaskDetail);
+
+        // Update the assignee display immediately
+        document.getElementById('task-detail-assignee').textContent = state.instanceId;
+
+        // Update button states
+        const claimBtn = document.getElementById('task-claim-btn');
+        claimBtn.textContent = 'Reassign';
+
+        // Also refresh task board in background
+        loadTasks();
     } catch (e) {
         console.error('[App] Error claiming task:', e);
         showToast('Could not claim task: ' + e.message, 'error');
@@ -1642,10 +1655,12 @@ async function sendMessage() {
             to = state.currentConversation;
         }
 
+        // Use first part of message as subject for better display
+        const subject = body.length > 50 ? body.substring(0, 50) + '...' : body;
         await api.sendMessage({
             from: state.instanceId,
             to,
-            subject: 'Chat',
+            subject: subject,
             body: body
         });
 
@@ -1904,6 +1919,18 @@ async function createTask() {
             // Refresh tasks view
             if (state.currentTab === 'tasks') {
                 loadTasks();
+            }
+
+            // Also refresh project detail if we're viewing a project and the task was for it
+            if (state.currentTab === 'projects' && state.currentProjectDetail && projectId === state.currentProjectDetail) {
+                // Refresh the project detail tasks list
+                try {
+                    const result = await rpcCallDirect('get_tasks', { project_id: projectId });
+                    const tasks = result.tasks || result || [];
+                    renderProjectDetailTasks(tasks);
+                } catch (e) {
+                    console.error('[App] Error refreshing project tasks:', e);
+                }
             }
         } else {
             showToast(result.error?.message || 'Failed to create task', 'error');
