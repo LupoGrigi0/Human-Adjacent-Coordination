@@ -645,3 +645,38 @@ All 5 polish items implemented:
 **Moving to Phase 2D: Instances Panel next.**
 
 ---
+
+## 2025-12-16 - Phase 2D: Instances Panel Complete
+
+**Phase 2D: Instances Panel - COMPLETE**
+
+Enhanced the Instances tab with full functionality:
+
+1. **Instance Cards** - Redesigned with:
+   - Role badge, personality, project
+   - Online/offline status indicator
+   - Last active date
+   - Click to open detail
+
+2. **Instance Detail View**:
+   - Large avatar with status indicator
+   - Full instance ID, role, personality, project
+   - Home directory, last active timestamp
+   - Instructions display (scrollable)
+   - "Send Message" button → opens DM
+
+3. **Navigation**:
+   - Back button to grid
+   - Auto-hide when switching tabs
+
+**Commit:** `3057683` - "feat: Phase 2D - Enhanced Instances Panel"
+
+**ALL PHASE 2 COMPLETE!**
+- ✅ Phase 2A: Bug fixes
+- ✅ Phase 2B: Polish
+- ✅ Phase 2C: Lists tab
+- ✅ Phase 2D: Instances panel
+
+**Next:** Structured testing of ALL Phase 2 features before Phase 3.
+
+---
