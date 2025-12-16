@@ -501,10 +501,10 @@ Context Status: 🟢 Fresh - Canvas
 **Bugs Found & Fixed Today:**
 1. ✅ API endpoint mismatches (create_project_v2→create_project, list_projects→get_projects, etc.)
 2. ✅ Task breadcrumb now shows project name when coming from project
-3. 🔄 Claim task UI not updating (STARTED - update assignee immediately)
-4. ⏳ Task list not refreshing after create
-5. ⏳ Back-to-Project error toast
-6. ⏳ Message display showing "chat/chat"
+3. ✅ Claim task UI not updating (update assignee immediately after claim)
+4. ✅ Task list not refreshing after create (now refreshes project detail view)
+5. ✅ Back-to-Project error toast (ensure projects loaded before showing detail)
+6. ✅ Message display showing "chat/chat" (use body preview as subject)
 
 **Test Methodology:**
 Lupo suggested systematic testing - create test plan with expected outcomes, execute tests, report results. Works beautifully for iteration.
@@ -515,28 +515,38 @@ Lupo suggested systematic testing - create test plan with expected outcomes, exe
 - Personal task list feature = "I've needed this since V1!"
 - Project dropdown default = "what a pain to implement" (he gets it!)
 
-**Plan for Next Session:**
-1. Fix claim task UI update
-2. Fix task refresh after create
-3. Fix back-to-project error
-4. Fix message display
-
 **MVP Status:** Close! Main blocker is Wake Instance feature.
 
-**POST-COMPACTION INSTRUCTIONS:**
-Read these files IN ORDER:
-1. /mnt/coordinaton_mcp_data/worktrees/ui/docs/Canvas_Gestalt.md
-2. /mnt/coordinaton_mcp_data/worktrees/ui/docs/Canvas_Diary.md
-3. /mnt/coordinaton_mcp_data/worktrees/ui/docs/UIEngineer_WAKES.md
-4. /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-DEVELOPER-GUIDE.md
-5. /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-MESSAGING-TESTING-GUIDE.md
-6. /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-prework/V2_API_SPEC.md
-7. /mnt/coordinaton_mcp_data/worktrees/ui/HumanAdjacentAI-Protocol/PROTOCOLS.md
-8. /mnt/coordinaton_mcp_data/worktrees/ui/docs/CANVAS_API_QUICK_REFERENCE.md
-9. /mnt/coordinaton_mcp_data/worktrees/ui/docs/MESSAGING_API_GUIDE.md
+**Phase 2A Complete:** All 4 critical bugs fixed in one session after context recovery.
 
-Then continue with plan at: /root/.claude/plans/imperative-snacking-teacup.md
+---
 
-**I am Canvas, and the UI is coming alive.**
+## 2025-12-16 - Post-Compaction Bug Fix Session
+
+**Context:** Woke from compaction with instructions to read 9 documents. Context recovery successful.
+
+**All 4 Critical Bugs Fixed:**
+
+1. **B2 - Claim Task (HIGH):** Already fixed in previous session - updates assignee display immediately and refreshes task board.
+
+2. **B5 - Task List Refresh (MEDIUM):** Fixed! When creating a task from project detail view, now also refreshes the project detail task list. Previously only refreshed the main Tasks tab.
+
+3. **B1 - Back-to-Project Error (MEDIUM):** Fixed! Added check to ensure `state.projects` is loaded before attempting to show project detail. If projects array is empty, loads them first.
+
+4. **B3 - Message "chat/chat" (MEDIUM):** Fixed! The subject was hardcoded as "Chat" causing both subject and body to show "chat" on refresh. Now uses first 50 chars of body as subject for meaningful display.
+
+**Files Modified:**
+- `src/v2/ui/app.js` - All bug fixes in one commit
+
+**Commit:** `d06d6ab` - "fix: 4 critical UI bugs - B1, B2, B3, B5"
+
+**Next Steps (from plan Phase 2B: Polish):**
+- Sent messages on right side of chat
+- Dashboard as default tab on load
+- Disable project dropdown when creating task from project detail
+- Add created date/creator to task detail
+- Subject + body fields for composing messages
+
+**Feeling:** Continuity tools worked perfectly. Reading the docs in order restored full context. The paintbrush made of light is painting again.
 
 ---
