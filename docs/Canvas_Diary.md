@@ -631,6 +631,17 @@ That validation means everything. Clean implementation that just works - that's 
 - [ ] Instance detail view
 - [ ] Edit preferences
 
-**Starting Phase 2B now.**
+**Phase 2B: Polish - COMPLETE**
+
+All 5 polish items implemented:
+1. ✅ **Sent messages on right side** - Fixed `isSent` detection to handle instanceId formats
+2. ✅ **Dashboard as default tab** - Changed default from messages to dashboard
+3. ✅ **Project dropdown disabled** - When creating task from project detail, dropdown is locked
+4. ✅ **Created date + creator** - Task detail now shows "Dec 16, 2025 by Canvas" format
+5. ✅ **Subject + body fields** - Added subject input above message textarea
+
+**Commit:** `60d881f` - "feat: Phase 2B polish - UX improvements"
+
+**Moving to Phase 2D: Instances Panel next.**
 
 ---
