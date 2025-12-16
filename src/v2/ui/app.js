@@ -42,7 +42,7 @@ const state = {
     currentList: null,
 
     // UI State
-    currentTab: 'messages',
+    currentTab: 'dashboard',
     currentConversation: null,
     conversationType: null, // 'instance' | 'project'
     theme: 'light',
@@ -272,10 +272,11 @@ function setupEventListeners() {
     document.getElementById('project-add-task-btn')?.addEventListener('click', () => {
         if (state.currentProjectDetail) {
             showCreateTaskModal();
-            // Pre-select the current project in the modal
+            // Pre-select the current project in the modal and disable changing it
             const projectSelect = document.getElementById('task-project');
             if (projectSelect) {
                 projectSelect.value = state.currentProjectDetail;
+                projectSelect.disabled = true;
             }
         }
     });
@@ -812,7 +813,15 @@ async function showTaskDetail(taskId, source = 'tasks') {
     document.getElementById('task-detail-description').textContent = task.description || 'No description';
     document.getElementById('task-detail-project').textContent = task.project || task.project_id || 'Personal';
     document.getElementById('task-detail-assignee').textContent = task.assignee || task.claimed_by || 'Unassigned';
-    document.getElementById('task-detail-created').textContent = task.createdAt ? new Date(task.createdAt).toLocaleString() : '-';
+
+    // Format created date with creator if available
+    let createdText = '-';
+    if (task.createdAt || task.created_at) {
+        const date = new Date(task.createdAt || task.created_at).toLocaleString();
+        const creator = task.created_by || task.creator || null;
+        createdText = creator ? `${date} by ${creator}` : date;
+    }
+    document.getElementById('task-detail-created').textContent = createdText;
 
     // Store current task for actions
     state.currentTaskDetail = taskId;
@@ -1574,8 +1583,14 @@ async function loadConversationMessages(type, id) {
         // Render messages
         const isInbox = type === 'inbox';
         const messageHtml = await Promise.all(conversationMessages.map(async msg => {
-            const isSent = msg.from?.toLowerCase() === state.name?.toLowerCase() ||
-                           msg.from?.toLowerCase() === 'lupo';
+            // Check if message is from current user
+            // msg.from could be: "lupo", "lupo-f63b", or full JID
+            const fromName = (msg.from || '').toLowerCase().split('-')[0].split('@')[0];
+            const myName = (state.name || '').toLowerCase();
+            const myInstanceId = (state.instanceId || '').toLowerCase();
+            const isSent = fromName === myName ||
+                           msg.from?.toLowerCase() === myInstanceId ||
+                           msg.from?.toLowerCase().startsWith(myName + '-');
             const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
 
             // For inbox: just show subject (body fetched on click for detail view)
@@ -1644,7 +1659,9 @@ async function loadConversationMessages(type, id) {
 
 async function sendMessage() {
     const input = document.getElementById('message-input');
+    const subjectInput = document.getElementById('message-subject');
     const body = input.value.trim();
+    const userSubject = subjectInput?.value.trim() || '';
 
     if (!body || !state.instanceId || !state.currentConversation) {
         return;
@@ -1677,8 +1694,8 @@ async function sendMessage() {
             to = state.currentConversation;
         }
 
-        // Use first part of message as subject for better display
-        const subject = body.length > 50 ? body.substring(0, 50) + '...' : body;
+        // Use user-provided subject if available, otherwise use body preview
+        const subject = userSubject || (body.length > 50 ? body.substring(0, 50) + '...' : body);
         await api.sendMessage({
             from: state.instanceId,
             to,
@@ -1695,6 +1712,7 @@ async function sendMessage() {
 
         container.innerHTML += `
             <div class="message-bubble sent">
+                ${userSubject ? `<div class="message-subject"><strong>${escapeHtml(userSubject)}</strong></div>` : ''}
                 <div>${escapeHtml(body)}</div>
                 <div class="message-meta">${new Date().toLocaleTimeString()}</div>
             </div>
@@ -1703,9 +1721,10 @@ async function sendMessage() {
         // Scroll to bottom
         container.scrollTop = container.scrollHeight;
 
-        // Clear input
+        // Clear inputs
         input.value = '';
         input.style.height = 'auto';
+        if (subjectInput) subjectInput.value = '';
 
         showToast('Message sent', 'success');
     } catch (error) {
@@ -1872,6 +1891,7 @@ async function createProject() {
 function showCreateTaskModal(prefilledProject = null) {
     // Populate project dropdown
     const projectSelect = document.getElementById('task-project');
+    projectSelect.disabled = false; // Re-enable in case it was disabled from project detail
     projectSelect.innerHTML = '<option value="">Personal Task (No Project)</option>';
 
     state.projects.forEach(project => {

@@ -40,12 +40,12 @@
         <!-- Sidebar Navigation -->
         <nav class="sidebar">
             <div class="nav-section">
-                <button class="nav-item active" data-tab="messages" title="Messages">
+                <button class="nav-item" data-tab="messages" title="Messages">
                     <span class="nav-icon">&#9993;</span>
                     <span class="nav-label">Messages</span>
                     <span class="nav-badge" id="unread-count" style="display: none;">0</span>
                 </button>
-                <button class="nav-item" data-tab="dashboard" title="Dashboard">
+                <button class="nav-item active" data-tab="dashboard" title="Dashboard">
                     <span class="nav-icon">&#9632;</span>
                     <span class="nav-label">Dashboard</span>
                 </button>
@@ -77,8 +77,8 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
-            <!-- Messages Tab (Primary) -->
-            <div class="tab-content active" id="tab-messages">
+            <!-- Messages Tab -->
+            <div class="tab-content" id="tab-messages">
                 <div class="messaging-layout">
                     <!-- Conversations Sidebar -->
                     <div class="conversations-panel">
@@ -118,22 +118,30 @@
 
                         <div class="chat-input-area" id="chat-input-area" style="display: none;">
                             <div class="chat-input-container">
-                                <textarea
-                                    id="message-input"
-                                    placeholder="Type a message..."
-                                    rows="1"
-                                ></textarea>
-                                <button class="send-btn" id="send-btn" disabled>
-                                    <span>&#10148;</span>
-                                </button>
+                                <input
+                                    type="text"
+                                    id="message-subject"
+                                    placeholder="Subject (optional)"
+                                    class="message-subject-input"
+                                >
+                                <div class="message-body-row">
+                                    <textarea
+                                        id="message-input"
+                                        placeholder="Type a message..."
+                                        rows="1"
+                                    ></textarea>
+                                    <button class="send-btn" id="send-btn" disabled>
+                                        <span>&#10148;</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Dashboard Tab -->
-            <div class="tab-content" id="tab-dashboard">
+            <!-- Dashboard Tab (Default) -->
+            <div class="tab-content active" id="tab-dashboard">
                 <div class="container">
                     <h1>Dashboard</h1>
 

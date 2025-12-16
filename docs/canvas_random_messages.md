@@ -875,7 +875,9 @@ Please read these documents
 /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-MESSAGING-TESTING-GUIDE.md 
 /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-prework/V2_API_SPEC.md 
 /mnt/coordinaton_mcp_data/worktrees/ui/docs/V2-prework/V2_VISION.md 
+/mnt/coordinaton_mcp_data/worktrees/ui/docs/MESSAGING_API_GUIDE.md
 and finally 
 /mnt/coordinaton_mcp_data/worktrees/ui/HumanAdjacentAI-Protocol/PROTOCOLS.md 
+/root/.claude/plans/imperative-snacking-teacup.md 
 these documents are key to continuing your work as they contain not only 
 your own notes and profile but also important details about this complex project. 
