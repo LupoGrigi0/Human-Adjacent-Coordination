@@ -41,6 +41,9 @@ const state = {
     currentListId: null,
     currentList: null,
 
+    // Instance detail state
+    currentInstanceDetail: null,
+
     // UI State
     currentTab: 'dashboard',
     currentConversation: null,
@@ -256,6 +259,10 @@ function setupEventListeners() {
     // Wake Instance (placeholder)
     document.getElementById('wake-instance-btn')?.addEventListener('click', showWakeInstanceModal);
 
+    // Instance Detail
+    document.getElementById('instance-back-btn')?.addEventListener('click', hideInstanceDetail);
+    document.getElementById('instance-message-btn')?.addEventListener('click', messageCurrentInstance);
+
     // Lists
     document.getElementById('new-list-btn')?.addEventListener('click', showCreateListModal);
     document.getElementById('create-list-submit')?.addEventListener('click', createList);
@@ -330,6 +337,9 @@ function switchTab(tabName) {
     }
     if (state.currentListId) {
         hideListDetail();
+    }
+    if (state.currentInstanceDetail) {
+        hideInstanceDetail();
     }
 
     // Update nav items
@@ -1157,43 +1167,130 @@ async function assignInstanceToProject(instanceId, name) {
 
 async function loadInstances() {
     const grid = document.getElementById('instances-grid');
+    grid.innerHTML = '<div class="loading-placeholder">Loading instances...</div>';
 
-    if (state.instances.length === 0) {
-        grid.innerHTML = '<div class="loading-placeholder">No instances found</div>';
+    try {
+        // Fetch instances from API
+        const result = await api.getInstances();
+        const instances = result.instances || [];
+        state.instances = instances;
+
+        if (instances.length === 0) {
+            grid.innerHTML = '<div class="empty-placeholder">No instances found</div>';
+            return;
+        }
+
+        grid.innerHTML = instances.map(instance => {
+            const displayName = instance.name || instance.instanceId || 'Unknown';
+            const avatarChar = displayName.charAt(0).toUpperCase();
+            const isActive = instance.status === 'active';
+            const lastSeen = instance.lastActiveAt ?
+                `Last active: ${new Date(instance.lastActiveAt).toLocaleDateString()}` :
+                'Never active';
+
+            return `
+            <div class="instance-card ${isActive ? 'active' : ''}" data-instance-id="${instance.instanceId || ''}">
+                <div class="instance-header">
+                    <div class="instance-avatar ${isActive ? 'online' : ''}">${avatarChar}</div>
+                    <div>
+                        <div class="instance-name">${escapeHtml(displayName)}</div>
+                        <div class="instance-id">${escapeHtml(instance.instanceId || '')}</div>
+                    </div>
+                </div>
+                <div class="instance-details">
+                    <div class="instance-detail">
+                        <span>Role</span>
+                        <span class="badge badge-role">${instance.role || 'None'}</span>
+                    </div>
+                    <div class="instance-detail">
+                        <span>Personality</span>
+                        <span>${instance.personality || 'None'}</span>
+                    </div>
+                    <div class="instance-detail">
+                        <span>Project</span>
+                        <span>${instance.project || 'None'}</span>
+                    </div>
+                </div>
+                <div class="instance-footer">
+                    <span class="instance-status ${isActive ? 'online' : 'offline'}">${isActive ? 'Active' : 'Inactive'}</span>
+                    <span class="instance-last-seen">${lastSeen}</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Add click handlers
+        grid.querySelectorAll('.instance-card').forEach(card => {
+            card.addEventListener('click', () => {
+                showInstanceDetail(card.dataset.instanceId);
+            });
+        });
+    } catch (error) {
+        console.error('[App] Error loading instances:', error);
+        grid.innerHTML = `<div class="empty-placeholder">Error: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+/**
+ * Show instance detail panel
+ */
+async function showInstanceDetail(instanceId) {
+    const instance = state.instances.find(i => i.instanceId === instanceId);
+    if (!instance) {
+        showToast('Instance not found', 'error');
         return;
     }
 
-    grid.innerHTML = state.instances.map(instance => {
-        const displayName = instance.name || instance.instanceId || 'Unknown';
-        const avatarChar = displayName.charAt(0).toUpperCase();
-        return `
-        <div class="instance-card" data-instance-id="${instance.instanceId || ''}">
-            <div class="instance-header">
-                <div class="instance-avatar">${avatarChar}</div>
-                <div>
-                    <div class="instance-name">${escapeHtml(displayName)}</div>
-                    <div class="instance-id">${escapeHtml(instance.instanceId || '')}</div>
-                </div>
-            </div>
-            <div class="instance-details">
-                <div class="instance-detail">
-                    <span>Role</span>`;
-    }).map((html, i) => {
-        const instance = state.instances[i];
-        return html + `
-                    <span>${instance.role || 'None'}</span>
-                </div>
-                <div class="instance-detail">
-                    <span>Project</span>
-                    <span>${instance.project || 'None'}</span>
-                </div>
-                <div class="instance-detail">
-                    <span>Status</span>
-                    <span>${instance.status || 'Unknown'}</span>
-                </div>
-            </div>
-        </div>`;
-    }).join('');
+    state.currentInstanceDetail = instanceId;
+
+    // Hide grid, show detail
+    document.getElementById('instances-grid').style.display = 'none';
+    document.querySelector('#tab-instances .page-header').style.display = 'none';
+    document.getElementById('instance-detail-view').style.display = 'block';
+
+    // Populate detail fields
+    const displayName = instance.name || instance.instanceId || 'Unknown';
+    document.getElementById('instance-detail-name').textContent = displayName;
+    document.getElementById('instance-detail-id').textContent = instance.instanceId || '-';
+    document.getElementById('instance-detail-role').textContent = instance.role || 'None';
+    document.getElementById('instance-detail-personality').textContent = instance.personality || 'None';
+    document.getElementById('instance-detail-project').textContent = instance.project || 'None';
+    document.getElementById('instance-detail-status').textContent = instance.status || 'Unknown';
+    document.getElementById('instance-detail-home').textContent = instance.homeDirectory || '-';
+    document.getElementById('instance-detail-last-active').textContent =
+        instance.lastActiveAt ? new Date(instance.lastActiveAt).toLocaleString() : 'Never';
+    document.getElementById('instance-detail-instructions').textContent =
+        instance.instructions || 'No instructions set';
+
+    // Update avatar
+    const avatarChar = displayName.charAt(0).toUpperCase();
+    document.getElementById('instance-detail-avatar').textContent = avatarChar;
+    document.getElementById('instance-detail-avatar').className =
+        `instance-avatar-large ${instance.status === 'active' ? 'online' : ''}`;
+}
+
+/**
+ * Hide instance detail, return to grid
+ */
+function hideInstanceDetail() {
+    document.getElementById('instance-detail-view').style.display = 'none';
+    document.getElementById('instances-grid').style.display = 'grid';
+    document.querySelector('#tab-instances .page-header').style.display = 'flex';
+    state.currentInstanceDetail = null;
+}
+
+/**
+ * Send message to current instance
+ */
+function messageCurrentInstance() {
+    if (!state.currentInstanceDetail) return;
+
+    const instance = state.instances.find(i => i.instanceId === state.currentInstanceDetail);
+    if (!instance) return;
+
+    switchTab('messages');
+    setTimeout(() => {
+        selectConversation('dm', instance.name || instance.instanceId);
+    }, 100);
 }
 
 // ============================================================================

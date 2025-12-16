@@ -1231,6 +1231,117 @@ body {
     padding: 0.25rem 0;
 }
 
+.instance-card {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.instance-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.instance-avatar.online {
+    background: var(--success-color);
+}
+
+.instance-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.75rem;
+}
+
+.instance-status {
+    font-weight: 500;
+}
+
+.instance-status.online {
+    color: var(--success-color);
+}
+
+.instance-status.offline {
+    color: var(--text-muted);
+}
+
+.instance-last-seen {
+    color: var(--text-muted);
+}
+
+/* Instance Detail View */
+.instance-detail-view {
+    max-width: 800px;
+}
+
+.instance-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.instance-avatar-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--primary-light);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 600;
+}
+
+.instance-avatar-large.online {
+    background: var(--success-color);
+}
+
+.instance-detail-title {
+    flex: 1;
+}
+
+.instance-detail-title h2 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.5rem;
+}
+
+.instance-detail-id-display {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.instance-detail-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.badge-role {
+    background: var(--primary-light);
+    color: white;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.instructions-text {
+    background: var(--bg-color);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
 /* ============================================================================
    SETTINGS
    ============================================================================ */
