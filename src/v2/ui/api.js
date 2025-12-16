@@ -333,6 +333,92 @@ export async function addDiaryEntry(instanceId, entry, audience = 'self') {
 }
 
 // ============================================================================
+// LISTS APIs (V2 - Personal Checklists)
+// ============================================================================
+
+/**
+ * Get all lists for an instance
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} [targetInstanceId] - Optional: view another instance's lists (PM/COO/PA only)
+ */
+export async function getLists(instanceId, targetInstanceId) {
+  const params = { instanceId };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('get_lists', params);
+}
+
+/**
+ * Get a specific list with all items
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} listId - List to retrieve
+ * @param {string} [targetInstanceId] - Optional: view another instance's list
+ */
+export async function getList(instanceId, listId, targetInstanceId) {
+  const params = { instanceId, listId };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('get_list', params);
+}
+
+/**
+ * Create a new list
+ * @param {string} instanceId
+ * @param {string} name - List name
+ * @param {string} [description]
+ */
+export async function createList(instanceId, name, description) {
+  return rpcCall('create_list', { instanceId, name, description });
+}
+
+/**
+ * Rename a list
+ * @param {string} instanceId
+ * @param {string} listId
+ * @param {string} name - New name
+ */
+export async function renameList(instanceId, listId, name) {
+  return rpcCall('rename_list', { instanceId, listId, name });
+}
+
+/**
+ * Delete an entire list
+ * @param {string} instanceId
+ * @param {string} listId
+ */
+export async function deleteList(instanceId, listId) {
+  return rpcCall('delete_list', { instanceId, listId });
+}
+
+/**
+ * Add an item to a list
+ * @param {string} instanceId
+ * @param {string} listId
+ * @param {string} text - Item text
+ */
+export async function addListItem(instanceId, listId, text) {
+  return rpcCall('add_list_item', { instanceId, listId, text });
+}
+
+/**
+ * Toggle an item's checked state
+ * @param {string} instanceId
+ * @param {string} listId
+ * @param {string} itemId
+ */
+export async function toggleListItem(instanceId, listId, itemId) {
+  return rpcCall('toggle_list_item', { instanceId, listId, itemId });
+}
+
+/**
+ * Delete an item from a list
+ * @param {string} instanceId
+ * @param {string} listId
+ * @param {string} itemId
+ */
+export async function deleteListItem(instanceId, listId, itemId) {
+  return rpcCall('delete_list_item', { instanceId, listId, itemId });
+}
+
+// ============================================================================
 // MESSAGING APIs (V2 - uses XMPP backend)
 // ============================================================================
 
@@ -519,6 +605,16 @@ export const api = {
   // Diary
   getDiary,
   addDiaryEntry,
+
+  // Lists (Personal Checklists)
+  getLists,
+  getList,
+  createList,
+  renameList,
+  deleteList,
+  addListItem,
+  toggleListItem,
+  deleteListItem,
 
   // Messaging
   sendMessage,

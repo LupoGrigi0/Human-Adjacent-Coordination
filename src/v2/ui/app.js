@@ -34,7 +34,12 @@ const state = {
     instances: [],
     tasks: [],
     messages: [],
+    lists: [],
     diary: '',
+
+    // Lists state
+    currentListId: null,
+    currentList: null,
 
     // UI State
     currentTab: 'messages',
@@ -251,6 +256,17 @@ function setupEventListeners() {
     // Wake Instance (placeholder)
     document.getElementById('wake-instance-btn')?.addEventListener('click', showWakeInstanceModal);
 
+    // Lists
+    document.getElementById('new-list-btn')?.addEventListener('click', showCreateListModal);
+    document.getElementById('create-list-submit')?.addEventListener('click', createList);
+    document.getElementById('list-back-btn')?.addEventListener('click', hideListDetail);
+    document.getElementById('list-delete-btn')?.addEventListener('click', deleteCurrentList);
+    document.getElementById('list-rename-btn')?.addEventListener('click', renameCurrentList);
+    document.getElementById('add-item-btn')?.addEventListener('click', addListItem);
+    document.getElementById('new-item-input')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addListItem();
+    });
+
     // Project Detail - back button and actions
     document.getElementById('project-back-btn')?.addEventListener('click', hideProjectDetail);
     document.getElementById('project-add-task-btn')?.addEventListener('click', () => {
@@ -311,6 +327,9 @@ function switchTab(tabName) {
     if (state.currentTaskDetail) {
         hideTaskDetail();
     }
+    if (state.currentListId) {
+        hideListDetail();
+    }
 
     // Update nav items
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -335,6 +354,9 @@ function switchTab(tabName) {
             break;
         case 'tasks':
             loadTasks();
+            break;
+        case 'lists':
+            loadLists();
             break;
         case 'instances':
             loadInstances();
@@ -1964,6 +1986,280 @@ async function rpcCallDirect(method, args) {
     if (json.error) throw new Error(json.error.message || json.error.data);
     return json.result?.data || json.result;
 }
+
+// ============================================================================
+// LISTS (Personal Checklists)
+// ============================================================================
+
+/**
+ * Load all lists for the current user
+ */
+async function loadLists() {
+    const grid = document.getElementById('lists-grid');
+
+    if (!state.instanceId) {
+        grid.innerHTML = '<div class="empty-placeholder">Bootstrap to see lists</div>';
+        return;
+    }
+
+    grid.innerHTML = '<div class="loading-placeholder">Loading lists...</div>';
+
+    try {
+        const result = await api.getLists(state.instanceId);
+        const lists = result.lists || [];
+        state.lists = lists;
+
+        if (lists.length === 0) {
+            grid.innerHTML = `
+                <div class="empty-placeholder">
+                    <p>No lists yet. Create your first list!</p>
+                </div>
+            `;
+            return;
+        }
+
+        grid.innerHTML = lists.map(list => {
+            const itemCount = list.itemCount || list.items?.length || 0;
+            const completedCount = list.completedCount || 0;
+            return `
+                <div class="list-card" data-list-id="${list.id || list.listId}">
+                    <div class="list-card-name">${escapeHtml(list.name)}</div>
+                    <div class="list-card-description">${escapeHtml(list.description || 'No description')}</div>
+                    <div class="list-card-stats">
+                        <span>&#128203; ${itemCount} items</span>
+                        ${completedCount > 0 ? `<span>&#9745; ${completedCount} done</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers
+        grid.querySelectorAll('.list-card').forEach(card => {
+            card.addEventListener('click', () => {
+                showListDetail(card.dataset.listId);
+            });
+        });
+    } catch (error) {
+        console.error('[App] Error loading lists:', error);
+        grid.innerHTML = `<div class="empty-placeholder">Error loading lists: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+/**
+ * Show list detail panel with items
+ */
+async function showListDetail(listId) {
+    state.currentListId = listId;
+
+    // Hide grid, show detail panel
+    document.getElementById('lists-grid').parentElement.style.display = 'none';
+    document.getElementById('list-detail-panel').style.display = 'flex';
+
+    const nameEl = document.getElementById('list-detail-name');
+    const descEl = document.getElementById('list-detail-description');
+    const itemsEl = document.getElementById('list-items');
+
+    nameEl.textContent = 'Loading...';
+    descEl.textContent = '';
+    itemsEl.innerHTML = '<div class="loading-placeholder">Loading items...</div>';
+
+    try {
+        const result = await api.getList(state.instanceId, listId);
+        const list = result.list || result;
+        state.currentList = list;
+
+        nameEl.textContent = list.name;
+        descEl.textContent = list.description || 'No description';
+
+        renderListItems(list.items || []);
+    } catch (error) {
+        console.error('[App] Error loading list:', error);
+        itemsEl.innerHTML = `<div class="empty-placeholder">Error: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+/**
+ * Render list items
+ */
+function renderListItems(items) {
+    const container = document.getElementById('list-items');
+
+    if (!items || items.length === 0) {
+        container.innerHTML = '<div class="empty-placeholder">No items yet. Add one above!</div>';
+        return;
+    }
+
+    container.innerHTML = items.map(item => `
+        <div class="list-item ${item.completed ? 'completed' : ''}" data-item-id="${item.id || item.itemId}">
+            <input type="checkbox" class="list-item-checkbox"
+                   ${item.completed ? 'checked' : ''}
+                   onchange="toggleListItem('${item.id || item.itemId}')">
+            <span class="list-item-text">${escapeHtml(item.text)}</span>
+            <button class="list-item-delete" onclick="deleteListItem('${item.id || item.itemId}')" title="Delete item">
+                &#128465;
+            </button>
+        </div>
+    `).join('');
+}
+
+/**
+ * Hide list detail, return to grid
+ */
+function hideListDetail() {
+    document.getElementById('list-detail-panel').style.display = 'none';
+    document.getElementById('lists-grid').parentElement.style.display = 'flex';
+    state.currentListId = null;
+    state.currentList = null;
+}
+
+/**
+ * Toggle a list item's completed state
+ */
+async function toggleListItem(itemId) {
+    if (!state.currentListId || !state.instanceId) return;
+
+    try {
+        await api.toggleListItem(state.instanceId, state.currentListId, itemId);
+        // Refresh the list to show updated state
+        await showListDetail(state.currentListId);
+    } catch (error) {
+        console.error('[App] Error toggling item:', error);
+        showToast('Could not update item: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Delete a list item
+ */
+async function deleteListItem(itemId) {
+    if (!state.currentListId || !state.instanceId) return;
+
+    try {
+        await api.deleteListItem(state.instanceId, state.currentListId, itemId);
+        showToast('Item deleted', 'success');
+        // Refresh the list
+        await showListDetail(state.currentListId);
+    } catch (error) {
+        console.error('[App] Error deleting item:', error);
+        showToast('Could not delete item: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Add a new item to the current list
+ */
+async function addListItem() {
+    const input = document.getElementById('new-item-input');
+    const text = input.value.trim();
+
+    if (!text || !state.currentListId || !state.instanceId) return;
+
+    try {
+        await api.addListItem(state.instanceId, state.currentListId, text);
+        input.value = '';
+        showToast('Item added!', 'success');
+        // Refresh the list
+        await showListDetail(state.currentListId);
+    } catch (error) {
+        console.error('[App] Error adding item:', error);
+        showToast('Could not add item: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Show create list modal
+ */
+function showCreateListModal() {
+    document.getElementById('create-list-modal').classList.add('active');
+    document.getElementById('list-name').value = '';
+    document.getElementById('list-description').value = '';
+    document.getElementById('list-name').focus();
+}
+
+function closeCreateListModal() {
+    document.getElementById('create-list-modal').classList.remove('active');
+}
+
+/**
+ * Create a new list
+ */
+async function createList() {
+    const name = document.getElementById('list-name').value.trim();
+    const description = document.getElementById('list-description').value.trim();
+
+    if (!name) {
+        showToast('Please enter a list name', 'error');
+        return;
+    }
+
+    if (!state.instanceId) {
+        showToast('Not connected', 'error');
+        return;
+    }
+
+    try {
+        const result = await api.createList(state.instanceId, name, description || undefined);
+
+        if (result.success !== false && !result.error) {
+            showToast(`List "${name}" created!`, 'success');
+            closeCreateListModal();
+            loadLists();
+        } else {
+            showToast(result.error?.message || 'Failed to create list', 'error');
+        }
+    } catch (error) {
+        console.error('[App] Create list error:', error);
+        showToast('Error creating list: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Delete the current list
+ */
+async function deleteCurrentList() {
+    if (!state.currentListId || !state.instanceId) return;
+
+    const listName = state.currentList?.name || 'this list';
+    if (!confirm(`Are you sure you want to delete "${listName}"? This cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        await api.deleteList(state.instanceId, state.currentListId);
+        showToast('List deleted', 'success');
+        hideListDetail();
+        loadLists();
+    } catch (error) {
+        console.error('[App] Error deleting list:', error);
+        showToast('Could not delete list: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Rename the current list
+ */
+async function renameCurrentList() {
+    if (!state.currentListId || !state.instanceId) return;
+
+    const currentName = state.currentList?.name || '';
+    const newName = prompt('Enter new name:', currentName);
+
+    if (!newName || newName.trim() === currentName) return;
+
+    try {
+        await api.renameList(state.instanceId, state.currentListId, newName.trim());
+        showToast('List renamed', 'success');
+        document.getElementById('list-detail-name').textContent = newName.trim();
+        loadLists(); // Refresh sidebar
+    } catch (error) {
+        console.error('[App] Error renaming list:', error);
+        showToast('Could not rename list: ' + error.message, 'error');
+    }
+}
+
+// Make functions globally accessible
+window.toggleListItem = toggleListItem;
+window.deleteListItem = deleteListItem;
 
 // ============================================================================
 // WAKE INSTANCE (Placeholder)

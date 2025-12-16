@@ -57,6 +57,10 @@
                     <span class="nav-icon">&#9745;</span>
                     <span class="nav-label">Tasks</span>
                 </button>
+                <button class="nav-item" data-tab="lists" title="Lists">
+                    <span class="nav-icon">&#128203;</span>
+                    <span class="nav-label">Lists</span>
+                </button>
                 <button class="nav-item" data-tab="instances" title="Instances">
                     <span class="nav-icon">&#129302;</span>
                     <span class="nav-label">Instances</span>
@@ -352,6 +356,50 @@
                 </div>
             </div>
 
+            <!-- Lists Tab -->
+            <div class="tab-content" id="tab-lists">
+                <div class="lists-layout">
+                    <!-- Lists Sidebar -->
+                    <div class="lists-sidebar">
+                        <div class="page-header">
+                            <h1>Lists</h1>
+                            <button class="btn" id="new-list-btn">+ New List</button>
+                        </div>
+                        <div class="lists-grid" id="lists-grid">
+                            <div class="loading-placeholder">Loading lists...</div>
+                        </div>
+                    </div>
+
+                    <!-- List Detail Panel -->
+                    <div class="list-detail-panel" id="list-detail-panel" style="display: none;">
+                        <div class="list-detail-header">
+                            <button class="btn-back" id="list-back-btn">
+                                <span>&#8592;</span> Back to Lists
+                            </button>
+                            <div class="list-actions">
+                                <button class="btn btn-icon" id="list-rename-btn" title="Rename list">&#9998;</button>
+                                <button class="btn btn-icon btn-danger" id="list-delete-btn" title="Delete list">&#128465;</button>
+                            </div>
+                        </div>
+                        <div class="list-detail-content">
+                            <h2 class="list-detail-name" id="list-detail-name">List Name</h2>
+                            <p class="list-detail-description" id="list-detail-description">Description</p>
+
+                            <!-- Add Item Input -->
+                            <div class="add-item-form">
+                                <input type="text" id="new-item-input" placeholder="Add new item..." class="add-item-input">
+                                <button class="btn" id="add-item-btn">Add</button>
+                            </div>
+
+                            <!-- List Items -->
+                            <div class="list-items" id="list-items">
+                                <div class="empty-placeholder">No items yet. Add one above!</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Instances Tab -->
             <div class="tab-content" id="tab-instances">
                 <div class="container">
@@ -629,6 +677,31 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-close>Cancel</button>
                 <button class="btn" id="create-task-submit">Create Task</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create List Modal -->
+    <div class="modal" id="create-list-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New List</h2>
+                <button class="modal-close" data-close>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="list-name">List Name</label>
+                    <input type="text" id="list-name" placeholder="e.g., Shopping, Todo, Ideas...">
+                </div>
+                <div class="form-group">
+                    <label for="list-description">Description (optional)</label>
+                    <textarea id="list-description" rows="2" placeholder="What's this list for?"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close>Cancel</button>
+                <button class="btn" id="create-list-submit">Create List</button>
             </div>
         </div>
     </div>
