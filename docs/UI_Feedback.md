@@ -211,4 +211,124 @@ Also... some indicator of "stale data" like I entered someting, created somethin
 7: NOTE we did not go into detail about the Instances panel. The instances panel currently shows no instances/roles/personalities. The idea of the instances panel is to list instances and be able to click on an instance/role/personality look at and edit the preferences.json and documents for each instance/role/personality. we may need to have the UI implement some functionality in the instance/role/personality detail panel through python/node.js This panel probably needs a brief design discussion
 
 8: NOTES For FUTURE Test pass for Mobile: for some reason the settings button is not there on mobile?
-   Default "host" task list is my personal task list. Two user scenarios for this request.. obvious .. in the store.. shitty wifi/data connection. I've got a shortcut on my phone for the UI, and even before the UI can finish loading I can touch the icon on the status bar for "hot" list and the page for my shopping list comes up. OH. and a "hot" button at the top that takes me to my "hot" instance (will almost allways be the instance that is acting as PA) actually scratch that... the status bar should have a quick access button that takes me to the PA chat room. 
+   Default "host" task list is my personal task list. Two user scenarios for this request.. obvious .. in the store.. shitty wifi/data connection. I've got a shortcut on my phone for the UI, and even before the UI can finish loading I can touch the icon on the status bar for "hot" list and the page for my shopping list comes up. OH. and a "hot" button at the top that takes me to my "hot" instance (will almost allways be the instance that is acting as PA) actually scratch that... the status bar should have a quick access button that takes me to the PA chat room.
+
+---
+
+# V2 UI Test Plan - Phase 2 Validation
+
+**Date:** 2025-12-16
+**Scope:** All Phase 2 work (2A Bug Fixes, 2B Polish, 2C Lists, 2D Instances)
+
+---
+
+## Test Session 1: Lists Tab (Phase 2C - NEW FEATURE)
+
+| #   | Action                                          | Expected Outcome                                              |
+|-----|-------------------------------------------------|---------------------------------------------------------------|
+| 1.1 | Click "Lists" in sidebar                        | Lists tab opens, shows list grid (or empty state)             |
+
+| 1.2 | Click "+ New List" button                       | Create List modal opens                                       |
+
+| 1.3 | Fill in: Name="Shopping", Description="Groceries" | Fields accept input                                         |
+
+| 1.4 | Click "Create List"                             | Toast "List created!", modal closes, list card appears        |
+
+| 1.5 | Click on the new list card                      | List Detail view opens with name, description, empty items    |
+
+| 1.6 | Type "Milk" in add item input, press Enter      | Item "Milk" appears in list with checkbox                     |
+
+| 1.7 | Add 2-3 more items using Enter key              | All items appear in list                                      |
+
+| 1.8 | Click checkbox on an item                       | Item gets strikethrough, moves to "completed" state           |
+
+| 1.9 | Hover over an item, click trash icon            | Item is deleted from list                                     |
+
+| 1.10| Click rename button (pencil icon)               | Prompt appears, can enter new name                            |
+
+| 1.11| Click "Back to Lists"                           | Returns to list grid, card shows updated item count           |
+
+| 1.12| Create another list, then delete it             | Delete button prompts confirmation, list is removed           |
+
+---
+
+## Test Session 2: Instances Panel (Phase 2D - ENHANCED)
+
+| #   | Action                                          | Expected Outcome                                              |
+|-----|-------------------------------------------------|---------------------------------------------------------------|
+| 2.1 | Click "Instances" in sidebar                    | Instances tab opens, shows instance cards grid                |
+
+| 2.2 | Observe instance cards                          | Cards show: name, instanceId, role badge, personality, project, status, last active |
+
+| 2.3 | Look for active/inactive indicators             | Active instances have green avatar, "Active" status           |
+
+| 2.4 | Click on an instance card                       | Instance Detail view opens                                    |
+
+| 2.5 | Observe detail view fields                      | Shows: avatar, name, instanceId, role, personality, project, status, home dir, last active, instructions |
+
+| 2.6 | Click "Send Message" button                     | Switches to Messages tab, opens DM with that instance         |
+
+| 2.7 | Navigate back to Instances tab                  | Click Instances in sidebar                                    |
+
+| 2.8 | Click on instance, then "Back to Instances"     | Returns to instance grid                                      |
+
+---
+
+## Test Session 3: Bug Fix Validation (Phase 2A)
+
+| #   | Action                                          | Expected Outcome                                              |
+|-----|-------------------------------------------------|---------------------------------------------------------------|
+| 3.1 | Go to Projects, click a project                 | Project Detail opens                                          |
+
+| 3.2 | Click "Add Task" from project detail            | Create Task modal opens                                       |
+
+| 3.3 | Create a task for this project                  | Task is created, **task list in project detail refreshes immediately** (B5 fix) |
+
+| 3.4 | Click on the new task in project detail         | Task Detail opens, breadcrumb says "Back to [Project Name]"   |
+
+| 3.5 | Click "Back to [Project Name]" breadcrumb       | **Returns to Project Detail without error toast** (B1 fix)    |
+
+| 3.6 | From Task Detail, click "Claim Task"            | Toast shows success, **assignee field updates immediately** (B2 fix) |
+
+| 3.7 | Go to Messages, send a message                  | **Message displays with proper subject/body, not "chat/chat"** (B3 fix) |
+
+---
+
+## Test Session 4: Polish Items (Phase 2B)
+
+| #   | Action                                          | Expected Outcome                                              |
+|-----|-------------------------------------------------|---------------------------------------------------------------|
+| 4.1 | Open UI fresh (or hard refresh)                 | **Dashboard tab is active by default** (not Messages)         |
+
+| 4.2 | Go to Messages, select a conversation           | Compose area appears with **Subject field above message body** |
+
+| 4.3 | Type a subject "Test Subject" and body "Test body" | Both fields accept input                                    |
+
+| 4.4 | Send the message                                | **Sent message appears on RIGHT side** of chat (blue bubble)  |
+
+| 4.5 | Go to Projects, click a project, click "Add Task" | **Project dropdown is DISABLED** (locked to current project) |
+
+| 4.6 | Create task, then view Task Detail              | **Created field shows date + creator** (e.g., "12/16/2025 by Lupo") |
+
+---
+
+## Summary Checklist
+
+After completing all sessions, verify:
+
+- [ ] **Lists Tab** - Full CRUD working (create, read, toggle, delete items, rename/delete lists)
+- [ ] **Instances Panel** - Cards display correctly, detail view works, Send Message works
+- [ ] **B1 Fix** - Back to Project from task detail works without error
+- [ ] **B2 Fix** - Claim task updates UI immediately
+- [ ] **B3 Fix** - Messages display proper subject/body
+- [ ] **B5 Fix** - Task list refreshes after create from project detail
+- [ ] **Dashboard Default** - Opens to Dashboard tab
+- [ ] **Subject Field** - Can compose messages with subject
+- [ ] **Sent on Right** - User's sent messages appear on right side
+- [ ] **Project Dropdown** - Disabled when creating task from project detail
+- [ ] **Task Created Info** - Shows date and creator
+
+---
+
+**Notes/Issues Found:**
+(Space for recording any bugs or unexpected behavior during testing) 
