@@ -814,6 +814,17 @@ async function showTaskDetail(taskId, source = 'tasks') {
         completeBtn.textContent = 'Mark Complete';
         completeBtn.disabled = false;
     }
+
+    // Update breadcrumb text based on source
+    const backText = document.getElementById('task-back-text');
+    if (backText) {
+        if (source === 'project' && state.currentProjectDetail) {
+            const project = state.projects.find(p => (p.projectId || p.id) === state.currentProjectDetail);
+            backText.textContent = `Back to ${project?.name || 'Project'}`;
+        } else {
+            backText.textContent = 'Back to Tasks';
+        }
+    }
 }
 
 /**

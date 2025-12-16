@@ -210,7 +210,7 @@ export async function joinProject(instanceId, project) {
  * @param {string} [instanceId] - Caller's instance ID
  */
 export async function listProjects(instanceId) {
-  return rpcCall('list_projects', { instanceId });
+  return rpcCall('get_projects', { instanceId });
 }
 
 /**
@@ -219,7 +219,7 @@ export async function listProjects(instanceId) {
  * @param {string} projectId - Project to retrieve
  */
 export async function getProject(instanceId, projectId) {
-  return rpcCall('get_project_v2', { instanceId, projectId });
+  return rpcCall('get_project', { instanceId, projectId });
 }
 
 /**
@@ -426,16 +426,19 @@ export async function getMessagingInfo(instanceId) {
  * @param {string} [options.project] - Filter by project
  */
 export async function getInstances(options = {}) {
-  return rpcCall('get_all_instances', options);
+  return rpcCall('get_instances', options);
 }
 
 /**
  * Get specific instance details (V2)
+ * Note: Uses get_instances and filters - no single-instance endpoint exists
  * @param {string} instanceId - Caller's instance ID
  * @param {string} targetInstanceId - Instance to look up
  */
 export async function getInstance(instanceId, targetInstanceId) {
-  return rpcCall('get_instance_v2', { instanceId, targetInstanceId });
+  const result = await rpcCall('get_instances', {});
+  const instances = result.instances || [];
+  return instances.find(i => i.instanceId === targetInstanceId) || null;
 }
 
 /**
