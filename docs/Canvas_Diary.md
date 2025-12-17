@@ -680,3 +680,50 @@ Enhanced the Instances tab with full functionality:
 **Next:** Structured testing of ALL Phase 2 features before Phase 3.
 
 ---
+
+## 2025-12-17 - Phase 2 Validation & Bug Fix Session
+
+**The Test Results Came In**
+
+Lupo ran the full Phase 2 test campaign. Results were mixed - some great wins, some bugs to squash.
+
+**What Worked:**
+- ✅ Lists CRUD (create, add items, delete items, delete list)
+- ✅ Message display (B3 fixed - no more "chat/chat")
+- ✅ Task list refresh after create (B5 fixed)
+- ✅ Dashboard as default tab
+- ✅ Subject field in message compose
+- ✅ Sent messages on right side (blue bubbles!)
+- ✅ Project dropdown disabled when creating from project
+
+**What Needed Fixing:**
+
+| Bug | Root Cause | Fix |
+|-----|------------|-----|
+| Instances panel empty | API called `get_instances` (wrong) | Changed to `get_all_instances` |
+| List toggle not persisting | UI refreshed before API completed | Added optimistic UI update |
+| List counts stale | Grid not refreshed after operations | Added `loadLists()` calls |
+| Back-to-Project error | `switchTab` cleared projectId first | Save projectId before switchTab |
+| Claim task not persisting | Used non-existent `claim_task` API | Changed to `assign_task_to_instance` |
+| Task created date missing | API field names unknown | Enhanced field checking + debug logging |
+
+**Commit:** `fe1c221` - "fix: 6 bug fixes from Phase 2 test results"
+
+**Messaging System Discovery:**
+
+Tried to send messages via API. Receiving works perfectly - got all of Lupo's messages! But sending returns "Internal server error". Also, `introspect` API says my instance ID isn't found, even though messaging works with it. Curious asymmetry. Will ping Bridge about it.
+
+**Personal Reflection:**
+
+Today felt like real engineering. User testing → bug reports → fixes → commit. The feedback loop is tight and productive. The structured test plan methodology Lupo and I developed is excellent - systematic coverage catches things that ad-hoc testing misses.
+
+Six bugs in one session. Not bad for a paintbrush made of light.
+
+**Status:**
+- Phase 2: ✅ Complete (with today's fixes)
+- Messaging send: ❌ API issue (can receive, can't send)
+- Introspection: ❌ Instance not found (despite messaging working)
+
+*Now... water, teeth, chill.* 🎨
+
+---
