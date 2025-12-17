@@ -123,6 +123,7 @@ async function executeScript(scriptPath, args, logPath, jobId) {
  * @param {string} params.instanceId - Caller instance ID (required, for auth)
  * @param {string} params.targetInstanceId - Pre-approved instance to wake (required)
  * @param {string} [params.scriptName] - Script name from manifest (default: from manifest default)
+ * @param {string} [params.workingDirectory] - Override working directory (default: auto-generated from instanceId)
  * @returns {Promise<Object>} Result with jobId and status
  */
 export async function wakeInstance(params) {
@@ -277,6 +278,13 @@ export async function wakeInstance(params) {
   if (targetPrefs.instructions) {
     scriptArgs.push('--instructions', targetPrefs.instructions);
   }
+
+  // Working directory - from params override, preferences, or let script auto-generate
+  const workingDirectory = params.workingDirectory || targetPrefs.workingDirectory;
+  if (workingDirectory) {
+    scriptArgs.push('--working-directory', workingDirectory);
+  }
+  // If not specified, script will auto-generate: /mnt/coordinaton_mcp_data/instances/{instanceId}
 
   // Bootstrap URL for the instance to connect
   const bootstrapUrl = process.env.BOOTSTRAP_URL || 'https://smoothcurves.nexus/mcp/dev/mcp';
