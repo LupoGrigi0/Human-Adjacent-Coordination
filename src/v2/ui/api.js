@@ -512,7 +512,7 @@ export async function getMessagingInfo(instanceId) {
  * @param {string} [options.project] - Filter by project
  */
 export async function getInstances(options = {}) {
-  return rpcCall('get_instances', options);
+  return rpcCall('get_all_instances', options);
 }
 
 /**
@@ -522,7 +522,7 @@ export async function getInstances(options = {}) {
  * @param {string} targetInstanceId - Instance to look up
  */
 export async function getInstance(instanceId, targetInstanceId) {
-  const result = await rpcCall('get_instances', {});
+  const result = await rpcCall('get_all_instances', {});
   const instances = result.instances || [];
   return instances.find(i => i.instanceId === targetInstanceId) || null;
 }

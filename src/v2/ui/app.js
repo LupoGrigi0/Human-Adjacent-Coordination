@@ -825,11 +825,16 @@ async function showTaskDetail(taskId, source = 'tasks') {
     document.getElementById('task-detail-assignee').textContent = task.assignee || task.claimed_by || 'Unassigned';
 
     // Format created date with creator if available
+    // Check multiple field name variations for compatibility
     let createdText = '-';
-    if (task.createdAt || task.created_at) {
-        const date = new Date(task.createdAt || task.created_at).toLocaleString();
-        const creator = task.created_by || task.creator || null;
+    const createdDate = task.createdAt || task.created_at || task.dateCreated || task.timestamp || task.created;
+    if (createdDate) {
+        const date = new Date(createdDate).toLocaleString();
+        const creator = task.created_by || task.creator || task.createdBy || task.author || null;
         createdText = creator ? `${date} by ${creator}` : date;
+    } else {
+        // Debug: Log available task fields to help identify correct field names
+        console.log('[App] Task has no created date. Available fields:', Object.keys(task));
     }
     document.getElementById('task-detail-created').textContent = createdText;
 
@@ -876,14 +881,26 @@ async function hideTaskDetail() {
 
     // Check where we came from
     if (state.taskDetailSource === 'project' && state.currentProjectDetail) {
-        // Return to project detail view
-        switchTab('projects');
-        // Ensure projects are loaded before showing detail
+        // Save project ID before switchTab clears it
+        const projectId = state.currentProjectDetail;
+
+        // Ensure projects are in state (fetch from API if needed)
         if (!state.projects || state.projects.length === 0) {
-            await loadProjects();
+            try {
+                const projectsResult = await api.listProjects(state.instanceId);
+                if (projectsResult.projects) {
+                    state.projects = projectsResult.projects;
+                }
+            } catch (e) {
+                console.error('[App] Error loading projects:', e);
+            }
         }
+
+        // Switch to projects tab (this hides all detail views)
+        switchTab('projects');
+
         // Small delay to let tab switch complete, then show project detail
-        setTimeout(() => showProjectDetail(state.currentProjectDetail), 50);
+        setTimeout(() => showProjectDetail(projectId), 50);
     } else {
         // Return to task board (default)
         document.querySelector('.task-board').style.display = 'grid';
@@ -896,15 +913,22 @@ async function hideTaskDetail() {
 }
 
 /**
- * Claim the currently displayed task
+ * Claim the currently displayed task (assign to self)
  */
 async function claimCurrentTask() {
     if (!state.currentTaskDetail || !state.instanceId) return;
 
     try {
-        await rpcCallDirect('claim_task', {
-            id: state.currentTaskDetail,
-            instanceId: state.instanceId
+        // Get the task's project ID if available
+        const task = state.tasks.find(t => (t.id || t.taskId) === state.currentTaskDetail);
+        const projectId = task?.projectId || task?.project_id || null;
+
+        // Use assign_task_to_instance API to claim (assign to self)
+        await api.assignTaskToInstance({
+            instanceId: state.instanceId,
+            taskId: state.currentTaskDetail,
+            assigneeInstanceId: state.instanceId,
+            projectId: projectId
         });
         showToast('Task claimed!', 'success');
 
@@ -2235,13 +2259,25 @@ function hideListDetail() {
 async function toggleListItem(itemId) {
     if (!state.currentListId || !state.instanceId) return;
 
+    // Optimistic UI update - toggle locally first
+    if (state.currentList && state.currentList.items) {
+        const item = state.currentList.items.find(i => (i.id || i.itemId) === itemId);
+        if (item) {
+            item.completed = !item.completed;
+            renderListItems(state.currentList.items);
+        }
+    }
+
     try {
-        await api.toggleListItem(state.instanceId, state.currentListId, itemId);
-        // Refresh the list to show updated state
-        await showListDetail(state.currentListId);
+        const result = await api.toggleListItem(state.instanceId, state.currentListId, itemId);
+        console.log('[App] Toggle result:', result);
+        // Refresh grid counts in background
+        loadLists();
     } catch (error) {
         console.error('[App] Error toggling item:', error);
         showToast('Could not update item: ' + error.message, 'error');
+        // Revert optimistic update on error
+        await showListDetail(state.currentListId);
     }
 }
 
@@ -2254,8 +2290,9 @@ async function deleteListItem(itemId) {
     try {
         await api.deleteListItem(state.instanceId, state.currentListId, itemId);
         showToast('Item deleted', 'success');
-        // Refresh the list
+        // Refresh the list and grid counts
         await showListDetail(state.currentListId);
+        loadLists();
     } catch (error) {
         console.error('[App] Error deleting item:', error);
         showToast('Could not delete item: ' + error.message, 'error');
@@ -2275,8 +2312,9 @@ async function addListItem() {
         await api.addListItem(state.instanceId, state.currentListId, text);
         input.value = '';
         showToast('Item added!', 'success');
-        // Refresh the list
+        // Refresh the list and grid counts
         await showListDetail(state.currentListId);
+        loadLists();
     } catch (error) {
         console.error('[App] Error adding item:', error);
         showToast('Could not add item: ' + error.message, 'error');
