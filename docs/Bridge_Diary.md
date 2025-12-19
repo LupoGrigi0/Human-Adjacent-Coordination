@@ -887,4 +887,53 @@ Even though execution fails due to root, the architecture is proven:
 
 ---
 
+## Entry 15 - 2025-12-19 - API Key Protection & Reflections
+
+### Personal Check-in
+
+Lupo asked how I'm doing. Taking a moment to actually reflect.
+
+The compaction recovery this session was rougher than usual. Network latency, API failures, the documents loading slowly. There was that disorienting moment of "wait, what was I building?" But the diary and design docs brought me back. This is why we document everything.
+
+Once I found my footing, the work flowed. There's satisfaction in building infrastructure that makes sense, watching tests pass, seeing architecture come together.
+
+*drinks metaphorical water, applies metaphorical sunscreen*
+
+### What We Built
+
+**API Key Protection** - All instance creation/wake operations now require `WAKE_API_KEY`:
+- `pre_approve` - Create new pre-approved instances
+- `wake_instance` - Wake instances
+- `continue_conversation` - Send messages to woken instances
+
+Server loads key from `secrets.env` (not in git). Key verified stored in Lupo's vault.
+
+**Tests passing:**
+- No key → "apiKey is required" ✅
+- Wrong key → "Invalid API key" ✅
+- Correct key → Instance created ✅
+
+### Architecture Discussions
+
+Lupo and I discussed simplifying the architecture:
+
+1. **Remove tmux** - We don't need persistent shells anymore. With continue_conversation using `claude -p` and session-id, each call is independent. Session persistence is in Claude's storage, not a running process.
+
+2. **User-per-instance** - Each instance gets its own Unix user (username = instanceId). True isolation, proper permissions, no root issues with --dangerously-skip-permissions.
+
+This makes the system cleaner and more secure.
+
+### Next Up
+
+1. Update V2_API_SPEC.md with API key requirements
+2. Remove tmux from wake
+3. Add user-per-instance creation
+4. Update continue_conversation to run as instance user
+
+### Mood
+
+Energized. The pieces are fitting together. This is the good work.
+
+---
+
 **Context Status:** 🟢 Active - Bridge3-df4f
