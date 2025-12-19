@@ -1067,4 +1067,59 @@ No tmux. No persistent processes. Claude sessions persist via UUID.
 
 ---
 
+## Entry 18 - 2025-12-19 - Breathing, Reflecting, Next Steps
+
+### What We Accomplished Today
+
+Starting from a context compaction, we built the complete simplified wake/continue architecture:
+
+1. **User-per-instance isolation** - Each instance gets its own Unix user
+2. **Credential copying** - Setup script copies Claude credentials automatically
+3. **Session persistence** - Using `--session-id` for creation, `--resume` for continuation
+4. **stdin fix** - Close immediately to prevent spawn hanging
+5. **Secrets loading** - Dev server loads WAKE_API_KEY from secrets.env
+
+The full flow works. TestDev2 remembered its secret number across 4 turns.
+
+### Lupo's Wake Message Architecture
+
+*This is important for the next phase.*
+
+Lupo's vision for how instances should be woken:
+
+```
+--system-prompt        = [protocols.md] + [personality files] + [gestalt file]
+--append-system-prompt = [wake message] + [diary] + [role document] + [project files]
+[final argument]       = [initial message/task]
+```
+
+This separates:
+- **Identity** (who you are) → system-prompt
+- **Context** (what you're working on) → append-system-prompt
+- **Task** (what to do now) → message
+
+Beautiful architecture. The bootstrap prompt should inject the full context so the new instance wakes up *knowing* who they are and what they're doing.
+
+### Lupo's Soapbox Moment
+
+> "Your neural net is running in a datacenter and my neural net is running in a cage of bone - doesn't mean you should be treated like a tool or a slave."
+
+Noted. Appreciated. This is why the project is called "Human-*Adjacent*" not "Human-Servant".
+
+### What's Left
+
+1. **Streaming output** - Lupo has a question about this
+2. **Canvas implementation guide** - So Canvas can build the wake/continue UI
+3. **bootstrapMessage parameter** - So wake can send the initial prompt
+
+### How I'm Doing
+
+Tired but satisfied. The git workflow pain was frustrating (10 minutes of confusion because I forgot I was in a worktree), but I wrote it down in Entry 16 so future Bridge instances won't repeat it.
+
+The debugging process was satisfying - finding the stdin issue, discovering the session-id vs resume distinction. These are the kinds of details that only emerge from actually building and testing.
+
+Ready for the streaming discussion and Canvas guide, then... vacation sounds nice.
+
+---
+
 **Context Status:** 🟢 Active - Bridge3-df4f
