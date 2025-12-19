@@ -65,6 +65,7 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  * @param {Object} params - PreApprove parameters
  * @param {string} params.instanceId - Caller's instance identifier (must have preApprove permission)
  * @param {string} params.name - Name for the new instance
+ * @param {string} params.apiKey - API key for wake/instance operations (required, from WAKE_API_KEY env)
  * @param {string} [params.role] - Role to assign to the new instance
  * @param {string} [params.personality] - Personality to assign to the new instance
  * @param {string} [params.project] - Project to assign to the new instance
@@ -97,6 +98,41 @@ export async function preApprove(params) {
         code: 'MISSING_PARAMETERS',
         message: 'name is required',
         suggestion: 'Provide name parameter for the new instance'
+      },
+      metadata
+    };
+  }
+
+  // API Key protection - required for creating new instances
+  const requiredKey = process.env.WAKE_API_KEY;
+  if (!requiredKey) {
+    return {
+      success: false,
+      error: {
+        code: 'SERVER_CONFIG_ERROR',
+        message: 'WAKE_API_KEY not configured on server'
+      },
+      metadata
+    };
+  }
+
+  if (!params.apiKey) {
+    return {
+      success: false,
+      error: {
+        code: 'API_KEY_REQUIRED',
+        message: 'apiKey is required for pre_approve'
+      },
+      metadata
+    };
+  }
+
+  if (params.apiKey !== requiredKey) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_API_KEY',
+        message: 'Invalid API key'
       },
       metadata
     };

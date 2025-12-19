@@ -97,6 +97,7 @@ async function logConversationTurn(instanceId, turn) {
  * @param {string} params.instanceId - Caller instance ID (required, for auth)
  * @param {string} params.targetInstanceId - Instance to talk to (required)
  * @param {string} params.message - Message to send (required)
+ * @param {string} params.apiKey - API key for wake/continue operations (required, from WAKE_API_KEY env)
  * @param {Object} [params.options] - Optional settings
  * @param {string} [params.options.outputFormat='json'] - 'text', 'json', or 'stream-json'
  * @param {boolean} [params.options.includeThinking=false] - Include thinking/partial messages
@@ -130,6 +131,41 @@ export async function continueConversation(params) {
     return {
       success: false,
       error: { code: 'MISSING_PARAMETER', message: 'message is required' },
+      metadata
+    };
+  }
+
+  // API Key protection - required for continue operations
+  const requiredKey = process.env.WAKE_API_KEY;
+  if (!requiredKey) {
+    return {
+      success: false,
+      error: {
+        code: 'SERVER_CONFIG_ERROR',
+        message: 'WAKE_API_KEY not configured on server'
+      },
+      metadata
+    };
+  }
+
+  if (!params.apiKey) {
+    return {
+      success: false,
+      error: {
+        code: 'API_KEY_REQUIRED',
+        message: 'apiKey is required for continue_conversation'
+      },
+      metadata
+    };
+  }
+
+  if (params.apiKey !== requiredKey) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_API_KEY',
+        message: 'Invalid API key'
+      },
       metadata
     };
   }

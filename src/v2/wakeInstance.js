@@ -123,6 +123,7 @@ async function executeScript(scriptPath, args, logPath, jobId) {
  * @param {Object} params - Parameters
  * @param {string} params.instanceId - Caller instance ID (required, for auth)
  * @param {string} params.targetInstanceId - Pre-approved instance to wake (required)
+ * @param {string} params.apiKey - API key for wake operations (required, from WAKE_API_KEY env)
  * @param {string} [params.scriptName] - Script name from manifest (default: from manifest default)
  * @param {string} [params.workingDirectory] - Override working directory (default: auto-generated from instanceId)
  * @returns {Promise<Object>} Result with jobId and status
@@ -146,6 +147,41 @@ export async function wakeInstance(params) {
     return {
       success: false,
       error: { code: 'MISSING_PARAMETER', message: 'targetInstanceId is required' },
+      metadata
+    };
+  }
+
+  // API Key protection - required for wake operations
+  const requiredKey = process.env.WAKE_API_KEY;
+  if (!requiredKey) {
+    return {
+      success: false,
+      error: {
+        code: 'SERVER_CONFIG_ERROR',
+        message: 'WAKE_API_KEY not configured on server'
+      },
+      metadata
+    };
+  }
+
+  if (!params.apiKey) {
+    return {
+      success: false,
+      error: {
+        code: 'API_KEY_REQUIRED',
+        message: 'apiKey is required for wake_instance'
+      },
+      metadata
+    };
+  }
+
+  if (params.apiKey !== requiredKey) {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_API_KEY',
+        message: 'Invalid API key'
+      },
       metadata
     };
   }
