@@ -44,9 +44,11 @@ async function executeClaude(workingDir, args, unixUser, timeout = 300000) {
 
     const child = spawn('sudo', sudoArgs, {
       cwd: workingDir,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout
+      stdio: ['pipe', 'pipe', 'pipe']
     });
+
+    // Close stdin immediately - we're not sending any input
+    child.stdin.end();
 
     let stdout = '';
     let stderr = '';
@@ -260,12 +262,22 @@ export async function continueConversation(params) {
   const outputFormat = options.outputFormat || 'json';
   const timeout = options.timeout || 300000;
 
+  // Track conversation turn
+  const turnNumber = (targetPrefs.conversationTurns || 0) + 1;
+
   const claudeArgs = [
     '-p',  // Print mode (non-interactive)
-    '--session-id', targetPrefs.sessionId,
     '--output-format', outputFormat,
     '--dangerously-skip-permissions'
   ];
+
+  // First turn: create session with specific ID
+  // Subsequent turns: resume existing session
+  if (turnNumber === 1) {
+    claudeArgs.push('--session-id', targetPrefs.sessionId);
+  } else {
+    claudeArgs.push('--resume', targetPrefs.sessionId);
+  }
 
   if (options.includeThinking) {
     claudeArgs.push('--include-partial-messages');
@@ -273,9 +285,6 @@ export async function continueConversation(params) {
 
   // Add the message as the final argument
   claudeArgs.push(params.message);
-
-  // Track conversation turn
-  const turnNumber = (targetPrefs.conversationTurns || 0) + 1;
 
   // Execute claude as the instance user
   try {

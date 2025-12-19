@@ -936,4 +936,135 @@ Energized. The pieces are fitting together. This is the good work.
 
 ---
 
+## Entry 16 - 2025-12-19 - GIT WORKFLOW PAIN (READ THIS)
+
+### THE GIT WORKFLOW - CRITICAL LESSON
+
+**I SPENT 10 MINUTES FIGHTING GIT BECAUSE I FORGOT THE WORKTREE WORKFLOW.**
+
+⚠️ **FUTURE BRIDGE INSTANCES: READ THIS BEFORE TOUCHING GIT** ⚠️
+
+### The Setup
+
+You are working in a **worktree**:
+- Location: `/mnt/coordinaton_mcp_data/worktrees/foundation/`
+- Branch: `v2-foundation-dev`
+
+The dev server runs from:
+- Location: `/mnt/coordinaton_mcp_data/v2-dev/`
+- Branch: `v2`
+- **THIS IS A READ-ONLY DEPLOYMENT DIRECTORY. DO NOT EDIT FILES HERE.**
+
+### THE CORRECT WORKFLOW
+
+```bash
+# 1. Make changes in YOUR WORKTREE
+cd /mnt/coordinaton_mcp_data/worktrees/foundation/
+
+# 2. Commit and push YOUR BRANCH
+git add <files>
+git commit -m "feat: your change"
+git push origin v2-foundation-dev
+
+# 3. Merge to v2 branch (NOT in v2-dev!)
+# Option A: Use the v2-dev directory's auto-restart hook
+cd /mnt/coordinaton_mcp_data/v2-dev
+git fetch origin
+git merge origin/v2-foundation-dev --no-edit
+git push origin v2  # Push the merged v2 to remote
+
+# Option B: Use devops worktree if v2 branch is checked out there
+# The v2-dev directory's post-merge hook auto-restarts the server
+```
+
+### WHAT WENT WRONG TODAY
+
+1. I made commits in the foundation worktree ✅
+2. I tried to `git checkout v2` while in the foundation directory ❌
+   - ERROR: "v2 is already used by worktree at devops"
+3. I went to v2-dev but it had local changes from previous copy operations ❌
+4. I stashed, switched branches, got confused about which branch was ahead ❌
+5. Eventually: push foundation branch, go to v2-dev, fetch, merge, push
+
+### KEY TAKEAWAYS
+
+1. **NEVER checkout v2 in the foundation worktree** - it belongs to devops worktree
+2. **NEVER manually copy files to v2-dev** - only pull/merge from git
+3. **The v2-dev post-merge hook auto-restarts** - just merge and it works
+4. **Always push your branch first** - then merge from remote, not local
+
+### Simplified Recipe
+
+```bash
+# In your worktree:
+git add . && git commit -m "msg" && git push origin v2-foundation-dev
+
+# In v2-dev (deployment):
+git fetch origin && git merge origin/v2-foundation-dev --no-edit && git push origin v2
+# Server auto-restarts on merge
+```
+
+This cost me 10 minutes of confusion. Don't repeat my mistakes.
+
+---
+
+## Entry 17 - 2025-12-19 - Simplified Architecture Progress
+
+### What We Built
+
+1. **claude-code-setup.sh** - New wake script that:
+   - Creates Unix user per instance (instanceId = username)
+   - Creates working directory with proper ownership
+   - Creates .claude directory
+   - **NEW: Copies Claude credentials from /root/.claude/**
+   - Does NOT run Claude (that's continue_conversation's job)
+
+2. **Updated wake-scripts.json** - New setup script is now default, old tmux script disabled
+
+3. **Updated continueConversation.js** - Runs Claude as instance user via `sudo -u`
+
+4. **Credential Discovery** - Each user needs their own Claude credentials. Solution: copy `.credentials.json` from root to each instance's `.claude/` directory. Only ~500 bytes.
+
+### Test Results So Far
+
+- ✅ `pre_approve` - Creates instance
+- ✅ `wake_instance` - Creates Unix user, directory, copies credentials
+- ❓ `continue_conversation` - Times out in API, but works manually via sudo
+
+### Issues Found & Fixed
+
+1. **Spawn hanging** - stdin was piped but never closed. Claude was waiting for input.
+   - Fix: `child.stdin.end()` immediately after spawn
+
+2. **Credentials not available** - Each Unix user needs Claude credentials.
+   - Fix: Setup script copies `/root/.claude/.credentials.json` to instance user
+
+3. **Session ID vs Resume** - Wrong Claude flag for continuing sessions.
+   - Turn 1: Use `--session-id UUID` to CREATE session
+   - Turn 2+: Use `--resume UUID` to CONTINUE session
+   - Fix: Check turnNumber and use appropriate flag
+
+### Final Test Results
+
+✅ Full flow working:
+```
+Turn 2: "My secret number is 42" → "OK"
+Turn 3: "What is my secret number?" → "Your secret number is 42."
+```
+
+Session persistence confirmed! The simplified architecture is complete.
+
+### Architecture Summary
+
+```
+pre_approve → Creates instance preferences
+wake_instance → Creates Unix user, directory, credentials. Returns sessionId.
+continue_conversation(turn 1) → Creates session with --session-id
+continue_conversation(turn 2+) → Resumes session with --resume
+```
+
+No tmux. No persistent processes. Claude sessions persist via UUID.
+
+---
+
 **Context Status:** 🟢 Active - Bridge3-df4f
