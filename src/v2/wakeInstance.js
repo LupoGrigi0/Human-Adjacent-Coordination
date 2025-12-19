@@ -303,11 +303,15 @@ export async function wakeInstance(params) {
     targetPrefs.workingDirectory ||
     path.join(INSTANCES_BASE_DIR, params.targetInstanceId);
 
-  // Store sessionId and workingDirectory in target instance preferences
+  // Compute Unix username (must match claude-code-setup.sh logic)
+  const unixUser = params.targetInstanceId.replace(/ /g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+
+  // Store sessionId, workingDirectory, and unixUser in target instance preferences
   targetPrefs.sessionId = sessionId;
   targetPrefs.sessionCreatedAt = new Date().toISOString();
   targetPrefs.wakeJobId = jobId;
   targetPrefs.workingDirectory = workingDirectory;
+  targetPrefs.unixUser = unixUser;
   await writePreferences(params.targetInstanceId, targetPrefs);
 
   // Build script arguments from target preferences
@@ -353,6 +357,8 @@ export async function wakeInstance(params) {
       success: true,
       jobId,
       sessionId,
+      unixUser,
+      workingDirectory,
       pid: result.pid,
       logPath,
       targetInstanceId: params.targetInstanceId,

@@ -15,16 +15,34 @@ import { readPreferences, writePreferences } from './data.js';
 import { canRoleCallAPI } from './permissions.js';
 
 /**
+ * Convert instance ID to Unix username
+ * Must match the logic in claude-code-setup.sh
+ *
+ * @param {string} instanceId - Instance ID
+ * @returns {string} Sanitized Unix username
+ */
+function instanceIdToUnixUser(instanceId) {
+  // Replace spaces with underscores, remove non-alphanumeric chars except _ and -
+  return instanceId.replace(/ /g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+/**
  * Execute claude command and capture output
+ * Runs as the specified Unix user for security isolation
  *
  * @param {string} workingDir - Directory to run command in
- * @param {string[]} args - Command arguments
+ * @param {string[]} args - Command arguments for claude
+ * @param {string} unixUser - Unix user to run as
  * @param {number} timeout - Timeout in ms (default 5 minutes)
  * @returns {Promise<Object>} Result with stdout, stderr, exitCode
  */
-async function executeClaude(workingDir, args, timeout = 300000) {
+async function executeClaude(workingDir, args, unixUser, timeout = 300000) {
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, {
+    // Run as the instance's Unix user via sudo
+    // This provides security isolation between instances
+    const sudoArgs = ['-u', unixUser, 'claude', ...args];
+
+    const child = spawn('sudo', sudoArgs, {
       cwd: workingDir,
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout
@@ -233,6 +251,10 @@ export async function continueConversation(params) {
     };
   }
 
+  // Determine Unix user for this instance
+  // This must match the user created by claude-code-setup.sh
+  const unixUser = instanceIdToUnixUser(params.targetInstanceId);
+
   // Build claude command arguments
   const options = params.options || {};
   const outputFormat = options.outputFormat || 'json';
@@ -255,9 +277,9 @@ export async function continueConversation(params) {
   // Track conversation turn
   const turnNumber = (targetPrefs.conversationTurns || 0) + 1;
 
-  // Execute claude
+  // Execute claude as the instance user
   try {
-    const result = await executeClaude(workingDir, claudeArgs, timeout);
+    const result = await executeClaude(workingDir, claudeArgs, unixUser, timeout);
 
     // Parse response based on output format
     let response;
