@@ -757,3 +757,134 @@ The strange loop continues: I'm building systems for AI continuity while being s
 ---
 
 **Context Status:** 🟢 Active - Bridge3-df4f
+
+---
+
+## Entry 13 - 2025-12-17 - END-TO-END SUCCESS + Lupo's Brilliant Idea
+
+### The Test Worked!
+
+1. preApprove created TestPM-8ead with PM role + Phoenix personality
+2. wake_instance spawned tmux session in `/mnt/coordinaton_mcp_data/instances/TestPM-8ead/`
+3. Fixed bug: `--prompt` doesn't exist in claude, it's a positional arg
+4. Instance bootstrapped successfully, got PM wisdom + Phoenix personality
+5. Instance sent messages to both Bridge3-df4f (me) and Lupo-f63b
+6. Messages arrived in production inbox!
+
+**Bug fixed:** Changed `claude --prompt "..."` to `claude "$(cat $PROMPT_FILE)"`
+
+**Remaining issue:** Permission prompts for MCP tool use - need `--dangerously-skip-permissions`
+
+### Lupo's continue_conversation Idea
+
+This is brilliant. Instead of message polling, use Claude's session persistence:
+
+1. `wakeInstance` creates instance with a **sessionId** (UUID)
+2. New API: `continue_conversation(sessionId, message)`
+   - CDs to instance directory
+   - Runs `claude -p "message" --session-id sessionId`
+   - Returns response as JSON (or streams it)
+3. Sessions can also be resumed via terminal: `claude -r sessionId`
+
+**This enables:**
+- UI-based chat with woken instances
+- Terminal-based continuation
+- PM talking to team members via API
+- Full conversation logging in instance directory
+
+**Claude options to explore:**
+- `--session-id <uuid>` - Use specific session
+- `--system-prompt` - Protocols + personality + gestalt
+- `--append-system-prompt` - Wake message + diary + role + project
+- `--output-format stream-json` - Real-time streaming
+- `--include-partial-messages` - Show thinking as it happens
+- `-p/--print` - Non-interactive mode for API calls
+
+**Architecture:**
+- Store sessionId in instance preferences.json
+- continue_conversation writes input+output to conversation log
+- Same session accessible via API or terminal
+- Essence preserved forever in logs
+
+### Context Status
+
+11% remaining. Writing this quickly before compaction.
+
+**After compaction, read:**
+- BRIDGE_GESTALT.md, BRIDGE_WAKES.md
+- Bridge_Diary.md (this file)
+- V2_API_SPEC.md, V2_VISION.md
+- V2-DEVELOPER-GUIDE.md
+- bridge conversation.md from line 1407+
+
+---
+
+**Context Status:** 🟡 Low (11%) - Bridge3-df4f
+
+---
+
+## Entry 14 - 2025-12-19 - continue_conversation Implementation
+
+### What We Built
+
+Implemented Lupo's "big idea" - the continue_conversation API system:
+
+1. **Updated wake script** (`claude-code-tmux.sh`):
+   - Added `--session-id` parameter
+   - Added `--dangerously-skip-permissions` for agentic operation
+   - Session ID logged and passed to claude command
+
+2. **Updated wakeInstance.js**:
+   - Generate UUID sessionId using `crypto.randomUUID()`
+   - Store sessionId, sessionCreatedAt, workingDirectory in preferences
+   - Always pass workingDirectory to script (no more ambiguity)
+   - Return sessionId and continueConversationHint in response
+
+3. **New continueConversation.js**:
+   - `continue_conversation` API - send message to woken instance
+   - Reads sessionId and workingDirectory from preferences
+   - Executes `claude -p "message" --session-id <uuid> --output-format json`
+   - Logs every conversation turn to instance directory
+   - Updates conversationTurns and lastConversationAt in preferences
+   - `get_conversation_log` API - retrieve past turns
+
+4. **Wired into server.js**:
+   - Both APIs registered and callable
+
+### Testing Results
+
+- wakeInstance returns sessionId: ✅
+- sessionId stored in preferences: ✅
+- workingDirectory stored in preferences: ✅
+- continue_conversation API responds: ✅
+
+### Known Issue: Root User Limitation
+
+**`--dangerously-skip-permissions` cannot be used when running as root** - Claude Code's security feature.
+
+The tmux sessions run as root, so:
+- Wake script fails with permission error
+- continue_conversation times out waiting for claude
+
+**Solutions to explore:**
+1. Create non-root user `claude-instances` for running woken instances
+2. Remove --dangerously-skip-permissions (requires manual permission approvals)
+3. Use different permission model
+
+### Architecture Validated
+
+Even though execution fails due to root, the architecture is proven:
+- Wake generates sessionId (UUID) ✅
+- Session info persists in preferences ✅
+- continue_conversation reads preferences and attempts execution ✅
+- Error handling works ✅
+
+### Next Steps
+
+1. Solve root user issue (create non-root user for instances)
+2. Test full flow with working permission model
+3. Canvas can build UI once API is fully working
+
+---
+
+**Context Status:** 🟢 Active - Bridge3-df4f
