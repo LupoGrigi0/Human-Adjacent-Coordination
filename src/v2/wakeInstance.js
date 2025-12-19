@@ -260,10 +260,18 @@ export async function wakeInstance(params) {
   // This UUID will be used by Claude Code's --session-id flag
   const sessionId = randomUUID();
 
-  // Store sessionId in target instance preferences
+  // Determine working directory
+  // Default: /mnt/coordinaton_mcp_data/instances/{instanceId} (matches wake script INSTANCES_BASE_DIR)
+  const INSTANCES_BASE_DIR = '/mnt/coordinaton_mcp_data/instances';
+  const workingDirectory = params.workingDirectory ||
+    targetPrefs.workingDirectory ||
+    path.join(INSTANCES_BASE_DIR, params.targetInstanceId);
+
+  // Store sessionId and workingDirectory in target instance preferences
   targetPrefs.sessionId = sessionId;
   targetPrefs.sessionCreatedAt = new Date().toISOString();
   targetPrefs.wakeJobId = jobId;
+  targetPrefs.workingDirectory = workingDirectory;
   await writePreferences(params.targetInstanceId, targetPrefs);
 
   // Build script arguments from target preferences
@@ -290,12 +298,9 @@ export async function wakeInstance(params) {
     scriptArgs.push('--instructions', targetPrefs.instructions);
   }
 
-  // Working directory - from params override, preferences, or let script auto-generate
-  const workingDirectory = params.workingDirectory || targetPrefs.workingDirectory;
-  if (workingDirectory) {
-    scriptArgs.push('--working-directory', workingDirectory);
-  }
-  // If not specified, script will auto-generate: /mnt/coordinaton_mcp_data/instances/{instanceId}
+  // Pass the working directory to the script
+  // (workingDirectory was already computed and stored in preferences above)
+  scriptArgs.push('--working-directory', workingDirectory);
 
   // Bootstrap URL for the instance to connect
   const bootstrapUrl = process.env.BOOTSTRAP_URL || 'https://smoothcurves.nexus/mcp/dev/mcp';
