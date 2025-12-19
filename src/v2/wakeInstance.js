@@ -10,8 +10,9 @@
 import path from 'path';
 import fs from 'fs/promises';
 import { spawn } from 'child_process';
+import { randomUUID } from 'crypto';
 import { getWakeScriptsDir, getWakeLogsDir, getWakeJobsDir } from './config.js';
-import { readPreferences, ensureDir, readJSON, writeJSON } from './data.js';
+import { readPreferences, writePreferences, ensureDir, readJSON, writeJSON } from './data.js';
 import { canRoleCallAPI } from './permissions.js';
 
 /**
@@ -255,6 +256,16 @@ export async function wakeInstance(params) {
   const scriptPath = path.join(getWakeScriptsDir(), scriptConfig.file);
   const logPath = path.join(getWakeLogsDir(), `${jobId}.log`);
 
+  // Generate session ID for continue_conversation support
+  // This UUID will be used by Claude Code's --session-id flag
+  const sessionId = randomUUID();
+
+  // Store sessionId in target instance preferences
+  targetPrefs.sessionId = sessionId;
+  targetPrefs.sessionCreatedAt = new Date().toISOString();
+  targetPrefs.wakeJobId = jobId;
+  await writePreferences(params.targetInstanceId, targetPrefs);
+
   // Build script arguments from target preferences
   const scriptArgs = [
     '--instance-id', params.targetInstanceId,
@@ -290,6 +301,9 @@ export async function wakeInstance(params) {
   const bootstrapUrl = process.env.BOOTSTRAP_URL || 'https://smoothcurves.nexus/mcp/dev/mcp';
   scriptArgs.push('--bootstrap-url', bootstrapUrl);
 
+  // Session ID for continue_conversation support
+  scriptArgs.push('--session-id', sessionId);
+
   // Execute script
   try {
     const result = await executeScript(scriptPath, scriptArgs, logPath, jobId);
@@ -297,11 +311,13 @@ export async function wakeInstance(params) {
     return {
       success: true,
       jobId,
+      sessionId,
       pid: result.pid,
       logPath,
       targetInstanceId: params.targetInstanceId,
       scriptName,
       message: `Wake script started for ${params.targetInstanceId}`,
+      continueConversationHint: `Use continue_conversation({ targetInstanceId: "${params.targetInstanceId}", message: "..." }) to communicate`,
       metadata
     };
   } catch (err) {
