@@ -1208,8 +1208,44 @@ body {
     height: 100%;
 }
 
+/* Chat Breadcrumb */
+.chat-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.875rem;
+}
+
+.btn-back-link {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 0.875rem;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-back-link:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-separator {
+    color: var(--text-muted);
+}
+
+.breadcrumb-current {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
 .instance-chat-panel .chat-header {
-    padding: 1rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
@@ -1242,13 +1278,15 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
-/* When chat is open, shrink the main area */
+/* When chat is open, hide the grid entirely and make chat full width */
 .instances-layout.chat-open .instances-main {
-    flex: 1;
+    display: none;
 }
 
 .instances-layout.chat-open .instance-chat-panel {
     display: flex;
+    width: 100%;
+    max-width: none;
 }
 
 .instances-grid {
@@ -1415,6 +1453,57 @@ body {
     color: var(--text-secondary);
     border: 1px solid var(--border-color);
     border-radius: 4px;
+}
+
+/* Project Selector */
+.project-selector {
+    position: relative;
+    display: inline-block;
+}
+
+.project-trigger {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.project-trigger:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.project-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 150px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    margin-top: 0.25rem;
+}
+
+.project-option {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.project-option:hover {
+    background: var(--bg-hover);
+}
+
+.project-option:first-child {
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.project-option:last-child {
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
 /* Instance Card - Action buttons */

@@ -596,6 +596,18 @@ export async function getConversationLog(params) {
   return rpcCall('get_conversation_log', params);
 }
 
+/**
+ * Promote an instance to a privileged role
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.targetInstanceId - Instance to promote
+ * @param {string} params.token - Promotion auth token
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+export async function promoteInstance(params) {
+  return rpcCall('promote_instance', params);
+}
+
 // ============================================================================
 // CONFIGURATION APIS (Personalities, Roles)
 // ============================================================================
@@ -726,6 +738,7 @@ export const api = {
   wakeInstance,
   continueConversation,
   getConversationLog,
+  promoteInstance,
   generateRecoveryKey,
   getServerStatus,
 

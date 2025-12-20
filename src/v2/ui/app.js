@@ -208,6 +208,13 @@ function setupEventListeners() {
         });
     });
 
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.project-selector')) {
+            document.querySelectorAll('.project-dropdown').forEach(d => d.style.display = 'none');
+        }
+    });
+
     // Message input
     const messageInput = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
@@ -291,6 +298,7 @@ function setupEventListeners() {
     document.getElementById('instance-chat-input')?.addEventListener('input', () => {
         updateInstanceChatSendButton();
     });
+    document.getElementById('chat-back-btn')?.addEventListener('click', closeConversationPanel);
     document.getElementById('chat-close-btn')?.addEventListener('click', closeConversationPanel);
     document.getElementById('chat-details-btn')?.addEventListener('click', showConversationTargetDetails);
 
@@ -299,6 +307,7 @@ function setupEventListeners() {
     document.getElementById('instance-message-btn')?.addEventListener('click', messageCurrentInstance);
     document.getElementById('instance-chat-btn')?.addEventListener('click', openInstanceConversation);
     document.getElementById('instance-wake-btn')?.addEventListener('click', wakeCurrentInstance);
+    document.getElementById('instance-promote-btn')?.addEventListener('click', promoteCurrentInstance);
 
     // Lists
     document.getElementById('new-list-btn')?.addEventListener('click', showCreateListModal);
@@ -1290,7 +1299,10 @@ async function loadInstances() {
                 </div>
                 <div class="instance-meta">
                     <span class="instance-role-badge">${instance.role || 'No role'}</span>
-                    ${instance.project ? `<span class="instance-project-badge">${instance.project}</span>` : ''}
+                    <div class="project-selector" data-instance-id="${instance.instanceId}">
+                        <span class="instance-project-badge project-trigger">${instance.project || 'No project'}</span>
+                        <div class="project-dropdown" style="display: none;"></div>
+                    </div>
                 </div>
                 <div class="instance-actions">
                     <button class="btn btn-small btn-primary instance-action-message" data-instance-id="${instance.instanceId}" title="Send XMPP message">Message</button>
@@ -1360,6 +1372,57 @@ async function loadInstances() {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 showInstanceDetail(btn.dataset.instanceId);
+            });
+        });
+
+        // Project selector dropdowns
+        grid.querySelectorAll('.project-trigger').forEach(trigger => {
+            trigger.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const selector = trigger.closest('.project-selector');
+                const dropdown = selector.querySelector('.project-dropdown');
+
+                // Close any other open dropdowns
+                document.querySelectorAll('.project-dropdown').forEach(d => {
+                    if (d !== dropdown) d.style.display = 'none';
+                });
+
+                // Toggle this dropdown
+                if (dropdown.style.display === 'none') {
+                    // Populate with projects
+                    const projectNames = state.projects.map(p => p.name || p.projectId);
+                    dropdown.innerHTML = `
+                        <div class="project-option" data-project="">None</div>
+                        ${projectNames.map(p => `<div class="project-option" data-project="${escapeHtml(p)}">${escapeHtml(p)}</div>`).join('')}
+                    `;
+
+                    // Add click handlers for options
+                    dropdown.querySelectorAll('.project-option').forEach(opt => {
+                        opt.addEventListener('click', async (ev) => {
+                            ev.stopPropagation();
+                            const instanceId = selector.dataset.instanceId;
+                            const projectName = opt.dataset.project;
+
+                            try {
+                                await api.updateInstance({
+                                    instanceId: state.instanceId,
+                                    targetInstanceId: instanceId,
+                                    project: projectName || null
+                                });
+                                showToast(`Assigned to ${projectName || 'no project'}`, 'success');
+                                dropdown.style.display = 'none';
+                                loadInstances(); // Refresh
+                            } catch (error) {
+                                console.error('[App] Error assigning project:', error);
+                                showToast('Failed to assign project: ' + error.message, 'error');
+                            }
+                        });
+                    });
+
+                    dropdown.style.display = 'block';
+                } else {
+                    dropdown.style.display = 'none';
+                }
             });
         });
     } catch (error) {
@@ -2832,6 +2895,7 @@ async function handleWakeSubmit() {
         document.getElementById('chat-instance-avatar').textContent = displayName.charAt(0).toUpperCase();
         document.getElementById('chat-instance-status').textContent = 'New';
         document.getElementById('chat-turn-count').textContent = 'Turn 0';
+        document.getElementById('chat-breadcrumb-name').textContent = displayName;
 
         // Show panel
         document.getElementById('instance-chat-panel').style.display = 'flex';
@@ -2927,6 +2991,7 @@ async function wakeCurrentInstance() {
         document.getElementById('chat-instance-avatar').textContent = displayName.charAt(0).toUpperCase();
         document.getElementById('chat-instance-status').textContent = 'Ready';
         document.getElementById('chat-turn-count').textContent = 'Turn 0';
+        document.getElementById('chat-breadcrumb-name').textContent = displayName;
 
         // Show panel with wake message
         document.getElementById('instance-chat-panel').style.display = 'flex';
@@ -2947,6 +3012,56 @@ async function wakeCurrentInstance() {
     } catch (error) {
         console.error('[Wake API] Wake error:', error);
         showToast('Wake failed: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+/**
+ * Promote the current instance to a privileged role
+ */
+async function promoteCurrentInstance() {
+    if (!state.currentInstanceDetail) return;
+
+    // Prompt for the promotion token
+    const token = prompt('Enter the promotion token to promote this instance:');
+    if (!token || !token.trim()) {
+        showToast('Promotion cancelled - no token provided', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('instance-promote-btn');
+    const originalText = btn.textContent;
+
+    try {
+        btn.disabled = true;
+        btn.textContent = 'Promoting...';
+
+        const promoteParams = {
+            instanceId: state.instanceId,
+            targetInstanceId: state.currentInstanceDetail,
+            token: token.trim()
+        };
+        console.log('[Promote API] PROMOTE_INSTANCE request:', JSON.stringify({ ...promoteParams, token: '[REDACTED]' }, null, 2));
+
+        const result = await api.promoteInstance(promoteParams);
+
+        console.log('[Promote API] PROMOTE_INSTANCE response:', JSON.stringify(result, null, 2));
+
+        if (!result.success && result.error) {
+            throw new Error(result.error.message || 'Promotion failed');
+        }
+
+        showToast(`Instance ${state.currentInstanceDetail} promoted successfully!`, 'success');
+
+        // Refresh instance detail and list
+        await loadInstances();
+        await showInstanceDetail(state.currentInstanceDetail);
+
+    } catch (error) {
+        console.error('[Promote API] Promote error:', error);
+        showToast('Promotion failed: ' + error.message, 'error');
     } finally {
         btn.disabled = false;
         btn.textContent = originalText;
@@ -2980,6 +3095,7 @@ async function openConversationPanel(targetInstanceId) {
     document.getElementById('chat-instance-avatar').textContent = displayName.charAt(0).toUpperCase();
     document.getElementById('chat-instance-status').textContent = 'Loading...';
     document.getElementById('chat-turn-count').textContent = 'Turn 0';
+    document.getElementById('chat-breadcrumb-name').textContent = displayName;
 
     // Clear messages
     const messagesContainer = document.getElementById('instance-chat-messages');

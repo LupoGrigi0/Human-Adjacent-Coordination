@@ -441,6 +441,7 @@
                                     <button class="btn btn-primary" id="instance-chat-btn">Continue</button>
                                     <button class="btn btn-primary" id="instance-wake-btn">Wake</button>
                                     <button class="btn btn-primary" id="instance-message-btn">Message</button>
+                                    <button class="btn btn-secondary" id="instance-promote-btn">Promote</button>
                                 </div>
                             </div>
 
@@ -485,6 +486,13 @@
 
                     <!-- Instance Conversation Panel (like XMPP chat) -->
                     <div class="instance-chat-panel" id="instance-chat-panel" style="display: none;">
+                        <div class="chat-breadcrumb">
+                            <button class="btn-back-link" id="chat-back-btn">
+                                <span>&#8592;</span> Instances
+                            </button>
+                            <span class="breadcrumb-separator">/</span>
+                            <span class="breadcrumb-current" id="chat-breadcrumb-name">Conversation</span>
+                        </div>
                         <div class="chat-header">
                             <div class="chat-recipient">
                                 <div class="instance-avatar-small" id="chat-instance-avatar">?</div>
@@ -496,7 +504,6 @@
                             <div class="chat-actions">
                                 <span class="turn-counter" id="chat-turn-count">Turn 0</span>
                                 <button class="btn-icon" id="chat-details-btn" title="View details">&#9432;</button>
-                                <button class="btn-icon" id="chat-close-btn" title="Close chat">&times;</button>
                             </div>
                         </div>
 
