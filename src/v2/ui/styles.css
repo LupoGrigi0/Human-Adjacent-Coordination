@@ -1177,6 +1177,74 @@ body {
 /* ============================================================================
    INSTANCES GRID
    ============================================================================ */
+/* Instances Layout - Split view like messaging */
+.instances-layout {
+    display: flex;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+}
+
+.instances-main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+/* Instance Chat Panel (right side, hidden by default) */
+.instance-chat-panel {
+    width: 450px;
+    min-width: 350px;
+    max-width: 550px;
+    background: var(--surface-color);
+    border-left: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.instance-chat-panel .chat-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.instance-chat-panel .chat-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.instance-chat-panel .turn-counter {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.instance-chat-panel .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.instance-chat-panel .chat-input-area {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* When chat is open, shrink the main area */
+.instances-layout.chat-open .instances-main {
+    flex: 1;
+}
+
+.instances-layout.chat-open .instance-chat-panel {
+    display: flex;
+}
+
 .instances-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1294,7 +1362,7 @@ body {
     background: var(--text-muted);
 }
 
-/* Instance Card - Meta section (role + project badges) */
+/* Instance Card - Meta section (role + project info) */
 .instance-meta {
     display: flex;
     flex-wrap: wrap;
@@ -1302,14 +1370,24 @@ body {
     margin: 0.5rem 0;
 }
 
-.instance-meta .badge {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.5rem;
+/* Role badge - styled as info, not button */
+.instance-role-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.6rem;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 4px;
+    font-weight: 500;
 }
 
-.badge-project {
-    background: var(--primary-light);
-    color: white;
+/* Project badge - styled as secondary info */
+.instance-project-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
 }
 
 /* Instance Card - Action buttons */
@@ -1323,8 +1401,20 @@ body {
 
 .instance-actions .btn {
     flex: 1;
-    padding: 0.4rem 0.5rem;
-    font-size: 0.75rem;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* All action buttons should be blue (primary) */
+.instance-actions .btn-primary {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+.instance-actions .btn-primary:hover {
+    background: var(--primary-dark);
 }
 
 .btn-ghost {
@@ -1735,11 +1825,14 @@ body {
     align-self: flex-end;  /* Ensure button stays at bottom-right */
 }
 
-.conv-hint {
-    display: block;
-    margin-top: 0.5rem;
+/* System message in chat */
+.system-message {
+    text-align: center;
+    padding: 0.5rem 1rem;
+    margin: 0.5rem 0;
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    font-style: italic;
 }
 
 /* Thinking indicator */

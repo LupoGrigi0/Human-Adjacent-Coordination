@@ -279,21 +279,21 @@ function setupEventListeners() {
     // API Key modal
     document.getElementById('api-key-submit')?.addEventListener('click', handleApiKeySubmit);
 
-    // Conversation panel
-    document.getElementById('conv-send-btn')?.addEventListener('click', sendConversationMessage);
-    document.getElementById('conv-message-input')?.addEventListener('keydown', (e) => {
+    // Instance Chat Panel (in-page, not modal)
+    document.getElementById('instance-chat-send')?.addEventListener('click', sendInstanceChatMessage);
+    document.getElementById('instance-chat-input')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendConversationMessage();
+            sendInstanceChatMessage();
         }
     });
-    document.getElementById('conv-view-details-btn')?.addEventListener('click', showConversationTargetDetails);
+    document.getElementById('chat-close-btn')?.addEventListener('click', closeConversationPanel);
+    document.getElementById('chat-details-btn')?.addEventListener('click', showConversationTargetDetails);
 
     // Instance Detail
     document.getElementById('instance-back-btn')?.addEventListener('click', hideInstanceDetail);
     document.getElementById('instance-message-btn')?.addEventListener('click', messageCurrentInstance);
     document.getElementById('instance-chat-btn')?.addEventListener('click', openInstanceConversation);
-    document.getElementById('instance-wake-btn')?.addEventListener('click', wakeCurrentInstance);
 
     // Lists
     document.getElementById('new-list-btn')?.addEventListener('click', showCreateListModal);
@@ -1256,12 +1256,12 @@ async function loadInstances() {
                 statusDotClass = 'status-dot-preapproved';
             }
 
-            // Chat button: "Chat" if woken, "Wake" if pre-approved, hidden otherwise
-            let chatButtonHtml = '';
+            // Continue button: "Continue" if woken, "Wake" if pre-approved
+            let continueButtonHtml = '';
             if (isWoken) {
-                chatButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation">Chat</button>`;
+                continueButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation">Continue</button>`;
             } else if (isPreApproved) {
-                chatButtonHtml = `<button class="btn btn-small btn-secondary instance-action-wake" data-instance-id="${instance.instanceId}" title="Wake this instance">Wake</button>`;
+                continueButtonHtml = `<button class="btn btn-small btn-primary instance-action-wake" data-instance-id="${instance.instanceId}" title="Wake and start chat">Wake</button>`;
             }
 
             return `
@@ -1275,13 +1275,13 @@ async function loadInstances() {
                     </div>
                 </div>
                 <div class="instance-meta">
-                    <span class="badge badge-role">${instance.role || 'No role'}</span>
-                    ${instance.project ? `<span class="badge badge-project">${instance.project}</span>` : ''}
+                    <span class="instance-role-badge">${instance.role || 'No role'}</span>
+                    ${instance.project ? `<span class="instance-project-badge">${instance.project}</span>` : ''}
                 </div>
                 <div class="instance-actions">
-                    ${chatButtonHtml}
-                    <button class="btn btn-small btn-secondary instance-action-message" data-instance-id="${instance.instanceId}" title="Send XMPP message">Message</button>
-                    <button class="btn btn-small btn-ghost instance-action-details" data-instance-id="${instance.instanceId}" title="View details">Details</button>
+                    <button class="btn btn-small btn-primary instance-action-message" data-instance-id="${instance.instanceId}" title="Send XMPP message">Message</button>
+                    <button class="btn btn-small btn-primary instance-action-details" data-instance-id="${instance.instanceId}" title="View details">Details</button>
+                    ${continueButtonHtml}
                 </div>
             </div>`;
         }).join('');
@@ -1392,9 +1392,8 @@ async function showInstanceDetail(instanceId) {
     document.getElementById('instance-detail-avatar').className =
         `instance-avatar-large ${instance.status === 'active' ? 'online' : ''}`;
 
-    // Show/hide Wake API buttons based on instance status
+    // Show/hide Chat button based on instance status
     const chatBtn = document.getElementById('instance-chat-btn');
-    const wakeBtn = document.getElementById('instance-wake-btn');
 
     // Determine woken status - check various possible status values
     const isWoken = instance.wokenStatus === 'woken' ||
@@ -1403,18 +1402,12 @@ async function showInstanceDetail(instanceId) {
     const isPreApproved = instance.wokenStatus === 'pre-approved' ||
                           instance.status === 'pre-approved';
 
-    if (isWoken) {
-        // Instance is woken - show Chat button
+    // Show Chat button if woken or pre-approved (chat will wake if needed)
+    if (isWoken || isPreApproved) {
         chatBtn.style.display = 'inline-flex';
-        wakeBtn.style.display = 'none';
-    } else if (isPreApproved) {
-        // Instance is pre-approved but not woken - show Wake button
-        chatBtn.style.display = 'none';
-        wakeBtn.style.display = 'inline-flex';
+        chatBtn.textContent = isWoken ? 'Continue Chat' : 'Start Chat';
     } else {
-        // Unknown status - show both buttons (let API handle errors)
-        chatBtn.style.display = 'inline-flex';
-        wakeBtn.style.display = 'inline-flex';
+        chatBtn.style.display = 'none';
     }
 }
 
@@ -2780,16 +2773,57 @@ async function handleWakeSubmit() {
             throw new Error(wakeResult.error.message || 'Wake failed');
         }
 
-        showToast(`Instance ${targetInstanceId} is now awake!`, 'success');
-
-        // Close modal
+        // Close modal first
         document.getElementById('wake-instance-modal').classList.remove('active');
 
-        // Refresh instances list
+        // Refresh instances list (in background)
         loadInstances();
 
         // Open conversation with the new instance
-        openConversationPanel(targetInstanceId);
+        // Set up the conversation state
+        state.wakeConversationTarget = targetInstanceId;
+        state.wakeConversationTurns = [];
+
+        // Find instance info
+        const instance = state.instances.find(i => i.instanceId === targetInstanceId);
+        const displayName = instance?.name || targetInstanceId.split('-')[0];
+
+        // Update header
+        document.getElementById('chat-instance-name').textContent = displayName;
+        document.getElementById('chat-instance-avatar').textContent = displayName.charAt(0).toUpperCase();
+        document.getElementById('chat-instance-status').textContent = 'New';
+        document.getElementById('chat-turn-count').textContent = 'Turn 0';
+
+        // Show panel
+        document.getElementById('instance-chat-panel').style.display = 'flex';
+        document.querySelector('.instances-layout').classList.add('chat-open');
+
+        // Show wake response in chat if available
+        const messagesContainer = document.getElementById('instance-chat-messages');
+
+        // Check if wake returned a first message from the instance
+        const firstMessage = wakeResult.response || wakeResult.data?.response || wakeResult.firstMessage;
+        if (firstMessage) {
+            // Add the first turn from the instance
+            state.wakeConversationTurns.push({
+                input: { from: 'System', message: `Instance ${displayName} woken successfully.` },
+                timestamp: new Date().toISOString(),
+                output: { response: firstMessage }
+            });
+            renderInstanceChatMessages();
+            document.getElementById('chat-turn-count').textContent = 'Turn 1';
+        } else {
+            messagesContainer.innerHTML = `
+                <div class="system-message">Instance ${escapeHtml(displayName)} is now awake and ready to chat!</div>
+                <div class="empty-state">
+                    <span class="empty-icon">&#128172;</span>
+                    <p>Send your first message</p>
+                </div>
+            `;
+        }
+
+        document.getElementById('chat-instance-status').textContent = 'Ready';
+        showToast(`Instance ${displayName} is now awake!`, 'success');
 
     } catch (error) {
         console.error('[App] Wake error:', error);
@@ -2858,7 +2892,7 @@ function openInstanceConversation() {
 }
 
 /**
- * Open the conversation panel for an instance
+ * Open the in-page conversation panel for an instance
  */
 async function openConversationPanel(targetInstanceId) {
     const apiKey = await ensureApiKey();
@@ -2872,30 +2906,34 @@ async function openConversationPanel(targetInstanceId) {
     const displayName = instance?.name || targetInstanceId.split('-')[0];
 
     // Update header
-    document.getElementById('conv-target-name').textContent = displayName;
-    document.getElementById('conv-target-id').textContent = targetInstanceId;
-    document.getElementById('conv-target-avatar').textContent = displayName.charAt(0).toUpperCase();
-    document.getElementById('conv-status').textContent = 'Loading...';
-    document.getElementById('conv-status').className = 'status-indicator';
-    document.getElementById('conv-turn-count').textContent = 'Turn 0';
+    document.getElementById('chat-instance-name').textContent = displayName;
+    document.getElementById('chat-instance-avatar').textContent = displayName.charAt(0).toUpperCase();
+    document.getElementById('chat-instance-status').textContent = 'Loading...';
+    document.getElementById('chat-turn-count').textContent = 'Turn 0';
 
     // Clear messages
-    const messagesContainer = document.getElementById('conv-messages');
+    const messagesContainer = document.getElementById('instance-chat-messages');
     messagesContainer.innerHTML = '<div class="loading-placeholder">Loading conversation history...</div>';
 
     // Restore draft message if any, or clear
     const draftKey = `conv_draft_${targetInstanceId}`;
     const savedDraft = sessionStorage.getItem(draftKey);
-    const inputEl = document.getElementById('conv-message-input');
+    const inputEl = document.getElementById('instance-chat-input');
     inputEl.value = savedDraft || '';
+    updateInstanceChatSendButton();
 
-    // Save draft as user types (debounced)
+    // Save draft as user types
     inputEl.oninput = () => {
         sessionStorage.setItem(draftKey, inputEl.value);
+        updateInstanceChatSendButton();
+        // Auto-resize
+        inputEl.style.height = 'auto';
+        inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
     };
 
-    // Show modal
-    document.getElementById('instance-conversation-modal').classList.add('active');
+    // Show panel
+    document.getElementById('instance-chat-panel').style.display = 'flex';
+    document.querySelector('.instances-layout').classList.add('chat-open');
 
     // Load conversation history
     try {
@@ -2906,8 +2944,8 @@ async function openConversationPanel(targetInstanceId) {
 
         if (logResult.turns && logResult.turns.length > 0) {
             state.wakeConversationTurns = logResult.turns;
-            renderConversationMessages();
-            document.getElementById('conv-turn-count').textContent = `Turn ${logResult.totalTurns || logResult.turns.length}`;
+            renderInstanceChatMessages();
+            document.getElementById('chat-turn-count').textContent = `Turn ${logResult.totalTurns || logResult.turns.length}`;
         } else {
             messagesContainer.innerHTML = `
                 <div class="empty-state">
@@ -2917,8 +2955,7 @@ async function openConversationPanel(targetInstanceId) {
             `;
         }
 
-        document.getElementById('conv-status').textContent = 'Ready';
-        document.getElementById('conv-status').className = 'status-indicator ready';
+        document.getElementById('chat-instance-status').textContent = 'Ready';
 
     } catch (error) {
         console.error('[App] Error loading conversation log:', error);
@@ -2928,26 +2965,34 @@ async function openConversationPanel(targetInstanceId) {
                 <p>Start a conversation with ${escapeHtml(displayName)}</p>
             </div>
         `;
-        document.getElementById('conv-status').textContent = 'Ready';
-        document.getElementById('conv-status').className = 'status-indicator ready';
+        document.getElementById('chat-instance-status').textContent = 'Ready';
     }
 }
 
 /**
- * Close the conversation panel
+ * Close the in-page conversation panel
  */
 function closeConversationPanel() {
-    document.getElementById('instance-conversation-modal').classList.remove('active');
+    document.getElementById('instance-chat-panel').style.display = 'none';
+    document.querySelector('.instances-layout')?.classList.remove('chat-open');
     state.wakeConversationTarget = null;
-    state.wakeConversationTurns = [];
 }
 
 /**
- * Render conversation messages
+ * Update send button state for instance chat
+ */
+function updateInstanceChatSendButton() {
+    const input = document.getElementById('instance-chat-input');
+    const sendBtn = document.getElementById('instance-chat-send');
+    sendBtn.disabled = !input.value.trim() || state.wakeConversationLoading;
+}
+
+/**
+ * Render conversation messages in the instance chat panel
  * Handles multi-person conversations where different instances may have sent messages
  */
-function renderConversationMessages() {
-    const container = document.getElementById('conv-messages');
+function renderInstanceChatMessages() {
+    const container = document.getElementById('instance-chat-messages');
     const myName = state.name.toLowerCase();
 
     if (state.wakeConversationTurns.length === 0) {
@@ -3024,12 +3069,12 @@ function renderConversationMessages() {
 }
 
 /**
- * Send a message in the conversation
+ * Send a message in the instance chat panel
  */
-async function sendConversationMessage() {
-    const input = document.getElementById('conv-message-input');
-    const sendBtn = document.getElementById('conv-send-btn');
-    const statusEl = document.getElementById('conv-status');
+async function sendInstanceChatMessage() {
+    const input = document.getElementById('instance-chat-input');
+    const sendBtn = document.getElementById('instance-chat-send');
+    const statusEl = document.getElementById('chat-instance-status');
 
     let userMessage = input.value.trim();
     if (!userMessage || !state.wakeConversationTarget || state.wakeConversationLoading) return;
@@ -3048,7 +3093,9 @@ async function sendConversationMessage() {
 
     // Clear input and draft immediately
     input.value = '';
+    input.style.height = 'auto';
     sessionStorage.removeItem(`conv_draft_${state.wakeConversationTarget}`);
+    updateInstanceChatSendButton();
 
     // Add optimistic message to display
     const optimisticTurn = {
@@ -3060,10 +3107,10 @@ async function sendConversationMessage() {
         output: null
     };
     state.wakeConversationTurns.push(optimisticTurn);
-    renderConversationMessages();
+    renderInstanceChatMessages();
 
     // Add thinking indicator
-    const container = document.getElementById('conv-messages');
+    const container = document.getElementById('instance-chat-messages');
     const thinkingEl = document.createElement('div');
     thinkingEl.className = 'thinking-indicator';
     thinkingEl.innerHTML = `
@@ -3079,7 +3126,6 @@ async function sendConversationMessage() {
     state.wakeConversationLoading = true;
     sendBtn.disabled = true;
     statusEl.textContent = 'Thinking...';
-    statusEl.className = 'status-indicator thinking';
 
     try {
         const continueParams = {
@@ -3123,12 +3169,11 @@ async function sendConversationMessage() {
 
         // Update turn count
         const turnNumber = result.turnNumber || result.data?.turnNumber || state.wakeConversationTurns.length;
-        document.getElementById('conv-turn-count').textContent = `Turn ${turnNumber}`;
+        document.getElementById('chat-turn-count').textContent = `Turn ${turnNumber}`;
 
-        renderConversationMessages();
+        renderInstanceChatMessages();
 
         statusEl.textContent = 'Ready';
-        statusEl.className = 'status-indicator ready';
 
     } catch (error) {
         console.error('[Wake API] Conversation error:', error);
@@ -3141,14 +3186,13 @@ async function sendConversationMessage() {
         lastTurn.output = {
             response: { result: `[Error: ${error.message}]` }
         };
-        renderConversationMessages();
+        renderInstanceChatMessages();
 
         statusEl.textContent = 'Error';
-        statusEl.className = 'status-indicator error';
         showToast('Message failed: ' + error.message, 'error');
     } finally {
         state.wakeConversationLoading = false;
-        sendBtn.disabled = false;
+        updateInstanceChatSendButton();
     }
 }
 
