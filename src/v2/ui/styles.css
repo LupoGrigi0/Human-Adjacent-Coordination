@@ -123,6 +123,12 @@ body {
     font-size: 1.25rem;
 }
 
+.logo-img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
 .header-controls {
     display: flex;
     align-items: center;
