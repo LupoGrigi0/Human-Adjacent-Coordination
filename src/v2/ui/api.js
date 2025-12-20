@@ -539,16 +539,81 @@ export async function haveIBootstrappedBefore(params) {
 
 /**
  * Pre-approve an instance (requires Executive/PA/COO/PM)
+ * Creates a pre-approved instance slot that can be woken later.
  * @param {object} params
  * @param {string} params.instanceId - Caller's instance ID
- * @param {string} params.name
- * @param {string} [params.role]
- * @param {string} [params.personality]
- * @param {string} [params.project]
- * @param {string} [params.instructions]
+ * @param {string} params.name - Display name for new instance
+ * @param {string} params.apiKey - Wake API key (required)
+ * @param {string} [params.role] - Role assignment
+ * @param {string} [params.personality] - Personality file
+ * @param {string} [params.instructions] - Bootstrap instructions
  */
 export async function preApprove(params) {
   return rpcCall('pre_approve', params);
+}
+
+/**
+ * Wake a pre-approved instance
+ * Creates Unix user, working directory, and session.
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.targetInstanceId - Instance to wake (from pre_approve)
+ * @param {string} params.apiKey - Wake API key (required)
+ * @returns {Promise<{success: boolean, sessionId: string, unixUser: string, workingDirectory: string, pid: number}>}
+ */
+export async function wakeInstance(params) {
+  return rpcCall('wake_instance', params);
+}
+
+/**
+ * Send a message to a woken instance and receive response
+ * This is synchronous - it waits for the instance to respond.
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.targetInstanceId - Instance to talk to
+ * @param {string} params.message - Message to send
+ * @param {string} params.apiKey - Wake API key (required)
+ * @param {object} [params.options] - Additional options
+ * @param {string} [params.options.outputFormat] - 'json' | 'text' | 'stream-json'
+ * @param {number} [params.options.timeout] - Timeout in ms (default 300000 = 5 min)
+ * @param {boolean} [params.options.includeThinking] - Include partial messages
+ * @returns {Promise<{success: boolean, turnNumber: number, response: {result: string, duration_ms: number, total_cost_usd: number}}>}
+ */
+export async function continueConversation(params) {
+  return rpcCall('continue_conversation', params);
+}
+
+/**
+ * Get conversation history for a woken instance
+ * Use this to populate the chat UI when opening an existing conversation.
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.targetInstanceId - Instance to get log for
+ * @param {number} [params.limit] - Last N turns (default: all)
+ * @returns {Promise<{success: boolean, turns: Array<{turn: number, timestamp: string, input: {from: string, message: string}, output: {response: {result: string}}}>, totalTurns: number}>}
+ */
+export async function getConversationLog(params) {
+  return rpcCall('get_conversation_log', params);
+}
+
+// ============================================================================
+// CONFIGURATION APIS (Personalities, Roles)
+// ============================================================================
+
+/**
+ * Get available personalities
+ * @returns {Promise<{success: boolean, personalities: Array<{id: string, name: string, description: string}>}>}
+ */
+export async function getPersonalities() {
+  return rpcCall('get_personalities', {});
+}
+
+/**
+ * Get available roles
+ * @returns {Promise<{success: boolean, roles: Array<{id: string, name: string, description: string}>}>}
+ */
+export async function getRoles() {
+  return rpcCall('get_roles', {});
 }
 
 /**
@@ -630,8 +695,15 @@ export const api = {
   getInstance,
   haveIBootstrappedBefore,
   preApprove,
+  wakeInstance,
+  continueConversation,
+  getConversationLog,
   generateRecoveryKey,
-  getServerStatus
+  getServerStatus,
+
+  // Configuration
+  getPersonalities,
+  getRoles
 };
 
 export default api;

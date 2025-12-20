@@ -436,7 +436,9 @@
                                 <p class="instance-detail-id-display" id="instance-detail-id">instance-id</p>
                             </div>
                             <div class="instance-detail-actions">
-                                <button class="btn" id="instance-message-btn">Send Message</button>
+                                <button class="btn" id="instance-chat-btn" style="display: none;">Chat (Wake API)</button>
+                                <button class="btn" id="instance-wake-btn" style="display: none;">Wake Instance</button>
+                                <button class="btn btn-secondary" id="instance-message-btn">Send XMPP Message</button>
                             </div>
                         </div>
 
@@ -475,80 +477,122 @@
                 </div>
             </div>
 
-            <!-- Wake Instance Modal (Placeholder) -->
+            <!-- Wake Instance Modal -->
             <div class="modal" id="wake-instance-modal">
                 <div class="modal-backdrop"></div>
                 <div class="modal-content modal-large">
                     <div class="modal-header">
-                        <h2>Wake Instance</h2>
-                        <span class="badge badge-warning">Coming Soon</span>
+                        <h2>Wake New Instance</h2>
                         <button class="modal-close" data-close>&times;</button>
                     </div>
                     <div class="modal-body">
-                        <p class="coming-soon-notice">This feature will allow Executive, PA, COO, and PM roles to spawn new AI instances. API not yet implemented.</p>
-
                         <div class="form-group">
-                            <label for="wake-name">Instance Name</label>
-                            <input type="text" id="wake-name" placeholder="e.g., Atlas, Weaver, Scout..." disabled>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="wake-home-dir">Home Directory</label>
-                            <input type="text" id="wake-home-dir" placeholder="/mnt/coordinaton_mcp_data/..." disabled>
+                            <label for="wake-name">Instance Name <span class="required">*</span></label>
+                            <input type="text" id="wake-name" placeholder="e.g., Atlas, Weaver, Scout...">
+                            <small class="form-help">A unique name for this instance</small>
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="wake-role">Role</label>
-                                <select id="wake-role" disabled>
+                                <select id="wake-role">
                                     <option value="">Select role...</option>
-                                    <option value="Developer">Developer</option>
-                                    <option value="Tester">Tester</option>
-                                    <option value="Designer">Designer</option>
-                                    <option value="PM">PM</option>
-                                    <option value="PA">PA</option>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label for="wake-personality">Personality</label>
-                                <select id="wake-personality" disabled>
+                                <select id="wake-personality">
                                     <option value="">Select personality...</option>
-                                    <option value="Bastion">Bastion</option>
-                                    <option value="Canvas">Canvas</option>
-                                    <option value="Bridge">Bridge</option>
-                                    <option value="Nova">Nova</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label for="wake-project">Project (optional)</label>
-                            <select id="wake-project" disabled>
-                                <option value="">No project</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="wake-message">Wake Message</label>
-                            <textarea id="wake-message" rows="4" placeholder="Initial instructions for the instance..." disabled></textarea>
-                            <small class="form-help">Context and first task for the new instance</small>
+                            <label for="wake-instructions">Instructions</label>
+                            <textarea id="wake-instructions" rows="4" placeholder="Initial context and instructions for the instance..."></textarea>
+                            <small class="form-help">What should this instance know when it wakes up?</small>
                         </div>
 
                         <div class="form-group">
                             <label class="checkbox-label">
-                                <input type="checkbox" id="wake-specific-id" disabled>
-                                <span>Resurrect specific instance by ID</span>
+                                <input type="checkbox" id="wake-specific-id">
+                                <span>Wake existing pre-approved instance by ID</span>
                             </label>
                         </div>
 
                         <div class="form-group" id="wake-specific-id-group" style="display: none;">
                             <label for="wake-instance-id">Instance ID</label>
-                            <input type="text" id="wake-instance-id" placeholder="e.g., Atlas-abc123" disabled>
+                            <input type="text" id="wake-instance-id" placeholder="e.g., Atlas-abc123">
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" data-close>Cancel</button>
-                        <button class="btn" id="wake-instance-submit" disabled>Wake Instance</button>
+                        <button class="btn" id="wake-instance-submit">Pre-approve &amp; Wake</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Key Modal -->
+            <div class="modal" id="api-key-modal">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Wake API Key Required</h2>
+                        <button class="modal-close" data-close>&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Wake and Continue APIs require authentication. Please enter your API key.</p>
+                        <div class="form-group">
+                            <label for="api-key-input">API Key</label>
+                            <input type="password" id="api-key-input" placeholder="Enter your Wake API key...">
+                            <small class="form-help">This key will be stored locally for this session</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="api-key-remember">
+                                <span>Remember for future sessions</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-close>Cancel</button>
+                        <button class="btn" id="api-key-submit">Save Key</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instance Conversation Panel (shown when chatting with woken instance) -->
+            <div class="modal" id="instance-conversation-modal">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content modal-fullscreen">
+                    <div class="modal-header conversation-header">
+                        <div class="conversation-target">
+                            <div class="instance-avatar-small" id="conv-target-avatar">?</div>
+                            <div>
+                                <h2 id="conv-target-name">Instance Name</h2>
+                                <p class="conv-target-id" id="conv-target-id">instance-id</p>
+                            </div>
+                        </div>
+                        <div class="conversation-status">
+                            <span class="status-indicator" id="conv-status">Ready</span>
+                            <span class="turn-counter" id="conv-turn-count">Turn 0</span>
+                        </div>
+                        <button class="modal-close" data-close>&times;</button>
+                    </div>
+                    <div class="modal-body conversation-body">
+                        <div class="conversation-messages" id="conv-messages">
+                            <div class="empty-state">
+                                <span class="empty-icon">&#128172;</span>
+                                <p>Start a conversation with this instance</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer conversation-footer">
+                        <div class="conversation-input-area">
+                            <textarea id="conv-message-input" rows="3" placeholder="Type your message..."></textarea>
+                            <button class="btn" id="conv-send-btn">Send</button>
+                        </div>
+                        <small class="conv-hint">Messages are prefixed with your identity. Postscript added automatically.</small>
                     </div>
                 </div>
             </div>

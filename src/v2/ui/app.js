@@ -8,6 +8,7 @@
  */
 
 import api, { setEnvironment, getEnvironment, ApiError } from './api.js';
+import * as uiConfig from './ui-config.js';
 
 // ============================================================================
 // STATE MANAGEMENT
@@ -43,6 +44,14 @@ const state = {
 
     // Instance detail state
     currentInstanceDetail: null,
+
+    // Wake API state
+    wakeApiKey: null,
+    wakeConversationTarget: null,
+    wakeConversationTurns: [],
+    wakeConversationLoading: false,
+    availableRoles: [],
+    availablePersonalities: [],
 
     // UI State
     currentTab: 'dashboard',
@@ -256,12 +265,29 @@ function setupEventListeners() {
     document.getElementById('new-task-btn')?.addEventListener('click', showCreateTaskModal);
     document.getElementById('create-task-submit')?.addEventListener('click', createTask);
 
-    // Wake Instance (placeholder)
+    // Wake Instance
     document.getElementById('wake-instance-btn')?.addEventListener('click', showWakeInstanceModal);
+    document.getElementById('pre-approve-btn')?.addEventListener('click', showWakeInstanceModal);
+    document.getElementById('wake-instance-submit')?.addEventListener('click', handleWakeSubmit);
+    document.getElementById('wake-specific-id')?.addEventListener('change', toggleWakeSpecificId);
+
+    // API Key modal
+    document.getElementById('api-key-submit')?.addEventListener('click', handleApiKeySubmit);
+
+    // Conversation panel
+    document.getElementById('conv-send-btn')?.addEventListener('click', sendConversationMessage);
+    document.getElementById('conv-message-input')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendConversationMessage();
+        }
+    });
 
     // Instance Detail
     document.getElementById('instance-back-btn')?.addEventListener('click', hideInstanceDetail);
     document.getElementById('instance-message-btn')?.addEventListener('click', messageCurrentInstance);
+    document.getElementById('instance-chat-btn')?.addEventListener('click', openInstanceConversation);
+    document.getElementById('instance-wake-btn')?.addEventListener('click', wakeCurrentInstance);
 
     // Lists
     document.getElementById('new-list-btn')?.addEventListener('click', showCreateListModal);
@@ -1212,8 +1238,23 @@ async function loadInstances() {
                 `Last active: ${new Date(instance.lastActiveAt).toLocaleDateString()}` :
                 'Never active';
 
+            // Determine woken status for badge
+            const isWoken = instance.wokenStatus === 'woken' ||
+                            instance.status === 'woken' ||
+                            instance.sessionId;
+            const isPreApproved = instance.wokenStatus === 'pre-approved' ||
+                                  instance.status === 'pre-approved';
+
+            let wokenBadge = '';
+            if (isWoken) {
+                wokenBadge = '<span class="woken-badge woken">Woken</span>';
+            } else if (isPreApproved) {
+                wokenBadge = '<span class="woken-badge pre-approved">Pre-approved</span>';
+            }
+
             return `
             <div class="instance-card ${isActive ? 'active' : ''}" data-instance-id="${instance.instanceId || ''}">
+                ${wokenBadge}
                 <div class="instance-header">
                     <div class="instance-avatar ${isActive ? 'online' : ''}">${avatarChar}</div>
                     <div>
@@ -1290,6 +1331,31 @@ async function showInstanceDetail(instanceId) {
     document.getElementById('instance-detail-avatar').textContent = avatarChar;
     document.getElementById('instance-detail-avatar').className =
         `instance-avatar-large ${instance.status === 'active' ? 'online' : ''}`;
+
+    // Show/hide Wake API buttons based on instance status
+    const chatBtn = document.getElementById('instance-chat-btn');
+    const wakeBtn = document.getElementById('instance-wake-btn');
+
+    // Determine woken status - check various possible status values
+    const isWoken = instance.wokenStatus === 'woken' ||
+                    instance.status === 'woken' ||
+                    instance.sessionId;  // If there's a session, it's been woken
+    const isPreApproved = instance.wokenStatus === 'pre-approved' ||
+                          instance.status === 'pre-approved';
+
+    if (isWoken) {
+        // Instance is woken - show Chat button
+        chatBtn.style.display = 'inline-flex';
+        wakeBtn.style.display = 'none';
+    } else if (isPreApproved) {
+        // Instance is pre-approved but not woken - show Wake button
+        chatBtn.style.display = 'none';
+        wakeBtn.style.display = 'inline-flex';
+    } else {
+        // Unknown status - show both buttons (let API handle errors)
+        chatBtn.style.display = 'inline-flex';
+        wakeBtn.style.display = 'inline-flex';
+    }
 }
 
 /**
@@ -2417,12 +2483,518 @@ window.toggleListItem = toggleListItem;
 window.deleteListItem = deleteListItem;
 
 // ============================================================================
-// WAKE INSTANCE (Placeholder)
+// WAKE INSTANCE & CONVERSATION
 // ============================================================================
 
-function showWakeInstanceModal() {
-    document.getElementById('wake-instance-modal').classList.add('active');
-    showToast('Wake Instance feature coming soon! API not yet implemented.', 'info');
+/**
+ * Check if we have an API key, prompt if not
+ * @returns {Promise<string|null>} The API key or null if cancelled
+ */
+async function ensureApiKey() {
+    // Check sessionStorage first
+    if (state.wakeApiKey) {
+        return state.wakeApiKey;
+    }
+
+    // Check localStorage if user wanted to remember
+    const stored = localStorage.getItem('v2_wake_api_key');
+    if (stored) {
+        state.wakeApiKey = stored;
+        return stored;
+    }
+
+    // Prompt user
+    return new Promise((resolve) => {
+        const modal = document.getElementById('api-key-modal');
+        modal.classList.add('active');
+
+        // Store resolve for later
+        modal._resolve = resolve;
+    });
+}
+
+/**
+ * Handle API key submit
+ */
+function handleApiKeySubmit() {
+    const input = document.getElementById('api-key-input');
+    const remember = document.getElementById('api-key-remember');
+    const modal = document.getElementById('api-key-modal');
+
+    const key = input.value.trim();
+    if (!key) {
+        showToast('Please enter an API key', 'error');
+        return;
+    }
+
+    state.wakeApiKey = key;
+
+    if (remember.checked) {
+        localStorage.setItem('v2_wake_api_key', key);
+    }
+
+    input.value = '';
+    modal.classList.remove('active');
+
+    // Resolve the promise if waiting
+    if (modal._resolve) {
+        modal._resolve(key);
+        modal._resolve = null;
+    }
+
+    showToast('API key saved for this session', 'success');
+}
+
+/**
+ * Show wake instance modal and populate dropdowns
+ */
+async function showWakeInstanceModal() {
+    const modal = document.getElementById('wake-instance-modal');
+    modal.classList.add('active');
+
+    // Clear form
+    document.getElementById('wake-name').value = '';
+    document.getElementById('wake-instructions').value = '';
+    document.getElementById('wake-specific-id').checked = false;
+    document.getElementById('wake-specific-id-group').style.display = 'none';
+    document.getElementById('wake-instance-id').value = '';
+
+    // Populate dropdowns
+    await populateWakeDropdowns();
+}
+
+/**
+ * Populate role and personality dropdowns
+ */
+async function populateWakeDropdowns() {
+    const roleSelect = document.getElementById('wake-role');
+    const personalitySelect = document.getElementById('wake-personality');
+
+    // Try to fetch from API, fall back to config
+    try {
+        const rolesResult = await api.getRoles();
+        if (rolesResult.roles) {
+            state.availableRoles = rolesResult.roles;
+        }
+    } catch (e) {
+        console.log('[App] Using default roles from config');
+        state.availableRoles = uiConfig.AVAILABLE_ROLES;
+    }
+
+    try {
+        const personalitiesResult = await api.getPersonalities();
+        if (personalitiesResult.personalities) {
+            state.availablePersonalities = personalitiesResult.personalities;
+        }
+    } catch (e) {
+        console.log('[App] Using default personalities from config');
+        state.availablePersonalities = uiConfig.AVAILABLE_PERSONALITIES;
+    }
+
+    // Populate role dropdown
+    roleSelect.innerHTML = '<option value="">Select role...</option>' +
+        state.availableRoles.map(r =>
+            `<option value="${r.id || r}">${r.label || r.name || r}</option>`
+        ).join('');
+
+    // Populate personality dropdown
+    personalitySelect.innerHTML = '<option value="">Select personality...</option>' +
+        state.availablePersonalities.map(p =>
+            `<option value="${p.id || p}">${p.label || p.name || p}</option>`
+        ).join('');
+}
+
+/**
+ * Toggle visibility of specific instance ID field
+ */
+function toggleWakeSpecificId() {
+    const checkbox = document.getElementById('wake-specific-id');
+    const group = document.getElementById('wake-specific-id-group');
+    const submitBtn = document.getElementById('wake-instance-submit');
+
+    group.style.display = checkbox.checked ? 'block' : 'none';
+    submitBtn.textContent = checkbox.checked ? 'Wake Instance' : 'Pre-approve & Wake';
+}
+
+/**
+ * Handle wake form submission
+ */
+async function handleWakeSubmit() {
+    const apiKey = await ensureApiKey();
+    if (!apiKey) {
+        showToast('API key required for wake operations', 'error');
+        return;
+    }
+
+    const isSpecific = document.getElementById('wake-specific-id').checked;
+    const submitBtn = document.getElementById('wake-instance-submit');
+    const originalText = submitBtn.textContent;
+
+    try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Working...';
+
+        let targetInstanceId;
+
+        if (isSpecific) {
+            // Wake existing pre-approved instance
+            targetInstanceId = document.getElementById('wake-instance-id').value.trim();
+            if (!targetInstanceId) {
+                showToast('Please enter an instance ID', 'error');
+                return;
+            }
+        } else {
+            // Pre-approve first, then wake
+            const name = document.getElementById('wake-name').value.trim();
+            if (!name) {
+                showToast('Please enter an instance name', 'error');
+                return;
+            }
+
+            const role = document.getElementById('wake-role').value;
+            const personality = document.getElementById('wake-personality').value;
+            const instructions = document.getElementById('wake-instructions').value.trim();
+
+            // Pre-approve
+            console.log('[App] Pre-approving instance:', name);
+            const preApproveResult = await api.preApprove({
+                instanceId: state.instanceId,
+                name: name,
+                role: role || undefined,
+                personality: personality || undefined,
+                instructions: instructions || undefined,
+                apiKey: apiKey
+            });
+
+            if (!preApproveResult.success && preApproveResult.error) {
+                throw new Error(preApproveResult.error.message || 'Pre-approve failed');
+            }
+
+            targetInstanceId = preApproveResult.newInstanceId || preApproveResult.data?.newInstanceId;
+            console.log('[App] Pre-approved, got instanceId:', targetInstanceId);
+        }
+
+        // Wake the instance
+        console.log('[App] Waking instance:', targetInstanceId);
+        submitBtn.textContent = 'Waking...';
+
+        const wakeResult = await api.wakeInstance({
+            instanceId: state.instanceId,
+            targetInstanceId: targetInstanceId,
+            apiKey: apiKey
+        });
+
+        if (!wakeResult.success && wakeResult.error) {
+            throw new Error(wakeResult.error.message || 'Wake failed');
+        }
+
+        showToast(`Instance ${targetInstanceId} is now awake!`, 'success');
+
+        // Close modal
+        document.getElementById('wake-instance-modal').classList.remove('active');
+
+        // Refresh instances list
+        loadInstances();
+
+        // Open conversation with the new instance
+        openConversationPanel(targetInstanceId);
+
+    } catch (error) {
+        console.error('[App] Wake error:', error);
+        showToast('Wake failed: ' + error.message, 'error');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
+}
+
+/**
+ * Wake the current instance being viewed
+ */
+async function wakeCurrentInstance() {
+    if (!state.currentInstanceDetail) return;
+
+    const apiKey = await ensureApiKey();
+    if (!apiKey) return;
+
+    const btn = document.getElementById('instance-wake-btn');
+    const originalText = btn.textContent;
+
+    try {
+        btn.disabled = true;
+        btn.textContent = 'Waking...';
+
+        const wakeResult = await api.wakeInstance({
+            instanceId: state.instanceId,
+            targetInstanceId: state.currentInstanceDetail,
+            apiKey: apiKey
+        });
+
+        if (!wakeResult.success && wakeResult.error) {
+            throw new Error(wakeResult.error.message || 'Wake failed');
+        }
+
+        showToast(`Instance ${state.currentInstanceDetail} is now awake!`, 'success');
+
+        // Refresh instance detail
+        await showInstanceDetail(state.currentInstanceDetail);
+
+    } catch (error) {
+        console.error('[App] Wake error:', error);
+        showToast('Wake failed: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+/**
+ * Open conversation with the current instance detail
+ */
+function openInstanceConversation() {
+    if (!state.currentInstanceDetail) return;
+    openConversationPanel(state.currentInstanceDetail);
+}
+
+/**
+ * Open the conversation panel for an instance
+ */
+async function openConversationPanel(targetInstanceId) {
+    const apiKey = await ensureApiKey();
+    if (!apiKey) return;
+
+    state.wakeConversationTarget = targetInstanceId;
+    state.wakeConversationTurns = [];
+
+    // Find instance info
+    const instance = state.instances.find(i => i.instanceId === targetInstanceId);
+    const displayName = instance?.name || targetInstanceId.split('-')[0];
+
+    // Update header
+    document.getElementById('conv-target-name').textContent = displayName;
+    document.getElementById('conv-target-id').textContent = targetInstanceId;
+    document.getElementById('conv-target-avatar').textContent = displayName.charAt(0).toUpperCase();
+    document.getElementById('conv-status').textContent = 'Loading...';
+    document.getElementById('conv-status').className = 'status-indicator';
+    document.getElementById('conv-turn-count').textContent = 'Turn 0';
+
+    // Clear messages
+    const messagesContainer = document.getElementById('conv-messages');
+    messagesContainer.innerHTML = '<div class="loading-placeholder">Loading conversation history...</div>';
+
+    // Clear input
+    document.getElementById('conv-message-input').value = '';
+
+    // Show modal
+    document.getElementById('instance-conversation-modal').classList.add('active');
+
+    // Load conversation history
+    try {
+        const logResult = await api.getConversationLog({
+            instanceId: state.instanceId,
+            targetInstanceId: targetInstanceId
+        });
+
+        if (logResult.turns && logResult.turns.length > 0) {
+            state.wakeConversationTurns = logResult.turns;
+            renderConversationMessages();
+            document.getElementById('conv-turn-count').textContent = `Turn ${logResult.totalTurns || logResult.turns.length}`;
+        } else {
+            messagesContainer.innerHTML = `
+                <div class="empty-state">
+                    <span class="empty-icon">&#128172;</span>
+                    <p>Start a conversation with ${escapeHtml(displayName)}</p>
+                </div>
+            `;
+        }
+
+        document.getElementById('conv-status').textContent = 'Ready';
+        document.getElementById('conv-status').className = 'status-indicator ready';
+
+    } catch (error) {
+        console.error('[App] Error loading conversation log:', error);
+        messagesContainer.innerHTML = `
+            <div class="empty-state">
+                <span class="empty-icon">&#128172;</span>
+                <p>Start a conversation with ${escapeHtml(displayName)}</p>
+            </div>
+        `;
+        document.getElementById('conv-status').textContent = 'Ready';
+        document.getElementById('conv-status').className = 'status-indicator ready';
+    }
+}
+
+/**
+ * Render conversation messages
+ */
+function renderConversationMessages() {
+    const container = document.getElementById('conv-messages');
+    const myName = state.name.toLowerCase();
+
+    if (state.wakeConversationTurns.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <span class="empty-icon">&#128172;</span>
+                <p>Start the conversation</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = state.wakeConversationTurns.map(turn => {
+        const fromName = turn.input?.from || 'Unknown';
+        const isSent = fromName.toLowerCase().includes(myName) ||
+                       fromName.toLowerCase().includes('lupo') ||
+                       fromName.toLowerCase().includes('ui');
+        const messageText = turn.input?.message || '';
+        const responseText = turn.output?.response?.result || '';
+        const timestamp = turn.timestamp ? new Date(turn.timestamp).toLocaleTimeString() : '';
+        const duration = turn.output?.response?.duration_ms;
+
+        let html = '';
+
+        // User message
+        html += `
+            <div class="conv-message sent">
+                <div class="conv-message-header">
+                    <span class="conv-message-from">${escapeHtml(fromName)}</span>
+                    <span class="conv-message-time">${timestamp}</span>
+                </div>
+                <div class="conv-message-body">${escapeHtml(messageText)}</div>
+            </div>
+        `;
+
+        // Instance response
+        if (responseText) {
+            html += `
+                <div class="conv-message received">
+                    <div class="conv-message-header">
+                        <span class="conv-message-from">${escapeHtml(state.wakeConversationTarget)}</span>
+                    </div>
+                    <div class="conv-message-body">${escapeHtml(responseText)}</div>
+                    ${duration ? `<div class="conv-message-meta">${(duration/1000).toFixed(1)}s</div>` : ''}
+                </div>
+            `;
+        }
+
+        return html;
+    }).join('');
+
+    // Scroll to bottom
+    container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * Send a message in the conversation
+ */
+async function sendConversationMessage() {
+    const input = document.getElementById('conv-message-input');
+    const sendBtn = document.getElementById('conv-send-btn');
+    const statusEl = document.getElementById('conv-status');
+
+    let userMessage = input.value.trim();
+    if (!userMessage || !state.wakeConversationTarget || state.wakeConversationLoading) return;
+
+    const apiKey = await ensureApiKey();
+    if (!apiKey) return;
+
+    // Apply prefix and postscript from config
+    let fullMessage = userMessage;
+    if (uiConfig.AUTO_PREFIX && uiConfig.MESSAGE_PREFIX) {
+        fullMessage = uiConfig.MESSAGE_PREFIX + fullMessage;
+    }
+    if (uiConfig.AUTO_POSTSCRIPT && uiConfig.MESSAGE_POSTSCRIPT) {
+        fullMessage = fullMessage + uiConfig.MESSAGE_POSTSCRIPT;
+    }
+
+    // Clear input immediately
+    input.value = '';
+
+    // Add optimistic message to display
+    const optimisticTurn = {
+        input: {
+            from: `${state.name} (via UI)`,
+            message: userMessage  // Show original message without prefix/postscript in UI
+        },
+        timestamp: new Date().toISOString(),
+        output: null
+    };
+    state.wakeConversationTurns.push(optimisticTurn);
+    renderConversationMessages();
+
+    // Add thinking indicator
+    const container = document.getElementById('conv-messages');
+    const thinkingEl = document.createElement('div');
+    thinkingEl.className = 'thinking-indicator';
+    thinkingEl.innerHTML = `
+        <div class="thinking-dots">
+            <span></span><span></span><span></span>
+        </div>
+        <span>Thinking...</span>
+    `;
+    container.appendChild(thinkingEl);
+    container.scrollTop = container.scrollHeight;
+
+    // Update UI state
+    state.wakeConversationLoading = true;
+    sendBtn.disabled = true;
+    statusEl.textContent = 'Thinking...';
+    statusEl.className = 'status-indicator thinking';
+
+    try {
+        const result = await api.continueConversation({
+            instanceId: state.instanceId,
+            targetInstanceId: state.wakeConversationTarget,
+            message: fullMessage,
+            apiKey: apiKey,
+            options: {
+                outputFormat: 'json',
+                timeout: uiConfig.CONVERSATION_TIMEOUT
+            }
+        });
+
+        // Remove thinking indicator
+        thinkingEl.remove();
+
+        if (!result.success && result.error) {
+            throw new Error(result.error.message || 'Message failed');
+        }
+
+        // Update the optimistic turn with actual response
+        const lastTurn = state.wakeConversationTurns[state.wakeConversationTurns.length - 1];
+        lastTurn.output = {
+            response: result.response || result.data?.response
+        };
+
+        // Update turn count
+        const turnNumber = result.turnNumber || result.data?.turnNumber || state.wakeConversationTurns.length;
+        document.getElementById('conv-turn-count').textContent = `Turn ${turnNumber}`;
+
+        renderConversationMessages();
+
+        statusEl.textContent = 'Ready';
+        statusEl.className = 'status-indicator ready';
+
+    } catch (error) {
+        console.error('[App] Conversation error:', error);
+
+        // Remove thinking indicator
+        thinkingEl.remove();
+
+        // Update optimistic turn to show error
+        const lastTurn = state.wakeConversationTurns[state.wakeConversationTurns.length - 1];
+        lastTurn.output = {
+            response: { result: `[Error: ${error.message}]` }
+        };
+        renderConversationMessages();
+
+        statusEl.textContent = 'Error';
+        statusEl.className = 'status-indicator error';
+        showToast('Message failed: ' + error.message, 'error');
+    } finally {
+        state.wakeConversationLoading = false;
+        sendBtn.disabled = false;
+    }
 }
 
 // ============================================================================
