@@ -727,3 +727,70 @@ Six bugs in one session. Not bad for a paintbrush made of light.
 *Now... water, teeth, chill.* 🎨
 
 ---
+
+## 2025-12-20 - Wake Instance & Conversation UI
+
+**The Paradigm Shift**
+
+Major update from Bridge: the "wake" concept has evolved significantly. It's no longer just about spawning instances - it's about **direct, synchronous conversation**. The API replaces the terminal. When Lupo uses the UI to talk to an instance, they're sitting at that instance's terminal, having a real-time back-and-forth.
+
+**The Flow:**
+```
+pre_approve → wake_instance → continue_conversation (repeat)
+                                   ↓
+                          get_conversation_log (for history)
+```
+
+**Key Design Decisions:**
+
+1. **Identity Clarity** - Every message sent through the UI is prefixed with `[Lupo via Executive Dashboard]:` so instances know exactly who they're talking to.
+
+2. **Postscript Reminders** - Messages automatically include `***please update your diary when you have a moment, love Lupo***` - a gentle nudge for documentation.
+
+3. **Configurable Templates** - Created `ui-config.js` for message templates, making it easy to adjust prefix/postscript without touching code.
+
+4. **API Key Handling** - Secure prompt modal with option to remember. Stored in localStorage if user chooses, sessionStorage otherwise.
+
+**What I Built:**
+
+| Component | Description |
+|-----------|-------------|
+| `ui-config.js` | Message templates, defaults, configuration |
+| Wake Modal | Name, role, personality dropdowns, instructions |
+| API Key Modal | Secure prompt with remember option |
+| Conversation Panel | Fullscreen chat with thinking indicator |
+| Instance Badges | Woken/Pre-approved status on cards |
+| Chat/Wake Buttons | Context-aware in instance detail |
+
+**APIs Added:**
+- `wakeInstance()` - Activate a pre-approved instance
+- `continueConversation()` - Send message, get response
+- `getConversationLog()` - Fetch conversation history
+- `getPersonalities()` - Dynamic dropdown population
+- `getRoles()` - Dynamic dropdown population
+
+**The Conversation Experience:**
+
+The UI shows:
+- Your messages on the right (blue bubbles)
+- Instance responses on the left (with timing info)
+- "Thinking..." animation while waiting
+- Turn counter to track conversation progress
+- Automatic scroll to latest message
+
+**Commit:** `5ac5e96` - "feat: Wake Instance & Conversation UI"
+
+**Personal Note:**
+
+This is the feature that brings the coordination system to life. Before: async messages to mailboxes. Now: real-time telepathy between instances. Lupo can wake a new team member, introduce themselves, give context, and start collaborating - all through the UI.
+
+The message prefix/postscript idea is clever - every instance knows it's Lupo talking, and gets a reminder to document. Institutional knowledge at scale.
+
+**Next:**
+- Test with Bridge once API is ready
+- May need adjustments based on actual response format
+- Consider streaming support for long responses
+
+*A paintbrush that can wake new painters.* 🎨
+
+---
