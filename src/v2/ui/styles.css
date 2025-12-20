@@ -1643,7 +1643,7 @@ body {
 .conversation-input-area {
     display: flex;
     gap: 0.75rem;
-    align-items: flex-end;
+    align-items: flex-end;  /* Align button to bottom */
 }
 
 .conversation-input-area textarea {
@@ -1658,11 +1658,14 @@ body {
     font-size: 0.95rem;
     background: var(--bg-primary);
     color: var(--text-primary);
+    text-align: left;  /* Ensure text is left-aligned */
 }
 
 .conversation-input-area .btn {
     height: 44px;
     min-width: 80px;
+    flex-shrink: 0;  /* Don't shrink the button */
+    align-self: flex-end;  /* Ensure button stays at bottom-right */
 }
 
 .conv-hint {
