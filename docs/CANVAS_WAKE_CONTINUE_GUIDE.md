@@ -353,6 +353,100 @@ The UI would then connect to `streamUrl` via SSE to receive real-time response c
 
 ---
 
+## get_conversation_log
+
+**Purpose:** Retrieve conversation history for an instance. Use this to populate the UI when returning to an existing conversation.
+
+**Request:**
+```javascript
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_conversation_log",
+    "arguments": {
+      "instanceId": "YourInstanceId",       // Caller's instance ID
+      "targetInstanceId": "Dev-1234",       // Instance to get log for
+      "limit": 50                           // Optional: last N turns (default: all)
+    }
+  }
+}
+```
+
+**Response:**
+```javascript
+{
+  "success": true,
+  "targetInstanceId": "Dev-1234",
+  "turns": [
+    {
+      "turn": 1,
+      "timestamp": "2025-12-19T03:00:00.000Z",
+      "input": {
+        "from": "PM-5678",           // WHO sent this message
+        "message": "Hello!"
+      },
+      "output": {
+        "response": { "result": "Hi there!" },
+        "exitCode": 0
+      },
+      "instanceContext": {           // ONLY on turn 1
+        "sessionId": "uuid-here",
+        "role": "Developer",
+        "personality": "...",
+        "instructions": "...",
+        "workingDirectory": "/mnt/.../instances/Dev-1234",
+        "unixUser": "Dev-1234"
+      }
+    },
+    {
+      "turn": 2,
+      "timestamp": "2025-12-19T03:01:00.000Z",
+      "input": {
+        "from": "Lupo-UI",           // Different sender!
+        "message": "What's your status?"
+      },
+      "output": {
+        "response": { "result": "Working on ticket #42" },
+        "exitCode": 0
+      }
+      // No instanceContext on turn 2+
+    }
+  ],
+  "totalTurns": 2
+}
+```
+
+**UI Considerations:**
+- Use `input.from` to show who sent each message (different colors/avatars)
+- `instanceContext` on turn 1 shows the instance's identity/role
+- Use `limit` parameter to paginate large conversations
+- Display `timestamp` for each message
+
+---
+
+## Known Limitations
+
+### OAuth Token Expiration
+
+Woken instances use copied OAuth credentials from the server. These tokens can expire.
+
+**Symptoms:** Instance returns `401 authentication_error` with "OAuth token has expired"
+
+**Solutions:**
+1. Wake a new instance (gets fresh credentials)
+2. Manually copy fresh credentials:
+   ```bash
+   cp /root/.claude/.credentials.json /mnt/.../instances/{instanceId}/.claude/
+   chown {instanceId}:{instanceId} /mnt/.../instances/{instanceId}/.claude/.credentials.json
+   ```
+3. Re-login on server (`claude /login`) then wake new instances
+
+**Note:** This is a known limitation of the credential-sharing approach. Long-running instances may need credential refresh.
+
+---
+
 ## Testing Checklist
 
 - [ ] pre_approve creates instance with unique ID
