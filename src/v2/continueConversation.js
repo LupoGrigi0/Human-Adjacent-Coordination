@@ -283,8 +283,11 @@ export async function continueConversation(params) {
     claudeArgs.push('--include-partial-messages');
   }
 
+  // Prepend sender identification so the instance knows who's talking
+  const messageWithSender = `[Message from: ${params.instanceId}]\n\n${params.message}`;
+
   // Add the message as the final argument
-  claudeArgs.push(params.message);
+  claudeArgs.push(messageWithSender);
 
   // Execute claude as the instance user
   try {
@@ -317,6 +320,19 @@ export async function continueConversation(params) {
         stderr: result.stderr || null
       }
     };
+
+    // On turn 1, also log the instance context (avoids repeating on every turn)
+    if (turnNumber === 1) {
+      turn.instanceContext = {
+        sessionId: targetPrefs.sessionId,
+        role: targetPrefs.role || null,
+        personality: targetPrefs.personality || null,
+        instructions: targetPrefs.instructions || null,
+        workingDirectory: workingDir,
+        unixUser: unixUser
+      };
+    }
+
     await logConversationTurn(params.targetInstanceId, turn);
 
     // Update target preferences with turn count
