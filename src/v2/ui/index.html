@@ -573,6 +573,9 @@
                                 <p class="conv-target-id" id="conv-target-id">instance-id</p>
                             </div>
                         </div>
+                        <div class="conversation-actions">
+                            <button class="btn btn-small btn-secondary" id="conv-view-details-btn" title="View instance details">Details</button>
+                        </div>
                         <div class="conversation-status">
                             <span class="status-indicator" id="conv-status">Ready</span>
                             <span class="turn-counter" id="conv-turn-count">Turn 0</span>
@@ -593,6 +596,186 @@
                             <button class="btn" id="conv-send-btn">Send</button>
                         </div>
                         <small class="conv-hint">Messages are prefixed with your identity. Postscript added automatically.</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entity Details Modal (Instance, Role, Personality, Project) -->
+            <div class="modal" id="entity-details-modal">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content modal-large">
+                    <div class="modal-header">
+                        <h2 id="entity-details-title">Details</h2>
+                        <button class="modal-close" data-close>&times;</button>
+                    </div>
+                    <div class="modal-body entity-details-body">
+                        <div class="entity-details-loading">Loading...</div>
+
+                        <!-- Instance Details View -->
+                        <div class="entity-view" id="instance-details-view" style="display: none;">
+                            <div class="detail-section">
+                                <h3>Basic Info</h3>
+                                <div class="detail-grid compact">
+                                    <div class="detail-item">
+                                        <label>Instance ID</label>
+                                        <span id="entity-instance-id" class="monospace">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Name</label>
+                                        <span id="entity-instance-name">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Role</label>
+                                        <span id="entity-instance-role">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Personality</label>
+                                        <span id="entity-instance-personality">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-section">
+                                <h3>Directories</h3>
+                                <div class="detail-grid compact">
+                                    <div class="detail-item full-width">
+                                        <label>Home Directory</label>
+                                        <span id="entity-instance-home" class="monospace">-</span>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>Working Directory</label>
+                                        <span id="entity-instance-workdir" class="monospace">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-section">
+                                <h3>Session Info</h3>
+                                <div class="detail-grid compact">
+                                    <div class="detail-item">
+                                        <label>Session ID</label>
+                                        <span id="entity-instance-session" class="monospace">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Status</label>
+                                        <span id="entity-instance-status">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Last Active</label>
+                                        <span id="entity-instance-lastactive">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-section">
+                                <h3>Instructions</h3>
+                                <pre id="entity-instance-instructions" class="code-block">-</pre>
+                            </div>
+
+                            <div class="detail-section" id="entity-instance-gestalt-section" style="display: none;">
+                                <h3>Gestalt Document</h3>
+                                <pre id="entity-instance-gestalt" class="code-block scrollable">-</pre>
+                            </div>
+
+                            <div class="detail-section">
+                                <h3>Full Preferences (JSON)</h3>
+                                <pre id="entity-instance-prefs" class="code-block scrollable">-</pre>
+                            </div>
+                        </div>
+
+                        <!-- Role Details View -->
+                        <div class="entity-view" id="role-details-view" style="display: none;">
+                            <div class="detail-section">
+                                <h3>Role Info</h3>
+                                <div class="detail-grid compact">
+                                    <div class="detail-item">
+                                        <label>Role ID</label>
+                                        <span id="entity-role-id" class="monospace">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Name</label>
+                                        <span id="entity-role-name">-</span>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>Directory</label>
+                                        <span id="entity-role-dir" class="monospace">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Description</h3>
+                                <pre id="entity-role-description" class="code-block">-</pre>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Role Document</h3>
+                                <pre id="entity-role-content" class="code-block scrollable">-</pre>
+                            </div>
+                        </div>
+
+                        <!-- Personality Details View -->
+                        <div class="entity-view" id="personality-details-view" style="display: none;">
+                            <div class="detail-section">
+                                <h3>Personality Info</h3>
+                                <div class="detail-grid compact">
+                                    <div class="detail-item">
+                                        <label>Personality ID</label>
+                                        <span id="entity-personality-id" class="monospace">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Name</label>
+                                        <span id="entity-personality-name">-</span>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>Directory</label>
+                                        <span id="entity-personality-dir" class="monospace">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Description</h3>
+                                <pre id="entity-personality-description" class="code-block">-</pre>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Personality Document</h3>
+                                <pre id="entity-personality-content" class="code-block scrollable">-</pre>
+                            </div>
+                        </div>
+
+                        <!-- Project Details View (enhanced) -->
+                        <div class="entity-view" id="project-details-view-modal" style="display: none;">
+                            <div class="detail-section">
+                                <h3>Project Info</h3>
+                                <div class="detail-grid compact">
+                                    <div class="detail-item">
+                                        <label>Project ID</label>
+                                        <span id="entity-project-id" class="monospace">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Name</label>
+                                        <span id="entity-project-name">-</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Status</label>
+                                        <span id="entity-project-status">-</span>
+                                    </div>
+                                    <div class="detail-item full-width">
+                                        <label>Directory</label>
+                                        <span id="entity-project-dir" class="monospace">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Description</h3>
+                                <pre id="entity-project-description" class="code-block">-</pre>
+                            </div>
+                            <div class="detail-section">
+                                <h3>Project Settings (JSON)</h3>
+                                <pre id="entity-project-settings" class="code-block scrollable">-</pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-close>Close</button>
                     </div>
                 </div>
             </div>

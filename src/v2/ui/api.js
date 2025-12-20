@@ -617,6 +617,34 @@ export async function getRoles() {
 }
 
 /**
+ * Get detailed info for a specific role
+ * @param {string} roleId - The role ID
+ * @returns {Promise<{success: boolean, role: object}>}
+ */
+export async function getRoleDetails(roleId) {
+  return rpcCall('get_role', { roleId });
+}
+
+/**
+ * Get detailed info for a specific personality
+ * @param {string} personalityId - The personality ID
+ * @returns {Promise<{success: boolean, personality: object}>}
+ */
+export async function getPersonalityDetails(personalityId) {
+  return rpcCall('get_personality', { personalityId });
+}
+
+/**
+ * Get detailed instance info including preferences and gestalt
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} targetInstanceId - Instance to get details for
+ * @returns {Promise<{success: boolean, instance: object, preferences: object, gestalt: string}>}
+ */
+export async function getInstanceDetails(instanceId, targetInstanceId) {
+  return rpcCall('get_instance_details', { instanceId, targetInstanceId });
+}
+
+/**
  * Generate recovery key for an instance
  * @param {string} instanceId - Caller's instance ID
  * @param {string} targetInstanceId
@@ -703,7 +731,10 @@ export const api = {
 
   // Configuration
   getPersonalities,
-  getRoles
+  getRoles,
+  getRoleDetails,
+  getPersonalityDetails,
+  getInstanceDetails
 };
 
 export default api;
