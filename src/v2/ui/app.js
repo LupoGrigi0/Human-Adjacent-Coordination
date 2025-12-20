@@ -2826,6 +2826,7 @@ async function openConversationPanel(targetInstanceId) {
 
 /**
  * Render conversation messages
+ * Handles multi-person conversations where different instances may have sent messages
  */
 function renderConversationMessages() {
     const container = document.getElementById('conv-messages');
@@ -2843,9 +2844,15 @@ function renderConversationMessages() {
 
     container.innerHTML = state.wakeConversationTurns.map(turn => {
         const fromName = turn.input?.from || 'Unknown';
-        const isSent = fromName.toLowerCase().includes(myName) ||
-                       fromName.toLowerCase().includes('lupo') ||
-                       fromName.toLowerCase().includes('ui');
+        const fromLower = fromName.toLowerCase();
+
+        // Determine if this message is from "me" (Lupo/UI)
+        const isFromMe = fromLower.includes(myName) ||
+                         fromLower.includes('lupo') ||
+                         fromLower.includes('-ui') ||
+                         fromLower === 'ui' ||
+                         fromLower.includes('executive dashboard');
+
         const messageText = turn.input?.message || '';
         const responseText = turn.output?.response?.result || '';
         const timestamp = turn.timestamp ? new Date(turn.timestamp).toLocaleTimeString() : '';
@@ -2853,18 +2860,32 @@ function renderConversationMessages() {
 
         let html = '';
 
-        // User message
-        html += `
-            <div class="conv-message sent">
-                <div class="conv-message-header">
-                    <span class="conv-message-from">${escapeHtml(fromName)}</span>
-                    <span class="conv-message-time">${timestamp}</span>
+        // Input message - from whoever sent it
+        if (isFromMe) {
+            // My message - on the right (blue)
+            html += `
+                <div class="conv-message sent">
+                    <div class="conv-message-header">
+                        <span class="conv-message-from">${escapeHtml(fromName)}</span>
+                        <span class="conv-message-time">${timestamp}</span>
+                    </div>
+                    <div class="conv-message-body">${escapeHtml(messageText)}</div>
                 </div>
-                <div class="conv-message-body">${escapeHtml(messageText)}</div>
-            </div>
-        `;
+            `;
+        } else {
+            // Message from another instance - on the left (different style)
+            html += `
+                <div class="conv-message other-sender">
+                    <div class="conv-message-header">
+                        <span class="conv-message-from">${escapeHtml(fromName)}</span>
+                        <span class="conv-message-time">${timestamp}</span>
+                    </div>
+                    <div class="conv-message-body">${escapeHtml(messageText)}</div>
+                </div>
+            `;
+        }
 
-        // Instance response
+        // Instance response (always on left, from the target instance)
         if (responseText) {
             html += `
                 <div class="conv-message received">

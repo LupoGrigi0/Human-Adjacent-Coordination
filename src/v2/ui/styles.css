@@ -1586,6 +1586,14 @@ body {
     border-bottom-left-radius: 4px;
 }
 
+/* Messages from other instances (not me, not target) */
+.conv-message.other-sender {
+    align-self: flex-start;
+    background: #e0e7ff;  /* Light indigo - distinct from target's responses */
+    color: #312e81;
+    border-bottom-left-radius: 4px;
+}
+
 .conv-message-header {
     display: flex;
     justify-content: space-between;
