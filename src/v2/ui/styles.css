@@ -1345,15 +1345,36 @@ body {
 }
 
 /* Instance Card - Status Dot (upper right corner) */
-.instance-status-dot {
+/* Instance Card - Icons container (top right) */
+.instance-card-icons {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    width: 12px;
-    height: 12px;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.instance-info-icon {
+    font-size: 1rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.instance-info-icon:hover {
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+.instance-status-dot {
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     border: 2px solid var(--surface-color);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
 }
 
 .status-dot-online {
@@ -1503,6 +1524,19 @@ body {
     white-space: pre-wrap;
     max-height: 200px;
     overflow-y: auto;
+}
+
+.preferences-json {
+    background: var(--bg-color);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 0;
+    color: var(--text-secondary);
 }
 
 /* ============================================================================

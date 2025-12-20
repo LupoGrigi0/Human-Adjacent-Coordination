@@ -438,8 +438,9 @@
                                     <p class="instance-detail-id-display" id="instance-detail-id">instance-id</p>
                                 </div>
                                 <div class="instance-detail-actions">
-                                    <button class="btn" id="instance-chat-btn" style="display: none;">Chat</button>
-                                    <button class="btn btn-secondary" id="instance-message-btn">Message</button>
+                                    <button class="btn btn-primary" id="instance-chat-btn">Continue</button>
+                                    <button class="btn btn-primary" id="instance-wake-btn">Wake</button>
+                                    <button class="btn btn-primary" id="instance-message-btn">Message</button>
                                 </div>
                             </div>
 
@@ -473,6 +474,11 @@
                             <div class="detail-section full-width">
                                 <h3>Instructions</h3>
                                 <p id="instance-detail-instructions" class="instructions-text">No instructions set</p>
+                            </div>
+
+                            <div class="detail-section full-width" id="instance-preferences-section" style="display: none;">
+                                <h3>Preferences</h3>
+                                <pre id="instance-detail-preferences" class="preferences-json"></pre>
                             </div>
                         </div>
                     </div>

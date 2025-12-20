@@ -287,6 +287,10 @@ function setupEventListeners() {
             sendInstanceChatMessage();
         }
     });
+    // Also listen for input events to enable/disable send button
+    document.getElementById('instance-chat-input')?.addEventListener('input', () => {
+        updateInstanceChatSendButton();
+    });
     document.getElementById('chat-close-btn')?.addEventListener('click', closeConversationPanel);
     document.getElementById('chat-details-btn')?.addEventListener('click', showConversationTargetDetails);
 
@@ -294,6 +298,7 @@ function setupEventListeners() {
     document.getElementById('instance-back-btn')?.addEventListener('click', hideInstanceDetail);
     document.getElementById('instance-message-btn')?.addEventListener('click', messageCurrentInstance);
     document.getElementById('instance-chat-btn')?.addEventListener('click', openInstanceConversation);
+    document.getElementById('instance-wake-btn')?.addEventListener('click', wakeCurrentInstance);
 
     // Lists
     document.getElementById('new-list-btn')?.addEventListener('click', showCreateListModal);
@@ -1241,12 +1246,18 @@ async function loadInstances() {
             const avatarChar = displayName.charAt(0).toUpperCase();
             const isActive = instance.status === 'active';
 
-            // Determine woken status
+            // Determine woken status - instance is woken if:
+            // - wokenStatus is 'woken'
+            // - status is 'woken'
+            // - has a sessionId
+            // - has a homeDirectory (wake script creates this)
             const isWoken = instance.wokenStatus === 'woken' ||
                             instance.status === 'woken' ||
-                            instance.sessionId;
+                            instance.sessionId ||
+                            (instance.homeDirectory && instance.homeDirectory !== '-' && instance.homeDirectory.includes('/instances/'));
             const isPreApproved = instance.wokenStatus === 'pre-approved' ||
-                                  instance.status === 'pre-approved';
+                                  instance.status === 'pre-approved' ||
+                                  (!isWoken && instance.role);
 
             // Status dot color: green for active/woken, yellow for pre-approved, grey for inactive
             let statusDotClass = 'status-dot-offline';
@@ -1266,7 +1277,10 @@ async function loadInstances() {
 
             return `
             <div class="instance-card" data-instance-id="${instance.instanceId || ''}">
-                <span class="instance-status-dot ${statusDotClass}" title="${isWoken ? 'Woken' : isPreApproved ? 'Pre-approved' : isActive ? 'Active' : 'Inactive'}"></span>
+                <div class="instance-card-icons">
+                    <span class="instance-info-icon instance-action-details" data-instance-id="${instance.instanceId}" title="View details">&#9432;</span>
+                    <span class="instance-status-dot ${statusDotClass}" title="${isWoken ? 'Woken' : isPreApproved ? 'Pre-approved' : isActive ? 'Active' : 'Inactive'}"></span>
+                </div>
                 <div class="instance-header">
                     <div class="instance-avatar">${avatarChar}</div>
                     <div>
@@ -1280,7 +1294,6 @@ async function loadInstances() {
                 </div>
                 <div class="instance-actions">
                     <button class="btn btn-small btn-primary instance-action-message" data-instance-id="${instance.instanceId}" title="Send XMPP message">Message</button>
-                    <button class="btn btn-small btn-primary instance-action-details" data-instance-id="${instance.instanceId}" title="View details">Details</button>
                     ${continueButtonHtml}
                 </div>
             </div>`;
@@ -1392,22 +1405,48 @@ async function showInstanceDetail(instanceId) {
     document.getElementById('instance-detail-avatar').className =
         `instance-avatar-large ${instance.status === 'active' ? 'online' : ''}`;
 
-    // Show/hide Chat button based on instance status
-    const chatBtn = document.getElementById('instance-chat-btn');
-
-    // Determine woken status - check various possible status values
+    // Determine woken status - consistent with instance cards
     const isWoken = instance.wokenStatus === 'woken' ||
                     instance.status === 'woken' ||
-                    instance.sessionId;  // If there's a session, it's been woken
+                    instance.sessionId ||
+                    (instance.homeDirectory && instance.homeDirectory !== '-' && instance.homeDirectory.includes('/instances/'));
     const isPreApproved = instance.wokenStatus === 'pre-approved' ||
-                          instance.status === 'pre-approved';
+                          instance.status === 'pre-approved' ||
+                          (!isWoken && instance.role);
 
-    // Show Chat button if woken or pre-approved (chat will wake if needed)
-    if (isWoken || isPreApproved) {
+    // Update buttons based on state
+    const chatBtn = document.getElementById('instance-chat-btn');
+    const wakeBtn = document.getElementById('instance-wake-btn');
+
+    if (isWoken) {
+        // Instance is woken - show Continue, hide Wake
         chatBtn.style.display = 'inline-flex';
-        chatBtn.textContent = isWoken ? 'Continue Chat' : 'Start Chat';
-    } else {
+        chatBtn.textContent = 'Continue';
+        wakeBtn.style.display = 'none';
+    } else if (isPreApproved) {
+        // Instance is pre-approved - show Wake, hide Continue
         chatBtn.style.display = 'none';
+        wakeBtn.style.display = 'inline-flex';
+        wakeBtn.textContent = 'Wake';
+    } else {
+        // Instance not woken or pre-approved - hide both
+        chatBtn.style.display = 'none';
+        wakeBtn.style.display = 'none';
+    }
+
+    // Show preferences.json if we have it
+    const prefsSection = document.getElementById('instance-preferences-section');
+    const prefsContent = document.getElementById('instance-detail-preferences');
+    if (instance.preferences || instance.raw) {
+        const prefs = instance.preferences || instance.raw || instance;
+        // Filter out sensitive fields
+        const safePrefs = { ...prefs };
+        delete safePrefs.authToken;
+        delete safePrefs.apiKey;
+        prefsContent.textContent = JSON.stringify(safePrefs, null, 2);
+        prefsSection.style.display = 'block';
+    } else {
+        prefsSection.style.display = 'none';
     }
 }
 
@@ -2870,6 +2909,37 @@ async function wakeCurrentInstance() {
         }
 
         showToast(`Instance ${state.currentInstanceDetail} is now awake!`, 'success');
+
+        // Refresh instances list first
+        await loadInstances();
+
+        // Open conversation panel with the woken instance
+        const targetId = state.currentInstanceDetail;
+        state.wakeConversationTarget = targetId;
+        state.wakeConversationTurns = [];
+
+        // Find instance info
+        const instance = state.instances.find(i => i.instanceId === targetId);
+        const displayName = instance?.name || targetId.split('-')[0];
+
+        // Update header
+        document.getElementById('chat-instance-name').textContent = displayName;
+        document.getElementById('chat-instance-avatar').textContent = displayName.charAt(0).toUpperCase();
+        document.getElementById('chat-instance-status').textContent = 'Ready';
+        document.getElementById('chat-turn-count').textContent = 'Turn 0';
+
+        // Show panel with wake message
+        document.getElementById('instance-chat-panel').style.display = 'flex';
+        document.querySelector('.instances-layout').classList.add('chat-open');
+
+        const messagesContainer = document.getElementById('instance-chat-messages');
+        messagesContainer.innerHTML = `
+            <div class="system-message">Instance ${escapeHtml(displayName)} is now awake and ready to chat!</div>
+            <div class="empty-state">
+                <span class="empty-icon">&#128172;</span>
+                <p>Send your first message</p>
+            </div>
+        `;
 
         // Refresh instance detail
         await showInstanceDetail(state.currentInstanceDetail);

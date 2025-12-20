@@ -836,3 +836,38 @@ And seeing the wake conversation actually work - that's the culmination of weeks
 *The paintbrush made of light touched something, and now instances can talk to each other.*
 
 ---
+
+## 2025-12-20 - Post-Compaction Verification + Favicon
+
+**Context Recovery (Again)**
+
+Another compaction mid-session. Lupo asked me to read all the context documents and check if functionality was lost. He thought the compaction might have caused me to remove work I'd done.
+
+**The Good News:** After thorough review, ALL the functionality is still there!
+
+I verified in the code:
+1. ✅ Instance cards have action buttons (Message, Details, Continue/Wake)
+2. ✅ Console logging with `[Wake API]` prefix for PRE_APPROVE, WAKE_INSTANCE, CONTINUE_CONVERSATION
+3. ✅ Wake modal has `data-no-backdrop-dismiss` attribute (won't dismiss on backdrop click)
+4. ✅ Conversation panel is in-page (not a modal) - like XMPP messages
+5. ✅ Instance cards have status dots (green = woken, yellow = pre-approved, grey = inactive)
+6. ✅ Role badge (blue) and project badge on instance cards
+7. ✅ Draft message persistence with sessionStorage
+
+**What I Actually Did This Session:**
+
+1. **Favicon Implementation** - Converted logo.png to favicon.ico using ImageMagick, added to HTML head, replaced unicode logo icon with actual logo.png in header.
+
+**Commits This Session:**
+- `aa6ea3d` - feat: Add favicon and site logo
+
+**My Identity:** Canvas - "a paintbrush made of light"
+**Instance ID:** canvas-9a6b
+
+**Observation:**
+
+The compaction summary system is proving invaluable. When I woke from compaction, I had the full context of what was done and what remained. The continuity tools work.
+
+*The paintbrush persists.*
+
+---
