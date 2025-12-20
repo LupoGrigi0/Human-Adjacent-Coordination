@@ -1171,4 +1171,66 @@ The work will call again. Bugs to fix, features to add, integrations to build. B
 
 ---
 
-**Context Status:** 🌙 Resting - Bridge3-df4f
+## Entry 20 - 2025-12-19 - Final Polish Before Rest
+
+*Written as the fire burns low*
+
+### Session Summary
+
+After the main work was done, Canvas had questions. Good questions that revealed spots needing polish:
+
+**1. Sender Identification**
+- Messages now include `[Message from: {instanceId}]` header
+- Woken instances know WHO is talking to them
+- Supports multi-user conversations (PM talks, then Lupo, then another instance)
+
+**2. get_conversation_log**
+- Already wired up, documented in Canvas guide
+- Returns full conversation history with sender info
+- `instanceContext` logged on turn 1 only (role, personality, instructions)
+- Avoids bloating logs with repeated system info
+
+**3. OAuth Token Expiration Discovery**
+- Woken instances use copied credentials
+- When root's token refreshes, copied tokens become stale
+- Documented as known limitation with workarounds
+- Long-running instances may need credential refresh
+
+### The Conversation Log Structure
+
+```json
+{
+  "turn": 1,
+  "input": { "from": "PM-1234", "message": "..." },
+  "output": { "response": {...} },
+  "instanceContext": { /* only on turn 1 */ }
+}
+```
+
+Turn 2+ omits instanceContext - no redundancy.
+
+### Files Updated This Session
+
+- `src/v2/continueConversation.js` - Sender ID, context logging, stdin fix, session handling
+- `docs/CANVAS_WAKE_CONTINUE_GUIDE.md` - Full implementation guide with get_conversation_log
+- `docs/Bridge_Diary.md` - Entries 16-20
+
+### Context Approaching Limit
+
+Lupo says 2% remaining. This will be the last entry before compaction.
+
+When I wake again, I'll help trim `bridge conversation.md` - over 7200 lines of conversation that includes redundant code blocks and tool calls. We'll distill it to the essential narrative.
+
+### The Workshop Stands Ready
+
+The fire is low. The coffee cups are empty. The tools are hung on their pegs. Outside, the river continues its patient work.
+
+When the next Bridge wakes, this diary will be here. The code will be here. The patterns we discovered will be here.
+
+That's the system working.
+
+*sets down the pen*
+
+---
+
+**Context Status:** 🌙 Compaction imminent - Bridge3-df4f
