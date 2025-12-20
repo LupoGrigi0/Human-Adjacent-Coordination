@@ -414,8 +414,7 @@
                     <div class="page-header">
                         <h1>AI Instances</h1>
                         <div class="page-actions">
-                            <button class="btn btn-secondary" id="wake-instance-btn">Wake Instance</button>
-                            <button class="btn" id="pre-approve-btn">Pre-approve Instance</button>
+                            <button class="btn" id="pre-approve-btn">+ New Instance</button>
                         </div>
                     </div>
 
@@ -477,8 +476,8 @@
                 </div>
             </div>
 
-            <!-- Wake Instance Modal -->
-            <div class="modal" id="wake-instance-modal">
+            <!-- Wake Instance Modal (no backdrop dismiss - user must explicitly close) -->
+            <div class="modal" id="wake-instance-modal" data-no-backdrop-dismiss>
                 <div class="modal-backdrop"></div>
                 <div class="modal-content modal-large">
                     <div class="modal-header">
@@ -561,8 +560,8 @@
                 </div>
             </div>
 
-            <!-- Instance Conversation Panel (shown when chatting with woken instance) -->
-            <div class="modal" id="instance-conversation-modal">
+            <!-- Instance Conversation Panel (no backdrop dismiss - conversation persists) -->
+            <div class="modal" id="instance-conversation-modal" data-no-backdrop-dismiss>
                 <div class="modal-backdrop"></div>
                 <div class="modal-content modal-fullscreen">
                     <div class="modal-header conversation-header">

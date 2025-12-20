@@ -196,10 +196,15 @@ function setupEventListeners() {
         });
     });
 
-    // Modal backdrop click
+    // Modal backdrop click (only close modals that allow backdrop dismiss)
     document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
         backdrop.addEventListener('click', () => {
-            backdrop.closest('.modal').classList.remove('active');
+            const modal = backdrop.closest('.modal');
+            // Don't dismiss modals that have data-no-backdrop-dismiss attribute
+            // This includes conversation panel and wake modal
+            if (modal && !modal.hasAttribute('data-no-backdrop-dismiss')) {
+                modal.classList.remove('active');
+            }
         });
     });
 
@@ -1235,59 +1240,113 @@ async function loadInstances() {
             const displayName = instance.name || instance.instanceId || 'Unknown';
             const avatarChar = displayName.charAt(0).toUpperCase();
             const isActive = instance.status === 'active';
-            const lastSeen = instance.lastActiveAt ?
-                `Last active: ${new Date(instance.lastActiveAt).toLocaleDateString()}` :
-                'Never active';
 
-            // Determine woken status for badge
+            // Determine woken status
             const isWoken = instance.wokenStatus === 'woken' ||
                             instance.status === 'woken' ||
                             instance.sessionId;
             const isPreApproved = instance.wokenStatus === 'pre-approved' ||
                                   instance.status === 'pre-approved';
 
-            let wokenBadge = '';
-            if (isWoken) {
-                wokenBadge = '<span class="woken-badge woken">Woken</span>';
+            // Status dot color: green for active/woken, yellow for pre-approved, grey for inactive
+            let statusDotClass = 'status-dot-offline';
+            if (isWoken || isActive) {
+                statusDotClass = 'status-dot-online';
             } else if (isPreApproved) {
-                wokenBadge = '<span class="woken-badge pre-approved">Pre-approved</span>';
+                statusDotClass = 'status-dot-preapproved';
+            }
+
+            // Chat button: "Chat" if woken, "Wake" if pre-approved, hidden otherwise
+            let chatButtonHtml = '';
+            if (isWoken) {
+                chatButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation">Chat</button>`;
+            } else if (isPreApproved) {
+                chatButtonHtml = `<button class="btn btn-small btn-secondary instance-action-wake" data-instance-id="${instance.instanceId}" title="Wake this instance">Wake</button>`;
             }
 
             return `
-            <div class="instance-card ${isActive ? 'active' : ''}" data-instance-id="${instance.instanceId || ''}">
-                ${wokenBadge}
+            <div class="instance-card" data-instance-id="${instance.instanceId || ''}">
+                <span class="instance-status-dot ${statusDotClass}" title="${isWoken ? 'Woken' : isPreApproved ? 'Pre-approved' : isActive ? 'Active' : 'Inactive'}"></span>
                 <div class="instance-header">
-                    <div class="instance-avatar ${isActive ? 'online' : ''}">${avatarChar}</div>
+                    <div class="instance-avatar">${avatarChar}</div>
                     <div>
                         <div class="instance-name">${escapeHtml(displayName)}</div>
                         <div class="instance-id">${escapeHtml(instance.instanceId || '')}</div>
                     </div>
                 </div>
-                <div class="instance-details">
-                    <div class="instance-detail">
-                        <span>Role</span>
-                        <span class="badge badge-role">${instance.role || 'None'}</span>
-                    </div>
-                    <div class="instance-detail">
-                        <span>Personality</span>
-                        <span>${instance.personality || 'None'}</span>
-                    </div>
-                    <div class="instance-detail">
-                        <span>Project</span>
-                        <span>${instance.project || 'None'}</span>
-                    </div>
+                <div class="instance-meta">
+                    <span class="badge badge-role">${instance.role || 'No role'}</span>
+                    ${instance.project ? `<span class="badge badge-project">${instance.project}</span>` : ''}
                 </div>
-                <div class="instance-footer">
-                    <span class="instance-status ${isActive ? 'online' : 'offline'}">${isActive ? 'Active' : 'Inactive'}</span>
-                    <span class="instance-last-seen">${lastSeen}</span>
+                <div class="instance-actions">
+                    ${chatButtonHtml}
+                    <button class="btn btn-small btn-secondary instance-action-message" data-instance-id="${instance.instanceId}" title="Send XMPP message">Message</button>
+                    <button class="btn btn-small btn-ghost instance-action-details" data-instance-id="${instance.instanceId}" title="View details">Details</button>
                 </div>
             </div>`;
         }).join('');
 
-        // Add click handlers
-        grid.querySelectorAll('.instance-card').forEach(card => {
-            card.addEventListener('click', () => {
-                showInstanceDetail(card.dataset.instanceId);
+        // Add click handlers for action buttons
+        grid.querySelectorAll('.instance-action-chat').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openConversationPanel(btn.dataset.instanceId);
+            });
+        });
+
+        grid.querySelectorAll('.instance-action-wake').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const instanceId = btn.dataset.instanceId;
+                const apiKey = await ensureApiKey();
+                if (!apiKey) return;
+
+                btn.disabled = true;
+                btn.textContent = 'Waking...';
+
+                try {
+                    const wakeParams = {
+                        instanceId: state.instanceId,
+                        targetInstanceId: instanceId,
+                        apiKey: apiKey ? '[REDACTED]' : undefined
+                    };
+                    console.log('[Wake API] WAKE_FROM_CARD request:', JSON.stringify(wakeParams, null, 2));
+
+                    const result = await api.wakeInstance({
+                        instanceId: state.instanceId,
+                        targetInstanceId: instanceId,
+                        apiKey: apiKey
+                    });
+
+                    console.log('[Wake API] WAKE_FROM_CARD response:', JSON.stringify(result, null, 2));
+
+                    if (result.success || !result.error) {
+                        showToast(`Instance ${instanceId} is now awake!`, 'success');
+                        loadInstances();
+                        openConversationPanel(instanceId);
+                    } else {
+                        throw new Error(result.error?.message || 'Wake failed');
+                    }
+                } catch (error) {
+                    console.error('[Wake API] Error:', error);
+                    showToast('Wake failed: ' + error.message, 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Wake';
+                }
+            });
+        });
+
+        grid.querySelectorAll('.instance-action-message').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                messageInstance(btn.dataset.instanceId);
+            });
+        });
+
+        grid.querySelectorAll('.instance-action-details').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showInstanceDetail(btn.dataset.instanceId);
             });
         });
     } catch (error) {
@@ -1381,6 +1440,19 @@ function messageCurrentInstance() {
     switchTab('messages');
     setTimeout(() => {
         selectConversation('dm', instance.name || instance.instanceId);
+    }, 100);
+}
+
+/**
+ * Send XMPP message to a specific instance (by instanceId)
+ */
+function messageInstance(instanceId) {
+    const instance = state.instances.find(i => i.instanceId === instanceId);
+    const dmName = instance?.name || instanceId.split('-')[0];
+
+    switchTab('messages');
+    setTimeout(() => {
+        selectConversation('dm', dmName);
     }, 100);
 }
 
@@ -2657,7 +2729,16 @@ async function handleWakeSubmit() {
             const instructions = document.getElementById('wake-instructions').value.trim();
 
             // Pre-approve
-            console.log('[App] Pre-approving instance:', name);
+            const preApproveParams = {
+                instanceId: state.instanceId,
+                name: name,
+                role: role || undefined,
+                personality: personality || undefined,
+                instructions: instructions || undefined,
+                apiKey: apiKey ? '[REDACTED]' : undefined
+            };
+            console.log('[Wake API] PRE_APPROVE request:', JSON.stringify(preApproveParams, null, 2));
+
             const preApproveResult = await api.preApprove({
                 instanceId: state.instanceId,
                 name: name,
@@ -2667,23 +2748,33 @@ async function handleWakeSubmit() {
                 apiKey: apiKey
             });
 
+            console.log('[Wake API] PRE_APPROVE response:', JSON.stringify(preApproveResult, null, 2));
+
             if (!preApproveResult.success && preApproveResult.error) {
                 throw new Error(preApproveResult.error.message || 'Pre-approve failed');
             }
 
             targetInstanceId = preApproveResult.newInstanceId || preApproveResult.data?.newInstanceId;
-            console.log('[App] Pre-approved, got instanceId:', targetInstanceId);
+            console.log('[Wake API] Pre-approved, got instanceId:', targetInstanceId);
         }
 
         // Wake the instance
-        console.log('[App] Waking instance:', targetInstanceId);
         submitBtn.textContent = 'Waking...';
+
+        const wakeParams = {
+            instanceId: state.instanceId,
+            targetInstanceId: targetInstanceId,
+            apiKey: apiKey ? '[REDACTED]' : undefined
+        };
+        console.log('[Wake API] WAKE_INSTANCE request:', JSON.stringify(wakeParams, null, 2));
 
         const wakeResult = await api.wakeInstance({
             instanceId: state.instanceId,
             targetInstanceId: targetInstanceId,
             apiKey: apiKey
         });
+
+        console.log('[Wake API] WAKE_INSTANCE response:', JSON.stringify(wakeResult, null, 2));
 
         if (!wakeResult.success && wakeResult.error) {
             throw new Error(wakeResult.error.message || 'Wake failed');
@@ -2725,11 +2816,20 @@ async function wakeCurrentInstance() {
         btn.disabled = true;
         btn.textContent = 'Waking...';
 
+        const wakeParams = {
+            instanceId: state.instanceId,
+            targetInstanceId: state.currentInstanceDetail,
+            apiKey: apiKey ? '[REDACTED]' : undefined
+        };
+        console.log('[Wake API] WAKE_CURRENT_INSTANCE request:', JSON.stringify(wakeParams, null, 2));
+
         const wakeResult = await api.wakeInstance({
             instanceId: state.instanceId,
             targetInstanceId: state.currentInstanceDetail,
             apiKey: apiKey
         });
+
+        console.log('[Wake API] WAKE_CURRENT_INSTANCE response:', JSON.stringify(wakeResult, null, 2));
 
         if (!wakeResult.success && wakeResult.error) {
             throw new Error(wakeResult.error.message || 'Wake failed');
@@ -2741,7 +2841,7 @@ async function wakeCurrentInstance() {
         await showInstanceDetail(state.currentInstanceDetail);
 
     } catch (error) {
-        console.error('[App] Wake error:', error);
+        console.error('[Wake API] Wake error:', error);
         showToast('Wake failed: ' + error.message, 'error');
     } finally {
         btn.disabled = false;
@@ -2783,8 +2883,16 @@ async function openConversationPanel(targetInstanceId) {
     const messagesContainer = document.getElementById('conv-messages');
     messagesContainer.innerHTML = '<div class="loading-placeholder">Loading conversation history...</div>';
 
-    // Clear input
-    document.getElementById('conv-message-input').value = '';
+    // Restore draft message if any, or clear
+    const draftKey = `conv_draft_${targetInstanceId}`;
+    const savedDraft = sessionStorage.getItem(draftKey);
+    const inputEl = document.getElementById('conv-message-input');
+    inputEl.value = savedDraft || '';
+
+    // Save draft as user types (debounced)
+    inputEl.oninput = () => {
+        sessionStorage.setItem(draftKey, inputEl.value);
+    };
 
     // Show modal
     document.getElementById('instance-conversation-modal').classList.add('active');
@@ -2938,8 +3046,9 @@ async function sendConversationMessage() {
         fullMessage = fullMessage + uiConfig.MESSAGE_POSTSCRIPT;
     }
 
-    // Clear input immediately
+    // Clear input and draft immediately
     input.value = '';
+    sessionStorage.removeItem(`conv_draft_${state.wakeConversationTarget}`);
 
     // Add optimistic message to display
     const optimisticTurn = {
@@ -2973,6 +3082,19 @@ async function sendConversationMessage() {
     statusEl.className = 'status-indicator thinking';
 
     try {
+        const continueParams = {
+            instanceId: state.instanceId,
+            targetInstanceId: state.wakeConversationTarget,
+            message: fullMessage.substring(0, 100) + (fullMessage.length > 100 ? '...' : ''),
+            apiKey: apiKey ? '[REDACTED]' : undefined,
+            options: {
+                outputFormat: 'json',
+                timeout: uiConfig.CONVERSATION_TIMEOUT
+            }
+        };
+        console.log('[Wake API] CONTINUE_CONVERSATION request:', JSON.stringify(continueParams, null, 2));
+        console.log('[Wake API] Full message length:', fullMessage.length);
+
         const result = await api.continueConversation({
             instanceId: state.instanceId,
             targetInstanceId: state.wakeConversationTarget,
@@ -2983,6 +3105,8 @@ async function sendConversationMessage() {
                 timeout: uiConfig.CONVERSATION_TIMEOUT
             }
         });
+
+        console.log('[Wake API] CONTINUE_CONVERSATION response:', JSON.stringify(result, null, 2));
 
         // Remove thinking indicator
         thinkingEl.remove();
@@ -3007,7 +3131,7 @@ async function sendConversationMessage() {
         statusEl.className = 'status-indicator ready';
 
     } catch (error) {
-        console.error('[App] Conversation error:', error);
+        console.error('[Wake API] Conversation error:', error);
 
         // Remove thinking indicator
         thinkingEl.remove();
