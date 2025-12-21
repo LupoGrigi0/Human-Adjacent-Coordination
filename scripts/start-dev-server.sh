@@ -43,6 +43,15 @@ echo "✅ Port $PORT is free"
 # Change to dev directory
 cd "$DEV_DIR"
 
+# Load secrets (API keys, etc) - not in git
+SECRETS_FILE="$DEV_DIR/secrets.env"
+if [ -f "$SECRETS_FILE" ]; then
+    echo "🔑 Loading secrets from secrets.env"
+    source "$SECRETS_FILE"
+else
+    echo "⚠️  Warning: secrets.env not found - WAKE_API_KEY will not be set"
+fi
+
 # Start the dev server
 echo "🚀 Starting V2 Dev MCP Server..."
 echo "   Working Directory: $DEV_DIR"
@@ -54,6 +63,7 @@ SSE_PORT=$PORT \
 SSE_HOST=0.0.0.0 \
 NODE_ENV=development \
 DATA_PATH="$DATA_DIR" \
+WAKE_API_KEY="$WAKE_API_KEY" \
 node src/streamable-http-server.js > "$LOG_DIR/dev-server.log" 2>&1 &
 
 DEV_PID=$!

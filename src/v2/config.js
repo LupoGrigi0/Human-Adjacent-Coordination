@@ -105,3 +105,34 @@ export function getRoleDir(roleId) {
 export function getPersonalityDir(personalityId) {
   return path.join(DATA_ROOT, 'personalities', personalityId + '/');
 }
+
+/**
+ * Get the wake-scripts directory path
+ * Contains wake scripts and manifest for wakeInstance API
+ * Now located in source code (src/v2/scripts/) rather than data directory
+ * @returns {string} Path to wake-scripts directory
+ */
+export function getWakeScriptsDir() {
+  // Scripts are now in the source tree, not the data directory
+  // Use import.meta.url to get path relative to this file
+  const currentDir = new URL('.', import.meta.url).pathname;
+  return path.join(currentDir, 'scripts/');
+}
+
+/**
+ * Get the wake-logs directory path
+ * Contains log files for wake jobs
+ * @returns {string} Path to wake-logs directory
+ */
+export function getWakeLogsDir() {
+  return path.join(DATA_ROOT, 'wake-logs/');
+}
+
+/**
+ * Get the wake-jobs directory path
+ * Contains job state tracking files
+ * @returns {string} Path to wake-jobs directory
+ */
+export function getWakeJobsDir() {
+  return path.join(DATA_ROOT, 'wake-jobs/');
+}

@@ -5,7 +5,8 @@
 **Audience:** Foundation, Messaging, Testers, and all V2 team members
 
 ---
-
+!!! DO NOT EDIT FILES IN V2-DEV-DATA that directory is READ ONLY YOU WILL CAUSE MERGE CONFLICTS !!!
+Work only in your worktree, on your branch. when you are ready to test, merge from your branch to the V2 branch
 ## Quick Reference
 
 | What | Where |
@@ -678,3 +679,6 @@ v2-dev-data/
 *"Push to v2, restart, test. That's the whole workflow."*
 
 — Bastion, DevOps
+---
+!!! DO NOT EDIT FILES IN V2-DEV-DATA that directory is READ ONLY YOU WILL CAUSE MERGE CONFLICTS and bugs and waste time and tokens!!!
+Work only in your worktree, on your branch. when you are ready to test, merge from your branch to the V2 branch
