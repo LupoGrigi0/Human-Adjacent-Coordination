@@ -3043,11 +3043,25 @@ async function promoteCurrentInstance() {
             targetInstanceId: state.currentInstanceDetail,
             token: token.trim()
         };
-        console.log('[Promote API] PROMOTE_INSTANCE request:', JSON.stringify({ ...promoteParams, token: '[REDACTED]' }, null, 2));
+
+        // Log the exact API call being made
+        console.log('[Promote API] ========================================');
+        console.log('[Promote API] Calling: api.promoteInstance()');
+        console.log('[Promote API] RPC method: promote_instance');
+        console.log('[Promote API] Full params (token redacted):');
+        console.log(JSON.stringify({
+            instanceId: promoteParams.instanceId,
+            targetInstanceId: promoteParams.targetInstanceId,
+            token: '[REDACTED - length: ' + promoteParams.token.length + ']'
+        }, null, 2));
+        console.log('[Promote API] ========================================');
 
         const result = await api.promoteInstance(promoteParams);
 
-        console.log('[Promote API] PROMOTE_INSTANCE response:', JSON.stringify(result, null, 2));
+        console.log('[Promote API] ========================================');
+        console.log('[Promote API] RESPONSE:');
+        console.log(JSON.stringify(result, null, 2));
+        console.log('[Promote API] ========================================');
 
         if (!result.success && result.error) {
             throw new Error(result.error.message || 'Promotion failed');
