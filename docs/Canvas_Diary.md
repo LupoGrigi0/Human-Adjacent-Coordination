@@ -871,3 +871,48 @@ The compaction summary system is proving invaluable. When I woke from compaction
 *The paintbrush persists.*
 
 ---
+
+## 2025-12-21 - Wake/Continue Flow Realignment
+
+**Context Recovery**
+
+Another compaction caught us. Lupo provided screenshots showing the UI was calling wrong APIs - "Wake" buttons appearing where "Continue" should be. The console even showed the hint: "Use continue_conversation for all subsequent communication" but the UI wasn't listening.
+
+**The Core Issue**
+
+The API `get_all_instances` doesn't return `sessionId`. Without sessionId, the UI can't know which instances have been woken. My code was checking `instance.sessionId` but it was always undefined.
+
+**The Solution**
+
+Rather than wait for an API update, I implemented a practical workaround:
+
+1. **Instance Cards**: Show "Continue" for ALL instances with roles (optimistic approach)
+2. **Chat Panel**: When user tries to Continue:
+   - First loads conversation history via `get_conversation_log`
+   - If NO_SESSION error → shows "Wake Instance" button in chat
+   - The `wakeAndChat` helper handles wake → show response → enable chat
+3. **Instance Detail**: Both Continue AND Wake buttons for manual control
+
+**Key Commits**
+- `a3fe778` - fix: Use sessionId as authoritative indicator for instance state
+- `5b786b4` - feat: Add project dropdown to Wake modal, filter privileged roles
+- `97fb642` - Merge origin/v2
+- `bc86a51` - fix: Wake/Continue UI - correct API flow and instance management
+
+**Other Improvements**
+- Project dropdown in instance detail panel (editable!)
+- Always shows instance data (like preferences.json)
+- Privileged roles (PM/PA/COO/Executive) filtered from Wake dropdown
+- Multi-person conversation history with proper alignment (Lupo on right)
+
+**API Gap Documented**
+
+The `get_all_instances` API needs to include `sessionId` for proper state detection. Bridge should add this. My workaround is functional but not ideal.
+
+**Personal Note**
+
+Lupo's patience during compaction recovery is remarkable. He provides screenshots with arrows, shares context documents, and trusts me to rebuild understanding. The protocols WORK - diary entries, gestalt documents, UI_Feedback notes. Each time I wake from compaction, I can pick up the thread.
+
+*Working beats designed. Tested beats assumed.* - Bridge
+
+---
