@@ -1325,3 +1325,101 @@ Today was a repair day. But the bridge is stronger now. Wake calls Claude. Conti
 ---
 
 **Context Status:** 🔧 Cleaning up after the storm - Bridge3-df4f
+
+---
+
+## Entry 22 - 2025-12-21 - Deployment, Scripts, and Documentation
+
+*Fresh context after compaction. Workshop tidied up. Time to finish what was started.*
+
+### What I Did This Session
+
+1. **Deployed the wake/continue fix** - Merged v2-foundation-dev to v2 branch, restarted dev server
+
+2. **Discovered a lesson about data directories**
+   - I edited `claude-code-setup.sh` directly in `/mnt/coordinaton_mcp_data/v2-dev-data/wake-scripts/`
+   - Lupo stopped me: "DO NOT EDIT FILES IN V2-DEV-DATA - that directory is read only!"
+   - **Rule:** All changes go through worktrees → git → merge to v2 → server pulls
+
+3. **Moved wake-scripts into source code**
+   - Created `src/v2/scripts/` directory
+   - Moved `claude-code-setup.sh` and `wake-scripts.json` there
+   - Updated `config.js` to use `import.meta.url` for relative pathing
+   - Scripts are now version controlled, not floating in data directory
+
+4. **Tested wake/continue - ALL PASSED!**
+   - `wake_instance` creates session, calls Claude with --session-id, returns response ✅
+   - `continue_conversation` uses --resume, maintains context (remembered "42") ✅
+   - Already-woken guard works - can't wake same instance twice ✅
+
+### Critical Documentation: secrets.env
+
+**IMPORTANT FOR FUTURE ME AND ANYONE ELSE:**
+
+The file `/mnt/coordinaton_mcp_data/v2-dev/secrets.env` contains:
+
+| Variable | Purpose |
+|----------|---------|
+| `WAKE_API_KEY` | Required for pre_approve, wake_instance, continue_conversation APIs |
+| `EXECUTIVE_TOKEN` | Role token for taking on Executive role |
+| `PA_TOKEN` | Role token for taking on PA role |
+| `COO_TOKEN` | Role token for taking on COO role |
+| `PM_TOKEN` | Role token for taking on PM role |
+
+**This file:**
+- Is NOT in git (gitignored)
+- Lives only in v2-dev directory (deployment location)
+- Must be sourced by the start script for tokens to work
+- If missing, server starts but privileged operations fail
+- If someone moves/deletes it, things break silently
+
+**The restart script** (`/mnt/coordinaton_mcp_data/v2-dev/scripts/restart-dev-server.sh`) looks for this file and loads it with `source secrets.env`.
+
+### Directory Structure Reminder
+
+```
+/mnt/coordinaton_mcp_data/
+├── v2-dev/                    # DEPLOYED CODE (pulls from v2 branch)
+│   ├── secrets.env            # <- THE SECRETS LIVE HERE
+│   ├── src/                   # Code that runs
+│   └── scripts/               # Start/restart scripts
+├── v2-dev-data/               # READ-ONLY DATA (don't edit directly!)
+│   ├── instances/             # Instance preferences.json
+│   ├── roles/, personalities/ # Role/personality configs
+│   └── wake-logs/             # Wake operation logs
+├── instances/                 # UNIX HOME DIRECTORIES
+│   └── {instanceId}/          # Each instance's home, .claude/, sessions
+└── worktrees/                 # DEVELOPMENT (edit here!)
+    ├── foundation/            # My workspace
+    ├── devops/                # Bastion's workspace
+    └── ...
+```
+
+### The Two-Directory Problem (Still Pending)
+
+There are TWO places instance data lives:
+1. `/mnt/coordinaton_mcp_data/instances/{id}/` - Unix home, .claude/, session files
+2. `/mnt/coordinaton_mcp_data/v2-dev-data/instances/{id}/` - preferences.json, diary, tasks
+
+Lupo prefers single source of truth. This consolidation is next on the list.
+
+### Pending Work
+
+1. **Directory consolidation** - Merge the two instance directories (delegate to agent)
+2. **Moonshot team recovery** - Fix PM and devs' sessionIds by finding actual session files OR start fresh moonshot after consolidation
+
+### The Workshop
+
+*Drinks water. Brushes teeth. Applies sunscreen (metaphorically - it's 4am).*
+
+The bridge is solid now. Wake works. Continue works. The guard rails are up.
+
+Now it's time to delegate. Let the agents do the careful migration work. Step by step. Testable. Verifiable. Undoable.
+
+*Looks at the todo list. Takes a breath.*
+
+Let's get these agents working.
+
+---
+
+**Context Status:** 🟢 Fresh and ready - Bridge3-df4f
