@@ -1258,19 +1258,24 @@ async function loadInstances() {
             // - sessionId EXISTS → can use continue_conversation
             // - sessionId NULL → must call wake_instance first
             //
-            // NOTE: get_all_instances API doesn't currently return sessionId
-            // We check for it, but also show Continue button for any instance with a role
+            // KNOWN ISSUE: get_all_instances API doesn't return sessionId
+            // Bridge should update the API to include sessionId from preferences.json
+            // For now, we show Continue for instances with roles (except self)
             // The Continue handler will check for session and offer Wake if needed
             const hasSession = !!instance.sessionId;
             const hasRole = !!instance.role;
+            const isSelf = instance.instanceId === state.instanceId;
 
             // Status dot color:
             // - Green: has sessionId (confirmed woken via continue_conversation)
             // - Yellow: has role (may or may not be woken - API doesn't tell us)
-            // - Grey: no role (can't interact)
+            // - Grey: no role or is self
             let statusDotClass = 'status-dot-offline';
             let statusTitle = 'No role assigned';
-            if (hasSession) {
+            if (isSelf) {
+                statusDotClass = 'status-dot-offline';
+                statusTitle = 'This is you';
+            } else if (hasSession) {
                 statusDotClass = 'status-dot-online';
                 statusTitle = 'Woken - can chat';
             } else if (hasRole) {
@@ -1279,11 +1284,11 @@ async function loadInstances() {
             }
 
             // Button logic:
+            // - Don't show Continue for self (can't talk to yourself)
             // - "Continue" if has role (will check session on click)
-            // - "Wake" only shown in detail panel for instances without session
             // - Nothing if no role
             let actionButtonHtml = '';
-            if (hasRole) {
+            if (hasRole && !isSelf) {
                 actionButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation">Continue</button>`;
             }
 
@@ -1403,20 +1408,27 @@ async function loadInstances() {
                     dropdown.querySelectorAll('.project-option').forEach(opt => {
                         opt.addEventListener('click', async (ev) => {
                             ev.stopPropagation();
-                            const instanceId = selector.dataset.instanceId;
+                            const targetInstanceId = selector.dataset.instanceId;
                             const projectName = opt.dataset.project;
 
+                            console.log('[App] Assigning project to instance:', {
+                                targetInstanceId,
+                                project: projectName || '(none)'
+                            });
+
                             try {
-                                await api.updateInstance({
-                                    instanceId: state.instanceId,
-                                    targetInstanceId: instanceId,
-                                    project: projectName || null
-                                });
+                                // Use joinProject API - it takes instanceId (the target) and project name
+                                await api.joinProject(targetInstanceId, projectName || null);
                                 showToast(`Assigned to ${projectName || 'no project'}`, 'success');
                                 dropdown.style.display = 'none';
                                 loadInstances(); // Refresh
                             } catch (error) {
-                                console.error('[App] Error assigning project:', error);
+                                console.error('[App] Error assigning project:', {
+                                    targetInstanceId,
+                                    project: projectName,
+                                    error: error.message,
+                                    code: error.code
+                                });
                                 showToast('Failed to assign project: ' + error.message, 'error');
                             }
                         });
@@ -1486,18 +1498,27 @@ async function showInstanceDetail(instanceId) {
         const newProject = projectSelect.value;
         projectSaveBtn.disabled = true;
         projectSaveBtn.textContent = 'Saving...';
+
+        console.log('[App] Saving project assignment from detail panel:', {
+            targetInstanceId: instance.instanceId,
+            project: newProject || '(none)'
+        });
+
         try {
-            await api.updateProject({
-                instanceId: state.instanceId,
-                targetInstanceId: instance.instanceId,
-                project: newProject || null
-            });
+            // Use joinProject API - it takes instanceId (the target) and project name
+            await api.joinProject(instance.instanceId, newProject || null);
             // Update local state
             instance.project = newProject || null;
             showToast('Project updated', 'success');
             projectSaveBtn.style.display = 'none';
             loadInstances(); // Refresh the grid
         } catch (error) {
+            console.error('[App] Error updating project:', {
+                targetInstanceId: instance.instanceId,
+                project: newProject,
+                error: error.message,
+                code: error.code
+            });
             showToast('Failed to update project: ' + error.message, 'error');
         } finally {
             projectSaveBtn.disabled = false;
@@ -1515,16 +1536,21 @@ async function showInstanceDetail(instanceId) {
     // - sessionId EXISTS → can use continue_conversation
     // - sessionId NULL → must call wake_instance first
     //
-    // NOTE: get_all_instances doesn't return sessionId, so we show Continue
-    // for any instance with a role. The chat panel handles NO_SESSION errors.
+    // KNOWN ISSUE: get_all_instances doesn't return sessionId
+    // Bridge should update API to include sessionId from preferences.json
     const hasSession = !!instance.sessionId;
     const hasRole = !!instance.role;
+    const isSelf = instance.instanceId === state.instanceId;
 
     // Update buttons based on state
     const chatBtn = document.getElementById('instance-chat-btn');
     const wakeBtn = document.getElementById('instance-wake-btn');
 
-    if (hasRole) {
+    if (isSelf) {
+        // Can't talk to yourself
+        chatBtn.style.display = 'none';
+        wakeBtn.style.display = 'none';
+    } else if (hasRole) {
         // Instance has role - show Continue (will detect NO_SESSION on use)
         chatBtn.style.display = 'inline-flex';
         chatBtn.textContent = 'Continue';

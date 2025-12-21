@@ -66,6 +66,19 @@ async function rpcCall(method, args = {}) {
     }
   };
 
+  // Log the request (redact sensitive fields)
+  const safeArgs = { ...args };
+  if (safeArgs.apiKey) safeArgs.apiKey = `[REDACTED len=${safeArgs.apiKey.length}]`;
+  if (safeArgs.token) safeArgs.token = `[REDACTED len=${safeArgs.token.length}]`;
+  if (safeArgs.authKey) safeArgs.authKey = `[REDACTED len=${safeArgs.authKey.length}]`;
+
+  console.log(`[API] ▶ ${method}`, {
+    url,
+    requestId: id,
+    args: safeArgs
+  });
+  const startTime = performance.now();
+
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -75,20 +88,54 @@ async function rpcCall(method, args = {}) {
       body: JSON.stringify(payload)
     });
 
+    const duration = Math.round(performance.now() - startTime);
+
     if (!response.ok) {
+      console.error(`[API] ✗ ${method} HTTP ERROR`, {
+        status: response.status,
+        statusText: response.statusText,
+        duration: `${duration}ms`
+      });
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     const json = await response.json();
 
     if (json.error) {
+      console.error(`[API] ✗ ${method} API ERROR`, {
+        error: json.error,
+        duration: `${duration}ms`
+      });
       throw new ApiError(json.error.message, json.error.code, json.error.data);
     }
 
     // Extract data from the result structure
-    return json.result?.data || json.result;
+    const result = json.result?.data || json.result;
+
+    // Log success (truncate large responses)
+    const logResult = result;
+    console.log(`[API] ✓ ${method}`, {
+      duration: `${duration}ms`,
+      success: result?.success,
+      hasData: !!result,
+      keys: result ? Object.keys(result).slice(0, 10) : []
+    });
+
+    return result;
   } catch (error) {
-    if (error instanceof ApiError) throw error;
+    const duration = Math.round(performance.now() - startTime);
+    if (error instanceof ApiError) {
+      console.error(`[API] ✗ ${method} FAILED`, {
+        error: error.message,
+        code: error.code,
+        duration: `${duration}ms`
+      });
+      throw error;
+    }
+    console.error(`[API] ✗ ${method} NETWORK ERROR`, {
+      error: error.message,
+      duration: `${duration}ms`
+    });
     throw new ApiError(`Network error: ${error.message}`, 'NETWORK_ERROR');
   }
 }
