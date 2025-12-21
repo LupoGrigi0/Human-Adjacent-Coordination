@@ -60,7 +60,7 @@ import {
 // V2 UI State (persistent UI preferences)
 import { getUiState, setUiState, updateUiState } from './v2/uiState.js';
 // V2 Wake Instance (spawn new Claude instances)
-import { wakeInstance, getWakeScripts, getWakeLog } from './v2/wakeInstance.js';
+import { wakeInstance, getWakeScripts } from './v2/wakeInstance.js';
 // V2 Continue Conversation (communicate with woken instances)
 import { continueConversation, getConversationLog } from './v2/continueConversation.js';
 
@@ -410,8 +410,7 @@ class MCPCoordinationServer {
           return wakeInstance(params);
         case 'get_wake_scripts':
           return getWakeScripts(params);
-        case 'get_wake_log':
-          return getWakeLog(params);
+        // NOTE: get_wake_log removed 2025-12-21 - wake is now synchronous
 
         // V2 Continue Conversation APIs
         case 'continue_conversation':
@@ -559,7 +558,6 @@ class MCPCoordinationServer {
       // Wake Instance (spawn new Claude instances)
       'wake_instance',
       'get_wake_scripts',
-      'get_wake_log',
       // Continue Conversation (communicate with woken instances)
       'continue_conversation',
       'get_conversation_log'

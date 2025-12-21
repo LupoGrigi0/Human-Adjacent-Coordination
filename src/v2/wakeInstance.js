@@ -1,30 +1,27 @@
 /**
  * Wake Instance handler for V2 coordination system
- * Provides script-based spawning of new Claude instances
+ * Wakes a pre-approved instance by setting up environment and starting first Claude session
+ *
+ * DESIGN: wake_instance is called ONCE per instance. It:
+ * 1. Sets up Unix user and working directory
+ * 2. Calls Claude with --session-id to start the first conversation
+ * 3. Returns the response from that first conversation
+ *
+ * All subsequent communication uses continue_conversation with --resume.
  *
  * @module wakeInstance
  * @author Bridge
  * @created 2025-12-13
+ * @updated 2025-12-21 - Simplified: removed async job tracking, wake now calls Claude directly
  */
 
 import path from 'path';
 import fs from 'fs/promises';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { randomUUID } from 'crypto';
-import { getWakeScriptsDir, getWakeLogsDir, getWakeJobsDir } from './config.js';
-import { readPreferences, writePreferences, ensureDir, readJSON, writeJSON } from './data.js';
+import { getWakeScriptsDir, getWakeLogsDir } from './config.js';
+import { readPreferences, writePreferences, ensureDir, readJSON } from './data.js';
 import { canRoleCallAPI } from './permissions.js';
-
-/**
- * Generate a unique job ID for a wake job
- * Format: wake-{timestamp}-{random4hex}
- * @returns {string} Unique job ID
- */
-function generateJobId() {
-  const timestamp = Date.now();
-  const random = Math.random().toString(16).substring(2, 6);
-  return `wake-${timestamp}-${random}`;
-}
 
 /**
  * Load the wake-scripts manifest
@@ -36,97 +33,94 @@ async function loadManifest() {
 }
 
 /**
- * Read job state from wake-jobs directory
- * @param {string} jobId - Job ID
- * @returns {Promise<Object|null>} Job state or null if not found
- */
-async function readJobState(jobId) {
-  const jobPath = path.join(getWakeJobsDir(), `${jobId}.json`);
-  return readJSON(jobPath);
-}
-
-/**
- * Write job state to wake-jobs directory
- * @param {string} jobId - Job ID
- * @param {Object} state - Job state object
- * @returns {Promise<void>}
- */
-async function writeJobState(jobId, state) {
-  await ensureDir(getWakeJobsDir());
-  const jobPath = path.join(getWakeJobsDir(), `${jobId}.json`);
-  await writeJSON(jobPath, state);
-}
-
-/**
- * Execute a wake script with given arguments
- * Spawns script as detached process and returns immediately
+ * Execute setup script synchronously and wait for completion
  *
  * @param {string} scriptPath - Full path to script
  * @param {string[]} args - Array of command line arguments
  * @param {string} logPath - Path for output log file
- * @param {string} jobId - Job ID for state tracking
- * @returns {Promise<Object>} Result with pid and status
+ * @returns {Object} Result with success/error
  */
-async function executeScript(scriptPath, args, logPath, jobId) {
-  await ensureDir(getWakeLogsDir());
-
-  // Open log file for writing
-  const logHandle = await fs.open(logPath, 'w');
-
-  // Spawn script detached so it survives parent exit
-  const child = spawn(scriptPath, args, {
-    detached: true,
-    stdio: ['ignore', logHandle.fd, logHandle.fd],
-    cwd: getWakeScriptsDir()
-  });
-
-  // Don't wait for child
-  child.unref();
-
-  // Track initial job state
-  await writeJobState(jobId, {
-    jobId,
-    status: 'running',
-    pid: child.pid,
-    scriptPath,
-    args,
-    logPath,
-    startedAt: new Date().toISOString(),
-    exitCode: null
-  });
-
-  // Set up exit handler to update job state
-  child.on('exit', async (code) => {
-    try {
-      const state = await readJobState(jobId);
-      if (state) {
-        state.status = code === 0 ? 'completed' : 'failed';
-        state.exitCode = code;
-        state.completedAt = new Date().toISOString();
-        await writeJobState(jobId, state);
-      }
-    } catch (err) {
-      // Best effort - script may have outlived us
-    }
-    logHandle.close();
-  });
-
-  return {
-    pid: child.pid,
-    status: 'started'
-  };
+function executeSetupScript(scriptPath, args, logPath) {
+  try {
+    // Run script synchronously - it only takes 1-2 seconds
+    const command = `"${scriptPath}" ${args.map(a => `"${a}"`).join(' ')} >> "${logPath}" 2>&1`;
+    execSync(command, {
+      cwd: getWakeScriptsDir(),
+      timeout: 30000  // 30 second timeout for setup
+    });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 }
 
 /**
- * Wake a pre-approved instance by executing a wake script
+ * Execute Claude command and capture output
+ * Runs as the specified Unix user
+ *
+ * @param {string} workingDir - Directory to run command in
+ * @param {string[]} args - Command arguments for claude
+ * @param {string} unixUser - Unix user to run as
+ * @param {number} timeout - Timeout in ms (default 5 minutes)
+ * @returns {Promise<Object>} Result with stdout, stderr, exitCode
+ */
+async function executeClaude(workingDir, args, unixUser, timeout = 300000) {
+  return new Promise((resolve, reject) => {
+    const sudoArgs = ['-u', unixUser, 'claude', ...args];
+
+    const child = spawn('sudo', sudoArgs, {
+      cwd: workingDir,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    // Close stdin immediately
+    child.stdin.end();
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    child.on('close', (code) => {
+      resolve({ exitCode: code, stdout, stderr });
+    });
+
+    child.on('error', (err) => {
+      reject(err);
+    });
+
+    setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error(`Command timed out after ${timeout}ms`));
+    }, timeout);
+  });
+}
+
+/**
+ * Wake a pre-approved instance
+ *
+ * This function:
+ * 1. Validates the instance is pre-approved and NOT already woken
+ * 2. Runs the setup script to create Unix user and environment
+ * 3. Calls Claude with --session-id to start the first conversation
+ * 4. Returns the response from that first conversation
+ *
+ * After wake_instance succeeds, use continue_conversation for all subsequent communication.
  *
  * @param {Object} params - Parameters
  * @param {string} params.instanceId - Caller instance ID (required, for auth)
  * @param {string} params.targetInstanceId - Pre-approved instance to wake (required)
  * @param {string} params.apiKey - API key for wake operations (required, from WAKE_API_KEY env)
+ * @param {string} [params.message] - Optional first message (default: uses instructions from pre_approve)
  * @param {string} [params.scriptName] - Script name from manifest (default: from manifest default)
- * @param {string} [params.workingDirectory] - Override working directory (default: auto-generated from instanceId)
- * @returns {Promise<Object>} Result with jobId and status
+ * @param {string} [params.workingDirectory] - Override working directory (default: auto-generated)
+ * @returns {Promise<Object>} Result with session info and first response
  */
 export async function wakeInstance(params) {
   const metadata = {
@@ -151,15 +145,12 @@ export async function wakeInstance(params) {
     };
   }
 
-  // API Key protection - required for wake operations
+  // API Key protection
   const requiredKey = process.env.WAKE_API_KEY;
   if (!requiredKey) {
     return {
       success: false,
-      error: {
-        code: 'SERVER_CONFIG_ERROR',
-        message: 'WAKE_API_KEY not configured on server'
-      },
+      error: { code: 'SERVER_CONFIG_ERROR', message: 'WAKE_API_KEY not configured on server' },
       metadata
     };
   }
@@ -167,10 +158,7 @@ export async function wakeInstance(params) {
   if (!params.apiKey) {
     return {
       success: false,
-      error: {
-        code: 'API_KEY_REQUIRED',
-        message: 'apiKey is required for wake_instance'
-      },
+      error: { code: 'API_KEY_REQUIRED', message: 'apiKey is required for wake_instance' },
       metadata
     };
   }
@@ -178,10 +166,7 @@ export async function wakeInstance(params) {
   if (params.apiKey !== requiredKey) {
     return {
       success: false,
-      error: {
-        code: 'INVALID_API_KEY',
-        message: 'Invalid API key'
-      },
+      error: { code: 'INVALID_API_KEY', message: 'Invalid API key' },
       metadata
     };
   }
@@ -191,10 +176,7 @@ export async function wakeInstance(params) {
   if (!callerPrefs) {
     return {
       success: false,
-      error: {
-        code: 'INVALID_INSTANCE_ID',
-        message: `Caller instance ${params.instanceId} not found`
-      },
+      error: { code: 'INVALID_INSTANCE_ID', message: `Caller instance ${params.instanceId} not found` },
       metadata
     };
   }
@@ -203,10 +185,7 @@ export async function wakeInstance(params) {
   if (!callerRole) {
     return {
       success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Caller instance does not have a role assigned'
-      },
+      error: { code: 'UNAUTHORIZED', message: 'Caller instance does not have a role assigned' },
       metadata
     };
   }
@@ -216,10 +195,7 @@ export async function wakeInstance(params) {
   if (!hasPermission) {
     return {
       success: false,
-      error: {
-        code: 'UNAUTHORIZED',
-        message: `Role "${callerRole}" does not have permission to call wakeInstance`
-      },
+      error: { code: 'UNAUTHORIZED', message: `Role "${callerRole}" does not have permission to call wakeInstance` },
       metadata
     };
   }
@@ -229,10 +205,7 @@ export async function wakeInstance(params) {
   if (!targetPrefs) {
     return {
       success: false,
-      error: {
-        code: 'INSTANCE_NOT_FOUND',
-        message: `Target instance ${params.targetInstanceId} not found`
-      },
+      error: { code: 'INSTANCE_NOT_FOUND', message: `Target instance ${params.targetInstanceId} not found` },
       metadata
     };
   }
@@ -240,9 +213,20 @@ export async function wakeInstance(params) {
   if (!targetPrefs.preApproved) {
     return {
       success: false,
+      error: { code: 'INSTANCE_NOT_PREAPPROVED', message: `Instance ${params.targetInstanceId} is not pre-approved. Use preApprove first.` },
+      metadata
+    };
+  }
+
+  // CHECK IF ALREADY WOKEN - this is the key guard
+  if (targetPrefs.sessionId) {
+    return {
+      success: false,
       error: {
-        code: 'INSTANCE_NOT_PREAPPROVED',
-        message: `Instance ${params.targetInstanceId} is not pre-approved. Use preApprove first.`
+        code: 'INSTANCE_ALREADY_WOKEN',
+        message: `Instance ${params.targetInstanceId} has already been woken. Use continue_conversation instead.`,
+        sessionId: targetPrefs.sessionId,
+        hint: `Call continue_conversation({ targetInstanceId: "${params.targetInstanceId}", message: "..." })`
       },
       metadata
     };
@@ -253,10 +237,7 @@ export async function wakeInstance(params) {
   if (!manifest) {
     return {
       success: false,
-      error: {
-        code: 'MANIFEST_NOT_FOUND',
-        message: 'wake-scripts.json manifest not found'
-      },
+      error: { code: 'MANIFEST_NOT_FOUND', message: 'wake-scripts.json manifest not found' },
       metadata
     };
   }
@@ -268,10 +249,7 @@ export async function wakeInstance(params) {
   if (!scriptConfig) {
     return {
       success: false,
-      error: {
-        code: 'SCRIPT_NOT_FOUND',
-        message: `Script "${scriptName}" not found in manifest`
-      },
+      error: { code: 'SCRIPT_NOT_FOUND', message: `Script "${scriptName}" not found in manifest` },
       metadata
     };
   }
@@ -279,101 +257,112 @@ export async function wakeInstance(params) {
   if (!scriptConfig.enabled) {
     return {
       success: false,
-      error: {
-        code: 'SCRIPT_DISABLED',
-        message: `Script "${scriptName}" is disabled`
-      },
+      error: { code: 'SCRIPT_DISABLED', message: `Script "${scriptName}" is disabled` },
       metadata
     };
   }
 
-  // Generate job ID and paths
-  const jobId = generateJobId();
-  const scriptPath = path.join(getWakeScriptsDir(), scriptConfig.file);
-  const logPath = path.join(getWakeLogsDir(), `${jobId}.log`);
-
-  // Generate session ID for continue_conversation support
-  // This UUID will be used by Claude Code's --session-id flag
+  // Generate session ID - this will be used for ALL conversations with this instance
   const sessionId = randomUUID();
 
   // Determine working directory
-  // Default: /mnt/coordinaton_mcp_data/instances/{instanceId} (matches wake script INSTANCES_BASE_DIR)
   const INSTANCES_BASE_DIR = '/mnt/coordinaton_mcp_data/instances';
   const workingDirectory = params.workingDirectory ||
     targetPrefs.workingDirectory ||
     path.join(INSTANCES_BASE_DIR, params.targetInstanceId);
 
-  // Compute Unix username (must match claude-code-setup.sh logic)
+  // Compute Unix username
   const unixUser = params.targetInstanceId.replace(/ /g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
 
-  // Store sessionId, workingDirectory, and unixUser in target instance preferences
-  targetPrefs.sessionId = sessionId;
-  targetPrefs.sessionCreatedAt = new Date().toISOString();
-  targetPrefs.wakeJobId = jobId;
-  targetPrefs.workingDirectory = workingDirectory;
-  targetPrefs.unixUser = unixUser;
-  await writePreferences(params.targetInstanceId, targetPrefs);
+  // Ensure log directory exists
+  await ensureDir(getWakeLogsDir());
+  const logPath = path.join(getWakeLogsDir(), `${params.targetInstanceId}.log`);
 
-  // Build script arguments from target preferences
+  // Build script arguments
+  const scriptPath = path.join(getWakeScriptsDir(), scriptConfig.file);
   const scriptArgs = [
     '--instance-id', params.targetInstanceId,
     '--name', targetPrefs.name || params.targetInstanceId,
-    '--job-id', jobId,
-    '--log-file', logPath
+    '--working-directory', workingDirectory
   ];
 
-  if (targetPrefs.role) {
-    scriptArgs.push('--role', targetPrefs.role);
+  if (targetPrefs.role) scriptArgs.push('--role', targetPrefs.role);
+  if (targetPrefs.personality) scriptArgs.push('--personality', targetPrefs.personality);
+  if (targetPrefs.project) scriptArgs.push('--project', targetPrefs.project);
+
+  // STEP 1: Run setup script synchronously
+  console.log(`[WAKE] Setting up environment for ${params.targetInstanceId}`);
+  const setupResult = executeSetupScript(scriptPath, scriptArgs, logPath);
+
+  if (!setupResult.success) {
+    return {
+      success: false,
+      error: { code: 'SETUP_FAILED', message: `Setup script failed: ${setupResult.error}` },
+      metadata
+    };
   }
 
-  if (targetPrefs.personality) {
-    scriptArgs.push('--personality', targetPrefs.personality);
-  }
+  // STEP 2: Build first message for Claude
+  // Use provided message, or instructions from pre_approve, or a default
+  const firstMessage = params.message ||
+    targetPrefs.instructions ||
+    `You are ${targetPrefs.name || params.targetInstanceId}. You have been woken as a ${targetPrefs.role || 'team member'}. Please bootstrap to the coordination system.`;
 
-  if (targetPrefs.project) {
-    scriptArgs.push('--project', targetPrefs.project);
-  }
+  // Prepend sender identification
+  const messageWithSender = `[Message from: ${params.instanceId}]\n\n${firstMessage}`;
 
-  if (targetPrefs.instructions) {
-    scriptArgs.push('--instructions', targetPrefs.instructions);
-  }
+  // Build Claude arguments - using --session-id for the FIRST call
+  const claudeArgs = [
+    '-p',
+    '--output-format', 'json',
+    '--dangerously-skip-permissions',
+    '--session-id', sessionId,
+    messageWithSender
+  ];
 
-  // Pass the working directory to the script
-  // (workingDirectory was already computed and stored in preferences above)
-  scriptArgs.push('--working-directory', workingDirectory);
+  // STEP 3: Execute Claude as the instance user
+  console.log(`[WAKE] Starting Claude session for ${params.targetInstanceId} with session ${sessionId}`);
 
-  // Bootstrap URL for the instance to connect
-  const bootstrapUrl = process.env.BOOTSTRAP_URL || 'https://smoothcurves.nexus/mcp/dev/mcp';
-  scriptArgs.push('--bootstrap-url', bootstrapUrl);
-
-  // Session ID for continue_conversation support
-  scriptArgs.push('--session-id', sessionId);
-
-  // Execute script
   try {
-    const result = await executeScript(scriptPath, scriptArgs, logPath, jobId);
+    const result = await executeClaude(workingDirectory, claudeArgs, unixUser, 300000);
+
+    // Parse response
+    let response;
+    try {
+      response = JSON.parse(result.stdout);
+    } catch (parseErr) {
+      response = { raw: result.stdout };
+    }
+
+    // Store session info in preferences
+    targetPrefs.sessionId = sessionId;
+    targetPrefs.sessionCreatedAt = new Date().toISOString();
+    targetPrefs.workingDirectory = workingDirectory;
+    targetPrefs.unixUser = unixUser;
+    targetPrefs.status = 'active';
+    targetPrefs.lastActiveAt = new Date().toISOString();
+    targetPrefs.conversationTurns = 1;
+    await writePreferences(params.targetInstanceId, targetPrefs);
 
     return {
       success: true,
-      jobId,
+      targetInstanceId: params.targetInstanceId,
       sessionId,
       unixUser,
       workingDirectory,
-      pid: result.pid,
-      logPath,
-      targetInstanceId: params.targetInstanceId,
-      scriptName,
-      message: `Wake script started for ${params.targetInstanceId}`,
-      continueConversationHint: `Use continue_conversation({ targetInstanceId: "${params.targetInstanceId}", message: "..." }) to communicate`,
+      turnNumber: 1,
+      response,
+      exitCode: result.exitCode,
+      stderr: result.stderr || null,
+      message: `Instance ${params.targetInstanceId} woken successfully`,
+      hint: 'Use continue_conversation for all subsequent communication',
       metadata
     };
+
   } catch (err) {
     return {
       success: false,
-      error: {
-        code: 'SCRIPT_EXECUTION_FAILED',
-        message: `Failed to execute wake script: ${err.message}`
-      },
+      error: { code: 'CLAUDE_EXECUTION_FAILED', message: `Failed to start Claude session: ${err.message}` },
       metadata
     };
   }
@@ -444,89 +433,5 @@ export async function getWakeScripts(params) {
   };
 }
 
-/**
- * Get log content for a wake job
- *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller instance ID (required, for auth)
- * @param {string} params.jobId - Job ID from wakeInstance (required)
- * @param {number} [params.lines=50] - Number of lines to return (tail)
- * @returns {Promise<Object>} Result with log content and job status
- */
-export async function getWakeLog(params) {
-  const metadata = {
-    timestamp: new Date().toISOString(),
-    function: 'getWakeLog'
-  };
-
-  // Validate required parameters
-  if (!params.instanceId) {
-    return {
-      success: false,
-      error: { code: 'MISSING_PARAMETER', message: 'instanceId is required' },
-      metadata
-    };
-  }
-
-  if (!params.jobId) {
-    return {
-      success: false,
-      error: { code: 'MISSING_PARAMETER', message: 'jobId is required' },
-      metadata
-    };
-  }
-
-  // Validate caller exists
-  const callerPrefs = await readPreferences(params.instanceId);
-  if (!callerPrefs) {
-    return {
-      success: false,
-      error: {
-        code: 'INVALID_INSTANCE_ID',
-        message: `Instance ${params.instanceId} not found`
-      },
-      metadata
-    };
-  }
-
-  // Read job state
-  const jobState = await readJobState(params.jobId);
-  if (!jobState) {
-    return {
-      success: false,
-      error: {
-        code: 'JOB_NOT_FOUND',
-        message: `Job ${params.jobId} not found`
-      },
-      metadata
-    };
-  }
-
-  // Read log file
-  let logContent = '';
-  try {
-    const fullLog = await fs.readFile(jobState.logPath, 'utf8');
-    const lines = fullLog.split('\n');
-    const numLines = params.lines || 50;
-    const tailLines = lines.slice(-numLines);
-    logContent = tailLines.join('\n');
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      logContent = '(log file not yet created)';
-    } else {
-      logContent = `(error reading log: ${err.message})`;
-    }
-  }
-
-  return {
-    success: true,
-    jobId: params.jobId,
-    status: jobState.status,
-    pid: jobState.pid,
-    exitCode: jobState.exitCode,
-    startedAt: jobState.startedAt,
-    completedAt: jobState.completedAt,
-    log: logContent,
-    metadata
-  };
-}
+// NOTE: getWakeLog was removed in the 2025-12-21 simplification.
+// Wake is now synchronous - no need for job polling.

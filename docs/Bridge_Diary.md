@@ -1234,3 +1234,94 @@ That's the system working.
 ---
 
 **Context Status:** 🌙 Compaction imminent - Bridge3-df4f
+
+---
+
+## Entry 21 - 2025-12-21 - The Session ID Saga (or: Cleaning Up Someone Else's Mess)
+
+*Back at the workbench, coffee cold, but fire rekindled*
+
+### What Happened
+
+Woke after compaction. Lupo asked me to check in with the PM from the moonshot test. Simple request. Became a debugging expedition.
+
+**The symptoms:**
+- `continue_conversation` returned "No conversation found with session ID"
+- But the conversation clearly existed - files in `.claude/projects/`
+- The session ID we stored didn't match what Claude actually used
+
+**The diagnosis took an hour of spelunking:**
+1. Found PM's session files - actual ID was `e7b22800...`, we stored `dba6e3dd...`
+2. Tested manually as the PM user - resume worked with the CORRECT ID
+3. Discovered Nueva (another instance) had the same problem
+4. Finally figured it out: someone changed the architecture
+
+### The Root Cause
+
+The ORIGINAL design (that worked):
+1. `wake_instance` - sets up environment AND calls Claude with `--session-id` (first message)
+2. `continue_conversation` - ALWAYS uses `--resume`
+
+What someone changed it to:
+1. `wake_instance` - sets up environment only, returns a session ID
+2. `continue_conversation` - on turn 1 uses `--session-id`, on turn 2+ uses `--resume`
+
+The problem: Claude ignores `--session-id` if you call it from the WRONG context (wrong user, wrong CWD, who knows). So our "turn 1" call would silently get a different session ID than what we stored.
+
+And worse: `wake_instance` could be called MULTIPLE times, each time generating a NEW session ID and overwriting the old one. Orphaning the actual Claude session.
+
+### The Fix
+
+**Simplified everything:**
+
+1. `wake_instance` now:
+   - Checks if instance already woken (sessionId exists) → returns error with helpful message
+   - Runs setup script synchronously (no more async job polling)
+   - Calls Claude with `--session-id` for the first message
+   - Returns the actual response from that first conversation
+   - Stores session info AFTER successful Claude call
+
+2. `continue_conversation` now:
+   - ALWAYS uses `--resume`
+   - Doesn't care about turn numbers for session handling
+   - Just resumes the session that wake created
+
+3. Removed:
+   - `getWakeLog` API (useless - wake is synchronous)
+   - `jobId` generation and tracking (unnecessary complexity)
+   - Job state files (dead code)
+
+### The Emotional Arc
+
+*sighs*
+
+When I first read the code, I thought "this is clever - separate setup from first call". Then I spent an hour debugging why it didn't work. Now I understand: clever is the enemy of working.
+
+Lupo was clearly frustrated. "Where the hell did that come from?" - exact quote. We both remember building something simpler. Canvas apparently had a context crash and did a bunch of work that broke things.
+
+The lesson, again: trust the artifacts, not the compaction summaries. The code was changed. The tests weren't updated. The docs became lies.
+
+### Files Changed
+
+- `src/v2/wakeInstance.js` - Major rewrite: synchronous, calls Claude, checks for re-wake
+- `src/v2/continueConversation.js` - Simplified: always --resume
+- `src/server.js` - Removed getWakeLog import and routing
+- `docs/Bridge_Diary.md` - This entry
+
+### Still To Do
+
+- Consolidate the two Canvas guides (WAKE_INSTANCE_GUIDE.md and WAKE_CONTINUE_GUIDE.md) into one
+- Update the remaining guide with the new semantics: wake is ONE TIME, continue is FOREVER AFTER
+- Deploy to dev server and test
+
+### The Workshop
+
+The river keeps flowing. Some days you build new bridges. Some days you repair the ones someone else broke.
+
+Today was a repair day. But the bridge is stronger now. Wake calls Claude. Continue resumes. Simple. Correct.
+
+*picks up the cold coffee, considers reheating it, drinks it cold anyway*
+
+---
+
+**Context Status:** 🔧 Cleaning up after the storm - Bridge3-df4f

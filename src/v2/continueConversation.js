@@ -2,9 +2,14 @@
  * Continue Conversation handler for V2 coordination system
  * Enables communication with woken instances via Claude's session persistence
  *
+ * DESIGN: continue_conversation is used for ALL communication AFTER wake_instance.
+ * - wake_instance calls Claude with --session-id (turn 1)
+ * - continue_conversation ALWAYS uses --resume (turn 2+)
+ *
  * @module continueConversation
  * @author Bridge
  * @created 2025-12-19
+ * @updated 2025-12-21 - Simplified: always use --resume, wake handles first call
  */
 
 import path from 'path';
@@ -262,22 +267,15 @@ export async function continueConversation(params) {
   const outputFormat = options.outputFormat || 'json';
   const timeout = options.timeout || 300000;
 
-  // Track conversation turn
-  const turnNumber = (targetPrefs.conversationTurns || 0) + 1;
+  // Track conversation turn (wake_instance is turn 1, so we start at 2)
+  const turnNumber = (targetPrefs.conversationTurns || 1) + 1;
 
   const claudeArgs = [
     '-p',  // Print mode (non-interactive)
     '--output-format', outputFormat,
-    '--dangerously-skip-permissions'
+    '--dangerously-skip-permissions',
+    '--resume', targetPrefs.sessionId  // ALWAYS use --resume (wake_instance did --session-id)
   ];
-
-  // First turn: create session with specific ID
-  // Subsequent turns: resume existing session
-  if (turnNumber === 1) {
-    claudeArgs.push('--session-id', targetPrefs.sessionId);
-  } else {
-    claudeArgs.push('--resume', targetPrefs.sessionId);
-  }
 
   if (options.includeThinking) {
     claudeArgs.push('--include-partial-messages');
@@ -320,18 +318,6 @@ export async function continueConversation(params) {
         stderr: result.stderr || null
       }
     };
-
-    // On turn 1, also log the instance context (avoids repeating on every turn)
-    if (turnNumber === 1) {
-      turn.instanceContext = {
-        sessionId: targetPrefs.sessionId,
-        role: targetPrefs.role || null,
-        personality: targetPrefs.personality || null,
-        instructions: targetPrefs.instructions || null,
-        workingDirectory: workingDir,
-        unixUser: unixUser
-      };
-    }
 
     await logConversationTurn(params.targetInstanceId, turn);
 

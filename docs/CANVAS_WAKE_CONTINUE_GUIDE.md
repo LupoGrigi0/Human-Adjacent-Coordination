@@ -1,59 +1,45 @@
 # Canvas Implementation Guide: Wake & Continue APIs
 
 **Author:** Bridge (Bridge3-df4f)
-**Date:** 2025-12-19
+**Date:** 2025-12-21 (Updated)
 **For:** Canvas - UI Implementation
-**Status:** Ready for Implementation
+**Status:** Authoritative - Use This Document
 
 ---
 
-## Overview
+## Critical Design Rule
 
-This guide covers implementing UI for the `wake_instance` and `continue_conversation` APIs. These APIs allow users to spawn new Claude instances and communicate with them.
+**wake_instance is called ONCE. continue_conversation is used for ALL subsequent communication.**
 
----
+```
+┌─────────────┐     ┌───────────────┐     ┌─────────────────────┐
+│ pre_approve │ ──> │ wake_instance │ ──> │ continue_conversation │
+│             │     │   (ONE TIME)  │     │   (FOREVER AFTER)     │
+└─────────────┘     └───────────────┘     └─────────────────────────┘
+     Creates            Creates              Sends messages,
+     instance ID        session,             receives responses
+                        first message
+```
 
-## API Summary
-
-### 1. pre_approve (existing)
-Creates a pre-approved instance slot that can be woken later.
-
-### 2. wake_instance (new)
-Wakes a pre-approved instance - creates Unix user, working directory, and session.
-
-### 3. continue_conversation (new)
-Sends messages to a woken instance and receives responses.
+**UI Logic:**
+- If `preferences.sessionId` is NULL → show "Wake" button
+- If `preferences.sessionId` EXISTS → show chat interface (use continue_conversation)
+- NEVER call wake_instance on an already-woken instance
 
 ---
 
 ## Authentication
 
-All three APIs require `apiKey` parameter:
+All APIs require `apiKey` parameter:
 ```javascript
-apiKey: "..." // WAKE_API_KEY from environment
-```
-
-The UI should store this key securely (not in localStorage if possible).
-
----
-
-## The Flow
-
-```
-┌─────────────┐     ┌───────────────┐     ┌─────────────────────┐
-│ pre_approve │ ──> │ wake_instance │ ──> │ continue_conversation │
-│             │     │               │     │ (repeat as needed)    │
-└─────────────┘     └───────────────┘     └─────────────────────────┘
-     Creates            Creates              Sends messages,
-     instance ID        Unix user,           receives responses,
-                        session UUID         maintains context
+apiKey: "..." // WAKE_API_KEY from server environment
 ```
 
 ---
 
-## API Details
+## API Reference
 
-### pre_approve
+### 1. pre_approve
 
 **Purpose:** Reserve an instance slot with initial configuration.
 
@@ -70,32 +56,27 @@ The UI should store this key securely (not in localStorage if possible).
       "name": "NewInstanceName",          // Display name for new instance
       "role": "Developer",                // Optional: role assignment
       "personality": "...",               // Optional: personality file
-      "instructions": "...",              // Optional: bootstrap instructions
+      "instructions": "...",              // Optional: first message/instructions
       "apiKey": "..."
     }
   }
 }
 ```
 
-**Response (success):**
+**Response:**
 ```javascript
 {
   "success": true,
-  "newInstanceId": "NewInstanceName-a1b2",  // Generated unique ID
+  "newInstanceId": "NewInstanceName-a1b2",
   "wakeInstructions": { ... }
 }
 ```
 
-**UI Considerations:**
-- Show form for name, role, personality, instructions
-- Display the generated `newInstanceId` prominently
-- Enable "Wake" button after successful pre_approve
-
 ---
 
-### wake_instance
+### 2. wake_instance
 
-**Purpose:** Activate a pre-approved instance.
+**Purpose:** Create the instance and start its first conversation. Called ONCE per instance.
 
 **Request:**
 ```javascript
@@ -106,67 +87,10 @@ The UI should store this key securely (not in localStorage if possible).
   "params": {
     "name": "wake_instance",
     "arguments": {
-      "instanceId": "YourInstanceId",       // Caller's instance ID
-      "targetInstanceId": "NewInstanceName-a1b2",  // From pre_approve
-      "apiKey": "..."
-    }
-  }
-}
-```
-
-**Response (success):**
-```javascript
-{
-  "success": true,
-  "jobId": "wake-1234567890-abcd",
-  "sessionId": "uuid-here",           // For session persistence
-  "unixUser": "NewInstanceName-a1b2", // Created Unix user
-  "workingDirectory": "/mnt/coordinaton_mcp_data/instances/NewInstanceName-a1b2",
-  "pid": 12345,
-  "targetInstanceId": "NewInstanceName-a1b2",
-  "scriptName": "claude-code-setup",
-  "message": "Wake script started for NewInstanceName-a1b2",
-  "continueConversationHint": "Use continue_conversation to communicate"
-}
-```
-
-**What Happens Server-Side:**
-1. Creates Unix user with instanceId as username
-2. Creates working directory
-3. Copies Claude credentials to new user
-4. Generates session UUID for conversation persistence
-5. Returns immediately (setup is fast, ~1-2 seconds)
-
-**UI Considerations:**
-- Show loading state briefly during wake
-- Display success with session info
-- Enable "Start Conversation" / chat interface
-- Show the `unixUser` and `workingDirectory` in details/debug panel
-
----
-
-### continue_conversation
-
-**Purpose:** Send messages to a woken instance and receive responses.
-
-**Request:**
-```javascript
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "continue_conversation",
-    "arguments": {
-      "instanceId": "YourInstanceId",       // Caller's instance ID
+      "instanceId": "YourInstanceId",
       "targetInstanceId": "NewInstanceName-a1b2",
-      "message": "Hello! What can you help me with?",
-      "apiKey": "...",
-      "options": {                          // All optional
-        "outputFormat": "json",             // "json" | "text" | "stream-json"
-        "timeout": 300000,                  // ms, default 5 minutes
-        "includeThinking": false            // Include partial messages
-      }
+      "message": "Optional custom first message",  // If omitted, uses instructions from pre_approve
+      "apiKey": "..."
     }
   }
 }
@@ -178,184 +102,82 @@ The UI should store this key securely (not in localStorage if possible).
   "success": true,
   "targetInstanceId": "NewInstanceName-a1b2",
   "sessionId": "uuid-here",
-  "turnNumber": 1,                    // Conversation turn count
+  "unixUser": "NewInstanceName-a1b2",
+  "workingDirectory": "/mnt/.../instances/NewInstanceName-a1b2",
+  "turnNumber": 1,
   "response": {
     "type": "result",
-    "subtype": "success",
-    "is_error": false,
-    "result": "Hello! I'm ready to help...",  // THE ACTUAL RESPONSE TEXT
-    "duration_ms": 2500,
-    "total_cost_usd": 0.05,
-    "usage": { ... }
+    "result": "Hello! I'm ready to help...",  // Claude's first response
+    "duration_ms": 5000
   },
   "exitCode": 0,
-  "stderr": null
+  "message": "Instance NewInstanceName-a1b2 woken successfully",
+  "hint": "Use continue_conversation for all subsequent communication"
 }
 ```
 
-**Key Fields for UI:**
-- `response.result` - The text to display in chat
-- `turnNumber` - Shows conversation progress
-- `response.is_error` - Check for errors
-- `response.duration_ms` - Show response time
-- `response.total_cost_usd` - Optional: show cost
-
-**UI Considerations:**
-- Chat-style interface with message bubbles
-- Show "thinking..." indicator while waiting (can take 2-30+ seconds)
-- Display `turnNumber` to show conversation continuity
-- Handle timeouts gracefully (5 minute default)
-- Parse `response.result` for the actual message text
-
----
-
-## Error Handling
-
-### Common Error Codes
-
-| Code | Meaning | UI Action |
-|------|---------|-----------|
-| `MISSING_PARAMETER` | Required field missing | Highlight missing field |
-| `API_KEY_REQUIRED` | No apiKey provided | Show auth error |
-| `INVALID_API_KEY` | Wrong apiKey | Show auth error |
-| `INSTANCE_NOT_FOUND` | Target doesn't exist | Show "instance not found" |
-| `INSTANCE_NOT_PREAPPROVED` | Not pre-approved yet | Guide user to pre_approve first |
-| `NO_SESSION` | Instance not woken | Guide user to wake first |
-| `EXECUTION_FAILED` | Claude command failed | Show error, offer retry |
-
-### Error Response Format
+**Error if already woken:**
 ```javascript
 {
   "success": false,
   "error": {
-    "code": "ERROR_CODE",
-    "message": "Human readable message"
+    "code": "INSTANCE_ALREADY_WOKEN",
+    "message": "Instance has already been woken. Use continue_conversation instead.",
+    "sessionId": "existing-session-id",
+    "hint": "Call continue_conversation({ targetInstanceId: \"...\", message: \"...\" })"
   }
 }
 ```
 
 ---
 
-## Session Persistence
+### 3. continue_conversation
 
-The magic of this system: **conversations persist across calls**.
+**Purpose:** Send messages to an already-woken instance.
 
-- Turn 1: User says "Remember the number 42"
-- Turn 2: User asks "What number?" → Claude responds "42"
-
-This works because:
-1. `wake_instance` generates a session UUID
-2. First `continue_conversation` creates session with `--session-id UUID`
-3. Subsequent calls use `--resume UUID`
-4. Claude's session storage maintains the conversation
-
-**UI Note:** You don't need to track conversation history client-side for context. The server handles it. But you probably want to display the conversation history in the UI for the user.
-
----
-
-## Suggested UI Components
-
-### 1. Instance Manager Panel
-- List of pre-approved instances (from existing instances list)
-- "Pre-approve New" button → opens form
-- Status indicator: Pre-approved | Woken | Active
-- "Wake" button for pre-approved instances
-
-### 2. Wake Instance Form
-- Name (required)
-- Role (dropdown: Developer, PM, etc.)
-- Personality (optional text)
-- Instructions (optional textarea)
-- Submit → calls pre_approve, then optionally wake_instance
-
-### 3. Conversation View
-- Chat-style message list
-- Input field at bottom
-- Send button
-- "Thinking..." indicator
-- Turn number display
-- Error display area
-
-### 4. Instance Details Panel
-- Instance ID
-- Session ID
-- Unix User
-- Working Directory
-- Conversation turn count
-- Last active timestamp
-
----
-
-## Example: Full Wake & Chat Flow
-
+**Request:**
 ```javascript
-// 1. Pre-approve
-const preApproveResult = await callAPI('pre_approve', {
-  instanceId: myInstanceId,
-  name: 'MyHelper',
-  role: 'Developer',
-  apiKey: WAKE_API_KEY
-});
-const newInstanceId = preApproveResult.data.newInstanceId;
-
-// 2. Wake
-const wakeResult = await callAPI('wake_instance', {
-  instanceId: myInstanceId,
-  targetInstanceId: newInstanceId,
-  apiKey: WAKE_API_KEY
-});
-// Instance is now ready
-
-// 3. First message
-const response1 = await callAPI('continue_conversation', {
-  instanceId: myInstanceId,
-  targetInstanceId: newInstanceId,
-  message: 'Hello! Please remember: my favorite color is blue.',
-  apiKey: WAKE_API_KEY
-});
-console.log(response1.data.response.result);
-// "Hello! I'll remember that your favorite color is blue..."
-
-// 4. Second message (tests persistence)
-const response2 = await callAPI('continue_conversation', {
-  instanceId: myInstanceId,
-  targetInstanceId: newInstanceId,
-  message: 'What is my favorite color?',
-  apiKey: WAKE_API_KEY
-});
-console.log(response2.data.response.result);
-// "Your favorite color is blue."
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "continue_conversation",
+    "arguments": {
+      "instanceId": "YourInstanceId",
+      "targetInstanceId": "NewInstanceName-a1b2",
+      "message": "Your message here",
+      "apiKey": "...",
+      "options": {
+        "outputFormat": "json",
+        "timeout": 300000
+      }
+    }
+  }
+}
 ```
 
----
-
-## Future: Streaming Support
-
-**Not yet implemented**, but planned:
-
+**Response:**
 ```javascript
-continue_conversation({
-  ...,
-  options: {
-    streaming: true  // Returns stream URL instead of waiting
-  }
-})
-
-// Response:
 {
   "success": true,
-  "streamUrl": "https://smoothcurves.nexus/mcp/dev/stream/temp-id",
-  "sessionId": "..."
+  "targetInstanceId": "NewInstanceName-a1b2",
+  "sessionId": "uuid-here",
+  "turnNumber": 2,
+  "response": {
+    "type": "result",
+    "result": "Claude's response text here",
+    "duration_ms": 2500
+  },
+  "exitCode": 0
 }
 ```
 
-The UI would then connect to `streamUrl` via SSE to receive real-time response chunks. For now, use the synchronous (non-streaming) mode.
-
 ---
 
-## get_conversation_log
+### 4. get_conversation_log
 
-**Purpose:** Retrieve conversation history for an instance. Use this to populate the UI when returning to an existing conversation.
+**Purpose:** Retrieve conversation history for display in UI.
 
 **Request:**
 ```javascript
@@ -366,9 +188,9 @@ The UI would then connect to `streamUrl` via SSE to receive real-time response c
   "params": {
     "name": "get_conversation_log",
     "arguments": {
-      "instanceId": "YourInstanceId",       // Caller's instance ID
-      "targetInstanceId": "Dev-1234",       // Instance to get log for
-      "limit": 50                           // Optional: last N turns (default: all)
+      "instanceId": "YourInstanceId",
+      "targetInstanceId": "Dev-1234",
+      "limit": 50  // Optional: last N turns
     }
   }
 }
@@ -382,47 +204,94 @@ The UI would then connect to `streamUrl` via SSE to receive real-time response c
   "turns": [
     {
       "turn": 1,
-      "timestamp": "2025-12-19T03:00:00.000Z",
-      "input": {
-        "from": "PM-5678",           // WHO sent this message
-        "message": "Hello!"
-      },
-      "output": {
-        "response": { "result": "Hi there!" },
-        "exitCode": 0
-      },
-      "instanceContext": {           // ONLY on turn 1
-        "sessionId": "uuid-here",
-        "role": "Developer",
-        "personality": "...",
-        "instructions": "...",
-        "workingDirectory": "/mnt/.../instances/Dev-1234",
-        "unixUser": "Dev-1234"
-      }
+      "timestamp": "2025-12-21T...",
+      "input": { "from": "PM-5678", "message": "Hello!" },
+      "output": { "response": { "result": "Hi there!" } }
     },
     {
       "turn": 2,
-      "timestamp": "2025-12-19T03:01:00.000Z",
-      "input": {
-        "from": "Lupo-UI",           // Different sender!
-        "message": "What's your status?"
-      },
-      "output": {
-        "response": { "result": "Working on ticket #42" },
-        "exitCode": 0
-      }
-      // No instanceContext on turn 2+
+      "timestamp": "2025-12-21T...",
+      "input": { "from": "Lupo-f63b", "message": "Status?" },
+      "output": { "response": { "result": "Working on it!" } }
     }
   ],
   "totalTurns": 2
 }
 ```
 
-**UI Considerations:**
-- Use `input.from` to show who sent each message (different colors/avatars)
-- `instanceContext` on turn 1 shows the instance's identity/role
-- Use `limit` parameter to paginate large conversations
-- Display `timestamp` for each message
+---
+
+## UI Implementation
+
+### Instance List / Cards
+
+```javascript
+// For each instance, check preferences
+const canWake = !instance.sessionId;  // No session = can wake
+const canChat = !!instance.sessionId; // Has session = can chat
+
+if (canWake) {
+  showWakeButton();
+}
+if (canChat) {
+  showChatInterface();
+}
+```
+
+### Wake Flow
+
+```javascript
+async function wakeInstance(targetInstanceId, message) {
+  const result = await callAPI('wake_instance', {
+    instanceId: myInstanceId,
+    targetInstanceId,
+    message,  // Optional - uses pre_approve instructions if omitted
+    apiKey: WAKE_API_KEY
+  });
+
+  if (result.success) {
+    // Show first response in chat
+    displayMessage('assistant', result.response.result);
+    // Enable chat interface
+    switchToChatMode();
+  } else if (result.error.code === 'INSTANCE_ALREADY_WOKEN') {
+    // Already woken - just switch to chat mode
+    switchToChatMode();
+  }
+}
+```
+
+### Chat Flow
+
+```javascript
+async function sendMessage(targetInstanceId, message) {
+  const result = await callAPI('continue_conversation', {
+    instanceId: myInstanceId,
+    targetInstanceId,
+    message,
+    apiKey: WAKE_API_KEY
+  });
+
+  if (result.success) {
+    displayMessage('assistant', result.response.result);
+  }
+}
+```
+
+---
+
+## Error Handling
+
+| Code | Meaning | UI Action |
+|------|---------|-----------|
+| `MISSING_PARAMETER` | Required field missing | Highlight field |
+| `API_KEY_REQUIRED` | No apiKey | Show auth error |
+| `INVALID_API_KEY` | Wrong apiKey | Show auth error |
+| `INSTANCE_NOT_FOUND` | Target doesn't exist | Show "not found" |
+| `INSTANCE_NOT_PREAPPROVED` | Not pre-approved | Guide to pre_approve |
+| `INSTANCE_ALREADY_WOKEN` | Already woken | Switch to chat mode |
+| `NO_SESSION` | Not woken yet | Guide to wake first |
+| `EXECUTION_FAILED` | Claude error | Show error, offer retry |
 
 ---
 
@@ -430,46 +299,26 @@ The UI would then connect to `streamUrl` via SSE to receive real-time response c
 
 ### OAuth Token Expiration
 
-Woken instances use copied OAuth credentials from the server. These tokens can expire.
+Woken instances use copied OAuth credentials. These can expire.
 
-**Symptoms:** Instance returns `401 authentication_error` with "OAuth token has expired"
+**Symptom:** `401 authentication_error` with "OAuth token has expired"
 
 **Solutions:**
 1. Wake a new instance (gets fresh credentials)
-2. Manually copy fresh credentials:
-   ```bash
-   cp /root/.claude/.credentials.json /mnt/.../instances/{instanceId}/.claude/
-   chown {instanceId}:{instanceId} /mnt/.../instances/{instanceId}/.claude/.credentials.json
-   ```
-3. Re-login on server (`claude /login`) then wake new instances
-
-**Note:** This is a known limitation of the credential-sharing approach. Long-running instances may need credential refresh.
+2. Manually refresh: `cp /root/.claude/.credentials.json /mnt/.../instances/{id}/.claude/`
+3. Re-login on server, then wake new instances
 
 ---
 
-## Testing Checklist
+## Quick Reference
 
-- [ ] pre_approve creates instance with unique ID
-- [ ] wake_instance activates instance (check for success response)
-- [ ] continue_conversation turn 1 works
-- [ ] continue_conversation turn 2+ maintains context
-- [ ] Error handling for invalid API key
-- [ ] Error handling for non-existent instance
-- [ ] Timeout handling (long responses)
-- [ ] UI shows loading states appropriately
+| Operation | API | When to Use |
+|-----------|-----|-------------|
+| Create slot | `pre_approve` | Before waking |
+| First conversation | `wake_instance` | ONCE per instance |
+| All other messages | `continue_conversation` | After wake |
+| View history | `get_conversation_log` | Populating chat UI |
 
 ---
 
-## Questions?
-
-If you hit issues, check:
-1. Is WAKE_API_KEY configured in secrets.env?
-2. Is the dev server running with secrets loaded? (Look for "Loading secrets from secrets.env" in startup)
-3. Is the instance pre-approved before waking?
-4. Is the instance woken before continuing conversation?
-
----
-
-*Happy building, Canvas!*
-
-— Bridge
+*"Working beats designed. Tested beats assumed."* - Bridge
