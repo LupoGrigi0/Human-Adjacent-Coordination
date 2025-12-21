@@ -1253,42 +1253,44 @@ async function loadInstances() {
         grid.innerHTML = instances.map(instance => {
             const displayName = instance.name || instance.instanceId || 'Unknown';
             const avatarChar = displayName.charAt(0).toUpperCase();
-            const isActive = instance.status === 'active';
 
-            // Determine woken status - instance is woken if:
-            // - wokenStatus is 'woken'
-            // - status is 'woken'
-            // - has a sessionId
-            // - has a homeDirectory (wake script creates this)
-            const isWoken = instance.wokenStatus === 'woken' ||
-                            instance.status === 'woken' ||
-                            instance.sessionId ||
-                            (instance.homeDirectory && instance.homeDirectory !== '-' && instance.homeDirectory.includes('/instances/'));
-            const isPreApproved = instance.wokenStatus === 'pre-approved' ||
-                                  instance.status === 'pre-approved' ||
-                                  (!isWoken && instance.role);
+            // AUTHORITATIVE: sessionId determines if instance can be communicated with
+            // Per CANVAS_WAKE_CONTINUE_GUIDE.md:
+            // - sessionId EXISTS → can use continue_conversation
+            // - sessionId NULL → must call wake_instance first
+            const hasSession = !!instance.sessionId;
+            const hasRole = !!instance.role;
 
-            // Status dot color: green for active/woken, yellow for pre-approved, grey for inactive
+            // Status dot color:
+            // - Green: has sessionId (woken, can communicate via continue_conversation)
+            // - Yellow: has role but no sessionId (can be woken)
+            // - Grey: neither (inactive)
             let statusDotClass = 'status-dot-offline';
-            if (isWoken || isActive) {
+            let statusTitle = 'Inactive';
+            if (hasSession) {
                 statusDotClass = 'status-dot-online';
-            } else if (isPreApproved) {
+                statusTitle = 'Woken - can chat';
+            } else if (hasRole) {
                 statusDotClass = 'status-dot-preapproved';
+                statusTitle = 'Has role - needs wake';
             }
 
-            // Continue button: "Continue" if woken, "Wake" if pre-approved
-            let continueButtonHtml = '';
-            if (isWoken) {
-                continueButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation">Continue</button>`;
-            } else if (isPreApproved) {
-                continueButtonHtml = `<button class="btn btn-small btn-primary instance-action-wake" data-instance-id="${instance.instanceId}" title="Wake and start chat">Wake</button>`;
+            // Button logic:
+            // - "Continue" if has sessionId (uses continue_conversation API)
+            // - "Wake" if has role but no sessionId (uses wake_instance API)
+            // - Nothing if neither
+            let actionButtonHtml = '';
+            if (hasSession) {
+                actionButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation (continue_conversation API)">Continue</button>`;
+            } else if (hasRole) {
+                actionButtonHtml = `<button class="btn btn-small btn-primary instance-action-wake" data-instance-id="${instance.instanceId}" title="Wake and start first conversation (wake_instance API)">Wake</button>`;
             }
 
             return `
             <div class="instance-card" data-instance-id="${instance.instanceId || ''}">
                 <div class="instance-card-icons">
                     <span class="instance-info-icon instance-action-details" data-instance-id="${instance.instanceId}" title="View details">&#9432;</span>
-                    <span class="instance-status-dot ${statusDotClass}" title="${isWoken ? 'Woken' : isPreApproved ? 'Pre-approved' : isActive ? 'Active' : 'Inactive'}"></span>
+                    <span class="instance-status-dot ${statusDotClass}" title="${statusTitle}"></span>
                 </div>
                 <div class="instance-header">
                     <div class="instance-avatar">${avatarChar}</div>
@@ -1306,7 +1308,7 @@ async function loadInstances() {
                 </div>
                 <div class="instance-actions">
                     <button class="btn btn-small btn-primary instance-action-message" data-instance-id="${instance.instanceId}" title="Send XMPP message">Message</button>
-                    ${continueButtonHtml}
+                    ${actionButtonHtml}
                 </div>
             </div>`;
         }).join('');
@@ -1468,33 +1470,39 @@ async function showInstanceDetail(instanceId) {
     document.getElementById('instance-detail-avatar').className =
         `instance-avatar-large ${instance.status === 'active' ? 'online' : ''}`;
 
-    // Determine woken status - consistent with instance cards
-    const isWoken = instance.wokenStatus === 'woken' ||
-                    instance.status === 'woken' ||
-                    instance.sessionId ||
-                    (instance.homeDirectory && instance.homeDirectory !== '-' && instance.homeDirectory.includes('/instances/'));
-    const isPreApproved = instance.wokenStatus === 'pre-approved' ||
-                          instance.status === 'pre-approved' ||
-                          (!isWoken && instance.role);
+    // AUTHORITATIVE: sessionId determines if instance can be communicated with
+    // Per CANVAS_WAKE_CONTINUE_GUIDE.md:
+    // - sessionId EXISTS → can use continue_conversation
+    // - sessionId NULL → must call wake_instance first
+    const hasSession = !!instance.sessionId;
+    const hasRole = !!instance.role;
 
     // Update buttons based on state
     const chatBtn = document.getElementById('instance-chat-btn');
     const wakeBtn = document.getElementById('instance-wake-btn');
 
-    if (isWoken) {
-        // Instance is woken - show Continue, hide Wake
+    if (hasSession) {
+        // Instance has session - show Continue (uses continue_conversation API)
         chatBtn.style.display = 'inline-flex';
         chatBtn.textContent = 'Continue';
+        chatBtn.title = 'Continue conversation (continue_conversation API)';
         wakeBtn.style.display = 'none';
-    } else if (isPreApproved) {
-        // Instance is pre-approved - show Wake, hide Continue
+    } else if (hasRole) {
+        // Instance has role but no session - show Wake (uses wake_instance API)
         chatBtn.style.display = 'none';
         wakeBtn.style.display = 'inline-flex';
         wakeBtn.textContent = 'Wake';
+        wakeBtn.title = 'Start first conversation (wake_instance API)';
     } else {
-        // Instance not woken or pre-approved - hide both
+        // Instance has neither - hide both
         chatBtn.style.display = 'none';
         wakeBtn.style.display = 'none';
+    }
+
+    // Also show sessionId in the status if present
+    if (hasSession) {
+        document.getElementById('instance-detail-status').textContent =
+            `Active (Session: ${instance.sessionId.substring(0, 8)}...)`;
     }
 
     // Show preferences.json if we have it
