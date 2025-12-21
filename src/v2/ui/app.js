@@ -2735,16 +2735,28 @@ async function showWakeInstanceModal() {
     document.getElementById('wake-specific-id-group').style.display = 'none';
     document.getElementById('wake-instance-id').value = '';
 
-    // Populate dropdowns
+    // Populate dropdowns (will reset selections)
     await populateWakeDropdowns();
+
+    // Reset dropdown selections
+    document.getElementById('wake-role').selectedIndex = 0;
+    document.getElementById('wake-personality').selectedIndex = 0;
+    document.getElementById('wake-project').selectedIndex = 0;
 }
 
 /**
- * Populate role and personality dropdowns
+ * Privileged roles that require promotion tokens
+ * These are hidden from Wake dropdown (but available in Pre-approve for creating new instances)
+ */
+const PRIVILEGED_ROLES = ['PM', 'PA', 'COO', 'Executive'];
+
+/**
+ * Populate role, personality, and project dropdowns
  */
 async function populateWakeDropdowns() {
     const roleSelect = document.getElementById('wake-role');
     const personalitySelect = document.getElementById('wake-personality');
+    const projectSelect = document.getElementById('wake-project');
 
     // Try to fetch from API, fall back to config
     try {
@@ -2767,9 +2779,16 @@ async function populateWakeDropdowns() {
         state.availablePersonalities = uiConfig.AVAILABLE_PERSONALITIES;
     }
 
-    // Populate role dropdown
+    // Filter out privileged roles from Wake dropdown
+    // Privileged roles (PM, PA, COO, Executive) require promotion tokens
+    const nonPrivilegedRoles = state.availableRoles.filter(r => {
+        const roleId = r.id || r;
+        return !PRIVILEGED_ROLES.includes(roleId);
+    });
+
+    // Populate role dropdown (non-privileged only)
     roleSelect.innerHTML = '<option value="">Select role...</option>' +
-        state.availableRoles.map(r =>
+        nonPrivilegedRoles.map(r =>
             `<option value="${r.id || r}">${r.label || r.name || r}</option>`
         ).join('');
 
@@ -2777,6 +2796,13 @@ async function populateWakeDropdowns() {
     personalitySelect.innerHTML = '<option value="">Select personality...</option>' +
         state.availablePersonalities.map(p =>
             `<option value="${p.id || p}">${p.label || p.name || p}</option>`
+        ).join('');
+
+    // Populate project dropdown
+    const projectNames = state.projects.map(p => p.name || p.projectId);
+    projectSelect.innerHTML = '<option value="">No project assignment</option>' +
+        projectNames.map(name =>
+            `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
         ).join('');
 }
 
@@ -2829,6 +2855,7 @@ async function handleWakeSubmit() {
 
             const role = document.getElementById('wake-role').value;
             const personality = document.getElementById('wake-personality').value;
+            const project = document.getElementById('wake-project').value;
             const instructions = document.getElementById('wake-instructions').value.trim();
 
             // Pre-approve
@@ -2837,6 +2864,7 @@ async function handleWakeSubmit() {
                 name: name,
                 role: role || undefined,
                 personality: personality || undefined,
+                project: project || undefined,
                 instructions: instructions || undefined,
                 apiKey: apiKey ? '[REDACTED]' : undefined
             };
@@ -2847,6 +2875,7 @@ async function handleWakeSubmit() {
                 name: name,
                 role: role || undefined,
                 personality: personality || undefined,
+                project: project || undefined,
                 instructions: instructions || undefined,
                 apiKey: apiKey
             });
