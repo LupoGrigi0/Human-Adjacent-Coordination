@@ -1254,36 +1254,37 @@ async function loadInstances() {
             const displayName = instance.name || instance.instanceId || 'Unknown';
             const avatarChar = displayName.charAt(0).toUpperCase();
 
-            // AUTHORITATIVE: sessionId determines if instance can be communicated with
             // Per CANVAS_WAKE_CONTINUE_GUIDE.md:
             // - sessionId EXISTS → can use continue_conversation
             // - sessionId NULL → must call wake_instance first
+            //
+            // NOTE: get_all_instances API doesn't currently return sessionId
+            // We check for it, but also show Continue button for any instance with a role
+            // The Continue handler will check for session and offer Wake if needed
             const hasSession = !!instance.sessionId;
             const hasRole = !!instance.role;
 
             // Status dot color:
-            // - Green: has sessionId (woken, can communicate via continue_conversation)
-            // - Yellow: has role but no sessionId (can be woken)
-            // - Grey: neither (inactive)
+            // - Green: has sessionId (confirmed woken via continue_conversation)
+            // - Yellow: has role (may or may not be woken - API doesn't tell us)
+            // - Grey: no role (can't interact)
             let statusDotClass = 'status-dot-offline';
-            let statusTitle = 'Inactive';
+            let statusTitle = 'No role assigned';
             if (hasSession) {
                 statusDotClass = 'status-dot-online';
                 statusTitle = 'Woken - can chat';
             } else if (hasRole) {
                 statusDotClass = 'status-dot-preapproved';
-                statusTitle = 'Has role - needs wake';
+                statusTitle = 'Has role - click Continue to chat';
             }
 
             // Button logic:
-            // - "Continue" if has sessionId (uses continue_conversation API)
-            // - "Wake" if has role but no sessionId (uses wake_instance API)
-            // - Nothing if neither
+            // - "Continue" if has role (will check session on click)
+            // - "Wake" only shown in detail panel for instances without session
+            // - Nothing if no role
             let actionButtonHtml = '';
-            if (hasSession) {
-                actionButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation (continue_conversation API)">Continue</button>`;
-            } else if (hasRole) {
-                actionButtonHtml = `<button class="btn btn-small btn-primary instance-action-wake" data-instance-id="${instance.instanceId}" title="Wake and start first conversation (wake_instance API)">Wake</button>`;
+            if (hasRole) {
+                actionButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation">Continue</button>`;
             }
 
             return `
@@ -1456,7 +1457,6 @@ async function showInstanceDetail(instanceId) {
     document.getElementById('instance-detail-id').textContent = instance.instanceId || '-';
     document.getElementById('instance-detail-role').textContent = instance.role || 'None';
     document.getElementById('instance-detail-personality').textContent = instance.personality || 'None';
-    document.getElementById('instance-detail-project').textContent = instance.project || 'None';
     document.getElementById('instance-detail-status').textContent = instance.status || 'Unknown';
     document.getElementById('instance-detail-home').textContent = instance.homeDirectory || '-';
     document.getElementById('instance-detail-last-active').textContent =
@@ -1464,16 +1464,59 @@ async function showInstanceDetail(instanceId) {
     document.getElementById('instance-detail-instructions').textContent =
         instance.instructions || 'No instructions set';
 
+    // Populate project dropdown
+    const projectSelect = document.getElementById('instance-detail-project-select');
+    const projectSaveBtn = document.getElementById('instance-detail-project-save');
+    const projectNames = state.projects.map(p => p.name || p.projectId);
+    projectSelect.innerHTML = '<option value="">No project</option>' +
+        projectNames.map(name =>
+            `<option value="${escapeHtml(name)}" ${instance.project === name ? 'selected' : ''}>${escapeHtml(name)}</option>`
+        ).join('');
+    projectSaveBtn.style.display = 'none';
+
+    // Handle project change
+    projectSelect.onchange = () => {
+        const newProject = projectSelect.value;
+        const changed = newProject !== (instance.project || '');
+        projectSaveBtn.style.display = changed ? 'inline-flex' : 'none';
+    };
+
+    // Handle project save
+    projectSaveBtn.onclick = async () => {
+        const newProject = projectSelect.value;
+        projectSaveBtn.disabled = true;
+        projectSaveBtn.textContent = 'Saving...';
+        try {
+            await api.updateProject({
+                instanceId: state.instanceId,
+                targetInstanceId: instance.instanceId,
+                project: newProject || null
+            });
+            // Update local state
+            instance.project = newProject || null;
+            showToast('Project updated', 'success');
+            projectSaveBtn.style.display = 'none';
+            loadInstances(); // Refresh the grid
+        } catch (error) {
+            showToast('Failed to update project: ' + error.message, 'error');
+        } finally {
+            projectSaveBtn.disabled = false;
+            projectSaveBtn.textContent = 'Save';
+        }
+    };
+
     // Update avatar
     const avatarChar = displayName.charAt(0).toUpperCase();
     document.getElementById('instance-detail-avatar').textContent = avatarChar;
     document.getElementById('instance-detail-avatar').className =
         `instance-avatar-large ${instance.status === 'active' ? 'online' : ''}`;
 
-    // AUTHORITATIVE: sessionId determines if instance can be communicated with
     // Per CANVAS_WAKE_CONTINUE_GUIDE.md:
     // - sessionId EXISTS → can use continue_conversation
     // - sessionId NULL → must call wake_instance first
+    //
+    // NOTE: get_all_instances doesn't return sessionId, so we show Continue
+    // for any instance with a role. The chat panel handles NO_SESSION errors.
     const hasSession = !!instance.sessionId;
     const hasRole = !!instance.role;
 
@@ -1481,20 +1524,17 @@ async function showInstanceDetail(instanceId) {
     const chatBtn = document.getElementById('instance-chat-btn');
     const wakeBtn = document.getElementById('instance-wake-btn');
 
-    if (hasSession) {
-        // Instance has session - show Continue (uses continue_conversation API)
+    if (hasRole) {
+        // Instance has role - show Continue (will detect NO_SESSION on use)
         chatBtn.style.display = 'inline-flex';
         chatBtn.textContent = 'Continue';
-        chatBtn.title = 'Continue conversation (continue_conversation API)';
-        wakeBtn.style.display = 'none';
-    } else if (hasRole) {
-        // Instance has role but no session - show Wake (uses wake_instance API)
-        chatBtn.style.display = 'none';
+        chatBtn.title = 'Continue conversation';
+        // Also show Wake for manual control
         wakeBtn.style.display = 'inline-flex';
         wakeBtn.textContent = 'Wake';
-        wakeBtn.title = 'Start first conversation (wake_instance API)';
+        wakeBtn.title = 'Wake instance (use if Continue fails)';
     } else {
-        // Instance has neither - hide both
+        // Instance has no role - can't interact
         chatBtn.style.display = 'none';
         wakeBtn.style.display = 'none';
     }
@@ -1505,20 +1545,18 @@ async function showInstanceDetail(instanceId) {
             `Active (Session: ${instance.sessionId.substring(0, 8)}...)`;
     }
 
-    // Show preferences.json if we have it
+    // Always show all instance data as preferences (we get the full data from API)
     const prefsSection = document.getElementById('instance-preferences-section');
     const prefsContent = document.getElementById('instance-detail-preferences');
-    if (instance.preferences || instance.raw) {
-        const prefs = instance.preferences || instance.raw || instance;
-        // Filter out sensitive fields
-        const safePrefs = { ...prefs };
-        delete safePrefs.authToken;
-        delete safePrefs.apiKey;
-        prefsContent.textContent = JSON.stringify(safePrefs, null, 2);
-        prefsSection.style.display = 'block';
-    } else {
-        prefsSection.style.display = 'none';
-    }
+    // Show the full instance data we received
+    const displayData = instance.preferences || instance.raw || instance;
+    // Filter out sensitive fields
+    const safeData = { ...displayData };
+    delete safeData.authToken;
+    delete safeData.apiKey;
+    delete safeData.xmppPassword;
+    prefsContent.textContent = JSON.stringify(safeData, null, 2);
+    prefsSection.style.display = 'block';
 }
 
 /**
@@ -3418,18 +3456,123 @@ async function sendInstanceChatMessage() {
         // Remove thinking indicator
         thinkingEl.remove();
 
-        // Update optimistic turn to show error
-        const lastTurn = state.wakeConversationTurns[state.wakeConversationTurns.length - 1];
-        lastTurn.output = {
-            response: { result: `[Error: ${error.message}]` }
-        };
-        renderInstanceChatMessages();
+        // Check if this is a NO_SESSION error - instance hasn't been woken yet
+        const errorMessage = error.message || '';
+        const isNoSession = errorMessage.includes('NO_SESSION') ||
+                           errorMessage.includes('No session') ||
+                           errorMessage.includes('not woken') ||
+                           errorMessage.includes('wake_instance');
 
-        statusEl.textContent = 'Error';
-        showToast('Message failed: ' + error.message, 'error');
+        if (isNoSession) {
+            // Remove the optimistic turn
+            state.wakeConversationTurns.pop();
+
+            // Show wake prompt
+            container.innerHTML = `
+                <div class="empty-state">
+                    <span class="empty-icon">&#128564;</span>
+                    <p>This instance hasn't been woken yet.</p>
+                    <button class="btn btn-primary" id="wake-from-chat">Wake Instance</button>
+                </div>
+            `;
+
+            // Add wake button handler
+            document.getElementById('wake-from-chat')?.addEventListener('click', async () => {
+                await wakeAndChat(state.wakeConversationTarget);
+            });
+
+            statusEl.textContent = 'Needs wake';
+        } else {
+            // Update optimistic turn to show error
+            const lastTurn = state.wakeConversationTurns[state.wakeConversationTurns.length - 1];
+            lastTurn.output = {
+                response: { result: `[Error: ${error.message}]` }
+            };
+            renderInstanceChatMessages();
+
+            statusEl.textContent = 'Error';
+            showToast('Message failed: ' + error.message, 'error');
+        }
     } finally {
         state.wakeConversationLoading = false;
         updateInstanceChatSendButton();
+    }
+}
+
+/**
+ * Wake an instance from the chat panel and start conversation
+ * Called when user tries to Continue with an instance that hasn't been woken
+ * @param {string} targetInstanceId - Instance to wake
+ */
+async function wakeAndChat(targetInstanceId) {
+    const apiKey = await ensureApiKey();
+    if (!apiKey) return;
+
+    const container = document.getElementById('instance-chat-messages');
+    const statusEl = document.getElementById('chat-instance-status');
+
+    // Show loading state
+    container.innerHTML = '<div class="loading-placeholder">Waking instance...</div>';
+    statusEl.textContent = 'Waking...';
+
+    try {
+        const wakeParams = {
+            instanceId: state.instanceId,
+            targetInstanceId: targetInstanceId,
+            apiKey: apiKey
+        };
+        console.log('[Wake API] WAKE_FROM_CHAT request:', JSON.stringify({
+            ...wakeParams,
+            apiKey: '[REDACTED]'
+        }, null, 2));
+
+        const result = await api.wakeInstance(wakeParams);
+        console.log('[Wake API] WAKE_FROM_CHAT response:', JSON.stringify(result, null, 2));
+
+        if (result.success || !result.error) {
+            showToast(`Instance ${targetInstanceId} is now awake!`, 'success');
+
+            // If wake returned a response, display it
+            if (result.response?.result) {
+                state.wakeConversationTurns = [{
+                    input: {
+                        from: `${state.name} (via UI)`,
+                        message: '[Wake message]'
+                    },
+                    output: {
+                        response: result.response
+                    },
+                    timestamp: new Date().toISOString()
+                }];
+                renderInstanceChatMessages();
+                document.getElementById('chat-turn-count').textContent = 'Turn 1';
+            } else {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span class="empty-icon">&#128172;</span>
+                        <p>Instance is awake! Start the conversation.</p>
+                    </div>
+                `;
+            }
+
+            statusEl.textContent = 'Ready';
+            loadInstances(); // Refresh to update status dots
+        } else {
+            throw new Error(result.error?.message || 'Wake failed');
+        }
+    } catch (error) {
+        console.error('[Wake API] Wake from chat error:', error);
+        container.innerHTML = `
+            <div class="empty-state">
+                <span class="empty-icon">&#9888;</span>
+                <p>Failed to wake instance: ${escapeHtml(error.message)}</p>
+                <button class="btn btn-primary" id="retry-wake">Try Again</button>
+            </div>
+        `;
+        document.getElementById('retry-wake')?.addEventListener('click', () => {
+            wakeAndChat(targetInstanceId);
+        });
+        statusEl.textContent = 'Error';
     }
 }
 

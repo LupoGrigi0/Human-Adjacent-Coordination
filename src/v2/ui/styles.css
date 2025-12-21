@@ -1506,6 +1506,28 @@ body {
     border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
+/* Project selector in detail view */
+.project-selector-detail {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.project-dropdown-select {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-color);
+    min-width: 150px;
+}
+
+.project-dropdown-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
 /* Instance Card - Action buttons */
 .instance-actions {
     display: flex;
