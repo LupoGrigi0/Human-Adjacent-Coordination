@@ -109,10 +109,14 @@ export function getPersonalityDir(personalityId) {
 /**
  * Get the wake-scripts directory path
  * Contains wake scripts and manifest for wakeInstance API
+ * Now located in source code (src/v2/scripts/) rather than data directory
  * @returns {string} Path to wake-scripts directory
  */
 export function getWakeScriptsDir() {
-  return path.join(DATA_ROOT, 'wake-scripts/');
+  // Scripts are now in the source tree, not the data directory
+  // Use import.meta.url to get path relative to this file
+  const currentDir = new URL('.', import.meta.url).pathname;
+  return path.join(currentDir, 'scripts/');
 }
 
 /**
