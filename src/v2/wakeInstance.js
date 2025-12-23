@@ -19,7 +19,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { spawn, execSync } from 'child_process';
 import { randomUUID } from 'crypto';
-import { getWakeScriptsDir, getWakeLogsDir } from './config.js';
+import { getWakeScriptsDir, getWakeLogsDir, getInstancesDir } from './config.js';
 import { readPreferences, writePreferences, ensureDir, readJSON } from './data.js';
 import { canRoleCallAPI } from './permissions.js';
 
@@ -266,10 +266,9 @@ export async function wakeInstance(params) {
   const sessionId = randomUUID();
 
   // Determine working directory
-  const INSTANCES_BASE_DIR = '/mnt/coordinaton_mcp_data/instances';
   const workingDirectory = params.workingDirectory ||
     targetPrefs.workingDirectory ||
-    path.join(INSTANCES_BASE_DIR, params.targetInstanceId);
+    path.join(getInstancesDir(), params.targetInstanceId);
 
   // Compute Unix username
   const unixUser = params.targetInstanceId.replace(/ /g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
