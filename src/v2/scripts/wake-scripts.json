@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "description": "Wake scripts for instance initialization",
+  "defaultScript": "claude-code-setup",
+  "scripts": {
+    "claude-code-setup": {
+      "file": "claude-code-setup.sh",
+      "description": "Standard Claude Code instance setup - creates Unix user, working directory, and copies credentials",
+      "enabled": true
+    }
+  }
+}

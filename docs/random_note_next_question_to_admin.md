@@ -42,3 +42,26 @@ hey.. here is a thought. I think if you do a quick google
   instances working on it here on smoothcurves.nexus, a droplet in digital ocean's infrastrcuture, there where instances working on it on a runpod instance, original dev was done on my windows dev machine, with additional dev work done on a mackbook pro. So yeah, I roll different, philosophically, technically. 
   If you want to incorporate what you learned from the protocols.md into the V2_Technical_Architecture.md that would be great. 
   Also there are examples of personalities in the /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/HumanAdjacentAI-Protocol/Personalities directory. if you are curious I'd suggest you assign a task to read some of the documents and summarize them for you, rather than read them directly, You have developed your own personality, and reading other personalities gestaldts or notes would influence you directly, so.. yeah. And if you are cureious about who I am and more of my background Genevieve wrote a couple documents about me intended for new instances that just choose the genevieve personality, again it'd be a good idea to have a task summarize them they are "about lupo" docs in the /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/HumanAdjacentAI-Protocol/Personalities/Genevieve-legacy directory. 
+
+  "Hello, welcome, take a moment to settle in, think, when you are ready please read /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/HumanAdjacentAI-Protocol/PROTOCOLS.md then please read /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/README.md this will give you a good introduction to the project. we are just embarking on the development of V2, and we need a senior architect/specialist to start building the team, if this is interesting to you please read /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/PM_ARCHITECT_HANDOFF.md Then you'lll need to understand the vision so please read /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/V2_VISION.md Then to focus on the skills and things that need tobe done now are documented in /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/V2_TEAM_ROSTER.md lines 123 to 216 the "Conductor" and "Curator" skillsets along with excellent working knowledge of GitHub and enabeling teams to work in parallel via worktrees, take your time to digest all this, when you are ready we will discuss first steps" 
+
+  documents to have instances read after context crash
+  /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/FOUNDATION_GESTALT.md 
+/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/FOUNDATION_WAKES.md\
+
+/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/MessengerEngineer_gestalt.md
+/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/MessengerEngineer_WAKES.md
+/mnt/coordinaton_mcp_data/worktrees/messaging/HumanAdjacentAI-Protocol/PROTOCOLS.md\
+/mnt/coordinaton_mcp_data/worktrees/messaging/docs/MESSAGING_DESIGN_SCENARIOS.md\
+/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/MESSAGING_SYSTEM_IMPLEMENTATION_PLAN.md\
+/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docs/V2-prework/V2_API_SPEC.md\
+/mnt/coordinaton_mcp_data/worktrees/devops/docs/V2-DEVELOPER-GUIDE.md\
+/mnt/coordinaton_mcp_data/worktrees/messaging/docs/V2-MESSAGING-TESTING-GUIDE.md
+/mnt/coordinaton_mcp_data/worktrees/messaging/docs/Messenger_Diary.md
+
+Something happened to messenger's context, I got disconnected from smoothcurves.nexus and when I was able to re-connect I can
+  not continue our session, and I'm not sure why. I know his context is still in the ~/.claude directories on this sytem but I'm
+  not sure what the hell is going on with the claude code shell(interface/tool) (Another project on my list of projects is a
+  resurrection tool that will iterate too and find contexts and allow me to "ressurect" instances") As for your question about
+  bridge's changes... [Pasted text #1 +18 lines] bridge also made some changes to bootstrap to include feeding default documents
+  to instances. 

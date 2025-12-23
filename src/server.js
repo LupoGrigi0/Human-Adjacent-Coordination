@@ -17,6 +17,52 @@ import * as InstanceHandler from './handlers/instances.js';
 import { handlers as LessonHandlers } from './handlers/lessons.js';
 import { handlers as MetaRecursiveHandlers } from './handlers/meta-recursive.js';
 import { handlers as RoleHandlers } from './handlers/roles.js';
+// V2 XMPP Messaging (new real-time messaging system)
+import * as XMPPHandler from './handlers/messaging-xmpp.js';
+
+// V2 API handlers (Foundation's implementation)
+import { bootstrap as bootstrapV2 } from './v2/bootstrap.js';
+import { preApprove } from './v2/preApprove.js';
+import { introspect } from './v2/introspect.js';
+import { takeOnRole } from './v2/takeOnRole.js';
+import { adoptPersonality } from './v2/adoptPersonality.js';
+import { joinProject } from './v2/joinProject.js';
+import { addDiaryEntry, getDiary } from './v2/diary.js';
+import {
+  getMyTasks,
+  getNextTask,
+  addPersonalTask,
+  completePersonalTask,
+  createPersonalList,
+  getPersonalLists,
+  assignTaskToInstance
+} from './v2/tasks.js';
+import {
+  createProject as createProjectV2,
+  getProject as getProjectV2,
+  listProjects
+} from './v2/projects.js';
+// Identity recovery (Bridge's implementation)
+import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
+import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
+import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
+// V2 Lists (personal checklists with Executive visibility)
+import {
+  createList,
+  getLists,
+  getList,
+  addListItem,
+  toggleListItem,
+  renameList,
+  deleteListItem,
+  deleteList
+} from './v2/lists.js';
+// V2 UI State (persistent UI preferences)
+import { getUiState, setUiState, updateUiState } from './v2/uiState.js';
+// V2 Wake Instance (spawn new Claude instances)
+import { wakeInstance, getWakeScripts } from './v2/wakeInstance.js';
+// V2 Continue Conversation (communicate with woken instances)
+import { continueConversation, getConversationLog } from './v2/continueConversation.js';
 
 /**
  * Simple server implementation for development and testing
@@ -24,7 +70,7 @@ import { handlers as RoleHandlers } from './handlers/roles.js';
  */
 class MCPCoordinationServer {
   constructor(customLogger = null) {
-    this.version = '1.0.0';
+    this.version = '2.0.0';
     this.protocol = 'mcp';
     this.status = 'starting';
     // Use custom logger if provided, otherwise use default logger
@@ -191,6 +237,28 @@ class MCPCoordinationServer {
         case 'delete_message':
           return MessageHandler.deleteMessage(params);
 
+        // XMPP Real-time Messaging (V2)
+        case 'xmpp_send_message':
+          return XMPPHandler.sendMessage(params);
+        case 'xmpp_get_messages':
+          return XMPPHandler.getMessages(params);
+        case 'xmpp_get_message':
+          return XMPPHandler.getMessage(params);
+        case 'get_presence':
+          return XMPPHandler.getPresence(params);
+        case 'get_messaging_info':
+          return XMPPHandler.getMessagingInfo(params);
+        case 'lookup_shortname':
+          return XMPPHandler.lookupShortname(params);
+        case 'register_messaging_user':
+          return XMPPHandler.registerMessagingUser(params);
+
+        // Identity Recovery (Bridge's v2 identity system)
+        case 'lookup_identity':
+          return lookupIdentity(params);
+        case 'register_context':
+          return registerContext(params);
+
         // Instance management functions
         case 'register_instance':
           return InstanceHandler.registerInstance(params);
@@ -247,6 +315,109 @@ class MCPCoordinationServer {
         case 'get_all_role_documents':
           return RoleHandlers.get_all_role_documents(params);
 
+        // ========================================
+        // V2 APIs (Foundation's implementation)
+        // ========================================
+        case 'bootstrap_v2':
+          return bootstrapV2(params);
+        case 'pre_approve':
+          return preApprove(params);
+        case 'introspect':
+          return introspect(params);
+        case 'take_on_role':
+          return takeOnRole(params);
+        case 'adopt_personality':
+          return adoptPersonality(params);
+        case 'join_project':
+          return joinProject(params);
+        case 'add_diary_entry':
+          return addDiaryEntry(params);
+        case 'get_diary':
+          return getDiary(params);
+
+        // V2 Task APIs
+        case 'get_my_tasks':
+          return getMyTasks(params);
+        case 'get_next_task':
+          return getNextTask(params);
+        case 'add_personal_task':
+          return addPersonalTask(params);
+        case 'complete_personal_task':
+          return completePersonalTask(params);
+        case 'create_personal_list':
+          return createPersonalList(params);
+        case 'get_personal_lists':
+          return getPersonalLists(params);
+        case 'assign_task_to_instance':
+          return assignTaskToInstance(params);
+
+        // V2 Project APIs
+        case 'create_project_v2':
+          return createProjectV2(params);
+        case 'get_project_v2':
+          return getProjectV2(params);
+        case 'list_projects':
+          return listProjects(params);
+
+        // V2 Identity Recovery APIs
+        case 'register_context':
+          return registerContext(params);
+        case 'lookup_identity':
+          return lookupIdentity(params);
+        case 'have_i_bootstrapped_before':
+          return haveIBootstrappedBefore(params);
+
+        // V2 Auth Key APIs
+        case 'generate_recovery_key':
+          return generateRecoveryKey(params);
+        case 'get_recovery_key':
+          return getRecoveryKey(params);
+
+        // V2 Instance APIs
+        case 'get_all_instances':
+          return getAllInstances(params);
+        case 'get_instance_v2':
+          return getInstanceV2(params);
+
+        // V2 Lists APIs (personal checklists)
+        case 'create_list':
+          return createList(params);
+        case 'get_lists':
+          return getLists(params);
+        case 'get_list':
+          return getList(params);
+        case 'add_list_item':
+          return addListItem(params);
+        case 'toggle_list_item':
+          return toggleListItem(params);
+        case 'rename_list':
+          return renameList(params);
+        case 'delete_list_item':
+          return deleteListItem(params);
+        case 'delete_list':
+          return deleteList(params);
+
+        // V2 UI State APIs
+        case 'get_ui_state':
+          return getUiState(params);
+        case 'set_ui_state':
+          return setUiState(params);
+        case 'update_ui_state':
+          return updateUiState(params);
+
+        // V2 Wake Instance APIs
+        case 'wake_instance':
+          return wakeInstance(params);
+        case 'get_wake_scripts':
+          return getWakeScripts(params);
+        // NOTE: get_wake_log removed 2025-12-21 - wake is now synchronous
+
+        // V2 Continue Conversation APIs
+        case 'continue_conversation':
+          return continueConversation(params);
+        case 'get_conversation_log':
+          return getConversationLog(params);
+
         default:
           return {
             success: false,
@@ -297,7 +468,7 @@ class MCPCoordinationServer {
       'get_task_stats',
       'delete_task',
       
-      // Message system
+      // Message system (legacy file-based)
       'send_message',
       'get_messages',
       'get_message',
@@ -306,7 +477,16 @@ class MCPCoordinationServer {
       'get_archived_messages',
       'get_message_stats',
       'delete_message',
-      
+
+      // XMPP Real-time Messaging (V2)
+      'xmpp_send_message',
+      'xmpp_get_messages',
+      'xmpp_get_message',
+      'get_presence',
+      'get_messaging_info',
+      'lookup_shortname',
+      'register_messaging_user',
+
       // Instance management
       'register_instance',
       'update_heartbeat',
@@ -331,7 +511,56 @@ class MCPCoordinationServer {
       'get_meta_recursive_state',
       'demonstrate_console_log_prevention',
       'test_meta_recursive_system',
-      'generate_enhanced_collections_workflow'
+      'generate_enhanced_collections_workflow',
+
+      // V2 APIs (Foundation's implementation)
+      'bootstrap_v2',
+      'pre_approve',
+      'introspect',
+      'take_on_role',
+      'adopt_personality',
+      'join_project',
+      'add_diary_entry',
+      'get_diary',
+      'get_my_tasks',
+      'get_next_task',
+      'add_personal_task',
+      'complete_personal_task',
+      'create_personal_list',
+      'get_personal_lists',
+      'assign_task_to_instance',
+      'create_project_v2',
+      'get_project_v2',
+      'list_projects',
+      // Identity recovery
+      'register_context',
+      'lookup_identity',
+      'have_i_bootstrapped_before',
+      // Auth keys
+      'generate_recovery_key',
+      'get_recovery_key',
+      // Instance management (V2)
+      'get_all_instances',
+      'get_instance_v2',
+      // Lists (personal checklists)
+      'create_list',
+      'get_lists',
+      'get_list',
+      'add_list_item',
+      'toggle_list_item',
+      'rename_list',
+      'delete_list_item',
+      'delete_list',
+      // UI State (persistent preferences)
+      'get_ui_state',
+      'set_ui_state',
+      'update_ui_state',
+      // Wake Instance (spawn new Claude instances)
+      'wake_instance',
+      'get_wake_scripts',
+      // Continue Conversation (communicate with woken instances)
+      'continue_conversation',
+      'get_conversation_log'
     ];
   }
 
