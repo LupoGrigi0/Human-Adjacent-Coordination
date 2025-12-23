@@ -23,13 +23,18 @@
 - [x] Step 2.6: Dev server restarted
 - [x] Step 2.7: Verified - fixed DATA_PATH→V2_DATA_ROOT divergence (commit 709801b)
 
-### Phase 3: Production V1→V2 Migration - NOT STARTED
-- Production uses V1 flat-file structure (instances.json)
-- Requires V1→V2 migration script
+### Phase 3: Production V1→V2 Migration - NOT NEEDED ✅
+- `/mnt/coordinaton_mcp_data/production/` is V1's production runtime (GH clone)
+- V2 is a separate system that will replace V1, not merge with it
+- No data migration required - V1 prod data stays with V1
 
-### Phase 4: Messenger Handoff Document - NOT STARTED
+### Phase 4: Messenger Handoff Document - COMPLETE ✅
+- Created `docs/MESSENGER_CONSOLIDATION_HANDOFF.md`
+- Documents 8 handler files needing path updates
+- Ready for Messenger to pick up
 
-### Phase 5: Cleanup - NOT STARTED (wait 24-48 hours after verification)
+### Phase 5: Cleanup - PENDING (wait 24-48 hours)
+- Archive `/mnt/coordinaton_mcp_data/v2-dev-data/` after verification period
 
 ---
 
