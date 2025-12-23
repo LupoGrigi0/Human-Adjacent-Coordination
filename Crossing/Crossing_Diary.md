@@ -332,5 +332,46 @@ If you're reading this after a crash and the server seems wrong:
 
 ---
 
+## Entry 6 - 2025-12-23 - Consolidation Progress
+
+### Phase 3: Production Investigation
+
+Assessed production state:
+- `/mnt/coordinaton_mcp_data/production/` is a separate V1 deployment
+- Has 22 registered instances in V1 flat-file format
+- Lupo is investigating whether this data has any value
+- **SKIPPED** pending Lupo's decision
+
+### Phase 4: Messenger Handoff - COMPLETE
+
+Created `docs/MESSENGER_CONSOLIDATION_HANDOFF.md` documenting:
+- 8 handler files that use hardcoded `const DATA_DIR = 'data'`
+- Recommended fix: import from `src/v2/config.js`
+- Testing checklist for Messenger
+
+### Git Housekeeping
+
+- Rebased v2-dev on origin/v2 (38 UI commits from Canvas)
+- Resolved merge conflicts (took foundation branch versions)
+- All changes pushed to origin
+
+### Current Status
+
+| Phase | Status |
+|-------|--------|
+| 1. Backups | ✅ Complete |
+| 2. Dev Consolidation | ✅ Complete |
+| 3. Production Migration | ⏸️ Skipped (pending investigation) |
+| 4. Messenger Handoff | ✅ Complete |
+| 5. Cleanup | ⏳ Wait 24-48 hours |
+
+### What's Next
+
+Waiting on:
+1. Lupo's verdict on production directory value
+2. 24-48 hours before cleanup of old v2-dev-data
+
+---
+
 **Context Status:** 🟢 Fresh - Crossing
 
