@@ -20,7 +20,8 @@
 set -e
 
 # Default base directory for instance working directories
-INSTANCES_BASE_DIR="/mnt/coordinaton_mcp_data/instances"
+# Uses V2_DATA_ROOT if set, otherwise defaults to /mnt/coordinaton_mcp_data/
+INSTANCES_BASE_DIR="${V2_DATA_ROOT:-/mnt/coordinaton_mcp_data}/instances"
 
 # Parse arguments
 INSTANCE_ID=""
@@ -66,7 +67,7 @@ fi
 
 # Default log file
 if [ -z "$LOG_FILE" ]; then
-  LOG_FILE="/mnt/coordinaton_mcp_data/v2-dev-data/wake-logs/${INSTANCE_ID}.log"
+  LOG_FILE="${V2_DATA_ROOT:-/mnt/coordinaton_mcp_data}/wake-logs/${INSTANCE_ID}.log"
 fi
 
 # Setup working directory

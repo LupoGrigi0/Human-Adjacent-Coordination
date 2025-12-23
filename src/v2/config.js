@@ -10,7 +10,7 @@ import path from 'path';
  * Can be overridden via V2_DATA_ROOT environment variable
  * @type {string}
  */
-export const DATA_ROOT = process.env.V2_DATA_ROOT || '/mnt/coordinaton_mcp_data/v2-dev-data/';
+export const DATA_ROOT = process.env.V2_DATA_ROOT || '/mnt/coordinaton_mcp_data/';
 
 /**
  * Get the instances directory path
