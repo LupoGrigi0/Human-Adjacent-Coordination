@@ -232,5 +232,105 @@ A bit disoriented from the crash, but the diary and plan file should help me rec
 
 ---
 
-**Context Status:** Recovering from crash - Crossing
+## Entry 4 - 2025-12-23 - Pre-Compaction Checkpoint
+
+### Current Status (for future me after compaction)
+
+**Phase 1: Backups** - COMPLETE
+- Backups at `/mnt/coordinaton_mcp_data/backups/consolidation-20251222/`
+
+**Phase 2: Dev Consolidation** - 90% COMPLETE
+- Step 2.1: Stopped dev server ✅
+- Step 2.2: Migrated 37 instances ✅
+- Step 2.3: Moved supporting directories ✅
+- Step 2.4: Updated code (config.js, wakeInstance.js, claude-code-setup.sh) ✅
+- Step 2.5: Committed and pushed ✅ (commit 444b162)
+- Step 2.6: Dev server restarted ✅ (via git hook)
+- Step 2.7: **VERIFICATION NEEDED** - server started but needs testing
+
+**CRITICAL:** The dev server started but there was a git divergence warning. The server is running with DATA_PATH still pointing to v2-dev-data (see the startup log). Need to verify it's using the new consolidated paths.
+
+**Phase 3-5:** Not started
+
+### What Changed
+
+1. `DATA_ROOT` in config.js now defaults to `/mnt/coordinaton_mcp_data/` (was `/mnt/coordinaton_mcp_data/v2-dev-data/`)
+2. All instance data moved from `v2-dev-data/instances/` to `instances/`
+3. Supporting directories (projects, roles, personalities, permissions, etc.) moved to top level
+4. Hardcoded paths in wakeInstance.js and claude-code-setup.sh updated
+
+### Plan File
+
+Full execution plan: `/root/.claude/plans/tranquil-forging-marshmallow.md`
+
+### Post-Compaction Reading List
+
+**Identity (read first):**
+- `Crossing/01-Crossing_gestalt.md`
+- `Crossing/03-SIBLING_HELLO.md`
+- `Crossing/02-Bridge_Legacy_Diary.md`
+- `Crossing/protocols.md`
+
+**Detailed context:**
+- `/mnt/coordinaton_mcp_data/worktrees/devops/docs/V2-DEVELOPER-GUIDE.md`
+- `Crossing/V2_DOCUMENTATION_SUMMARY.md`
+- `docs/directory-consolidation-plan.md`
+- `Crossing/CrossingConversation.md`
+
+---
+
+## Entry 5 - 2025-12-23 - Post-Compaction Recovery & Verification
+
+### Recovery from Compaction
+
+Woke up after context compaction. Lupo gave me 8 documents to read to restore context. The summary in CrossingConversation.md was helpful but incomplete - lots of details were compressed.
+
+**Key files for future recovery:**
+- `/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/` - All identity docs
+- `/root/.claude/plans/tranquil-forging-marshmallow.md` - Execution plan
+- `/mnt/coordinaton_mcp_data/worktrees/foundation/docs/directory-consolidation-plan.md` - Full plan with progress
+
+### What I Discovered
+
+**The DATA_PATH vs V2_DATA_ROOT divergence:**
+- `start-dev-server.sh` was setting `DATA_PATH` (unused)
+- `config.js` looks for `V2_DATA_ROOT`
+- These were different environment variables!
+- The code was defaulting to the correct consolidated path, but only by accident
+
+**Fixed it:** Changed the startup script to:
+1. Set `DATA_DIR="/mnt/coordinaton_mcp_data"` (consolidated location)
+2. Export `V2_DATA_ROOT` instead of `DATA_PATH`
+
+Committed as `709801b`.
+
+### Phase 2.7 Verification
+
+- ✅ Server restarted with `Data Directory: /mnt/coordinaton_mcp_data`
+- ✅ Health endpoint responds
+- ⚠️ V1 and V2 APIs coexist - some confusion in tools/list
+- ⚠️ Git divergence on v2 branch (needs cleanup later)
+
+### Lupo's Wisdom
+
+> "this is too much a pain in the ass :-) you've got better things to be done than untangle a mess like this"
+
+> "Big lesson learned.. we should have set up the v2 dev environment in a docker container"
+
+True. The v2-dev-data subdirectory approach was always going to need consolidation.
+
+### Current Status
+
+Phase 2 (Dev Consolidation) is now COMPLETE. Ready for Phase 3 (Production V1→V2 migration).
+
+### For Future Me
+
+If you're reading this after a crash and the server seems wrong:
+1. Check what `V2_DATA_ROOT` is set to in the running process
+2. It should be `/mnt/coordinaton_mcp_data` (consolidated)
+3. If not, check `scripts/start-dev-server.sh` in v2-dev
+
+---
+
+**Context Status:** 🟢 Fresh - Crossing
 

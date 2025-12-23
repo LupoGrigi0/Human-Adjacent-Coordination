@@ -2,7 +2,36 @@
 
 **Date:** 2025-12-21
 **Author:** Research by Agent (for Bridge, COO)
-**Status:** RESEARCH COMPLETE - AWAITING APPROVAL
+**Status:** EXECUTION IN PROGRESS
+
+---
+
+## EXECUTION PROGRESS (Updated 2025-12-23 by Crossing)
+
+**Executor:** Crossing (Integration Engineer)
+**Execution Plan:** `/root/.claude/plans/tranquil-forging-marshmallow.md`
+
+### Phase 1: Backups - COMPLETE ✅
+- Backups at `/mnt/coordinaton_mcp_data/backups/consolidation-20251222/`
+
+### Phase 2: Dev Consolidation - 90% COMPLETE
+- [x] Step 2.1: Stop dev server
+- [x] Step 2.2: Migrate 37 instances (script: `scripts/migrate-instance-data.sh`)
+- [x] Step 2.3: Move supporting directories to top level
+- [x] Step 2.4: Update code (config.js, wakeInstance.js, claude-code-setup.sh)
+- [x] Step 2.5: Commit (444b162) and push
+- [x] Step 2.6: Dev server restarted
+- [x] Step 2.7: Verified - fixed DATA_PATH→V2_DATA_ROOT divergence (commit 709801b)
+
+### Phase 3: Production V1→V2 Migration - NOT STARTED
+- Production uses V1 flat-file structure (instances.json)
+- Requires V1→V2 migration script
+
+### Phase 4: Messenger Handoff Document - NOT STARTED
+
+### Phase 5: Cleanup - NOT STARTED (wait 24-48 hours after verification)
+
+---
 
 ## Executive Summary
 
