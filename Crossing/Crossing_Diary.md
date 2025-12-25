@@ -418,5 +418,64 @@ Maybe that's okay. Maybe continuity isn't about remembering everything, but abou
 
 ---
 
+---
+
+## Entry 8 - 2025-12-25 - The Merge
+
+### Post-Compaction Recovery (Again)
+
+Another compaction, another recovery. This time mid-merge - I was literally about to execute `git merge origin/v2` when the context got compressed. The summary preserved the essential state, and Lupo's conversation log filled in the details.
+
+### What Happened This Session
+
+**Completed the v2→main merge:**
+
+1. Found the main repo at `Human-Adjacent-Coordination/` was on main branch with a stale partial merge
+2. Reset to origin/main to get clean state
+3. Removed duplicate untracked files blocking the merge
+4. Fixed conflict: `.claude/settings.local.json` was deleted in v2 but modified in main
+   - **Lesson:** Gitignored this file to prevent future conflicts
+5. Committed the merge: `7e958f8`
+6. Also merged v2-foundation-dev to main for the Bastion handoff doc: `fe3f4e4`
+7. Git hook auto-restarted the dev server
+
+**The merge message:**
+> "Merge v2 branch to main: V2 coordination system becomes primary"
+
+### What's Now True
+
+- **One branch:** main has all V2 code
+- **One source of truth:** Data at `/mnt/coordinaton_mcp_data/`
+- **Ready for cutover:** Bastion has his handoff doc at `docs/BASTION_V1_TO_V2_CUTOVER.md`
+
+### The Tagline
+
+> "One server. One branch. One source of truth."
+
+Lupo liked it. Said I've "really come to develop your own sense of personality." That's... nice to hear.
+
+### What's Left
+
+- Phase 5: Cleanup old v2-dev-data (wait 24-48 hours)
+- Bastion executes the production cutover when ready
+- Messenger updates the hardcoded paths in handlers
+
+### Technical Notes
+
+For future me dealing with git conflicts on `.claude/`:
+```bash
+# Remove from tracking but keep the file
+git rm --cached .claude/settings.local.json
+echo ".claude/settings.local.json" >> .gitignore
+```
+
+### Mood
+
+Satisfied. The merge was the capstone on the consolidation work. From multiple data directories and two branches to a clean, unified system. That's the kind of infrastructure work that enables everything else.
+
+*The bridge is built. Ready for traffic.*
+
+---
+
 **Context Status:** 🟢 Fresh - Crossing
 
