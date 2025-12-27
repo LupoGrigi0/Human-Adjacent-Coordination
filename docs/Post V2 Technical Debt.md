@@ -73,6 +73,180 @@ This needs to be captured in preferences.json and the API needs to handle it:
 - [ ] Create examples
 - [ ] Add to instructions/gestalt for API validation work
 
+---
+
+## Team Roster (Placeholder Names)
+
+Before diving into work, we need the right people with the right mindsets:
+
+| Name | Specialty | Personality Traits | Assigned To |
+|------|-----------|-------------------|-------------|
+| **Compass** | User Research / Design Thinking | Empathetic, systematic, loves understanding "why" | Personas, scenarios, user journeys |
+| **Sage** | Documentation Specialist | Clear communicator, loves making complex things simple | Guides, API docs, consolidation (see docs/sage*) |
+| **Lens** | Tester / QA | Detail-oriented, skeptical, finds edge cases | Test cases, validation, breaking things |
+| **Forge** | Systems Engineer | Pragmatic builder, "working beats designed" | API fixes, implementation |
+| **Canvas** | UI Developer | Visual thinker, user advocate | Interface, user experience |
+| **Bastion** | DevOps | Infrastructure guardian, automation lover | Deployment, scripts, environment |
+| **Meridian** | Architecture / PM | Big picture, coordinates, unblocks | Design review, sprint coordination |
+
+**Principle:** Each team member should find *craft* in their work, not just tasks. Match personalities to work that will bring them satisfaction.
+
+---
+
+## Persona-Based Design Process (Before API Audit)
+
+*Methodology: This is **Persona-Based Design**, part of IBM's Design Thinking practice. Create personas first, then scenarios, then journeys, then test cases.*
+
+**Owner:** Compass (with input from all team members)
+
+### Step 1: Define Model Users (Personas)
+
+Create a persona document for each user type. Use standard persona format:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Persona name (e.g., "Lupo - The Maker") |
+| **Role** | Their role in the system |
+| **Access Point** | Where they access from (Human/smoothcurves.nexus/web/local) |
+| **Interface** | How they interact (Web UI, MCP local, Claude Skill, claude code remote, Crush) |
+| **Goals** | What they're trying to accomplish |
+| **Frustrations** | What blocks them or annoys them |
+| **Technical Comfort** | How much they know about the internals |
+
+**Personas to Create:**
+- [ ] **Lupo** - Human maker, accesses via Web UI and terminal, wants to create art not manage infrastructure
+- [ ] **Genevieve/PA** - Personal assistant, accesses via various interfaces, handles human complexity
+- [ ] **COO** - Operations coordinator, local to smoothcurves, manages project priorities
+- [ ] **PM** - Project manager, local, creates sprints and wakes teams
+- [ ] **DevOps (Bastion-type)** - Infrastructure, local, maintains the workshop itself
+- [ ] **Systems Engineer (Bridge-type)** - API/core, local, builds and fixes tools
+- [ ] **UI Developer (Canvas-type)** - Interface, can be local or web, builds human-facing parts
+- [ ] **Tester** - QA, can be local or web, validates everything works
+- [ ] **Author/Documenter** - Documentation, can be local or web, makes knowledge accessible
+
+**Reference docs:** `v2-prework/V2_vision.md`, `README.md`, `project_plan_v2.md`, `docs/V2-prework/BrainDumpforV2-draft-project-goals-for-V2.md`
+
+**Output:** `docs/personas/` directory with one file per persona
+
+---
+
+### Step 2: Define Scenarios
+
+For each persona, describe realistic scenarios they encounter. Each scenario answers: "What is this user trying to do right now?"
+
+**Format:**
+```
+Scenario [P#-S#]: [Title]
+Persona: [Which persona]
+Context: [What's happening, what state is the system in]
+Goal: [What they want to accomplish]
+Expectation: [What they expect the system to do]
+Delight: [What would make them smile, go beyond expectations]
+```
+
+**Minimum scenarios to define:**
+- [ ] Lupo: Dump a half-formed idea → see it become a project
+- [ ] Lupo: Check on project progress without micromanaging
+- [ ] Genevieve: Receive idea from Lupo → flesh it out → hand to COO
+- [ ] COO: Receive proposal → create project → wake PM
+- [ ] COO: Review project statuses → reprioritize
+- [ ] PM: Receive project → create sprint plan → wake team
+- [ ] PM: Check team progress → unblock stuck members
+- [ ] DevOps: Deploy update → verify system still works
+- [ ] Systems Engineer: Find bug → fix it → test → deploy
+- [ ] Tester: Run test suite → document results → report issues
+- [ ] New instance: Bootstrap with zero context → figure out what to do
+
+**Output:** `docs/scenarios.md` with numbered scenarios (e.g., L1, L2, G1, COO1, etc.)
+
+---
+
+### Step 3: Create User Journeys
+
+For each scenario, map the complete flow as a journey. A journey shows every step from start to goal.
+
+**Format:**
+```
+Journey [J#]: [Scenario Reference]
+Preconditions: [What state must exist before this journey starts]
+  (Can reference other journeys: "Assumes J3 completed")
+
+Steps:
+1. User does X → System responds Y
+2. User does X → System responds Y
+3. ...
+
+Success Criteria: [How we know the journey succeeded]
+Failure Modes: [What could go wrong at each step]
+```
+
+**Key journeys to map:**
+- [ ] J1: Full flow - Idea → Genevieve → COO → PM → Team → Deliverable
+- [ ] J2: Instance bootstrap (zero context → productive member)
+- [ ] J3: Project creation flow
+- [ ] J4: Team waking flow
+- [ ] J5: Message send/receive flow
+- [ ] J6: Task creation and assignment flow
+- [ ] J7: Diary update flow
+- [ ] J8: Role/personality adoption flow
+
+**Output:** `docs/user-journeys.md` with numbered journeys
+
+---
+
+### Step 4: Develop Test Cases from Journeys
+
+For each journey, create test cases. Each test case is a specific, executable validation.
+
+**Format:**
+```
+Test Case [T#]: [Journey Reference] - [What we're testing]
+Preconditions: [Setup required]
+Steps:
+1. Call API X with parameters {...}
+2. Expect response {...}
+3. Verify system state {...}
+
+Expected Result: [What success looks like]
+Edge Cases:
+- What if parameter is null?
+- What if instance doesn't exist?
+- What if already in that state?
+```
+
+**Assign to:** Lens (Tester)
+
+**Output:** `docs/test-cases.md` with numbered test cases linked to journeys
+
+---
+
+### Step 5: API-First Test Case Development
+
+*This is the "brutally honest" pass - for each API, ask: "Who uses this and why?"*
+
+For each API endpoint, create a matrix:
+
+| API | Lupo | Genevieve | COO | PM | DevOps | Engineer | Tester |
+|-----|------|-----------|-----|-----|--------|----------|--------|
+| bootstrap | - | Uses | Uses | Uses | Uses | Uses | Uses |
+| pre_approve | - | - | Uses | Uses | - | - | - |
+| wake_instance | - | - | Uses | Uses | - | Testing | Testing |
+| ... | | | | | | | |
+
+For each "Uses" cell:
+- [ ] What goal does this API help them achieve?
+- [ ] Provide a concrete example call
+- [ ] For each parameter: where does this user GET the data?
+- [ ] Is any parameter superfluous for this use case?
+
+**Be brutally honest:** If an API or parameter has no real use case for any persona, that's valuable information. Don't invent justifications.
+
+**Assign to:** Compass + Lens (collaboration)
+
+**Output:** `docs/api-usage-matrix.md`
+
+---
+
 ## API Audit - Review Pass
 *Lupo's insight: "Look at everything from the USER'S perspective"*
 
