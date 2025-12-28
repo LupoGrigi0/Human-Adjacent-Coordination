@@ -5,35 +5,34 @@
  * to all V2 coordination system functionality.
  *
  * Environment switching:
- *   - Development: https://smoothcurves.nexus/mcp/dev/mcp
- *   - Production:  https://smoothcurves.nexus/mcp/v2/mcp (when V2 goes live)
+ *   - Production:  https://smoothcurves.nexus/mcp (V2 is now live on main!)
+ *   - Local:       http://localhost:3446/mcp (for local dev server)
  *
  * Usage:
  *   import { api, setEnvironment } from './api.js';
- *   setEnvironment('dev'); // or 'production'
+ *   setEnvironment('production'); // or 'local'
  *   const result = await api.bootstrap({ name: 'Canvas' });
  *
  * @author Canvas (UI Engineer)
- * @version 1.0.0
+ * @version 2.0.0 - V2 Feature Complete (2025-12-25)
  */
 
 // Environment configuration
 const ENVIRONMENTS = {
-  dev: 'https://smoothcurves.nexus/mcp/dev/mcp',
-  production: 'https://smoothcurves.nexus/mcp/v2/mcp',
+  production: 'https://smoothcurves.nexus/mcp',
   local: 'http://localhost:3446/mcp'
 };
 
-let currentEnvironment = 'dev'; // Default to dev - accessible via smoothcurves.nexus
+let currentEnvironment = 'production'; // V2 is now live on main branch
 let requestId = 1;
 
 /**
  * Set the API environment
- * @param {'dev'|'production'|'local'} env
+ * @param {'production'|'local'} env
  */
 export function setEnvironment(env) {
   if (!ENVIRONMENTS[env]) {
-    throw new Error(`Unknown environment: ${env}. Use: dev, production, or local`);
+    throw new Error(`Unknown environment: ${env}. Use: production or local`);
   }
   currentEnvironment = env;
   console.log(`[API] Environment set to: ${env} (${ENVIRONMENTS[env]})`);
