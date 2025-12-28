@@ -67,6 +67,7 @@ function parseEndpointBlock(block) {
     since: null,
     category: null,
     status: null,
+    visibility: 'external', // Default to external if not specified
     description: '',
     params: [],
     returns: [],
@@ -146,6 +147,8 @@ function parseEndpointBlock(block) {
       endpoint.category = trimmed.replace('@category ', '').trim();
     } else if (trimmed.startsWith('@status ')) {
       endpoint.status = trimmed.replace('@status ', '').trim();
+    } else if (trimmed.startsWith('@visibility ')) {
+      endpoint.visibility = trimmed.replace('@visibility ', '').trim();
     } else if (trimmed.startsWith('@description')) {
       finalizeCurrentContent();
       currentSection = 'description';
@@ -512,8 +515,16 @@ async function main() {
     allEndpoints.push(...endpoints);
   }
 
+  // Separate external and internal endpoints
+  const externalEndpoints = allEndpoints.filter(e => e.visibility !== 'internal');
+  const internalEndpoints = allEndpoints.filter(e => e.visibility === 'internal');
+
   console.log(`\n✅ Found ${allEndpoints.length} documented endpoint(s):`);
-  for (const ep of allEndpoints) {
+  console.log(`   📤 External: ${externalEndpoints.length}`);
+  console.log(`   🔒 Internal: ${internalEndpoints.length} (excluded from OpenAPI)`);
+  console.log('');
+
+  for (const ep of externalEndpoints) {
     const status = ep.needsClarification.length > 0 ? '⚠️' : '✓';
     console.log(`   ${status} ${ep.tool} (${ep.category}) - ${ep.status}`);
     if (ep.needsClarification.length > 0) {
@@ -521,9 +532,16 @@ async function main() {
     }
   }
 
-  // Generate spec
+  if (internalEndpoints.length > 0) {
+    console.log('\n   🔒 Internal endpoints (not in OpenAPI):');
+    for (const ep of internalEndpoints) {
+      console.log(`      • ${ep.tool} (${ep.category})`);
+    }
+  }
+
+  // Generate spec (external endpoints only)
   console.log('\n📝 Generating OpenAPI specification...');
-  const spec = generateOpenAPISpec(allEndpoints);
+  const spec = generateOpenAPISpec(externalEndpoints);
 
   // Write output
   await writeFile(outputPath, JSON.stringify(spec, null, 2));
@@ -531,8 +549,10 @@ async function main() {
 
   // Summary
   console.log('\n═══════════════════════════════════════════════════════════════');
-  console.log(`   Tools documented: ${allEndpoints.length}`);
-  console.log(`   Tools with clarification needed: ${allEndpoints.filter(e => e.needsClarification.length > 0).length}`);
+  console.log(`   Total documented: ${allEndpoints.length}`);
+  console.log(`   External (in OpenAPI): ${externalEndpoints.length}`);
+  console.log(`   Internal (excluded): ${internalEndpoints.length}`);
+  console.log(`   Needing clarification: ${externalEndpoints.filter(e => e.needsClarification.length > 0).length}`);
   console.log('═══════════════════════════════════════════════════════════════\n');
 }
 

@@ -16,6 +16,9 @@
  * ╠═══════════════════════════════════════════════════════════════════════════╣
  * ║  TEMPLATE VERSION HISTORY                                                 ║
  * ║  ─────────────────────────────────────────────────────────────────────────║
+ * ║  1.1.0 (2025-12-28) - Added @visibility tag                               ║
+ * ║    • @visibility external|internal for controlling OpenAPI inclusion      ║
+ * ║    • Internal endpoints are documented but excluded from public API       ║
  * ║  1.0.0 (2025-12-28) - Initial template by Crossing                        ║
  * ║    • Core structure with @hacs-endpoint marker                            ║
  * ║    • Parameter sources with @source tag                                   ║
@@ -27,7 +30,7 @@
 // ============================================================================
 // TEMPLATE VERSION - Update this when template structure changes
 // ============================================================================
-export const TEMPLATE_VERSION = '1.0.0';
+export const TEMPLATE_VERSION = '1.1.0';
 
 // ============================================================================
 // TEMPLATE DEFINITION
@@ -54,6 +57,7 @@ START TEMPLATE
  * @since {{YYYY-MM-DD}}
  * @category {{core|identity|tasks|projects|messaging|lists|instances|system}}
  * @status {{stable|beta|deprecated|experimental}}
+ * @visibility {{external|internal}}  (optional - defaults to external)
  *
  * ───────────────────────────────────────────────────────────────────────────
  * DESCRIPTION
