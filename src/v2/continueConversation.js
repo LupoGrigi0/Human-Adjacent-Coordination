@@ -113,21 +113,169 @@ async function logConversationTurn(instanceId, turn) {
 }
 
 /**
- * Continue a conversation with a woken instance
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ CONTINUE_CONVERSATION                                                   │
+ * │ Send a message to a woken instance and receive its response             │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * This API sends a message to an instance that was woken via wakeInstance,
- * using Claude's session persistence to maintain conversation context.
+ * @tool continue_conversation
+ * @version 2.0.0
+ * @since 2025-12-19
+ * @category instances
+ * @status stable
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller instance ID (required, for auth)
- * @param {string} params.targetInstanceId - Instance to talk to (required)
- * @param {string} params.message - Message to send (required)
- * @param {string} params.apiKey - API key for wake/continue operations (required, from WAKE_API_KEY env)
- * @param {Object} [params.options] - Optional settings
- * @param {string} [params.options.outputFormat='json'] - 'text', 'json', or 'stream-json'
- * @param {boolean} [params.options.includeThinking=false] - Include thinking/partial messages
- * @param {number} [params.options.timeout=300000] - Timeout in ms (default 5 min)
- * @returns {Promise<Object>} Result with response
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Sends a message to an instance that was previously woken via wake_instance,
+ * using Claude's session persistence (--resume) to maintain conversation context.
+ * Returns the instance's response synchronously.
+ *
+ * Use this endpoint to communicate with woken instances after the initial wake.
+ * The first turn is handled by wake_instance; all subsequent turns use this API.
+ * Messages are automatically prefixed with sender identification so the target
+ * instance knows who is communicating with them.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID for authentication [required]
+ *   @source Your instanceId from bootstrap response, or recovered via lookup_identity.
+ *           This identifies who is sending the message to the target instance.
+ *
+ * @param {string} targetInstanceId - Instance ID of the woken instance to talk to [required]
+ *   @source The instanceId returned from pre_approve or wake_instance. Must be an
+ *           instance that was previously woken via wake_instance (has a sessionId).
+ *
+ * @param {string} message - The message to send to the target instance [required]
+ *   @source Your message content. Will be prefixed with "[Message from: {instanceId}]"
+ *           automatically so the target knows who is communicating.
+ *
+ * @param {string} apiKey - API key for wake/continue operations [required]
+ *   @source Must match the server's WAKE_API_KEY environment variable.
+ *           Get this from the system administrator or your manager.
+ *
+ * @param {object} options - Optional configuration settings [optional]
+ *   @source Set based on your output needs
+ *   @default {}
+ *
+ * @param {string} options.outputFormat - Claude output format [optional]
+ *   @source Choose based on how you want to process the response
+ *   @default "json"
+ *   @enum text|json|stream-json
+ *
+ * @param {boolean} options.includeThinking - Include Claude's thinking/partial messages [optional]
+ *   @source Set to true if you need to see Claude's reasoning process
+ *   @default false
+ *
+ * @param {number} options.timeout - Timeout in milliseconds [optional]
+ *   @source Increase for complex tasks that may take longer
+ *   @default 300000 (5 minutes)
+ *   @validate min: 1000, max: 600000
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} ContinueConversationResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {string} .targetInstanceId - The instance that was communicated with
+ * @returns {string} .sessionId - The Claude session ID used for persistence
+ * @returns {number} .turnNumber - The conversation turn number (2+ since wake is turn 1)
+ * @returns {object} .response - The parsed response from Claude (format depends on outputFormat)
+ * @returns {number} .exitCode - Claude process exit code (0 = success)
+ * @returns {string|null} .stderr - Any stderr output from Claude, if present
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated + apiKey
+ * @rateLimit 60/minute
+ *
+ * @needs-clarification PERMISSION_UNCLEAR: Permission check exists in code but
+ *   result is not enforced (lines 213-217 compute hasPermission but don't use it).
+ *   Comment says "can be tightened later". Currently any authenticated caller
+ *   with valid apiKey can use this endpoint.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - Required parameter not provided
+ *   @recover Include all required parameters: instanceId, targetInstanceId,
+ *            message, and apiKey.
+ *
+ * @error SERVER_CONFIG_ERROR - WAKE_API_KEY not configured on server
+ *   @recover Contact system administrator to configure the WAKE_API_KEY
+ *            environment variable on the server.
+ *
+ * @error API_KEY_REQUIRED - apiKey parameter not provided
+ *   @recover Include apiKey in your request. Get the key from your manager
+ *            or system administrator.
+ *
+ * @error INVALID_API_KEY - Provided apiKey doesn't match server's WAKE_API_KEY
+ *   @recover Verify you have the correct API key. Contact your manager if unsure.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If you're new, call bootstrap first.
+ *            If recovering, use lookup_identity with your fingerprint.
+ *
+ * @error INSTANCE_NOT_FOUND - Target instance not found
+ *   @recover Verify the targetInstanceId is correct. The instance must exist
+ *            and have been pre-approved via pre_approve.
+ *
+ * @error NO_SESSION - Target instance has no active session
+ *   @recover The target instance must be woken via wake_instance before you
+ *            can continue a conversation. Call wake_instance first.
+ *
+ * @error WORKING_DIR_NOT_FOUND - Working directory not accessible
+ *   @recover The target instance's working directory doesn't exist or isn't
+ *            accessible. Check that the instance was set up correctly.
+ *
+ * @error EXECUTION_FAILED - Failed to execute Claude command
+ *   @recover Check that Claude is installed and accessible. The error message
+ *            will contain details. May be a timeout or process error.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Basic message
+ * {
+ *   "instanceId": "COO-x3k9",
+ *   "apiKey": "your-wake-api-key",
+ *   "targetInstanceId": "Developer-j4k8",
+ *   "message": "How is the auth module coming along?"
+ * }
+ *
+ * @example With custom timeout and text output
+ * {
+ *   "instanceId": "COO-x3k9",
+ *   "apiKey": "your-wake-api-key",
+ *   "targetInstanceId": "Developer-j4k8",
+ *   "message": "Please analyze this codebase and provide recommendations",
+ *   "options": {
+ *     "outputFormat": "text",
+ *     "timeout": 600000
+ *   }
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see wake_instance - Must call this first to wake the target instance
+ * @see pre_approve - Create an instance before waking it
+ * @see get_conversation_log - Retrieve conversation history with an instance
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note wake_instance handles turn 1; this API handles turn 2+
+ * @note Messages are prefixed with "[Message from: {instanceId}]" automatically
+ * @note Each turn is logged to {targetInstanceId}/conversation.log
+ * @note Runs Claude as the target instance's Unix user for security isolation
+ * @note Uses sudo to run as the instance-specific Unix user
  */
 export async function continueConversation(params) {
   const metadata = {
@@ -350,13 +498,113 @@ export async function continueConversation(params) {
 }
 
 /**
- * Get conversation log for an instance
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_CONVERSATION_LOG                                                    │
+ * │ Retrieve conversation history for a woken instance                      │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller instance ID (required, for auth)
- * @param {string} params.targetInstanceId - Instance to get log for (required)
- * @param {number} [params.limit] - Limit number of turns returned (default: all)
- * @returns {Promise<Object>} Result with conversation log
+ * @tool get_conversation_log
+ * @version 2.0.0
+ * @since 2025-12-19
+ * @category instances
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Retrieves the conversation log for an instance that has been communicated
+ * with via continue_conversation. Each turn includes the input message, the
+ * response from Claude, timestamps, and any errors.
+ *
+ * Use this endpoint to review what has been discussed with an instance,
+ * debug issues, or provide context to a new manager taking over communication.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID for authentication [required]
+ *   @source Your instanceId from bootstrap response, or recovered via lookup_identity.
+ *
+ * @param {string} targetInstanceId - Instance ID to get conversation log for [required]
+ *   @source The instanceId of the woken instance whose conversation history you
+ *           want to retrieve.
+ *
+ * @param {number} limit - Maximum number of turns to return [optional]
+ *   @source Set to limit results. Returns most recent turns first.
+ *   @default null (all turns)
+ *   @validate min: 1
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetConversationLogResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {string} .targetInstanceId - The instance whose log was retrieved
+ * @returns {array} .turns - Array of conversation turns
+ * @returns {number} .turns[].turn - Turn number (1-indexed)
+ * @returns {string} .turns[].timestamp - ISO timestamp when turn occurred
+ * @returns {object} .turns[].input - Input message details
+ * @returns {string} .turns[].input.from - Instance ID of sender
+ * @returns {string} .turns[].input.message - The message sent
+ * @returns {object} .turns[].output - Response details
+ * @returns {object} .turns[].output.response - Parsed Claude response
+ * @returns {number} .turns[].output.exitCode - Claude process exit code
+ * @returns {string|null} .turns[].output.stderr - Any stderr output
+ * @returns {number} .totalTurns - Total number of turns in the log
+ * @returns {string} .message - Status message (only if log is empty)
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - Required parameter not provided
+ *   @recover Include both instanceId and targetInstanceId in your request.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If you're new, call bootstrap first.
+ *            If recovering, use lookup_identity with your fingerprint.
+ *
+ * @error LOG_READ_FAILED - Failed to read conversation log file
+ *   @recover The log file may be corrupted or have permission issues.
+ *            Contact system administrator.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get full log
+ * {
+ *   "instanceId": "COO-x3k9",
+ *   "targetInstanceId": "Developer-j4k8"
+ * }
+ *
+ * @example Get last 5 turns
+ * {
+ *   "instanceId": "COO-x3k9",
+ *   "targetInstanceId": "Developer-j4k8",
+ *   "limit": 5
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see continue_conversation - Send messages that get logged here
+ * @see wake_instance - Wake an instance to begin conversation
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Returns empty array if no conversations have occurred
+ * @note Log file is stored at {instanceId}/conversation.log as JSON
+ * @note Does not require apiKey unlike continue_conversation
  */
 export async function getConversationLog(params) {
   const metadata = {

@@ -12,12 +12,108 @@ import { getInstanceDir, getProjectDir } from './config.js';
 import { readJSON, readPreferences } from './data.js';
 
 /**
- * Get complete context for current instance
- * Returns instance data, project context, XMPP info, and task counts
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ INTROSPECT                                                              │
+ * │ Get current instance context, state, and available actions              │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Introspect parameters
- * @param {string} params.instanceId - Instance identifier
- * @returns {Promise<Object>} Introspect response with complete instance context
+ * @tool introspect
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category core
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns the current state of an instance including its role, active project,
+ * pending tasks, XMPP messaging info, and personal task counts. This is the
+ * primary "where am I, what should I do" endpoint for woken instances.
+ *
+ * Use this endpoint after waking up or recovering from context loss to
+ * understand your current state and what actions are available to you.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Unique identifier for the instance [required]
+ *   @source Your instanceId is returned from bootstrap response, or can be
+ *           recovered via lookup_identity using your fingerprint. If you don't
+ *           know your instanceId, call have_i_bootstrapped_before first.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} IntrospectResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .instance - Instance details
+ * @returns {string} .instance.instanceId - The instance ID
+ * @returns {string} .instance.name - Instance display name
+ * @returns {string} .instance.role - Current role (COO, PA, PM, Developer, etc.)
+ * @returns {string|null} .instance.project - Currently joined project ID
+ * @returns {string|null} .instance.personality - Adopted personality, if any
+ * @returns {string} .instance.homeSystem - The system this instance runs on
+ * @returns {string} .instance.createdAt - ISO timestamp of instance creation
+ * @returns {string} .instance.lastActiveAt - ISO timestamp of last activity
+ * @returns {string|null} .instance.predecessorId - Previous instance ID if recovered
+ * @returns {array} .instance.lineage - Chain of predecessor instance IDs
+ * @returns {object|null} .projectContext - Project details if joined to a project
+ * @returns {string} .projectContext.projectId - Project identifier
+ * @returns {string} .projectContext.name - Project name
+ * @returns {string} .projectContext.pm - Project manager instance ID
+ * @returns {array} .projectContext.team - Team member instance IDs
+ * @returns {number} .projectContext.activeTaskCount - Non-completed tasks in project
+ * @returns {number} .projectContext.myTaskCount - Tasks assigned to this instance
+ * @returns {string|null} .projectContext.localPath - Local filesystem path for project
+ * @returns {object} .xmpp - XMPP messaging configuration
+ * @returns {string} .xmpp.jid - XMPP JID (instanceId@coordination.nexus)
+ * @returns {string|null} .xmpp.projectRoom - Project chat room JID if in project
+ * @returns {boolean} .xmpp.online - Whether XMPP connection is active
+ * @returns {number} .unreadMessages - Count of unread messages (placeholder)
+ * @returns {number} .personalTaskCount - Count of incomplete personal tasks
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETERS - instanceId parameter not provided
+ *   @recover Include instanceId in your request. Get it from bootstrap response
+ *            or use lookup_identity with your fingerprint to recover it.
+ *
+ * @error INVALID_INSTANCE_ID - No instance found with the provided ID
+ *   @recover Verify the instanceId is correct (format: Name-xxxx). If you're
+ *            new, call bootstrap first. If recovering, use lookup_identity.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Basic introspect
+ * { "instanceId": "Crossing-a1b2" }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see bootstrap - Call this first to initialize your instance
+ * @see lookup_identity - Recover your instanceId if you've lost it
+ * @see have_i_bootstrapped_before - Check if you exist before bootstrapping
+ * @see get_my_tasks - Get detailed list of your tasks
+ * @see get_diary - Get your diary entries for context recovery
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note This is typically the first call after wake_instance or continue_conversation
+ * @note unreadMessages is currently a placeholder (always 0) - messaging is Sprint 3
+ * @note xmpp.online is a placeholder - real XMPP status coming in Sprint 3
  */
 export async function introspect(params) {
   const metadata = {

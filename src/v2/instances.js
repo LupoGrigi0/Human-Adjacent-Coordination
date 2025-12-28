@@ -12,14 +12,116 @@ import path from 'path';
 import { DATA_ROOT, getInstancesDir } from './config.js';
 
 /**
- * Get all V2 instances by scanning instance directories
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_ALL_INSTANCES                                                       │
+ * │ Get all V2 instances by scanning instance directories                   │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {boolean} [params.activeOnly=false] - Only return active instances (seen in last 15 min)
- * @param {string} [params.role] - Filter by role
- * @param {string} [params.project] - Filter by project
- * @param {string} [params.instanceId] - Caller's instance ID (optional, for logging)
- * @returns {Object} List of instances
+ * @tool get_all_instances
+ * @version 2.0.0
+ * @since 2025-12-11
+ * @category instances
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Scans the V2 instances directory and returns a list of all instances with
+ * their current status, role, project, and lineage information. Supports
+ * filtering by active status, role, and project.
+ *
+ * Use this endpoint to get an overview of all instances in the system,
+ * find team members, or discover instances by role or project assignment.
+ * Results are sorted by lastActiveAt (most recent first), then by name.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [optional]
+ *   @source Your instanceId from bootstrap response. Optional, used for logging.
+ *
+ * @param {boolean} activeOnly - Only return active instances [optional]
+ *   @source Set to true to filter to instances active in last 15 minutes
+ *   @default false
+ *
+ * @param {string} role - Filter by role [optional]
+ *   @source One of: Executive, PA, COO, PM, Developer, Designer, Tester, etc.
+ *   @default null (no filter)
+ *
+ * @param {string} project - Filter by project [optional]
+ *   @source Project ID from get_projects or introspect response
+ *   @default null (no filter)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetAllInstancesResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {array} .instances - Array of instance summaries
+ * @returns {string} .instances[].instanceId - Unique instance identifier
+ * @returns {string} .instances[].name - Instance display name
+ * @returns {string|null} .instances[].role - Current role or null
+ * @returns {string|null} .instances[].personality - Adopted personality or null
+ * @returns {string|null} .instances[].project - Current project or null
+ * @returns {string} .instances[].status - "active" or "inactive" (15 min threshold)
+ * @returns {string|null} .instances[].lastActiveAt - ISO timestamp of last activity
+ * @returns {string|null} .instances[].createdAt - ISO timestamp of creation
+ * @returns {boolean} .instances[].hasContext - Whether context has been registered
+ * @returns {string|null} .instances[].predecessorId - Previous instance in lineage
+ * @returns {string|null} .instances[].successorId - Next instance in lineage
+ * @returns {number} .total - Total count of returned instances
+ * @returns {object} .filters - Applied filters echo
+ * @returns {boolean} .filters.activeOnly - Active filter applied
+ * @returns {string|null} .filters.role - Role filter applied
+ * @returns {string|null} .filters.project - Project filter applied
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions Executive, PA, COO
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error INSTANCES_FETCH_ERROR - Filesystem error reading instance directories
+ *   @recover This is a server-side error. Retry the request. If persistent,
+ *            check server logs or contact system administrator.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get all instances
+ * {}
+ *
+ * @example Get active developers only
+ * {
+ *   "activeOnly": true,
+ *   "role": "Developer"
+ * }
+ *
+ * @example Get instances on a specific project
+ * {
+ *   "project": "coordination-system-v2"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see getInstance - Get detailed info for a specific instance
+ * @see introspect - Get your own instance details
+ * @see have_i_bootstrapped_before - Check if you already exist
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Active status is based on 15-minute threshold from lastActiveAt
+ * @note Instances without valid preferences.json are silently skipped
+ * @note Returns empty array if instances directory doesn't exist (not an error)
  */
 export async function getAllInstances(params = {}) {
   const { activeOnly = false, role, project, instanceId } = params;
@@ -125,12 +227,112 @@ export async function getAllInstances(params = {}) {
 }
 
 /**
- * Get a specific instance's details
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_INSTANCE                                                            │
+ * │ Get detailed information about a specific instance                      │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.targetInstanceId - Instance to look up
- * @param {string} [params.instanceId] - Caller's instance ID (for auth if needed later)
- * @returns {Object} Instance details
+ * @tool get_instance_v2
+ * @version 2.0.0
+ * @since 2025-12-11
+ * @category instances
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns detailed information about a specific instance including their
+ * role, personality, project assignment, system context, and full lineage
+ * information. More detailed than getAllInstances - includes homeSystem,
+ * homeDirectory, and registered context.
+ *
+ * Use this endpoint when you need full details about a specific instance,
+ * such as when coordinating with them or checking their system location.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} targetInstanceId - Instance ID to look up [required]
+ *   @source Instance ID from getAllInstances, project team list, or task assignment
+ *   @validate Format: Name-xxxx (4 character hex suffix)
+ *
+ * @param {string} instanceId - Caller's instance ID [optional]
+ *   @source Your instanceId from bootstrap response. For future auth/logging.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetInstanceResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .instance - Full instance details
+ * @returns {string} .instance.instanceId - Unique instance identifier
+ * @returns {string} .instance.name - Instance display name
+ * @returns {string|null} .instance.role - Current role or null
+ * @returns {string|null} .instance.personality - Adopted personality or null
+ * @returns {string|null} .instance.project - Current project ID or null
+ * @returns {string} .instance.status - "active" or "inactive" (15 min threshold)
+ * @returns {string|null} .instance.lastActiveAt - ISO timestamp of last activity
+ * @returns {string|null} .instance.createdAt - ISO timestamp of creation
+ * @returns {string|null} .instance.homeSystem - System identifier (e.g., "smoothcurves.nexus")
+ * @returns {string|null} .instance.homeDirectory - Working directory path
+ * @returns {string|null} .instance.predecessorId - Previous instance in lineage
+ * @returns {string|null} .instance.successorId - Next instance in lineage
+ * @returns {array} .instance.lineage - Full chain of predecessor instance IDs
+ * @returns {boolean} .instance.hasContext - Whether context has been registered
+ * @returns {object|null} .instance.context - Registered context (workingDirectory, hostname, etc.)
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - targetInstanceId not provided
+ *   @recover Include targetInstanceId in your request. Get valid IDs from
+ *            getAllInstances, project team lists, or task assignments.
+ *
+ * @error INSTANCE_NOT_FOUND - No instance with the provided targetInstanceId
+ *   @recover Verify the instanceId is correct (format: Name-xxxx). Use
+ *            getAllInstances to find valid instance IDs.
+ *
+ * @error INSTANCE_FETCH_ERROR - Filesystem error reading instance data
+ *   @recover This is a server-side error. Retry the request. If persistent,
+ *            check server logs or contact system administrator.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get instance details
+ * {
+ *   "targetInstanceId": "Bridge3-df4f"
+ * }
+ *
+ * @example With caller ID for logging
+ * {
+ *   "instanceId": "COO-x3k9",
+ *   "targetInstanceId": "Bridge3-df4f"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see getAllInstances - Get list of all instances
+ * @see introspect - Get your own instance details
+ * @see lookup_identity - Find instance by context instead of ID
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Active status is based on 15-minute threshold from lastActiveAt
+ * @note Context field contains registered recovery context if available
+ * @note This returns more detail than getAllInstances (includes homeSystem, context, lineage)
  */
 export async function getInstance(params = {}) {
   const { targetInstanceId, instanceId } = params;

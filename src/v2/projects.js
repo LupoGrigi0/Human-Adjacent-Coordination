@@ -41,14 +41,125 @@ function replaceTemplatePlaceholders(content, values) {
 }
 
 /**
- * Create a new project from template
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ CREATE_PROJECT                                                          │
+ * │ Create a new project from template with directory structure             │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Instance creating the project (required)
- * @param {string} params.projectId - Project ID (required)
- * @param {string} params.name - Project name (required)
- * @param {string} [params.description] - Project description
- * @returns {Promise<Object>} Result with created project
+ * @tool create_project
+ * @version 2.0.0
+ * @since 2025-12-07
+ * @category projects
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Creates a new project with a complete directory structure from a template.
+ * The template includes standard files like preferences.json, PROJECT_VISION.md,
+ * PROJECT_PLAN.md, README.md, and tasks.json. Template placeholders are replaced
+ * with actual project values.
+ *
+ * Use this endpoint when you need to create a new project. Only Executive, PA,
+ * and COO roles are authorized to create projects.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Instance ID of the caller [required]
+ *   @source Your instanceId is returned from bootstrap response, or use
+ *           introspect to get your current context.
+ *   @validate Must be a valid bootstrapped instance with role assigned
+ *
+ * @param {string} projectId - Unique identifier for the new project [required]
+ *   @source Choose a descriptive, URL-safe identifier for your project.
+ *           Example: "coordination-system-v2", "wings", "auth-module"
+ *   @validate Must not already exist in the system
+ *
+ * @param {string} name - Human-readable project name [required]
+ *   @source Provide a descriptive name for the project.
+ *           Example: "Coordination System V2", "Wings Project"
+ *
+ * @param {string} description - Project description [optional]
+ *   @source Provide a brief description of the project's purpose.
+ *   @default "No description provided"
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} CreateProjectResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .project - Created project details
+ * @returns {string} .project.projectId - The project ID
+ * @returns {string} .project.name - Project name
+ * @returns {string} .project.description - Project description
+ * @returns {string} .project.status - Project status (always "active" for new)
+ * @returns {string} .project.xmppRoom - XMPP conference room JID for project
+ * @returns {string} .message - Success message
+ * @returns {array} .files - List of files created from template
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions role:Executive|role:PA|role:COO
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId, projectId, or name not provided
+ *   @recover Include all required parameters in your request.
+ *
+ * @error INVALID_INSTANCE_ID - No instance found with the provided ID
+ *   @recover Verify your instanceId is correct. Use have_i_bootstrapped_before
+ *            or lookup_identity to find your correct instanceId.
+ *
+ * @error NO_ROLE - Instance has no role assigned
+ *   @recover Call take_on_role to assign yourself a role before creating projects.
+ *
+ * @error UNAUTHORIZED - Role not authorized to create projects
+ *   @recover Only Executive, PA, or COO roles can create projects. Contact your
+ *            COO or request appropriate role elevation.
+ *
+ * @error PROJECT_EXISTS - Project with this ID already exists
+ *   @recover Choose a different projectId. Use listProjects to see existing projects.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Basic project creation
+ * {
+ *   "instanceId": "Atlas-k3m7",
+ *   "projectId": "new-feature",
+ *   "name": "New Feature Project"
+ * }
+ *
+ * @example With description
+ * {
+ *   "instanceId": "Atlas-k3m7",
+ *   "projectId": "auth-module",
+ *   "name": "Authentication Module",
+ *   "description": "JWT-based authentication system for the API"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see getProject - Get details of an existing project
+ * @see listProjects - List all available projects
+ * @see joinProject - Join an existing project
+ * @see introspect - Get your current context including project membership
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note If template directory doesn't exist, creates minimal project with preferences.json only
+ * @note XMPP room is auto-created at {projectId}@conference.smoothcurves.nexus
+ * @note Project PM and team are null/empty on creation - use joinProject to add members
  */
 export async function createProject(params) {
   const metadata = {
@@ -214,11 +325,89 @@ export async function createProject(params) {
 }
 
 /**
- * Get project details
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_PROJECT                                                             │
+ * │ Get detailed information about a specific project                       │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.projectId - Project ID (required)
- * @returns {Promise<Object>} Result with project details
+ * @tool get_project
+ * @version 2.0.0
+ * @since 2025-12-07
+ * @category projects
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Retrieves detailed information about a specific project including its name,
+ * description, status, project manager, team members, XMPP room, and documents.
+ *
+ * Use this endpoint when you need full details about a project before joining,
+ * or to check current project state and team composition.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} projectId - Unique identifier for the project [required]
+ *   @source Get from listProjects response, introspect.projectContext.projectId,
+ *           or from a task assignment notification.
+ *   @validate Must be an existing project ID
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetProjectResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .project - Project details
+ * @returns {string} .project.projectId - The project ID
+ * @returns {string} .project.name - Project name
+ * @returns {string} .project.description - Project description
+ * @returns {string} .project.status - Project status ("active", "archived", etc.)
+ * @returns {string|null} .project.pm - Project manager instance ID, if assigned
+ * @returns {array} .project.team - Array of team member instance IDs
+ * @returns {string} .project.xmppRoom - XMPP conference room JID
+ * @returns {array} .project.documents - List of project document filenames
+ * @returns {string} .project.created - ISO timestamp of project creation
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions *
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - projectId not provided
+ *   @recover Include projectId in your request.
+ *
+ * @error PROJECT_NOT_FOUND - No project exists with the provided ID
+ *   @recover Verify the projectId is correct. Use listProjects to see all
+ *            available projects.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get project details
+ * { "projectId": "coordination-system-v2" }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see listProjects - List all projects to find projectIds
+ * @see createProject - Create a new project
+ * @see joinProject - Join a project after viewing details
+ * @see introspect - Get your current project context
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note This endpoint does not require authentication - project details are public
+ * @note Team member instanceIds can be used with get_instance_v2 for more details
  */
 export async function getProject(params) {
   const metadata = {
@@ -269,11 +458,89 @@ export async function getProject(params) {
 }
 
 /**
- * List all projects
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ LIST_PROJECTS                                                           │
+ * │ List all projects with optional status filtering                        │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} [params.status] - Filter by status
- * @returns {Promise<Object>} Result with project list
+ * @tool list_projects
+ * @version 2.0.0
+ * @since 2025-12-07
+ * @category projects
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns a list of all projects in the system with summary information.
+ * Projects can be filtered by status to show only active, archived, or other
+ * status categories.
+ *
+ * Use this endpoint to discover available projects, find projectIds for joining,
+ * or get an overview of organizational project activity.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} status - Filter by project status [optional]
+ *   @source Choose from common status values: "active", "archived", "paused"
+ *   @default undefined (returns all projects regardless of status)
+ *   @enum active|archived|paused
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} ListProjectsResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {array} .projects - Array of project summaries
+ * @returns {string} .projects[].projectId - Project ID
+ * @returns {string} .projects[].name - Project name
+ * @returns {string} .projects[].status - Project status
+ * @returns {string|null} .projects[].pm - Project manager instance ID
+ * @returns {number} .projects[].teamSize - Number of team members
+ * @returns {number} .total - Total number of projects returned
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions *
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error LIST_ERROR - Error reading projects directory
+ *   @recover This is an internal error. Check that the data directory exists
+ *            and has proper permissions. Contact system administrator if the
+ *            issue persists.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example List all projects
+ * {}
+ *
+ * @example List only active projects
+ * { "status": "active" }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see getProject - Get full details of a specific project
+ * @see createProject - Create a new project
+ * @see joinProject - Join a project from the list
+ * @see introspect - See which project you're currently in
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note This endpoint does not require authentication - project list is public
+ * @note Returns summary data only; use getProject for full project details
+ * @note Creates projects directory if it doesn't exist
  */
 export async function listProjects(params = {}) {
   const metadata = {
