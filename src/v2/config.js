@@ -1,6 +1,29 @@
 /**
- * Configuration module for V2 coordination system
- * Manages data directory paths and environment overrides
+ * @hacs-endpoint
+ * @template-version 1.1.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ CONFIG MODULE                                                           │
+ * │ Path configuration and environment variable handling                    │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool config_module
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category system
+ * @status stable
+ * @visibility internal
+ *
+ * @description
+ * Internal configuration module for V2 coordination system. Manages data
+ * directory paths and environment overrides. Not exposed via MCP - used by
+ * other modules to locate data files.
+ *
+ * Exports path getters for: instances, projects, roles, personalities,
+ * permissions, templates, wake-scripts, and wake-logs directories.
+ *
+ * @note DATA_ROOT can be overridden via V2_DATA_ROOT environment variable
+ * @note Default DATA_ROOT is /mnt/coordinaton_mcp_data/
+ * @see data.js - Uses these paths for file operations
  */
 
 import path from 'path';
