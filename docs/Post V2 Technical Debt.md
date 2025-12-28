@@ -23,6 +23,8 @@ The system is a **workshop** that enables Lupo (and teams) to create things. Eve
 Without this, the workshop has locked doors.
 
 ## MCP Server & Skills (CRITICAL PATH)
+- [ ] DOCUMENT API ENDPOINTS FROM THE CODE
+- [ ] fukkin FIX OPENAPI.JSON Simple, clean, organized 
 - [ ] smoothcurves.nexus MCP server update for new API
 - [ ] New updated MCP proxy client for new API
 - [ ] New updated claude skill build for new API
@@ -31,28 +33,47 @@ Without this, the workshop has locked doors.
 - [ ] Install new claude skill on Lupo's dev laptop
 - [ ] Verification of openapi.json is correct for v2
 
-## Alternative Access (Crush, Grok, etc.)
-- [ ] Implement pre-auth, wake, continue alternative using Crush, Grok, OpenAI
+# Priority 2 Alternative Access (Crush, Grok, etc.)
+- [ ] Implement pre-auth, wake, continue alternative using Crush, 
+- [ ] set up crush to use Grok, OpenAI, new 4.7, openrouter
 - [x] Install crush on smoothcurves.nexus
 - [-] Install coordination system MCP server in crush (direct http mcp access may not work - needs debugging)
 - [ ] Install cool MCP tools for claude code
-- [ ] Install cool MCP tools for crush
+- [ ] Install cool MCP tools for 
+- [ ] determine "continue" commandline during the wake function, store it in preferences.json
 
-## Instance Type Distinction (Bridge's note: YOU CAUGHT THIS, I MISSED IT)
-
+# Priority 3 critical fixes project cleanup/directory rationalization
 **CRITICAL INSIGHT from Lupo:**
 > "Some instances are Local to smoothcurves.nexus, some are remote (web), some are humans."
 > "Wake and continue DO NOT APPLY to remote/web instances or humans."
-
-This needs to be captured in preferences.json and the API needs to handle it:
+## 1 bugs
+## This needs to be captured in preferences.json and the API needs to handle it:
 - [ ] Add instance type to preferences.json (local/remote/human)
 - [ ] API should reject wake/continue for non-local instances with helpful error
-- [ ] Messaging should work for ALL instance types
+- [ ] Messaging should work for ALL instance types 
+- [ ] continue needs to read preference.json and call approprate command line interface and model. (just store the continue command in the preferences.json)
 - [ ] Document this distinction in API guide
+- [ ] UI needs wake changes that allow selection of substrait (Cladue code, crush-groq, crush-openai)
 
+## 2 GET RID OF V1 API, rationalize the project source into one src directory. the project directory structure is a Fkkin mess mix of v1 and v2 and nobody knows what is what. This is showcase project, and the project structure in GH should reflect that, clean, organized, no unused files, no scripts/code outside of single scripts/code directories no more data or logs mixed in with the code. validate all the APIs before and after each re-organization
+Draw a diagram of the directory structure of /mnt/coordinaton_mcp_data/ now, what each directory is, what each file is
+identify files out of place, directories in the wrong location, weather the file is in GH or not, weather it is _supposed_ to be in GH or not. 
+create a set of baseline test scripts that test every api enpoint first through CURL then through skill and MCP client
+/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/ should be the local GH clone of the project, where the source lives, where the MCP server, nginx point to for the APIs
+/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/endpoints (Formaerly v2)
+/mnt/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/scripts Move the start-mcp, start server etc to this directory. NOTE: This must be done by an experienced Dev Ops
+V1 is now _dead_ all the previews v1 documentation talked about how important it was to keep V1 alive. are no longer relevant 
+for each of the following steps run the validation test script before and after verify output is correct, then matches on the second pass
+- [ ] remove v1 endpoints 
+- [ ] rename directories
+- [ ] move all code out of /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination
+- there should only be source code in /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination no data, no logs, no tests no UI
+Just standard github project docs (README.md)
+- [ ] move all the personal diaries and notes into their own HumanAdjacentAI-Protocol/personalities directories
+- [ ] move the HumanAdjacentAI-Protocol files to the HumanAdjacentAI-Protocol _GH PROJECT_ (Note: we should probably create a /mnt/HumanAdjacentAI-Protocol directory and make it the GH clone on smoothcurves.nexus of the GH repo)
 ---
 
-# Priority 2: User Journey Validation
+# Priority 4: User Journey Validation
 *"Does the system WORK for its actual purpose?"*
 
 ## The Full Flow Test (Moonshot++)

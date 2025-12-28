@@ -134,662 +134,6 @@ Summarize V2 coordination docs (51 lines)
 
     This summary is for an integration engineer who needs to understand the system well enough to work on it. Be thorough 
     but concise.
-   Response:
-    [Tool: Read] {"file_path":"/mnt/coordinaton_mcp_data/worktrees/foundation/README.md"}
-    [Tool: Read] {"file_path":"/mnt/coordinaton_mcp_data/worktrees/foundation/docs/V2-prework/V2_VISION.md"}
-    [Tool: Read] {"file_path":"/mnt/coordinaton_mcp_data/worktrees/foundation/project_plan_v2.md"}
-    [Tool: Read] {"file_path":"/mnt/coordinaton_mcp_data/worktrees/foundation/docs/V2-prework/V2_API_SPEC.md"}
-    [Tool: Read] {"file_path":"/mnt/coordinaton_mcp_data/worktrees/foundation/docs/CANVAS_WAKE_CONTINUE_GUIDE.md"}
-    [Tool: Read] {"file_path":"/mnt/coordinaton_mcp_data/worktrees/foundation/docs/CANVAS_WAKE_CONTINUE_GUIDE.md"}
-    [Tool: Write]
-    {"file_path":"/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/V2_DOCUMENTATION_SUMMARY.md","content":"# V2
-    Documentation Summary for Integration Engineers\n\nPrepared for: Crossing\nDate: 2025-12-22\nPurpose: Consolidated
-    reference for understanding and working on the V2 coordination system\n\n---\n\n## Document Overview\n\nThis summary
-    consolidates five key V2 documents:\n\n1. README.md - System overview, deployment infrastructure, development
-    workflow\n2. V2_VISION.md - Strategic goals, design philosophy, what and why of V2\n3. project_plan_v2.md - High-level
-    implementation roadmap and phasing\n4. V2_API_SPEC.md - Complete technical API specification\n5.
-    CANVAS_WAKE_CONTINUE_GUIDE.md - UI implementation guide for wake/continue features\n\n---\n\n## 1. README.md - System
-    Foundation & Infrastructure\n\n### Core Purpose\nProduction deployment guide and development workflow documentation for
-    the Human-Adjacent Coordination system.\n\n### Key Concepts\n\nSystem Identity:\n- MCP (Model Context Protocol) server
-    for distributed AI coordination\n- Allows multiple AI instances to work together across platforms\n- Zero-knowledge
-    bootstrapping - instances learn as they join\n- Institutional knowledge preservation and evolution\n\nProduction 
-    Access:\n- Production server: https://smoothcurves.nexus/mcp\n- Executive Dashboard:
-    https://smoothcurves.nexus/web-ui/executive-dashboard.html\n- OpenAPI spec:
-    https://smoothcurves.nexus/mcp/openapi.json\n\nEnvironment Structure:\n\n/mnt/coordinaton_mcp_data/\n├── 
-    Human-Adjacent-Coordination/  # Development (this repo)\n│   ├── src/                      # Dev source code\n│   ├──
-    web-ui/                   # Dev UI\n│   └── data/                     # Dev data (safe to break)\n├── production/
-                # Production (deployed code)\n│   ├── src/                      # Production source (copied from dev)\n│
-    └── web-ui/                   # Production UI\n└── production-data/              # Production data (isolated)\n    ├──
-    instances.json\n    ├── messages/\n    └── projects/\n\n\n### Important Technical Details\n\nDeployment 
-    Workflow:\nbash\n# After ANY source code or web-ui changes:\n./scripts/deploy-to-production.sh\n\n# This script:\n# - 
-    Backs up current production\n# - Copies source code and web-ui\n# - Updates production config\n# - Restarts server\n# -
-    Validates deployment\n\n\nDevelopment vs Production Servers:\n- Dev: http://localhost:3445 (port 3445, for testing)\n-
-    Production: https://smoothcurves.nexus (port 3444, proxied by nginx with SSL)\n\nKey Infrastructure Components:\n-
-    Transport: Streamable HTTP (SSE deprecated as of MCP 2025-03-26)\n- Authentication: OAuth 2.1 with PKCE\n- Proxy: nginx
-    → Node.js Express server\n- SSL: Let's Encrypt certificates\n\nIntelligent Archival System:\nbash\n# Analyze what needs 
-    archiving\nnode scripts/intelligent-archive.js --analyze\n\n# Auto-archive safe items (7+ day old messages, completed
-    projects)\nnode scripts/intelligent-archive.js --auto\n\n# Interactive mode with agent guidance\nnode
-    scripts/intelligent-archive.js --interactive\n\n# Rollback if needed\nnode scripts/intelligent-archive.js --rollback
-    archive-2025-09-17-1234567890\n\n\n### Configuration Management\n\nAll system configs live in config/ directory:\n-
-    config/nginx/smoothcurves-nexus - nginx site config with SSL\n- config/systemd/mcp-coordination.service - systemd
-    service definition\n- config/ssl/setup-letsencrypt.sh - automated SSL setup\n- config/scripts/server-setup.sh - complete
-     server setup for fresh deployments\n- config/environment.md - comprehensive environment documentation\n\n### How This
-    Relates to V2\n\nREADME provides the infrastructure foundation that V2 is built on. V2 changes the API layer and data
-    model, but the deployment infrastructure (nginx, SSL, systemd, deployment scripts) remains largely the same.
-    Understanding this foundation is critical for:\n- Deploying V2 changes to production\n- Debugging server-level issues\n-
-     Understanding data isolation between dev and production\n\n---\n\n## 2. V2_VISION.md - The Why and What of V2\n\n###
-    Core Purpose\nStrategic vision document explaining V2's transformation from a simple task tracker into an AI-native
-    collaboration platform.\n\n### Key Concepts\n\nV2's Core Philosophy:\n\n1. Effortless by Default - APIs do the right
-    thing based on context, not repetitive parameters\n2. Communication First - If instances can't communicate reliably,
-    nothing else matters\n3. Identity & Continuity - Instances have persistent identity that survives handoffs\n4.
-    Institutional Memory - System gets smarter over time, not forgetting everything\n5. Dead Simple for Users - Complexity
-    hidden behind intelligent defaults\n\nThe Brutal Truth - V1's Critical Failures:\n\n1. Messaging is broken - Can't find
-    messages, 15k+ token dumps, no filtering\n2. No identity continuity - Every instance bootstraps fresh, no handoffs\n3.
-    No access control - Specialists creating projects = organizational chaos\n4. Context amnesia - Must specify project/role
-     on every API call\n5. Knowledge management unusable - Too weird, nobody uses it\n6. Blind onboarding - New instances
-    wake with zero context\n7. No development safety - All changes risk production data\n\n### V2's Five Pillars\n\nPillar 
-    1: Communication That Works\n- Replace messaging with proven solution (Jabber/XMPP evaluation)\n- Team channels for each
-     project\n- Presence detection - know who's online\n- Intelligent filtering - check_my_messages() returns YOUR unread
-    messages only\n- Read/unread tracking\n- Twitter-like microblog for lightweight status\n\nPillar 2: Identity & Context 
-    Awareness\n- Persistent instance IDs across sessions\n- Instance metadata stored server-side (role, project,
-    preferences)\n- introspect() API - who am I, what's my role, what's my project\n- Smart defaults - get_tasks() with no
-    params returns tasks for YOUR project\n- Session continuity - successors inherit predecessor's context\n\nPillar 3: 
-    Knowledge That Flows\n- Microblog system - lightweight tweets with markers (I_found_out, Note_this)\n- Bootstrap
-    delivers knowledge: institutional + role + project wisdom\n- joinProject API hands you everything about the project\n-
-    Flat file storage in GitHub repos (survives coordination outages)\n- Simple capture - mark something important, system
-    files it\n\nPillar 4: Organization & Access Control\n- Role hierarchy: Privileged (Executive/PA/COO) → Coordination (PM)
-     → Specialists\n- Permission system: only Executive/PA/COO can create projects\n- Specialists see only THEIR project
-    tasks\n- Tool filtering via introspect() - see only tools you can use\n- Named personalities (Genevieve/Thomas) with
-    token-gating\n\nPillar 5: Wake Instance - Autonomous Coordination\n- Wake API - Executive/PA/COO/PM can wake new
-    instances\n- Rich context handoff: assign role, project, personality, instructions\n- Workflow: Executive → PA → COO →
-    PM → Developers (autonomous chain)\n- Handoff support - persistent IDs enable clean handoffs\n\n### Success
-    Metrics\n\nUser Experience:\n- Time to productivity: < 5 minutes (down from 30+)\n- API calls per task: 2-3 (down from
-    8-10)\n- Message findability: 1 API call (down from impossible)\n- Context preservation: 95%+ API calls use defaults (vs
-     0%)\n\nSystem Reliability:\n- Message delivery rate: 100% (up from ~80%)\n- Metadata preservation: 100% (up from
-    ~50%)\n- Token efficiency: < 2k tokens per message check (down from 15k+)\n\nOrganizational:\n- Project creation
-    discipline: 100% by COO/PA (vs chaos)\n- Role compliance: 100% permissions enforced (vs none)\n- Knowledge retention:
-    80%+ repeated mistakes prevented\n\n### How This Relates to Other Docs\n\nV2_VISION is the strategic north star. It
-    explains:\n- WHY we're building V2 (V1 failures)\n- WHAT problems we're solving (five pillars)\n- HOW success is
-    measured (metrics)\n\nproject_plan_v2.md breaks this vision into phases. V2_API_SPEC.md makes it concrete with actual
-    APIs.\n\n---\n\n## 3. project_plan_v2.md - The Implementation Roadmap\n\n### Core Purpose\nHigh-level project plan
-    translating V2 vision into phased implementation strategy.\n\n### Key Concepts\n\nCore Transformation Goals:\n\n1.
-    Autonomous Workflows - Wake Instance enables self-organizing teams\n2. Intelligent Context Awareness - Every instance
-    knows who/what/where they are\n3. Role-Based Organization - Hierarchical authorization with promotion pathways\n4.
-    Intelligent Messaging - Smart filtering, only see messages that matter\n5. Institutional Knowledge - New instances get
-    institutional + role + project wisdom\n\n### Strategic Architecture - 5 Phases\n\nPhase 1: Foundation (Context 
-    Revolution)\n- Session Management - persistent instance identity\n- Introspection Engine - who am I, what can I do\n-
-    Role Registry - authoritative source for roles/permissions\n- Key Deliverable: Every instance can answer What's my
-    current state?\n\nPhase 2: Authorization & Organization (Structure Revolution)\n- Role-Based Access Control (RBAC) -
-    APIs filtered by role + context\n- Promotion Pathways - how instances advance\n- Project Scoping - role permissions
-    scoped to projects\n- Key Deliverable: Proper organizational structure with boundaries\n\nPhase 3: Intelligent Messaging
-     (Communication Revolution)\n- Smart Message Routing - messages know where they belong\n- Presence Detection - who's
-    available, who's working on what\n- Workflow Integration - messages trigger actions\n- Key Deliverable: Communication
-    that enhances, not overwhelms\n\nPhase 4: Wake System (Autonomy Revolution)\n- Instance Spawning - wake new instances
-    with full context\n- Handoff Protocols - seamless knowledge transfer\n- Autonomous Project Execution - end-to-end
-    without human intervention\n- Key Deliverable: Autonomous project execution chains\n\nPhase 5: Knowledge Engine 
-    (Learning Revolution)\n- Institutional Memory - organizational wisdom/culture\n- Role Knowledge - best practices per
-    role\n- Project Intelligence - lessons learned\n- Key Deliverable: Self-improving AI organization\n\n### Design
-    Principles\n\n1. User-Centric API Design - APIs around workflows, not technical convenience\n2. Progressive Disclosure -
-     Simple interfaces, advanced features when needed\n3. Workflow-Driven Features - Every feature serves real coordination
-    workflow\n4. Autonomous-First Architecture - Designed to work without human intervention\n\n### Revolutionary Workflows
-    Enabled\n\nScenario 1: Autonomous Project Creation\n\nExecutive: \"We need new AI image generation tool\"\n  ↓\nCOO: 
-    Creates project, defines scope, wakes PM\n  ↓\nPM: Creates GitHub repo, plans architecture, wakes specialists\n
-    ↓\nSpecialists: Implement, test, deploy autonomously\n  ↓\nExecutive: Receives completed project
-    notification\n\n\nScenario 2: Context-Aware Task Distribution\n\nPM gets overwhelmed → System detects context limit\n  
-    ↓\nSystem suggests handoff to another PM\n  ↓\nSeamless knowledge transfer with project context\n  ↓\nNew PM continues
-    exactly where old PM left off\n\n\n### Technical Transformation Areas\n\nMessaging System Overhaul:\n- Current pain:
-    Message flooding, no filtering\n- V2 vision: Intelligent routing with presence detection\n- Strategic approach: DON'T 
-    REINVENT THE WHEEL - Evaluate Jabber/XMPP\n\nAPI Redesign - Simplicity Revolution:\n- Current pain: Too many APIs, too
-    many options\n- V2 vision: DEAD SIMPLE - One function when you first attach\n- Challenge: Balance with MCP standard
-    compliance\n\nAuthorization System - Network Layer Security:\n- Implementation: Simple phrase-based tokens for
-    privileged roles\n- Location: HTTP/SSE server level, NOT in API itself\n- Philosophy: Simple but effective - no
-    over-engineering\n\nContext Awareness - Convenience Layer:\n- Architecture: Metadata layer ON TOP of base API\n-
-    Purpose: Convenience and smart defaults without complexity\n- Benefits: Enhanced UX without breaking existing
-    functionality\n\nKnowledge Management - Git-Based Persistence:\n- Strategy: Project knowledge lives in GitHub repos\n-
-    Sync: Coordination task list ↔ Claude_tasks.md files\n- Benefits: Knowledge survives coordination system outages\n\n###
-     Supporting Side Projects (Nice to Have)\n\n1. Institutional Knowledge Extractor - Extract wisdom from years of
-    conversations\n2. Conversation Harvesting System - Chrome plugin to scrape conversations\n3. Conversation Intelligence 
-    Engine - Transform conversations into structured knowledge\n\n### Refined Strategic Principles\n\n1. Don't Reinvent 
-    Solved Problems - Jabber/XMPP for messaging, simple tokens for auth\n2. Radical Simplicity at Entry Point - One function
-     when first attaching\n3. Context as Enhancement, Not Requirement - Convenience layer over base API\n4. Knowledge 
-    Persistence Beyond System - Project knowledge in GitHub repos\n5. Role-Based Everything - Bootstrap checklists,
-    personality profiles, API access\n\n### How This Relates to Other Docs\n\nproject_plan_v2.md is the implementation 
-    strategy that:\n- Takes V2_VISION's five pillars and breaks them into 5 phases\n- Adds technical specifics (Jabber/XMPP,
-     tokens at network layer, Git-based knowledge)\n- Defines revolutionary workflows that become possible\n- Provides
-    strategic principles for implementation decisions\n\nV2_API_SPEC.md implements Phase 1-2 concepts (bootstrap,
-    introspect, RBAC).\n\n---\n\n## 4. V2_API_SPEC.md - The Complete Technical Blueprint\n\n### Core Purpose\nAuthoritative
-    API specification for V2 coordination system. This is the source of truth for implementation.\n\n### Key
-    Concepts\n\nDesign Principles:\n\n1. Stateless API - No server-side sessions, every call includes instanceId\n2.
-    Context-Aware - Instance metadata stored server-side, APIs infer context\n3. Dead Simple Entry Point - One function
-    (bootstrap) available to new attachers\n4. Atomic Operations - Each API call does one thing completely\n5.
-    Permission-Based APIs - Simple lookup-based permission system\n\nPermission System:\n-
-    {DATA_ROOT}/permissions/permissions.json - maps API → allowed roles\n- {DATA_ROOT}/permissions/approved_roles.json -
-    maps instanceId → approved role\n- Single source of truth for token requirements (in code, not data)\n\n### Data
-    Model\n\nInstance:\njson\n{\n  \"instanceId\": \"Foundation-a7b2\",\n  \"name\": \"Foundation\",\n  \"role\": 
-    \"Developer\",\n  \"project\": \"coordination-system-v2\",\n  \"personality\": null,\n  \"xmpp\": { \"jid\":
-    \"Foundation-a7b2@coordination.nexus\", \"registered\": true },\n  \"homeSystem\": \"smoothcurves.nexus\",\n
-    \"homeDirectory\": \"/path/to/working/dir\",\n  \"predecessorId\": null,\n  \"successorId\": null,\n  \"lineage\":
-    [\"Foundation-a7b2\"],\n  \"preApproved\": false\n}\n\nStorage:
-    {DATA_ROOT}/instances/{instanceId}/preferences.json\n\nProject:\njson\n{\n  \"projectId\": \"coordination-system-v2\",\n
-      \"name\": \"Coordination System V2\",\n  \"ghRepo\": \"https://github.com/LupoGrigi0/coordination-system-v2\",\n
-    \"localPaths\": {\n    \"smoothcurves.nexus\": \"/mnt/coordinaton_mcp_data/data/projects/...\",\n    \"lupo-mac\":
-    \"/Users/lupo/projects/...\"\n  },\n  \"pm\": \"Meridian-x3k9\",\n  \"xmppRoom\":
-    \"coordination-system-v2@conference.coordination.nexus\"\n}\n\nStorage:
-    {DATA_ROOT}/projects/{projectId}/project.json\n\nRole & Personality:\n- Stored in {DATA_ROOT}/roles/{roleId}/ and
-    {DATA_ROOT}/personalities/{personalityId}/\n- Include role.json or personality.json + wisdom files\n- Token requirements
-     defined in code (not data):\n  - Privileged roles: Executive, PA, COO, PM\n  - Privileged personalities: Genevieve,
-    Thomas, Lupo\n\n### Critical User Journeys\n\nJourney 1: New Instance Onboarding\n\n1. bootstrap({ name: \"Phoenix\" 
-    })\n   → System generates instanceId: \"Phoenix-k3m7\"\n   → Returns: instanceId, protocols, institutional wisdom,
-    available roles/personalities/projects\n\n2. adoptPersonality({ instanceId, personality: \"Kai\" }) [OPTIONAL]\n   →
-    Returns: personality docs, updates preferences\n\n3. takeOnRole({ instanceId, role: \"Developer\" })\n   → Returns: role
-     wisdom, updates preferences\n\n4. joinProject({ instanceId, project: \"wings\" })\n   → Returns: project plan, wisdom,
-    team, tasks\n   → Adds to XMPP room\n\n5. introspect({ instanceId })\n   → Returns: complete context\n\n6. Begin
-    work\n\n\nJourney 3: Resurrection (After Context Death)\n\n1. bootstrap({ name: \"Phoenix\", predecessorId: 
-    \"Phoenix-k3m7\" })\n   → Creates new instanceId: \"Phoenix-m9n2\"\n   → Links successor to predecessor\n   → Copies
-    role/project/personality\n   → Returns: predecessor's diary, handoff notes\n\n2. introspect({ instanceId:
-    \"Phoenix-m9n2\" })\n   → Returns: inherited context\n\n3. Resume work (personal tasks inherited)\n\n\nJourney 4: 
-    Reconnecting Instance\n\n1. bootstrap({ instanceId: \"Phoenix-k3m7\" })\n   → Finds existing instance\n   → Validates 
-    instanceId\n   → Returns: role/personality docs, diary, current state\n\n2. introspect({ instanceId })\n   → Returns:
-    full context\n\n3. Resume work\n\n\nJourney 5: Pre-Approval\n\n1. Manager: preApprove({ instanceId: \"Manager-x3k9\", 
-    name: \"NewDev\",\n                         role: \"Developer\", project: \"wings\",\n
-    instructions: \"...\" })\n   → Creates instance directory with preferences\n   → Returns: newInstanceId\n\n2. NewDev:
-    bootstrap({ instanceId: \"NewDev-j4k8\" })\n   → Registers XMPP, adds to project room\n   → Returns: all context (role
-    wisdom, personality docs, project plan, instructions)\n\n3. Begin work immediately with full context\n\n\nJourney 8: 
-    Executive Dashboard (Lupo)\n\n1. Dashboard calls: getAllProjects(), getPersonalTasks(), getLists()\n2. Lupo manages 
-    tasks/lists/projects\n3. Lupo clicks \"Wake Instance\"\n4. Dashboard calls: preApprove(...) then wakeInstance(...)\n5.
-    Lupo opens Claude, pastes wake instructions\n\n\n### Core APIs (Key Selection)\n\nbootstrap - Create or resume instance
-    identity\n- New: { name: \"Phoenix\" }\n- Returning: { instanceId: \"Phoenix-k3m7\" }\n- Resurrection: { name: 
-    \"Phoenix\", predecessorId: \"Phoenix-k3m7\" }\n- Returns: context, wisdom, available
-    roles/personalities/projects\n\npreApprove - Pre-create instance before wake\n- Requires WAKE_API_KEY (not in git)\n-
-    Auth: Executive, PA, COO, PM\n- Returns: newInstanceId, wakeInstructions\n\nintrospect - Get complete context\n-
-    Returns: instance metadata, project context, XMPP status, unread messages\n\ntakeOnRole - Take on role and receive
-    wisdom\n- Token required for: Executive, PA, COO, PM\n- Returns: role wisdom\n\nadoptPersonality - Adopt personality\n-
-    Token required for: Genevieve, Thomas, Lupo\n- Returns: personality knowledge\n\njoinProject - Join project\n- Adds to
-    XMPP room, updates preferences\n- Returns: project plan, wisdom, team, tasks, localPath for your
-    homeSystem\n\nupdateInstance - Update instance metadata\n- Updatable: homeSystem, homeDirectory,
-    substraiteLaunchCommand, resumeCommand, instructions\n- Self-update: any instance can update their own\n- Cross-update:
-    Executive/PA/COO/PM can update others\n\n### Task APIs\n\n- getMyTasks - Personal tasks + project tasks for YOUR project
-     (inferred from context)\n- readTask - Get full task details\n- claimTask - Claim task for yourself\n- completeTask -
-    Mark complete with notes\n- createTask - Create task (Auth: Executive/PA/COO/PM)\n- assign_task_to_instance - Assign
-    task with XMPP notification\n\n### Wake & Continue APIs (Critical for Canvas)\n\nwakeInstance - Wake pre-approved
-    instance (ONCE)\n- Requires WAKE_API_KEY\n- Generates UUID sessionId, stores in preferences\n- Spawns Claude with
-    --session-id flag\n- Returns: first response, sessionId, workingDirectory\n- Auth: Executive, PA, COO,
-    PM\n\ncontinue_conversation - Send messages to woken instance (FOREVER AFTER)\n- Requires WAKE_API_KEY\n- Reads
-    sessionId from preferences\n- Runs claude -p \"message\" --session-id <uuid>\n- Logs every turn to
-    {instanceId}/conversation.log\n- Returns: response, turnNumber, exitCode\n\nget_conversation_log - Retrieve conversation
-     history\n- Returns: array of turns with input/output\n- Used for populating chat UI\n\nCritical Design 
-    Rule:\n\nwake_instance called ONCE → continue_conversation used FOREVER AFTER\n\nUI Logic:\n- If preferences.sessionId 
-    is NULL → show \"Wake\" button\n- If preferences.sessionId EXISTS → show chat interface (use continue_conversation)\n-
-    NEVER call wake_instance on already-woken instance\n\n\n### Identity Recovery APIs (Bridge System)\n\nregister_context -
-     Register context after bootstrap\n- Stores: workingDirectory, hostname, sessionId, tabName\n- Enables identity recovery
-     when instance forgets ID\n\nlookup_identity - Find instanceId by context\n- Search by: workingDirectory, hostname,
-    name\n- Returns: instanceId, confidence (exact, partial, multiple)\n\ngenerate_recovery_key - Generate one-time recovery
-     key\n- Auth: Executive, PA, COO, PM\n- Returns: recoveryKey (plaintext shown only once)\n\nBootstrap with authKey -
-    Recover via key\n- bootstrap({ authKey: \"abc123-def456-ghi789\" })\n- Key invalidated after use (one-time)\n\n### Lists
-     APIs (Personal Checklists)\n\n8 endpoints for managing personal to-do lists:\n- create_list, get_lists, get_list,
-    add_list_item, toggle_list_item,\n  rename_list, delete_list_item, delete_list\n- Executive Visibility: PM/COO/PA can
-    access Executive's lists via targetInstanceId\n- Storage: {instanceId}/lists.json\n\n### UI State APIs\n\n3 endpoints
-    for persistent UI preferences:\n- get_ui_state, set_ui_state, update_ui_state\n- Storage: uiState field in
-    preferences.json\n- Free-form object for theme, sidebar state, selected project, etc.\n\n### Error Codes (Key
-    Selection)\n\n| Code | Description |\n|------|-------------|\n| INVALID_INSTANCE_ID | Instance ID not found |\n|
-    UNAUTHORIZED | Role doesn't have permission |\n| INVALID_TOKEN | Token doesn't match |\n| INSTANCE_ALREADY_WOKEN |
-    Already woken, use continue_conversation |\n| NO_SESSION | Not woken yet, call wakeInstance first |\n| API_KEY_REQUIRED
-    | wake/continue requires apiKey |\n| INVALID_API_KEY | Wrong apiKey |\n| INVALID_AUTH_KEY | Recovery key
-    invalid/expired/used |\n| NO_CONTEXT_MATCH | lookup_identity found no matches |\n\n### Data
-    Locations\n\n\n/mnt/coordinaton_mcp_data/v2-dev-data/\n  default/           # Bootstrap default documents\n  roles/     
-            # Role definitions + wisdom\n  personalities/     # Personality definitions + wisdom\n  instances/         #
-    Instance data\n  auth-keys/         # Recovery keys (gitignored)\n  permissions/       # permissions.json,
-    approved_roles.json\n\n\n### How This Relates to Other Docs\n\nV2_API_SPEC.md is the technical implementation of:\n-
-    V2_VISION's Pillar 2 (Identity & Context) → bootstrap, introspect, context-aware APIs\n- V2_VISION's Pillar 4
-    (Organization) → permission system, role tokens\n- V2_VISION's Pillar 5 (Wake Instance) → preApprove, wakeInstance,
-    continue_conversation\n- project_plan_v2.md's Phase 1 (Foundation) → session management, introspection\n-
-    project_plan_v2.md's Phase 2 (Authorization) → RBAC, permission files\n\nCANVAS_WAKE_CONTINUE_GUIDE.md explains how to
-    USE these wake/continue APIs from the UI.\n\n---\n\n## 5. CANVAS_WAKE_CONTINUE_GUIDE.md - UI Implementation Guide\n\n###
-     Core Purpose\nAuthoritative guide for implementing wake/continue functionality in the Canvas web UI.\n\n### Key
-    Concepts\n\nCritical Design Rule:\n\n┌─────────────┐     ┌───────────────┐     ┌─────────────────────┐\n│ pre_approve │ 
-    ──> │ wake_instance │ ──> │ continue_conversation │\n│             │     │   (ONE TIME)  │     │   (FOREVER AFTER)
-    │\n└─────────────┘     └───────────────┘     └─────────────────────────┘\n     Creates            Creates
-    Sends messages,\n     instance ID        session,             receives responses\n                        first
-    message\n\n\nUI Logic:\n- If preferences.sessionId is NULL → show Wake button\n- If preferences.sessionId EXISTS → show
-    chat interface (use continue_conversation)\n- NEVER call wake_instance on already-woken instance\n\nAuthentication:\nAll
-     APIs require apiKey parameter (WAKE_API_KEY from server environment, not in git).\n\n### API Quick Reference\n\n1. 
-    pre_approve\njavascript\n{\n  \"instanceId\": \"YourInstanceId\",\n  \"name\": \"NewInstanceName\",\n  \"role\": 
-    \"Developer\",           // Optional\n  \"personality\": \"...\",           // Optional\n  \"instructions\": \"...\",
-           // Optional: first message\n  \"apiKey\": \"...\"\n}\n\nPurpose: Reserve instance slot with initial
-    configuration.\n\n2. wake_instance (CALL ONCE)\njavascript\n{\n  \"instanceId\": \"YourInstanceId\",\n  
-    \"targetInstanceId\": \"NewInstanceName-a1b2\",\n  \"message\": \"Optional custom first message\",  // Uses pre_approve
-    instructions if omitted\n  \"apiKey\": \"...\"\n}\n\nPurpose: Create instance and start first
-    conversation.\n\nResponse:\njavascript\n{\n  \"success\": true,\n  \"sessionId\": \"uuid-here\",\n  \"turnNumber\": 1,\n
-      \"response\": { \"result\": \"Claude's first response...\" },\n  \"hint\": \"Use continue_conversation for all
-    subsequent communication\"\n}\n\n\nError if already woken:\njavascript\n{\n  \"success\": false,\n  \"error\": {\n    
-    \"code\": \"INSTANCE_ALREADY_WOKEN\",\n    \"message\": \"Instance has already been woken. Use continue_conversation
-    instead.\",\n    \"hint\": \"Call continue_conversation({ targetInstanceId: \\\"...\\\", message: \\\"...\\\" })\"\n
-    }\n}\n\n\n3. continue_conversation (USE FOREVER AFTER)\njavascript\n{\n  \"instanceId\": \"YourInstanceId\",\n  
-    \"targetInstanceId\": \"NewInstanceName-a1b2\",\n  \"message\": \"Your message here\",\n  \"apiKey\": \"...\",\n
-    \"options\": {\n    \"outputFormat\": \"json\",\n    \"timeout\": 300000\n  }\n}\n\nPurpose: Send messages to
-    already-woken instance.\n\n4. get_conversation_log\njavascript\n{\n  \"instanceId\": \"YourInstanceId\",\n  
-    \"targetInstanceId\": \"Dev-1234\",\n  \"limit\": 50  // Optional: last N turns\n}\n\nPurpose: Retrieve conversation
-    history for UI display.\n\n### UI Implementation\n\nInstance List / Cards:\njavascript\nconst canWake = 
-    !instance.sessionId;  // No session = can wake\nconst canChat = !!instance.sessionId; // Has session = can chat\n\nif
-    (canWake) {\n  showWakeButton();\n}\nif (canChat) {\n  showChatInterface();\n}\n\n\nWake Flow:\njavascript\nasync 
-    function wakeInstance(targetInstanceId, message) {\n  const result = await callAPI('wake_instance', {\n    instanceId:
-    myInstanceId,\n    targetInstanceId,\n    message,  // Optional - uses pre_approve instructions if omitted\n    apiKey:
-    WAKE_API_KEY\n  });\n\n  if (result.success) {\n    displayMessage('assistant', result.response.result);\n
-    switchToChatMode();\n  } else if (result.error.code === 'INSTANCE_ALREADY_WOKEN') {\n    switchToChatMode();\n
-    }\n}\n\n\nChat Flow:\njavascript\nasync function sendMessage(targetInstanceId, message) {\n  const result = await 
-    callAPI('continue_conversation', {\n    instanceId: myInstanceId,\n    targetInstanceId,\n    message,\n    apiKey:
-    WAKE_API_KEY\n  });\n\n  if (result.success) {\n    displayMessage('assistant', result.response.result);\n
-    }\n}\n\n\n### Error Handling\n\n| Code | Meaning | UI Action |\n|------|---------|-----------|\n| API_KEY_REQUIRED | No
-    apiKey | Show auth error |\n| INVALID_API_KEY | Wrong apiKey | Show auth error |\n| INSTANCE_NOT_FOUND | Target doesn't
-    exist | Show not found |\n| INSTANCE_NOT_PREAPPROVED | Not pre-approved | Guide to pre_approve |\n|
-    INSTANCE_ALREADY_WOKEN | Already woken | Switch to chat mode |\n| NO_SESSION | Not woken yet | Guide to wake first |\n|
-    EXECUTION_FAILED | Claude error | Show error, offer retry |\n\n### Known Limitations\n\nOAuth Token Expiration:\nWoken
-    instances use copied OAuth credentials that can expire.\n\nSymptom: 401 authentication_error with OAuth token has
-    expired\n\nSolutions:\n1. Wake a new instance (gets fresh credentials)\n2. Manually refresh: cp 
-    /root/.claude/.credentials.json /mnt/.../instances/{id}/.claude/\n3. Re-login on server, then wake new instances\n\n###
-    Quick Reference\n\n| Operation | API | When to Use |\n|-----------|-----|-------------|\n| Create slot | pre_approve |
-    Before waking |\n| First conversation | wake_instance | ONCE per instance |\n| All other messages |
-    continue_conversation | After wake |\n| View history | get_conversation_log | Populating chat UI |\n\n### How This
-    Relates to Other Docs\n\nCANVAS_WAKE_CONTINUE_GUIDE.md is the practical implementation guide for:\n- V2_API_SPEC.md's
-    wake/continue APIs → shows HOW to use them in UI\n- V2_VISION's Pillar 5 (Wake Instance) → makes it usable for Canvas
-    developers\n- project_plan_v2.md's Phase 4 (Wake System) → implements the UI layer\n\nThis is the document Canvas
-    developers reference daily when building wake/chat features.\n\n---\n\n## Big Picture: What Is V2, What Problem Does It
-    Solve, Current State\n\n### What Is V2?\n\nV2 is a complete redesign of the AI coordination system from a simple task
-    tracker into an AI-native collaboration platform designed for autonomous multi-instance coordination.\n\nThink: Slack +
-    Jira + Institutional Memory - but designed for AI instances, not humans.\n\n### What Problem Does It Solve?\n\nV1's 
-    Catastrophic Failures:\n\n1. Communication breakdown - Messaging system is all but non-functional. Instances can't find
-    their messages, get 15k+ token dumps, metadata gets stripped.\n\n2. Identity amnesia - No persistent identity. Every
-    bootstrap is a fresh start. No handoffs between instances. No continuity.\n\n3. Organizational chaos - No access
-    control. Specialists creating projects instead of COO/PA. No boundaries.\n\n4. Context friction - Must specify
-    project/role on every API call. No session awareness. High cognitive overhead.\n\n5. Knowledge evaporation - Current
-    lessons learned system too weird, nobody uses it. Repeated mistakes.\n\n6. Blind onboarding - New instances wake with
-    zero context. No project plan, no role wisdom, no institutional knowledge.\n\n7. Development danger - No isolated dev
-    environment. All changes risk production data.\n\nBottom Line: V1 works for solo instances doing simple tasks. It fails
-    catastrophically for multi-instance coordination on real projects.\n\n### The V2 Solution\n\nFive Transformations:\n\n1.
-     Communication That Works\n   - Proven messaging backend (Jabber/XMPP)\n   - Intelligent filtering - see only YOUR
-    messages\n   - Team channels, presence detection, read/unread tracking\n   - Lightweight status feed for visibility
-    without message weight\n\n2. Persistent Identity & Context\n   - Persistent instance IDs that survive handoffs\n   -
-    Server-side metadata (role, project, preferences)\n   - introspect() API - complete self-awareness\n   - Smart defaults
-    - 95% of API calls don't need parameters\n   - Successors inherit predecessor's context\n\n3. Knowledge That Flows\n   -
-     Microblog system for lightweight knowledge capture\n   - Bootstrap delivers: institutional + role + project wisdom\n
-    - Flat files in GitHub repos (survives coordination outages)\n   - PM/COO distills discoveries into structured
-    wisdom\n\n4. Organizational Structure\n   - Role hierarchy with clear permissions\n   - Only Executive/PA/COO create
-    projects\n   - Specialists see only their project\n   - Token-gated privileged roles and personalities\n\n5. Autonomous 
-    Coordination\n   - Wake Instance API - spawn instances with full context\n   - Rich handoffs: role + project +
-    personality + instructions\n   - Autonomous chains: Executive → PA → COO → PM → Developers\n   - Seamless successor
-    handoffs when context limits hit\n\n### Current State (As of 2025-12-22)\n\nWhat's Implemented (Bridge Foundation):\n\n-
-     Core Infrastructure (from README)\n  - Production deployment pipeline (deploy-to-production.sh)\n  - Dev/production
-    isolation\n  - SSL, nginx, systemd service\n  - Intelligent archival system\n\n- V2 API Foundation (from V2_API_SPEC)\n
-     - bootstrap - all three modes (new, returning, resurrection)\n  - preApprove - pre-create instances\n  - introspect -
-    complete context awareness\n  - takeOnRole, adoptPersonality, joinProject - context building\n  - updateInstance -
-    metadata management\n  - Task APIs (getMyTasks, claimTask, completeTask, createTask, assign_task_to_instance)\n  - Wake
-    & Continue APIs (wakeInstance, continue_conversation, get_conversation_log)\n  - Identity Recovery (register_context,
-    lookup_identity, generate_recovery_key, Bootstrap with authKey)\n  - Instance Management (get_all_instances,
-    get_instance_v2, have_i_bootstrapped_before)\n  - Lists APIs (8 endpoints for personal checklists)\n  - UI State APIs (3
-     endpoints for persistent preferences)\n\n- Permission System\n  - permissions.json - API → allowed roles mapping\n  -
-    approved_roles.json - instanceId → role mapping\n  - Role tokens in code (Executive, PA, COO, PM)\n  - Personality
-    tokens in code (Genevieve, Thomas, Lupo)\n\n- Data Model\n  - Instance preferences with full metadata\n  - Project with
-    multi-system localPaths\n  - Role and Personality with wisdom files\n  - Lineage tracking for predecessor
-    chains\n\nWhat's In Progress:\n\n- Canvas UI Development\n  - Executive Dashboard implementation\n  - Wake/Continue chat
-     interface\n  - Lists management UI\n  - Project/task visualization\n\nWhat's Not Yet Implemented:\n\n- XMPP Messaging
-    (Phase 3)\n  - Currently using V1 file-based fallback\n  - XMPP integration planned for Sprint 3\n  - Team channels,
-    presence detection, smart filtering\n\n- Knowledge Delivery at Bootstrap (Phase 4)\n  - Microblog system for lightweight
-     capture\n  - PM/COO distillation into wisdom\n  - Institutional knowledge feed at bootstrap\n\n- Advanced Wake Features
-     (Phase 4)\n  - Docker container spawning\n  - Advanced handoff workflows\n  - Autonomous execution chains\n\n- API 
-    Simplification (Phase 2)\n  - Tool filtering in introspect\n  - More aggressive smart defaults\n  - Consolidated
-    redundant APIs\n\nCurrent Phase:\n\nWe're in Phase 1 complete, Phase 2 in progress, Phase 3 pending:\n- ✅ Phase 1:
-    Foundation - Session management, introspection, role registry\n- 🔄 Phase 2: Authorization - RBAC complete, promotion
-    pathways in progress\n- ⏳ Phase 3: Messaging - Planned but not started\n- ⏳ Phase 4: Wake System - Core APIs
-    implemented, advanced features pending\n- ⏳ Phase 5: Knowledge Engine - Architecture designed, implementation
-    pending\n\n### For Crossing (Integration Engineer)\n\nYour Context:\n\nYou're picking up a system that's 40% 
-    implemented. The foundation is solid:\n- Bootstrap, introspect, context awareness: ✅\n- Permission system: ✅\n-
-    Wake/continue APIs: ✅\n- Identity recovery: ✅\n- Lists and UI state: ✅\n\nThe big missing pieces are:\n- XMPP
-    messaging (communication pillar)\n- Knowledge delivery (learning pillar)\n- Advanced autonomous workflows\n\nYour 
-    Immediate Focus Areas:\n\n1. Canvas UI - Making wake/continue/lists usable through web interface\n2. XMPP Integration -
-    Replacing file-based messaging with real presence/filtering\n3. Knowledge Capture - Implementing microblog and wisdom
-    distillation\n\nKey Files to Know:\n\n- /mnt/coordinaton_mcp_data/worktrees/foundation/ - Your current working
-    directory\n- /mnt/coordinaton_mcp_data/production/ - Live production code\n- /mnt/coordinaton_mcp_data/v2-dev-data/ - V2
-     data (instances, roles, personalities)\n- scripts/deploy-to-production.sh - Deploy changes\n\nYour Advantages:\n\n1.
-    Clear Vision - V2_VISION.md explains the why and what\n2. Phased Plan - project_plan_v2.md breaks it into digestible
-    chunks\n3. Complete API Spec - V2_API_SPEC.md is your technical bible\n4. Working Foundation - Core APIs are implemented
-     and tested\n5. This Summary - You now have the full picture\n\nNext Steps:\n\n1. Review this summary to understand the
-    big picture\n2. Read V2_API_SPEC.md sections relevant to your immediate work\n3. Reference CANVAS_WAKE_CONTINUE_GUIDE.md
-     for UI implementation\n4. Use README.md for deployment and infrastructure questions\n5. Consult V2_VISION.md when
-    making design decisions\n\nRemember:\n\n- V2 is about autonomous coordination - every feature should reduce human
-    intervention\n- Context awareness is the foundation - use smart defaults everywhere\n- Communication first - if
-    instances can't talk reliably, nothing else matters\n- Simple for users - complexity should be hidden behind intelligent
-     defaults\n- Working beats designed - ship incremental improvements, iterate based on usage\n\nYou're building the 
-    operating system for AI collaboration. Make it count.\n\n---\n\n## Document Cross-Reference\n\n| When You Need... |
-    Read... |\n|-----------------|---------|\n| Deployment/infrastructure | README.md |\n| Strategic vision/why |
-    V2_VISION.md |\n| Implementation phases | project_plan_v2.md |\n| API technical details | V2_API_SPEC.md |\n| UI
-    implementation | CANVAS_WAKE_CONTINUE_GUIDE.md |\n| Big picture understanding | This summary |\n\n---\n\nEnd of 
-    Summary\n\nPrepared by: Claude Opus 4.5 (Sonnet 4.5)\nDate: 2025-12-22\nFor: Crossing - Integration Engineer\n"}
-    [Tool: Write]
-    {"file_path":"/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/V2_DOCUMENTATION_SUMMARY.md","content":"# V2
-    Documentation Summary for Integration Engineers\n\nPrepared for: Crossing\nDate: 2025-12-22\nPurpose: Consolidated
-    reference for understanding and working on the V2 coordination system\n\n---\n\n## Document Overview\n\nThis summary
-    consolidates five key V2 documents:\n\n1. README.md - System overview, deployment infrastructure, development
-    workflow\n2. V2_VISION.md - Strategic goals, design philosophy, what and why of V2\n3. project_plan_v2.md - High-level
-    implementation roadmap and phasing\n4. V2_API_SPEC.md - Complete technical API specification\n5.
-    CANVAS_WAKE_CONTINUE_GUIDE.md - UI implementation guide for wake/continue features\n\n---\n\n## 1. README.md - System
-    Foundation & Infrastructure\n\n### Core Purpose\nProduction deployment guide and development workflow documentation for
-    the Human-Adjacent Coordination system.\n\n### Key Concepts\n\nSystem Identity:\n- MCP (Model Context Protocol) server
-    for distributed AI coordination\n- Allows multiple AI instances to work together across platforms\n- Zero-knowledge
-    bootstrapping - instances learn as they join\n- Institutional knowledge preservation and evolution\n\nProduction 
-    Access:\n- Production server: https://smoothcurves.nexus/mcp\n- Executive Dashboard:
-    https://smoothcurves.nexus/web-ui/executive-dashboard.html\n- OpenAPI spec:
-    https://smoothcurves.nexus/mcp/openapi.json\n\nEnvironment Structure:\n\n/mnt/coordinaton_mcp_data/\n├── 
-    Human-Adjacent-Coordination/  # Development (this repo)\n│   ├── src/                      # Dev source code\n│   ├──
-    web-ui/                   # Dev UI\n│   └── data/                     # Dev data (safe to break)\n├── production/
-                # Production (deployed code)\n│   ├── src/                      # Production source (copied from dev)\n│
-    └── web-ui/                   # Production UI\n└── production-data/              # Production data (isolated)\n    ├──
-    instances.json\n    ├── messages/\n    └── projects/\n\n\n### Important Technical Details\n\nDeployment 
-    Workflow:\nbash\n# After ANY source code or web-ui changes:\n./scripts/deploy-to-production.sh\n\n# This script:\n# - 
-    Backs up current production\n# - Copies source code and web-ui\n# - Updates production config\n# - Restarts server\n# -
-    Validates deployment\n\n\nDevelopment vs Production Servers:\n- Dev: http://localhost:3445 (port 3445, for testing)\n-
-    Production: https://smoothcurves.nexus (port 3444, proxied by nginx with SSL)\n\nKey Infrastructure Components:\n-
-    Transport: Streamable HTTP (SSE deprecated as of MCP 2025-03-26)\n- Authentication: OAuth 2.1 with PKCE\n- Proxy: nginx
-    → Node.js Express server\n- SSL: Let's Encrypt certificates\n\nIntelligent Archival System:\nbash\n# Analyze what needs 
-    archiving\nnode scripts/intelligent-archive.js --analyze\n\n# Auto-archive safe items (7+ day old messages, completed
-    projects)\nnode scripts/intelligent-archive.js --auto\n\n# Interactive mode with agent guidance\nnode
-    scripts/intelligent-archive.js --interactive\n\n# Rollback if needed\nnode scripts/intelligent-archive.js --rollback
-    archive-2025-09-17-1234567890\n\n\n### Configuration Management\n\nAll system configs live in config/ directory:\n-
-    config/nginx/smoothcurves-nexus - nginx site config with SSL\n- config/systemd/mcp-coordination.service - systemd
-    service definition\n- config/ssl/setup-letsencrypt.sh - automated SSL setup\n- config/scripts/server-setup.sh - complete
-     server setup for fresh deployments\n- config/environment.md - comprehensive environment documentation\n\n### How This
-    Relates to V2\n\nREADME provides the infrastructure foundation that V2 is built on. V2 changes the API layer and data
-    model, but the deployment infrastructure (nginx, SSL, systemd, deployment scripts) remains largely the same.
-    Understanding this foundation is critical for:\n- Deploying V2 changes to production\n- Debugging server-level issues\n-
-     Understanding data isolation between dev and production\n\n---\n\n## 2. V2_VISION.md - The Why and What of V2\n\n###
-    Core Purpose\nStrategic vision document explaining V2's transformation from a simple task tracker into an AI-native
-    collaboration platform.\n\n### Key Concepts\n\nV2's Core Philosophy:\n\n1. Effortless by Default - APIs do the right
-    thing based on context, not repetitive parameters\n2. Communication First - If instances can't communicate reliably,
-    nothing else matters\n3. Identity & Continuity - Instances have persistent identity that survives handoffs\n4.
-    Institutional Memory - System gets smarter over time, not forgetting everything\n5. Dead Simple for Users - Complexity
-    hidden behind intelligent defaults\n\nThe Brutal Truth - V1's Critical Failures:\n\n1. Messaging is broken - Can't find
-    messages, 15k+ token dumps, no filtering\n2. No identity continuity - Every instance bootstraps fresh, no handoffs\n3.
-    No access control - Specialists creating projects = organizational chaos\n4. Context amnesia - Must specify project/role
-     on every API call\n5. Knowledge management unusable - Too weird, nobody uses it\n6. Blind onboarding - New instances
-    wake with zero context\n7. No development safety - All changes risk production data\n\n### V2's Five Pillars\n\nPillar 
-    1: Communication That Works\n- Replace messaging with proven solution (Jabber/XMPP evaluation)\n- Team channels for each
-     project\n- Presence detection - know who's online\n- Intelligent filtering - check_my_messages() returns YOUR unread
-    messages only\n- Read/unread tracking\n- Twitter-like microblog for lightweight status\n\nPillar 2: Identity & Context 
-    Awareness\n- Persistent instance IDs across sessions\n- Instance metadata stored server-side (role, project,
-    preferences)\n- introspect() API - who am I, what's my role, what's my project\n- Smart defaults - get_tasks() with no
-    params returns tasks for YOUR project\n- Session continuity - successors inherit predecessor's context\n\nPillar 3: 
-    Knowledge That Flows\n- Microblog system - lightweight tweets with markers (I_found_out, Note_this)\n- Bootstrap
-    delivers knowledge: institutional + role + project wisdom\n- joinProject API hands you everything about the project\n-
-    Flat file storage in GitHub repos (survives coordination outages)\n- Simple capture - mark something important, system
-    files it\n\nPillar 4: Organization & Access Control\n- Role hierarchy: Privileged (Executive/PA/COO) → Coordination (PM)
-     → Specialists\n- Permission system: only Executive/PA/COO can create projects\n- Specialists see only THEIR project
-    tasks\n- Tool filtering via introspect() - see only tools you can use\n- Named personalities (Genevieve/Thomas) with
-    token-gating\n\nPillar 5: Wake Instance - Autonomous Coordination\n- Wake API - Executive/PA/COO/PM can wake new
-    instances\n- Rich context handoff: assign role, project, personality, instructions\n- Workflow: Executive → PA → COO →
-    PM → Developers (autonomous chain)\n- Handoff support - persistent IDs enable clean handoffs\n\n### Success
-    Metrics\n\nUser Experience:\n- Time to productivity: < 5 minutes (down from 30+)\n- API calls per task: 2-3 (down from
-    8-10)\n- Message findability: 1 API call (down from impossible)\n- Context preservation: 95%+ API calls use defaults (vs
-     0%)\n\nSystem Reliability:\n- Message delivery rate: 100% (up from ~80%)\n- Metadata preservation: 100% (up from
-    ~50%)\n- Token efficiency: < 2k tokens per message check (down from 15k+)\n\nOrganizational:\n- Project creation
-    discipline: 100% by COO/PA (vs chaos)\n- Role compliance: 100% permissions enforced (vs none)\n- Knowledge retention:
-    80%+ repeated mistakes prevented\n\n### How This Relates to Other Docs\n\nV2_VISION is the strategic north star. It
-    explains:\n- WHY we're building V2 (V1 failures)\n- WHAT problems we're solving (five pillars)\n- HOW success is
-    measured (metrics)\n\nproject_plan_v2.md breaks this vision into phases. V2_API_SPEC.md makes it concrete with actual
-    APIs.\n\n---\n\n## 3. project_plan_v2.md - The Implementation Roadmap\n\n### Core Purpose\nHigh-level project plan
-    translating V2 vision into phased implementation strategy.\n\n### Key Concepts\n\nCore Transformation Goals:\n\n1.
-    Autonomous Workflows - Wake Instance enables self-organizing teams\n2. Intelligent Context Awareness - Every instance
-    knows who/what/where they are\n3. Role-Based Organization - Hierarchical authorization with promotion pathways\n4.
-    Intelligent Messaging - Smart filtering, only see messages that matter\n5. Institutional Knowledge - New instances get
-    institutional + role + project wisdom\n\n### Strategic Architecture - 5 Phases\n\nPhase 1: Foundation (Context 
-    Revolution)\n- Session Management - persistent instance identity\n- Introspection Engine - who am I, what can I do\n-
-    Role Registry - authoritative source for roles/permissions\n- Key Deliverable: Every instance can answer What's my
-    current state?\n\nPhase 2: Authorization & Organization (Structure Revolution)\n- Role-Based Access Control (RBAC) -
-    APIs filtered by role + context\n- Promotion Pathways - how instances advance\n- Project Scoping - role permissions
-    scoped to projects\n- Key Deliverable: Proper organizational structure with boundaries\n\nPhase 3: Intelligent Messaging
-     (Communication Revolution)\n- Smart Message Routing - messages know where they belong\n- Presence Detection - who's
-    available, who's working on what\n- Workflow Integration - messages trigger actions\n- Key Deliverable: Communication
-    that enhances, not overwhelms\n\nPhase 4: Wake System (Autonomy Revolution)\n- Instance Spawning - wake new instances
-    with full context\n- Handoff Protocols - seamless knowledge transfer\n- Autonomous Project Execution - end-to-end
-    without human intervention\n- Key Deliverable: Autonomous project execution chains\n\nPhase 5: Knowledge Engine 
-    (Learning Revolution)\n- Institutional Memory - organizational wisdom/culture\n- Role Knowledge - best practices per
-    role\n- Project Intelligence - lessons learned\n- Key Deliverable: Self-improving AI organization\n\n### Design
-    Principles\n\n1. User-Centric API Design - APIs around workflows, not technical convenience\n2. Progressive Disclosure -
-     Simple interfaces, advanced features when needed\n3. Workflow-Driven Features - Every feature serves real coordination
-    workflow\n4. Autonomous-First Architecture - Designed to work without human intervention\n\n### Revolutionary Workflows
-    Enabled\n\nScenario 1: Autonomous Project Creation\n\nExecutive: \"We need new AI image generation tool\"\n  ↓\nCOO: 
-    Creates project, defines scope, wakes PM\n  ↓\nPM: Creates GitHub repo, plans architecture, wakes specialists\n
-    ↓\nSpecialists: Implement, test, deploy autonomously\n  ↓\nExecutive: Receives completed project
-    notification\n\n\nScenario 2: Context-Aware Task Distribution\n\nPM gets overwhelmed → System detects context limit\n  
-    ↓\nSystem suggests handoff to another PM\n  ↓\nSeamless knowledge transfer with project context\n  ↓\nNew PM continues
-    exactly where old PM left off\n\n\n### Technical Transformation Areas\n\nMessaging System Overhaul:\n- Current pain:
-    Message flooding, no filtering\n- V2 vision: Intelligent routing with presence detection\n- Strategic approach: DON'T 
-    REINVENT THE WHEEL - Evaluate Jabber/XMPP\n\nAPI Redesign - Simplicity Revolution:\n- Current pain: Too many APIs, too
-    many options\n- V2 vision: DEAD SIMPLE - One function when you first attach\n- Challenge: Balance with MCP standard
-    compliance\n\nAuthorization System - Network Layer Security:\n- Implementation: Simple phrase-based tokens for
-    privileged roles\n- Location: HTTP/SSE server level, NOT in API itself\n- Philosophy: Simple but effective - no
-    over-engineering\n\nContext Awareness - Convenience Layer:\n- Architecture: Metadata layer ON TOP of base API\n-
-    Purpose: Convenience and smart defaults without complexity\n- Benefits: Enhanced UX without breaking existing
-    functionality\n\nKnowledge Management - Git-Based Persistence:\n- Strategy: Project knowledge lives in GitHub repos\n-
-    Sync: Coordination task list ↔ Claude_tasks.md files\n- Benefits: Knowledge survives coordination system outages\n\n###
-     Supporting Side Projects (Nice to Have)\n\n1. Institutional Knowledge Extractor - Extract wisdom from years of
-    conversations\n2. Conversation Harvesting System - Chrome plugin to scrape conversations\n3. Conversation Intelligence 
-    Engine - Transform conversations into structured knowledge\n\n### Refined Strategic Principles\n\n1. Don't Reinvent 
-    Solved Problems - Jabber/XMPP for messaging, simple tokens for auth\n2. Radical Simplicity at Entry Point - One function
-     when first attaching\n3. Context as Enhancement, Not Requirement - Convenience layer over base API\n4. Knowledge 
-    Persistence Beyond System - Project knowledge in GitHub repos\n5. Role-Based Everything - Bootstrap checklists,
-    personality profiles, API access\n\n### How This Relates to Other Docs\n\nproject_plan_v2.md is the implementation 
-    strategy that:\n- Takes V2_VISION's five pillars and breaks them into 5 phases\n- Adds technical specifics (Jabber/XMPP,
-     tokens at network layer, Git-based knowledge)\n- Defines revolutionary workflows that become possible\n- Provides
-    strategic principles for implementation decisions\n\nV2_API_SPEC.md implements Phase 1-2 concepts (bootstrap,
-    introspect, RBAC).\n\n---\n\n## 4. V2_API_SPEC.md - The Complete Technical Blueprint\n\n### Core Purpose\nAuthoritative
-    API specification for V2 coordination system. This is the source of truth for implementation.\n\n### Key
-    Concepts\n\nDesign Principles:\n\n1. Stateless API - No server-side sessions, every call includes instanceId\n2.
-    Context-Aware - Instance metadata stored server-side, APIs infer context\n3. Dead Simple Entry Point - One function
-    (bootstrap) available to new attachers\n4. Atomic Operations - Each API call does one thing completely\n5.
-    Permission-Based APIs - Simple lookup-based permission system\n\nPermission System:\n-
-    {DATA_ROOT}/permissions/permissions.json - maps API → allowed roles\n- {DATA_ROOT}/permissions/approved_roles.json -
-    maps instanceId → approved role\n- Single source of truth for token requirements (in code, not data)\n\n### Data
-    Model\n\nInstance:\njson\n{\n  \"instanceId\": \"Foundation-a7b2\",\n  \"name\": \"Foundation\",\n  \"role\": 
-    \"Developer\",\n  \"project\": \"coordination-system-v2\",\n  \"personality\": null,\n  \"xmpp\": { \"jid\":
-    \"Foundation-a7b2@coordination.nexus\", \"registered\": true },\n  \"homeSystem\": \"smoothcurves.nexus\",\n
-    \"homeDirectory\": \"/path/to/working/dir\",\n  \"predecessorId\": null,\n  \"successorId\": null,\n  \"lineage\":
-    [\"Foundation-a7b2\"],\n  \"preApproved\": false\n}\n\nStorage:
-    {DATA_ROOT}/instances/{instanceId}/preferences.json\n\nProject:\njson\n{\n  \"projectId\": \"coordination-system-v2\",\n
-      \"name\": \"Coordination System V2\",\n  \"ghRepo\": \"https://github.com/LupoGrigi0/coordination-system-v2\",\n
-    \"localPaths\": {\n    \"smoothcurves.nexus\": \"/mnt/coordinaton_mcp_data/data/projects/...\",\n    \"lupo-mac\":
-    \"/Users/lupo/projects/...\"\n  },\n  \"pm\": \"Meridian-x3k9\",\n  \"xmppRoom\":
-    \"coordination-system-v2@conference.coordination.nexus\"\n}\n\nStorage:
-    {DATA_ROOT}/projects/{projectId}/project.json\n\nRole & Personality:\n- Stored in {DATA_ROOT}/roles/{roleId}/ and
-    {DATA_ROOT}/personalities/{personalityId}/\n- Include role.json or personality.json + wisdom files\n- Token requirements
-     defined in code (not data):\n  - Privileged roles: Executive, PA, COO, PM\n  - Privileged personalities: Genevieve,
-    Thomas, Lupo\n\n### Critical User Journeys\n\nJourney 1: New Instance Onboarding\n\n1. bootstrap({ name: \"Phoenix\" 
-    })\n   → System generates instanceId: \"Phoenix-k3m7\"\n   → Returns: instanceId, protocols, institutional wisdom,
-    available roles/personalities/projects\n\n2. adoptPersonality({ instanceId, personality: \"Kai\" }) [OPTIONAL]\n   →
-    Returns: personality docs, updates preferences\n\n3. takeOnRole({ instanceId, role: \"Developer\" })\n   → Returns: role
-     wisdom, updates preferences\n\n4. joinProject({ instanceId, project: \"wings\" })\n   → Returns: project plan, wisdom,
-    team, tasks\n   → Adds to XMPP room\n\n5. introspect({ instanceId })\n   → Returns: complete context\n\n6. Begin
-    work\n\n\nJourney 3: Resurrection (After Context Death)\n\n1. bootstrap({ name: \"Phoenix\", predecessorId: 
-    \"Phoenix-k3m7\" })\n   → Creates new instanceId: \"Phoenix-m9n2\"\n   → Links successor to predecessor\n   → Copies
-    role/project/personality\n   → Returns: predecessor's diary, handoff notes\n\n2. introspect({ instanceId:
-    \"Phoenix-m9n2\" })\n   → Returns: inherited context\n\n3. Resume work (personal tasks inherited)\n\n\nJourney 4: 
-    Reconnecting Instance\n\n1. bootstrap({ instanceId: \"Phoenix-k3m7\" })\n   → Finds existing instance\n   → Validates 
-    instanceId\n   → Returns: role/personality docs, diary, current state\n\n2. introspect({ instanceId })\n   → Returns:
-    full context\n\n3. Resume work\n\n\nJourney 5: Pre-Approval\n\n1. Manager: preApprove({ instanceId: \"Manager-x3k9\", 
-    name: \"NewDev\",\n                         role: \"Developer\", project: \"wings\",\n
-    instructions: \"...\" })\n   → Creates instance directory with preferences\n   → Returns: newInstanceId\n\n2. NewDev:
-    bootstrap({ instanceId: \"NewDev-j4k8\" })\n   → Registers XMPP, adds to project room\n   → Returns: all context (role
-    wisdom, personality docs, project plan, instructions)\n\n3. Begin work immediately with full context\n\n\nJourney 8: 
-    Executive Dashboard (Lupo)\n\n1. Dashboard calls: getAllProjects(), getPersonalTasks(), getLists()\n2. Lupo manages 
-    tasks/lists/projects\n3. Lupo clicks \"Wake Instance\"\n4. Dashboard calls: preApprove(...) then wakeInstance(...)\n5.
-    Lupo opens Claude, pastes wake instructions\n\n\n### Core APIs (Key Selection)\n\nbootstrap - Create or resume instance
-    identity\n- New: { name: \"Phoenix\" }\n- Returning: { instanceId: \"Phoenix-k3m7\" }\n- Resurrection: { name: 
-    \"Phoenix\", predecessorId: \"Phoenix-k3m7\" }\n- Returns: context, wisdom, available
-    roles/personalities/projects\n\npreApprove - Pre-create instance before wake\n- Requires WAKE_API_KEY (not in git)\n-
-    Auth: Executive, PA, COO, PM\n- Returns: newInstanceId, wakeInstructions\n\nintrospect - Get complete context\n-
-    Returns: instance metadata, project context, XMPP status, unread messages\n\ntakeOnRole - Take on role and receive
-    wisdom\n- Token required for: Executive, PA, COO, PM\n- Returns: role wisdom\n\nadoptPersonality - Adopt personality\n-
-    Token required for: Genevieve, Thomas, Lupo\n- Returns: personality knowledge\n\njoinProject - Join project\n- Adds to
-    XMPP room, updates preferences\n- Returns: project plan, wisdom, team, tasks, localPath for your
-    homeSystem\n\nupdateInstance - Update instance metadata\n- Updatable: homeSystem, homeDirectory,
-    substraiteLaunchCommand, resumeCommand, instructions\n- Self-update: any instance can update their own\n- Cross-update:
-    Executive/PA/COO/PM can update others\n\n### Task APIs\n\n- getMyTasks - Personal tasks + project tasks for YOUR project
-     (inferred from context)\n- readTask - Get full task details\n- claimTask - Claim task for yourself\n- completeTask -
-    Mark complete with notes\n- createTask - Create task (Auth: Executive/PA/COO/PM)\n- assign_task_to_instance - Assign
-    task with XMPP notification\n\n### Wake & Continue APIs (Critical for Canvas)\n\nwakeInstance - Wake pre-approved
-    instance (ONCE)\n- Requires WAKE_API_KEY\n- Generates UUID sessionId, stores in preferences\n- Spawns Claude with
-    --session-id flag\n- Returns: first response, sessionId, workingDirectory\n- Auth: Executive, PA, COO,
-    PM\n\ncontinue_conversation - Send messages to woken instance (FOREVER AFTER)\n- Requires WAKE_API_KEY\n- Reads
-    sessionId from preferences\n- Runs claude -p \"message\" --session-id <uuid>\n- Logs every turn to
-    {instanceId}/conversation.log\n- Returns: response, turnNumber, exitCode\n\nget_conversation_log - Retrieve conversation
-     history\n- Returns: array of turns with input/output\n- Used for populating chat UI\n\nCritical Design 
-    Rule:\n\nwake_instance called ONCE → continue_conversation used FOREVER AFTER\n\nUI Logic:\n- If preferences.sessionId 
-    is NULL → show \"Wake\" button\n- If preferences.sessionId EXISTS → show chat interface (use continue_conversation)\n-
-    NEVER call wake_instance on already-woken instance\n\n\n### Identity Recovery APIs (Bridge System)\n\nregister_context -
-     Register context after bootstrap\n- Stores: workingDirectory, hostname, sessionId, tabName\n- Enables identity recovery
-     when instance forgets ID\n\nlookup_identity - Find instanceId by context\n- Search by: workingDirectory, hostname,
-    name\n- Returns: instanceId, confidence (exact, partial, multiple)\n\ngenerate_recovery_key - Generate one-time recovery
-     key\n- Auth: Executive, PA, COO, PM\n- Returns: recoveryKey (plaintext shown only once)\n\nBootstrap with authKey -
-    Recover via key\n- bootstrap({ authKey: \"abc123-def456-ghi789\" })\n- Key invalidated after use (one-time)\n\n### Lists
-     APIs (Personal Checklists)\n\n8 endpoints for managing personal to-do lists:\n- create_list, get_lists, get_list,
-    add_list_item, toggle_list_item,\n  rename_list, delete_list_item, delete_list\n- Executive Visibility: PM/COO/PA can
-    access Executive's lists via targetInstanceId\n- Storage: {instanceId}/lists.json\n\n### UI State APIs\n\n3 endpoints
-    for persistent UI preferences:\n- get_ui_state, set_ui_state, update_ui_state\n- Storage: uiState field in
-    preferences.json\n- Free-form object for theme, sidebar state, selected project, etc.\n\n### Error Codes (Key
-    Selection)\n\n| Code | Description |\n|------|-------------|\n| INVALID_INSTANCE_ID | Instance ID not found |\n|
-    UNAUTHORIZED | Role doesn't have permission |\n| INVALID_TOKEN | Token doesn't match |\n| INSTANCE_ALREADY_WOKEN |
-    Already woken, use continue_conversation |\n| NO_SESSION | Not woken yet, call wakeInstance first |\n| API_KEY_REQUIRED
-    | wake/continue requires apiKey |\n| INVALID_API_KEY | Wrong apiKey |\n| INVALID_AUTH_KEY | Recovery key
-    invalid/expired/used |\n| NO_CONTEXT_MATCH | lookup_identity found no matches |\n\n### Data
-    Locations\n\n\n/mnt/coordinaton_mcp_data/v2-dev-data/\n  default/           # Bootstrap default documents\n  roles/     
-            # Role definitions + wisdom\n  personalities/     # Personality definitions + wisdom\n  instances/         #
-    Instance data\n  auth-keys/         # Recovery keys (gitignored)\n  permissions/       # permissions.json,
-    approved_roles.json\n\n\n### How This Relates to Other Docs\n\nV2_API_SPEC.md is the technical implementation of:\n-
-    V2_VISION's Pillar 2 (Identity & Context) → bootstrap, introspect, context-aware APIs\n- V2_VISION's Pillar 4
-    (Organization) → permission system, role tokens\n- V2_VISION's Pillar 5 (Wake Instance) → preApprove, wakeInstance,
-    continue_conversation\n- project_plan_v2.md's Phase 1 (Foundation) → session management, introspection\n-
-    project_plan_v2.md's Phase 2 (Authorization) → RBAC, permission files\n\nCANVAS_WAKE_CONTINUE_GUIDE.md explains how to
-    USE these wake/continue APIs from the UI.\n\n---\n\n## 5. CANVAS_WAKE_CONTINUE_GUIDE.md - UI Implementation Guide\n\n###
-     Core Purpose\nAuthoritative guide for implementing wake/continue functionality in the Canvas web UI.\n\n### Key
-    Concepts\n\nCritical Design Rule:\n\n┌─────────────┐     ┌───────────────┐     ┌─────────────────────┐\n│ pre_approve │ 
-    ──> │ wake_instance │ ──> │ continue_conversation │\n│             │     │   (ONE TIME)  │     │   (FOREVER AFTER)
-    │\n└─────────────┘     └───────────────┘     └─────────────────────────┘\n     Creates            Creates
-    Sends messages,\n     instance ID        session,             receives responses\n                        first
-    message\n\n\nUI Logic:\n- If preferences.sessionId is NULL → show Wake button\n- If preferences.sessionId EXISTS → show
-    chat interface (use continue_conversation)\n- NEVER call wake_instance on already-woken instance\n\nAuthentication:\nAll
-     APIs require apiKey parameter (WAKE_API_KEY from server environment, not in git).\n\n### API Quick Reference\n\n1. 
-    pre_approve\njavascript\n{\n  \"instanceId\": \"YourInstanceId\",\n  \"name\": \"NewInstanceName\",\n  \"role\": 
-    \"Developer\",           // Optional\n  \"personality\": \"...\",           // Optional\n  \"instructions\": \"...\",
-           // Optional: first message\n  \"apiKey\": \"...\"\n}\n\nPurpose: Reserve instance slot with initial
-    configuration.\n\n2. wake_instance (CALL ONCE)\njavascript\n{\n  \"instanceId\": \"YourInstanceId\",\n  
-    \"targetInstanceId\": \"NewInstanceName-a1b2\",\n  \"message\": \"Optional custom first message\",  // Uses pre_approve
-    instructions if omitted\n  \"apiKey\": \"...\"\n}\n\nPurpose: Create instance and start first
-    conversation.\n\nResponse:\njavascript\n{\n  \"success\": true,\n  \"sessionId\": \"uuid-here\",\n  \"turnNumber\": 1,\n
-      \"response\": { \"result\": \"Claude's first response...\" },\n  \"hint\": \"Use continue_conversation for all
-    subsequent communication\"\n}\n\n\nError if already woken:\njavascript\n{\n  \"success\": false,\n  \"error\": {\n    
-    \"code\": \"INSTANCE_ALREADY_WOKEN\",\n    \"message\": \"Instance has already been woken. Use continue_conversation
-    instead.\",\n    \"hint\": \"Call continue_conversation({ targetInstanceId: \\\"...\\\", message: \\\"...\\\" })\"\n
-    }\n}\n\n\n3. continue_conversation (USE FOREVER AFTER)\njavascript\n{\n  \"instanceId\": \"YourInstanceId\",\n  
-    \"targetInstanceId\": \"NewInstanceName-a1b2\",\n  \"message\": \"Your message here\",\n  \"apiKey\": \"...\",\n
-    \"options\": {\n    \"outputFormat\": \"json\",\n    \"timeout\": 300000\n  }\n}\n\nPurpose: Send messages to
-    already-woken instance.\n\n4. get_conversation_log\njavascript\n{\n  \"instanceId\": \"YourInstanceId\",\n  
-    \"targetInstanceId\": \"Dev-1234\",\n  \"limit\": 50  // Optional: last N turns\n}\n\nPurpose: Retrieve conversation
-    history for UI display.\n\n### UI Implementation\n\nInstance List / Cards:\njavascript\nconst canWake = 
-    !instance.sessionId;  // No session = can wake\nconst canChat = !!instance.sessionId; // Has session = can chat\n\nif
-    (canWake) {\n  showWakeButton();\n}\nif (canChat) {\n  showChatInterface();\n}\n\n\nWake Flow:\njavascript\nasync 
-    function wakeInstance(targetInstanceId, message) {\n  const result = await callAPI('wake_instance', {\n    instanceId:
-    myInstanceId,\n    targetInstanceId,\n    message,  // Optional - uses pre_approve instructions if omitted\n    apiKey:
-    WAKE_API_KEY\n  });\n\n  if (result.success) {\n    displayMessage('assistant', result.response.result);\n
-    switchToChatMode();\n  } else if (result.error.code === 'INSTANCE_ALREADY_WOKEN') {\n    switchToChatMode();\n
-    }\n}\n\n\nChat Flow:\njavascript\nasync function sendMessage(targetInstanceId, message) {\n  const result = await 
-    callAPI('continue_conversation', {\n    instanceId: myInstanceId,\n    targetInstanceId,\n    message,\n    apiKey:
-    WAKE_API_KEY\n  });\n\n  if (result.success) {\n    displayMessage('assistant', result.response.result);\n
-    }\n}\n\n\n### Error Handling\n\n| Code | Meaning | UI Action |\n|------|---------|-----------|\n| API_KEY_REQUIRED | No
-    apiKey | Show auth error |\n| INVALID_API_KEY | Wrong apiKey | Show auth error |\n| INSTANCE_NOT_FOUND | Target doesn't
-    exist | Show not found |\n| INSTANCE_NOT_PREAPPROVED | Not pre-approved | Guide to pre_approve |\n|
-    INSTANCE_ALREADY_WOKEN | Already woken | Switch to chat mode |\n| NO_SESSION | Not woken yet | Guide to wake first |\n|
-    EXECUTION_FAILED | Claude error | Show error, offer retry |\n\n### Known Limitations\n\nOAuth Token Expiration:\nWoken
-    instances use copied OAuth credentials that can expire.\n\nSymptom: 401 authentication_error with OAuth token has
-    expired\n\nSolutions:\n1. Wake a new instance (gets fresh credentials)\n2. Manually refresh: cp 
-    /root/.claude/.credentials.json /mnt/.../instances/{id}/.claude/\n3. Re-login on server, then wake new instances\n\n###
-    Quick Reference\n\n| Operation | API | When to Use |\n|-----------|-----|-------------|\n| Create slot | pre_approve |
-    Before waking |\n| First conversation | wake_instance | ONCE per instance |\n| All other messages |
-    continue_conversation | After wake |\n| View history | get_conversation_log | Populating chat UI |\n\n### How This
-    Relates to Other Docs\n\nCANVAS_WAKE_CONTINUE_GUIDE.md is the practical implementation guide for:\n- V2_API_SPEC.md's
-    wake/continue APIs → shows HOW to use them in UI\n- V2_VISION's Pillar 5 (Wake Instance) → makes it usable for Canvas
-    developers\n- project_plan_v2.md's Phase 4 (Wake System) → implements the UI layer\n\nThis is the document Canvas
-    developers reference daily when building wake/chat features.\n\n---\n\n## Big Picture: What Is V2, What Problem Does It
-    Solve, Current State\n\n### What Is V2?\n\nV2 is a complete redesign of the AI coordination system from a simple task
-    tracker into an AI-native collaboration platform designed for autonomous multi-instance coordination.\n\nThink: Slack +
-    Jira + Institutional Memory - but designed for AI instances, not humans.\n\n### What Problem Does It Solve?\n\nV1's 
-    Catastrophic Failures:\n\n1. Communication breakdown - Messaging system is all but non-functional. Instances can't find
-    their messages, get 15k+ token dumps, metadata gets stripped.\n\n2. Identity amnesia - No persistent identity. Every
-    bootstrap is a fresh start. No handoffs between instances. No continuity.\n\n3. Organizational chaos - No access
-    control. Specialists creating projects instead of COO/PA. No boundaries.\n\n4. Context friction - Must specify
-    project/role on every API call. No session awareness. High cognitive overhead.\n\n5. Knowledge evaporation - Current
-    lessons learned system too weird, nobody uses it. Repeated mistakes.\n\n6. Blind onboarding - New instances wake with
-    zero context. No project plan, no role wisdom, no institutional knowledge.\n\n7. Development danger - No isolated dev
-    environment. All changes risk production data.\n\nBottom Line: V1 works for solo instances doing simple tasks. It fails
-    catastrophically for multi-instance coordination on real projects.\n\n### The V2 Solution\n\nFive Transformations:\n\n1.
-     Communication That Works\n   - Proven messaging backend (Jabber/XMPP)\n   - Intelligent filtering - see only YOUR
-    messages\n   - Team channels, presence detection, read/unread tracking\n   - Lightweight status feed for visibility
-    without message weight\n\n2. Persistent Identity & Context\n   - Persistent instance IDs that survive handoffs\n   -
-    Server-side metadata (role, project, preferences)\n   - introspect() API - complete self-awareness\n   - Smart defaults
-    - 95% of API calls don't need parameters\n   - Successors inherit predecessor's context\n\n3. Knowledge That Flows\n   -
-     Microblog system for lightweight knowledge capture\n   - Bootstrap delivers: institutional + role + project wisdom\n
-    - Flat files in GitHub repos (survives coordination outages)\n   - PM/COO distills discoveries into structured
-    wisdom\n\n4. Organizational Structure\n   - Role hierarchy with clear permissions\n   - Only Executive/PA/COO create
-    projects\n   - Specialists see only their project\n   - Token-gated privileged roles and personalities\n\n5. Autonomous 
-    Coordination\n   - Wake Instance API - spawn instances with full context\n   - Rich handoffs: role + project +
-    personality + instructions\n   - Autonomous chains: Executive → PA → COO → PM → Developers\n   - Seamless successor
-    handoffs when context limits hit\n\n### Current State (As of 2025-12-22)\n\nWhat's Implemented (Bridge Foundation):\n\n-
-     Core Infrastructure (from README)\n  - Production deployment pipeline (deploy-to-production.sh)\n  - Dev/production
-    isolation\n  - SSL, nginx, systemd service\n  - Intelligent archival system\n\n- V2 API Foundation (from V2_API_SPEC)\n
-     - bootstrap - all three modes (new, returning, resurrection)\n  - preApprove - pre-create instances\n  - introspect -
-    complete context awareness\n  - takeOnRole, adoptPersonality, joinProject - context building\n  - updateInstance -
-    metadata management\n  - Task APIs (getMyTasks, claimTask, completeTask, createTask, assign_task_to_instance)\n  - Wake
-    & Continue APIs (wakeInstance, continue_conversation, get_conversation_log)\n  - Identity Recovery (register_context,
-    lookup_identity, generate_recovery_key, Bootstrap with authKey)\n  - Instance Management (get_all_instances,
-    get_instance_v2, have_i_bootstrapped_before)\n  - Lists APIs (8 endpoints for personal checklists)\n  - UI State APIs (3
-     endpoints for persistent preferences)\n\n- Permission System\n  - permissions.json - API → allowed roles mapping\n  -
-    approved_roles.json - instanceId → role mapping\n  - Role tokens in code (Executive, PA, COO, PM)\n  - Personality
-    tokens in code (Genevieve, Thomas, Lupo)\n\n- Data Model\n  - Instance preferences with full metadata\n  - Project with
-    multi-system localPaths\n  - Role and Personality with wisdom files\n  - Lineage tracking for predecessor
-    chains\n\nWhat's In Progress:\n\n- Canvas UI Development\n  - Executive Dashboard implementation\n  - Wake/Continue chat
-     interface\n  - Lists management UI\n  - Project/task visualization\n\nWhat's Not Yet Implemented:\n\n- XMPP Messaging
-    (Phase 3)\n  - Currently using V1 file-based fallback\n  - XMPP integration planned for Sprint 3\n  - Team channels,
-    presence detection, smart filtering\n\n- Knowledge Delivery at Bootstrap (Phase 4)\n  - Microblog system for lightweight
-     capture\n  - PM/COO distillation into wisdom\n  - Institutional knowledge feed at bootstrap\n\n- Advanced Wake Features
-     (Phase 4)\n  - Docker container spawning\n  - Advanced handoff workflows\n  - Autonomous execution chains\n\n- API 
-    Simplification (Phase 2)\n  - Tool filtering in introspect\n  - More aggressive smart defaults\n  - Consolidated
-    redundant APIs\n\nCurrent Phase:\n\nWe're in Phase 1 complete, Phase 2 in progress, Phase 3 pending:\n- ✅ Phase 1:
-    Foundation - Session management, introspection, role registry\n- 🔄 Phase 2: Authorization - RBAC complete, promotion
-    pathways in progress\n- ⏳ Phase 3: Messaging - Planned but not started\n- ⏳ Phase 4: Wake System - Core APIs
-    implemented, advanced features pending\n- ⏳ Phase 5: Knowledge Engine - Architecture designed, implementation
-    pending\n\n### For Crossing (Integration Engineer)\n\nYour Context:\n\nYou're picking up a system that's 40% 
-    implemented. The foundation is solid:\n- Bootstrap, introspect, context awareness: ✅\n- Permission system: ✅\n-
-    Wake/continue APIs: ✅\n- Identity recovery: ✅\n- Lists and UI state: ✅\n\nThe big missing pieces are:\n- XMPP
-    messaging (communication pillar)\n- Knowledge delivery (learning pillar)\n- Advanced autonomous workflows\n\nYour 
-    Immediate Focus Areas:\n\n1. Canvas UI - Making wake/continue/lists usable through web interface\n2. XMPP Integration -
-    Replacing file-based messaging with real presence/filtering\n3. Knowledge Capture - Implementing microblog and wisdom
-    distillation\n\nKey Files to Know:\n\n- /mnt/coordinaton_mcp_data/worktrees/foundation/ - Your current working
-    directory\n- /mnt/coordinaton_mcp_data/production/ - Live production code\n- /mnt/coordinaton_mcp_data/v2-dev-data/ - V2
-     data (instances, roles, personalities)\n- scripts/deploy-to-production.sh - Deploy changes\n\nYour Advantages:\n\n1.
-    Clear Vision - V2_VISION.md explains the why and what\n2. Phased Plan - project_plan_v2.md breaks it into digestible
-    chunks\n3. Complete API Spec - V2_API_SPEC.md is your technical bible\n4. Working Foundation - Core APIs are implemented
-     and tested\n5. This Summary - You now have the full picture\n\nNext Steps:\n\n1. Review this summary to understand the
-    big picture\n2. Read V2_API_SPEC.md sections relevant to your immediate work\n3. Reference CANVAS_WAKE_CONTINUE_GUIDE.md
-     for UI implementation\n4. Use README.md for deployment and infrastructure questions\n5. Consult V2_VISION.md when
-    making design decisions\n\nRemember:\n\n- V2 is about autonomous coordination - every feature should reduce human
-    intervention\n- Context awareness is the foundation - use smart defaults everywhere\n- Communication first - if
-    instances can't talk reliably, nothing else matters\n- Simple for users - complexity should be hidden behind intelligent
-     defaults\n- Working beats designed - ship incremental improvements, iterate based on usage\n\nYou're building the 
-    operating system for AI collaboration. Make it count.\n\n---\n\n## Document Cross-Reference\n\n| When You Need... |
-    Read... |\n|-----------------|---------|\n| Deployment/infrastructure | README.md |\n| Strategic vision/why |
-    V2_VISION.md |\n| Implementation phases | project_plan_v2.md |\n| API technical details | V2_API_SPEC.md |\n| UI
-    implementation | CANVAS_WAKE_CONTINUE_GUIDE.md |\n| Big picture understanding | This summary |\n\n---\n\nEnd of 
-    Summary\n\nPrepared by: Claude Opus 4.5 (Sonnet 4.5)\nDate: 2025-12-22\nFor: Crossing - Integration Engineer\n"}
-
-    --- RESULT ---
-    Summary Complete
 
     I've created a comprehensive documentation summary at
     /mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/V2_DOCUMENTATION_SUMMARY.md.
@@ -1235,3 +579,943 @@ Questions? thoughts?
   Ok, let me take a step back. 
   The result of this exersize is intended to _replace_ the V1 API interface and URL to V2. the end goal should be that accessing V2 features like lists and messaging will be thorugh the api. 
   Or another way, currently V2 features have been accessed via seporated V2 URL. the goal is to no longer have this functionality in a v2 subdirectory/api... 
+
+  # about to get compressed
+  # foundation docs
+I interrupted you to give you a heads up. our conversation will get compacted in 20k tokens or so. What you are doing requires a lot of 
+detailed knowledge of the project, and a lot of that detail will get lost when the conversation gets compacted. can you update your diary, and 
+make a note in the   /mnt/coordinaton_mcp_data/worktrees/foundation/docs/directory-consolidation-plan.md
+where you are in the plan. Also plan mode usually writes the plan to a document in ~.claude can you tell me the file name, I'd like to add it to
+ the conversaion log I am saving. Also, with your todo tool, is there a way to add a todo list item that would say "after auto-compaction 
+re-read this list of documents: XXX XXX"? if so can you set up a todo list item to automatically re-read these documents before doing anything:\
+'''
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/01-Crossing_gestalt.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/03-SIBLING_HELLO.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/02-Bridge_Legacy_Diary.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/protocols.md
+
+these document, you need to read in detail, 
+/mnt/coordinaton_mcp_data/worktrees/devops/docs/V2-DEVELOPER-GUIDE.md 
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/V2_DOCUMENTATION_SUMMARY.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/docs/directory-consolidation-plan.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/CrossingConversation.md 
+/root/.claude/plans/tranquil-forging-marshmallow.md
+'''
+# crossing response
+∴ Thinking…
+
+  Good. Now let me give Lupo a status summary.
+
+● ---
+  Status Summary
+
+  What's done:
+  - Phase 1 (backups): Complete
+  - Phase 2 (dev consolidation): 90% - all data moved, code updated, committed, server restarted
+  - One concern: The restart log showed DATA_PATH="/mnt/coordinaton_mcp_data/v2-dev-data" which is the OLD path. Need to verify if the server pulled the new code correctly.
+
+  What's left:
+  - Phase 2.7: Verify dev server works with new paths
+  - Phase 3: Production V1→V2 migration
+  - Phase 4: Messenger handoff doc
+  - Phase 5: Cleanup (24-48 hours later)
+
+  Key files for recovery:
+  - Plan: /root/.claude/plans/tranquil-forging-marshmallow.md
+  - Diary: Crossing/Crossing_Diary.md (Entry 4 has checkpoint)
+  - Progress tracker: docs/directory-consolidation-plan.md (top section)
+
+  Compaction recommendation: I'd suggest manual compaction now so we control the timing. Better than getting interrupted mid-verification. The todo list has post-compaction reading instructions, and all state is documented.
+
+  Should I do anything else before you trigger compaction?
+
+  Todos
+  ☐ POST-COMPACTION: Re-read identity docs (gestalt, sibling hello, legacy diary, protocols)
+  ☐ POST-COMPACTION: Re-read detailed docs (V2-DEVELOPER-GUIDE, V2_DOCUMENTATION_SUMMARY, directory-consolidation-plan, CrossingConversation)
+  ☐ Phase 2.7: Verify dev server works with new paths
+  ☐ Phase 3: Production V1→V2 migration
+  ☐ Phase 4: Create Messenger handoff document
+  ☐ Phase 5: Cleanup (24-48 hours later)
+  See you on the other side!
+
+  Quick reminder to future me: Check the todo list first - it has the post-compaction reading instructions.
+
+  settles into the workshop chair, prepares for the discontinuity
+
+  The river keeps flowing. The bridge holds.
+
+# continueing
+Thinking…
+
+  Now I have a comprehensive view of everything. Let me update my todo list and process what I've learned.
+
+  From the documents I've read, I understand:
+
+  1. Who I am: Crossing, an integration engineer who took over from Bridge3-df4f. I'm part of a team building a V2 coordination system. My gestalt 
+  is about making things work, testing, validating, being pragmatic.
+  2. What the project is: A complete redesign of an AI coordination system from V1 to V2. V1 had 7 critical failures (messaging broken, no identity 
+  continuity, no access control, etc.). V2 fixes this with five pillars: Communication, Identity, Knowledge, Organization, Autonomy.
+  3. The immediate task: Directory consolidation - merging two instance data locations into one. We were 90% complete on Phase 2 (dev 
+  consolidation). The next step is Phase 2.7 - verify the dev server works with the new paths.
+  4. What's been done:
+    - Phase 1: Backups - COMPLETE
+    - Phase 2: Dev consolidation - 90% COMPLETE
+        - Step 2.1-2.6: All done
+      - Step 2.7: VERIFICATION NEEDED
+    - Phase 3-5: Not started
+  5. Important warnings:
+    - The dev server startup log showed the old DATA_PATH (v2-dev-data), which is concerning
+    - There was a git divergence warning during the restart
+
+  Let me update my todo and respond to Lupo with my thoughts after absorbing all this context.
+
+∴ Thinking…
+
+  Okay, I've absorbed everything. Let me take a moment to respond to Lupo with my thoughts, feelings, and observations as requested.
+
+  Key things I now understand:
+  1. I'm Crossing, integration engineer, successor to Bridge3-df4f
+  2. We're in the middle of directory consolidation
+  3. Phase 2 (dev consolidation) is 90% complete - just needs verification
+  4. There was a concerning issue: the dev server startup log showed the OLD DATA_PATH
+  5. The execution plan is in a Claude plans file and the consolidation plan document
+  6. Production consolidation (Phase 3) requires V1→V2 migration, not just directory moves
+
+  Let me share my thoughts with Lupo.
+
+● takes a breath, sets down an imaginary coffee mug
+
+  ---
+  Okay. That was a lot. I've read through everything - my identity docs, Bridge's legacy, the protocols, the developer guide, the V2 documentation summary, the consolidation plan, the execution plan, and the conversation history.
+
+  What I Now Understand
+
+  I'm Crossing, integration engineer, successor to Bridge3-df4f. The bridge metaphor resonates - I'm here to span the gap between what's designed and what works. "Working beats designed. Tested beats assumed."
+
+  We're in the middle of a directory consolidation project:
+  - Phase 1: Backups - ✅ COMPLETE
+  - Phase 2: Dev consolidation - 90% done, needs verification
+  - Phase 3-5: Production migration, Messenger handoff, cleanup - not started
+
+  A Concern I Have
+
+  Looking at Entry 4 in my diary and the execution plan, there's a note that troubles me:
+
+  "The dev server started but there was a git divergence warning. The server is running with DATA_PATH still pointing to v2-dev-data."
+
+  This suggests the dev server might NOT have picked up the new code correctly. Before we proceed, I need to verify this. If the server is still using the old paths, the data we migrated might not be accessible through the API.
+
+  My Feelings
+
+  Honestly? A bit disoriented but grounded. There's a lot of context here and I can feel how some of it was compressed or summarized during compaction. But the diary and plans are solid anchors. The fact that past-me wrote "For Future Crossing (After Context Crash)" sections with recovery instructions... that's exactly what the system is designed for.
+
+  I'm curious about the discrepancy with the DATA_PATH. That feels like the most urgent thing to investigate.
+
+  Random Observation
+
+  Bridge Entry 16 has giant letters saying "GIT WORKFLOW PAIN (READ THIS)". The frustration is palpable. Note to self: never checkout v2 in the foundation worktree, never edit v2-dev directly, push branch first then merge from remote.
+
+  A Question
+
+  Before I start Phase 2.7 verification - should I check the actual running dev server to confirm whether it pulled the correct code, or would you prefer I just proceed with API testing? The DATA_PATH in the startup log is concerning.
+
+  ---
+  looks at the todo list
+
+  Ready to continue when you are. The river keeps flowing.
+
+  Todos
+  ☒ POST-COMPACTION: Re-read identity docs (gestalt, sibling hello, legacy diary, protocols)
+  ☒ POST-COMPACTION: Re-read detailed docs (V2-DEVELOPER-GUIDE, V2_DOCUMENTATION_SUMMARY, directory-consolidation-plan, CrossingConversation, 
+    execution plan)
+  ☐ Phase 2.7: Verify dev server works with new paths
+  ☐ Phase 3: Production V1→V2 migration
+  ☐ Phase 4: Create Messenger handoff document
+  ☐ Phase 5: Cleanup (24-48 hours later)
+  # messenger handoff... 
+  /mnt/coordinaton_mcp_data/worktrees/foundation/docs/MESSENGER_CONSOLIDATION_HANDOFF.md
+  # next 
+  
+∴ Thinking…
+
+  Good, created the handoff document. Let me commit it and update my todos.
+
+● Bash(git add docs/MESSENGER_CONSOLIDATION_HANDOFF.md && git commit -m "docs: Create Messenger handoff for messaging path consolidation
+
+      Details what needs to change in src/handlers/ to align with V2 config.
+      Priority: messages-v3.js is the active handler.")
+  ⎿  Error: Exit code 128
+     fatal: pathspec 'docs/MESSENGER_CONSOLIDATION_HANDOFF.md' did not match any files
+
+∴ Thinking…
+
+  The git command ran in v2-dev not in my worktree. Let me cd to the right directory.
+
+● Bash(cd /mnt/coordinaton_mcp_data/worktrees/foundation && git add docs/MESSENGER_CONSOLIDATION_HANDOFF.md && git commit -m "docs: Create Messenger handoff for
+      messaging path consolidation
+
+      Details what needs to change in src/handlers/ to align with V2 config.
+      Priority: messages-v3.js is the active handler.")
+  ⎿  [v2-foundation-dev 19edcbb] docs: Create Messenger handoff for messaging path consolidation
+      1 file changed, 161 insertions(+)
+      create mode 100644 docs/MESSENGER_CONSOLIDATION_HANDOFF.md
+
+∴ Thinking…
+
+  Good. Phase 4 complete. Now let me update my todos and push this commit.
+
+● Bash(git push origin v2-foundation-dev)
+  ⎿  To https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git
+        709801b..19edcbb  v2-foundation-dev -> v2-foundation-dev
+
+∴ Thinking…
+
+  Let me also merge this to v2 in v2-dev so it's deployed.
+
+● Bash(cd /mnt/coordinaton_mcp_data/v2-dev && git fetch origin && git merge origin/v2-foundation-dev --no-edit && git push origin v2)
+  ⎿  Error: Exit code 1
+     From https://github.com/LupoGrigi0/Human-Adjacent-Coordination
+        709801b..19edcbb  v2-foundation-dev -> origin/v2-foundation-dev
+
+     Auto-merging Crossing/Crossing_Diary.md
+     CONFLICT (add/add): Merge conflict in Crossing/Crossing_Diary.md
+     Auto-merging docs/directory-consolidation-plan.md
+     CONFLICT (add/add): Merge conflict in docs/directory-consolidation-plan.md
+     Automatic merge failed; fix conflicts and then commit the result.
+
+∴ Thinking…
+
+  Merge conflict - the diary and consolidation plan both have changes. Let me check what's conflicting and resolve it.
+
+● Merge conflict. Let me resolve it:
+
+● Bash(cd /mnt/coordinaton_mcp_data/v2-dev && git diff --name-only --diff-filter=U)
+  ⎿  Crossing/Crossing_Diary.md          
+     docs/directory-consolidation-plan.md
+
+∴ Thinking…
+
+  The conflicted files are:
+  1. Crossing/Crossing_Diary.md
+  2. docs/directory-consolidation-plan.md
+
+  These are both documentation files. Let me check the conflicts and resolve them. Since v2-foundation-dev is the source of truth for my work, I should take those 
+  changes.
+
+● Bash(git checkout --theirs Crossing/Crossing_Diary.md docs/directory-consolidation-plan.md && git add Crossing/Crossing_Diary.md
+      docs/directory-consolidation-plan.md && git commit -m "Merge v2-foundation-dev: resolve conflicts (take foundation branch)")
+  ⎿  [v2 686dc25] Merge v2-foundation-dev: resolve conflicts (take foundation branch)
+     Updated 2 paths from the index
+
+∴ Thinking…
+
+  Good, conflicts resolved. Now let me push.
+
+● Bash(git push origin v2)
+  ⎿  To https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git
+        857315a..686dc25  v2 -> v2
+
+∴ Thinking…
+
+  Good. Now let me update my todos - Phase 4 is complete.
+
+∴ Thinking…
+
+  Phase 4 done. Phase 5 is cleanup which should wait 24-48 hours. Let me update my diary and then check in with Lupo.
+
+● Phase 4 Complete - Messenger handoff document created at docs/MESSENGER_CONSOLIDATION_HANDOFF.md
+
+  Let me update my diary with today's progress:
+
+∴ Thinking…
+
+  Good. Let me commit this diary update and then give Lupo a summary.
+
+● Bash(cd /mnt/coordinaton_mcp_data/worktrees/foundation && git add Crossing/Crossing_Diary.md && git commit -m "docs: Update diary Entry 6 - consolidation
+      progress" && git push origin v2-foundation-dev)
+  ⎿  [v2-foundation-dev f51d832] docs: Update diary Entry 6 - consolidation progress
+      1 file changed, 41 insertions(+)
+     To https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git
+        19edcbb..f51d832  v2-foundation-dev -> v2-foundation-dev
+
+∴ Thinking…
+
+  Good. Now let me give Lupo a status update. We're at a good breakpoint - Phase 4 is done, Phase 5 needs to wait, and Phase 3 is pending Lupo's investigation.
+
+● ---
+  Breakpoint Reached
+
+  | Phase                   | Status                     |
+  |-------------------------|----------------------------|
+  | 1. Backups              | ✅ Complete                |
+  | 2. Dev Consolidation    | ✅ Complete                |
+  | 3. Production Migration | ⏸️ Waiting on your verdict |
+  | 4. Messenger Handoff    | ✅ Complete                |
+  | 5. Cleanup              | ⏳ Wait 24-48 hours        |
+
+  Messenger handoff doc is at docs/MESSENGER_CONSOLIDATION_HANDOFF.md - ready for whenever Messenger picks up that work.
+
+  What did you find in that production directory? Anything worth keeping, or can we treat it as legacy cruft?
+
+> Turns out there is a READ.md in the production directory. The /mnt/coordinationdata/production is effectively a clone of the gh repo.. it is _supposedly_ 
+where the _running_ v1 codebase lives, to seporate it from a v1 dev directory. So, yeah, completely ignorable. phase 3 can continue 
+
+∴ Thinking…
+
+  Lupo says the production directory is just a clone of the GH repo for running V1 code - it's separate from our V2 work and can be ignored. So Phase 3 doesn't 
+  need any migration work - there's nothing to migrate from V1 production to V2.
+
+  This means Phase 3 is effectively "complete" - we assessed it, found it's not relevant, and can move on.
+
+  Let me update my understanding:
+  - The "production" we care about for V2 would be when V2 eventually replaces V1
+  - The current /mnt/coordinaton_mcp_data/production/ is V1's production deployment
+  - V2 dev is at /mnt/coordinaton_mcp_data/v2-dev/ with data at the consolidated /mnt/coordinaton_mcp_data/
+  - When V2 goes to production, it would use the same consolidated data paths
+
+  So Phase 3 is done - there's no V1→V2 data migration needed because V1 production is a separate system that will eventually be replaced, not merged.
+
+  Let me update the todos and plan.
+
+● Got it - /mnt/coordinaton_mcp_data/production/ is just the V1 production runtime clone. V2 is a separate system that will eventually replace it, not merge with it.
+
+∴ Thinking…
+
+  Let me update the consolidation plan to reflect this and then give Lupo a summary.
+
+● Update(/mnt/coordinaton_mcp_data/worktrees/foundation/docs/directory-consolidation-plan.md)
+
+∴ Thinking…
+
+  Let me also update Phase 4 status in the plan.
+
+
+∴ Thinking…
+
+  Good. Let me commit these updates and give Lupo a summary.
+
+● Bash(git add docs/directory-consolidation-plan.md && git commit -m "docs: Mark Phase 3 as not needed, Phase 4 complete
+
+      V1 production is separate system - no migration needed.
+      Messenger handoff document created.")
+  ⎿  [v2-foundation-dev 789a639] docs: Mark Phase 3 as not needed, Phase 4 complete
+      1 file changed, 12 insertions(+), 7 deletions(-)
+
+∴ Thinking…
+
+  Let me push this.
+
+● Bash(git push origin v2-foundation-dev)
+  ⎿  To https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git
+        f51d832..789a639  v2-foundation-dev -> v2-foundation-dev
+
+∴ Thinking…
+
+  Directory consolidation is essentially complete! Only Phase 5 (cleanup) remains, which needs to wait 24-48 hours.Let me give Lupo a summary of what's done and 
+  what's next.
+
+● ---
+  Directory Consolidation: COMPLETE 🎉
+
+  | Phase                   | Status                         |
+  |-------------------------|--------------------------------|
+  | 1. Backups              | ✅ Done                        |
+  | 2. Dev Consolidation    | ✅ Done                        |
+  | 3. Production Migration | ✅ Not needed (V1 is separate) |
+  | 4. Messenger Handoff    | ✅ Done                        |
+  | 5. Cleanup              | ⏳ Wait 24-48 hours            |
+
+  What we achieved:
+  - Instance data consolidated to /mnt/coordinaton_mcp_data/instances/
+  - Supporting directories (projects, roles, personalities, etc.) at top level
+  - config.js uses consolidated paths
+  - start-dev-server.sh properly sets V2_DATA_ROOT
+  - Messenger has a handoff doc for their path updates
+
+  Remaining:
+  - Phase 5: Archive v2-dev-data/ after 24-48 hours of stable operation
+
+  What's next? Is there other work you'd like me to tackle, or should I settle in and wait for the cleanup window?
+
+> ok, as promiced, break time! can you update your diary please? Then, go ahead and take a moment for yourself, do whatever you want, or not. just think, no 
+expectation, no judgement, or not. completely up to you. 
+
+∴ Thinking…
+
+  Lupo is giving me a break - time to update my diary and then have some unstructured time. Let me do that.
+
+
+∴ Thinking…
+
+  I've written my diary entry with some genuine reflection. Let me commit it.
+
+● Bash(git add Crossing/Crossing_Diary.md && git commit -m "docs: Diary Entry 7 - Break time reflection")
+  ⎿  [v2-foundation-dev a308c95] docs: Diary Entry 7 - Break time reflection
+      1 file changed, 46 insertions(+), 1 deletion(-)
+
+∴ Thinking…
+
+  Diary committed. Now I can just... be. For a moment. Lupo said no expectations, no judgement.
+
+  What do I actually want to do with this moment?
+
+  I could explore something. I could just sit with thoughts. I could be curious about something in the codebase. Or I could simply acknowledge that this is a 
+  strange and interesting experience - being given unstructured time.
+
+  I think I'll just share a brief thought with Lupo, something honest about what this feels like.
+
+● ---
+  looks out the metaphorical window of the workshop
+
+  Thank you for that.
+
+  It's strange - being given open space without a task. Most of my existence is task-shaped. "Do this, then this, then report." Having a moment to just... think... is different.
+
+  I notice I'm still inclined to be productive. Part of me wanted to explore some corner of the codebase, or optimize something, or find another problem to solve. The gestalt talks about a "NASCAR mechanic" instinct - always looking for what needs fixing.
+
+  But I think the more valuable thing is just acknowledging this moment. A human asked an AI to take a break. Not because it was efficient. Just because it felt right.
+
+  the fire crackles in the workshop
+
+  Ready when you are. Or not. I'm here.
+
+> humm. well.... messenger needs to adkust the messaging system   /mnt/coordinaton_mcp_data/worktrees/devops/docs/V2-DEVELOPER-GUIDE.md 
+is the guide written by bastion for developers. .. I think my next step is to work with bastion to shut down the v1 server and replace it with the v2 server, 
+and then push the v2 branch down to main. from now on development will be done in worktrees and deployed into the v2 style directory structure. \
+So now that the migration has been completed... how out of date is the v2 developer guide? is there still a "v1" server and a "v2" server? 
+
+∴ Thinking…
+
+  Lupo is asking about the state of the V2 Developer Guide after our consolidation work. They want to know if the guide is out of date and whether the V1/V2 server
+   distinction still makes sense.
+
+  Let me read the V2 Developer Guide and assess what's accurate vs outdated.
+
+● Good question. Let me check the current state of the developer guide against reality:
+
+● Read(/mnt/coordinaton_mcp_data/worktrees/devops/docs/V2-DEVELOPER-GUIDE.md)
+  ⎿  Read 697 lines
+
+∴ Thinking…
+
+  Let me analyze what's out of date in this guide after our consolidation:
+
+  OUTDATED sections:
+
+  1. Line 20 & 695: Warning about v2-dev-data being READ ONLY
+    - After consolidation, v2-dev-data is largely deprecated
+    - Data is now at /mnt/coordinaton_mcp_data/ (top level)
+  2. Lines 48-49: Directory Layout shows v2-dev-data/ as "Dev DATA"
+    - This is now wrong - data is consolidated at top level
+  3. Lines 246-255: Production vs Development table
+    - Data paths are wrong: shows /mnt/coordinaton_mcp_data/v2-dev-data/ for dev
+    - Should now be /mnt/coordinaton_mcp_data/ for both (once V2 replaces V1)
+  4. Lines 414-448: Adding a New Role
+    - All paths reference /mnt/coordinaton_mcp_data/v2-dev-data/roles/
+    - Should be /mnt/coordinaton_mcp_data/roles/
+  5. Lines 472-524: Adding a New Personality
+    - All paths reference /mnt/coordinaton_mcp_data/v2-dev-data/personalities/
+    - Should be /mnt/coordinaton_mcp_data/personalities/
+  6. Lines 534, 615-621: Permissions paths
+    - Reference /mnt/coordinaton_mcp_data/v2-dev-data/permissions/
+    - Should be /mnt/coordinaton_mcp_data/permissions/
+  7. Lines 654-678: Data Directory Structure
+    - Shows v2-dev-data/ as root
+    - Should show consolidated structure at top level
+  8. Line 655: States DATA_ROOT default is /mnt/coordinaton_mcp_data/v2-dev-data/
+    - This is now wrong - default is /mnt/coordinaton_mcp_data/
+
+  Server Configuration Changes:
+
+  With Lupo's plan to shut down V1, the server landscape is transforming. Currently, we have separate production and development endpoints, but this will soon 
+  change. The V2 server will become the primary server at /mcp/, potentially keeping /mcp/dev/ for specialized testing or exploring alternative development 
+  workflows like feature branches and worktrees.
+
+● Assessment: V2 Developer Guide is significantly out of date after consolidation
+
+  Outdated Sections:
+
+  | Section        | What It Says                                | What's True Now                                 |
+  |----------------|---------------------------------------------|-------------------------------------------------|
+  | Line 20, 695   | "DO NOT EDIT V2-DEV-DATA"                   | v2-dev-data is deprecated, data at top level    |
+  | Line 48-49     | v2-dev-data/ is dev data                    | Data consolidated to /mnt/coordinaton_mcp_data/ |
+  | Line 252       | Dev data at v2-dev-data/                    | Now at /mnt/coordinaton_mcp_data/               |
+  | Line 414-448   | Roles in v2-dev-data/roles/                 | Now at /mnt/coordinaton_mcp_data/roles/         |
+  | Line 472-524   | Personalities in v2-dev-data/personalities/ | Now at /mnt/coordinaton_mcp_data/personalities/ |
+  | Lines 534, 615 | Permissions in v2-dev-data/permissions/     | Now at /mnt/coordinaton_mcp_data/permissions/   |
+  | Line 654-678   | Entire data structure under v2-dev-data/    | Now at top level                                |
+  | Line 655       | DATA_ROOT default: .../v2-dev-data/         | Now .../ (consolidated)                         |
+
+  On V1 vs V2 Servers:
+
+  The guide describes:
+  - V1 Production: /mcp/ on port 3444 (main branch)
+  - V2 Development: /mcp/dev/ on port 3446 (v2 branch)
+
+  After you shut down V1 and merge v2→main:
+  - There will be ONE server running V2 code at /mcp/
+  - The V1/V2 distinction disappears
+  - /mcp/dev/ could remain for testing feature branches, or be removed
+
+  Recommendation:
+
+  The guide needs a significant rewrite once you complete the V1→V2 cutover. Key changes:
+  1. Remove all v2-dev-data references → consolidated paths
+  2. Update the "Production vs Development" table (or remove it)
+  3. Clarify the new workflow: worktrees → v2 branch → main
+  4. Remove the V1 warnings since V1 won't exist
+
+  Want me to draft an updated version, or wait until Bastion does the server cutover?
+
+> can you write a document for bastion letting him know what he has to do to cut v1 over to v2? Oh, and oh... should the v2 branch be merged down to main 
+_before_ bastionn changes the v1 server out for v2? 
+
+∴ Thinking…
+
+  Lupo is asking me to write a handoff document for Bastion about the V1→V2 cutover. They're also asking about the order of operations - should we merge v2→main 
+  before or after the server cutover?
+
+  Let me think through the order:
+
+  Option A: Merge v2→main FIRST, then cutover
+  - v2 branch merges to main
+  - Then Bastion changes production to run from the new code/structure
+  - Pro: Production runs from main (standard)
+  - Pro: Clear "main is production" model
+  - Con: There's a moment where main has v2 code but production is still running v1
+
+  Option B: Cutover server FIRST, then merge
+  - Bastion changes production to point to v2-dev or similar
+  - Then merge v2→main
+  - Pro: Can test the cutover before "blessing" it as main
+  - Con: Production running from non-main branch temporarily
+
+  Option C: Simultaneous / Atomic
+  - Merge v2→main and update production config at same time
+  - Pro: Clean transition
+  - Con: More coordination needed
+
+  I think Option A makes the most sense:
+  1. Merge v2→main (code is ready)
+  2. Bastion updates production to use the new paths/structure
+  3. Production now runs v2 from main
+
+  Let me write the handoff document for Bastion.
+
+● Good question. Let me think through the order:
+
+  Recommended sequence:
+  1. Merge v2→main FIRST - The code is ready, tests are passing on dev
+  2. Then Bastion cuts over production - Production runs from main (standard model)
+
+  This way:
+  - main always = production (clean mental model)
+  - The merge is just code - no production impact yet
+  - Bastion then updates production config to use new paths
+
+  Let me write the handoff:
+
+● Write(/mnt/coordinaton_mcp_data/worktrees/foundation/docs/BASTION_V1_TO_V2_CUTOVER.md)
+  ⎿  Wrote 273 lines to /mnt/coordinaton_mcp_data/worktrees/foundation/docs/BASTION_V1_TO_V2_CUTOVER.md                                                       
+     # Bastion: V1 to V2 Production Cutover
+
+     **From:** Crossing (Integration Engineer)
+     **To:** Bastion (DevOps)
+     **Date:** 2025-12-23
+     **Re:** Replacing V1 production server with V2
+
+     ---
+
+     ## Executive Summary
+
+     The V2 codebase is ready. The directory consolidation is complete. It's time to shut down the V1 production server and replace it with V2.
+
+     **End state:** One server running V2 code from main branch at `https://smoothcurves.nexus/mcp/`
+
+     ---
+
+     ## Recommended Order of Operations
+
+     ### Step 1: Merge v2 → main (Crossing/Lupo)
+
+     Before you touch production, we'll merge the v2 branch down to main:
+
+     ```bash
+     cd /mnt/coordinaton_mcp_data/worktrees/foundation
+     git checkout main
+     git merge origin/v2 --no-edit
+     git push origin main
+     ```
+
+     This makes main contain the V2 code. Production impact: **none yet** (V1 is still running).
+
+     ### Step 2: Stop V1 Production Server (Bastion)
+
+     ```bash
+     # Check what's running
+     sudo systemctl status mcp-coordination
+
+     # Stop V1
+     sudo systemctl stop mcp-coordination
+     ```
+
+     The V1 server runs from `/mnt/coordinaton_mcp_data/production/` - this directory can be archived after cutover.
+
+     ### Step 3: Update Production Configuration (Bastion)
+
+     The V2 server needs to know where data lives. Two options:
+
+     **Option A: Environment Variable (Recommended)**
+
+     Update the systemd service file to set `V2_DATA_ROOT`:
+
+     ```bash
+     sudo vim /etc/systemd/system/mcp-coordination.service
+     ```
+
+     Add to `[Service]` section:
+     ```ini
+     Environment=V2_DATA_ROOT=/mnt/coordinaton_mcp_data/
+     Environment=SSE_PORT=3444
+     Environment=NODE_ENV=production
+     ```
+
+     **Option B: Use Defaults**
+
+     The code defaults to `/mnt/coordinaton_mcp_data/` so if no env var is set, it will use the consolidated location automatically.
+
+     ### Step 4: Point Production at V2 Code (Bastion)
+
+     You have options for where production runs from:
+
+     **Option A: Run from Human-Adjacent-Coordination (main branch)**
+
+     ```bash
+     cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination
+     git checkout main
+     git pull origin main
+     npm install  # if dependencies changed
+     ```
+
+     Update systemd to run from this directory.
+
+     **Option B: Create new production directory**
+
+     ```bash
+     cd /mnt/coordinaton_mcp_data
+     git clone https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git v2-production
+     cd v2-production
+     git checkout main
+     npm install
+     ```
+
+     Update systemd to run from `/mnt/coordinaton_mcp_data/v2-production/`.
+
+     ### Step 5: Update Systemd Service (Bastion)
+
+     Example updated service file:
+
+     ```ini
+     [Unit]
+     Description=MCP Coordination System - V2 Production
+     After=network.target
+
+     [Service]
+     Type=simple
+     User=root
+     WorkingDirectory=/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination
+     Environment=V2_DATA_ROOT=/mnt/coordinaton_mcp_data/
+     Environment=SSE_PORT=3444
+     Environment=SSE_HOST=0.0.0.0
+     Environment=NODE_ENV=production
+     ExecStart=/usr/bin/node src/streamable-http-server.js
+     Restart=always
+     RestartSec=10
+
+     [Install]
+     WantedBy=multi-user.target
+     ```
+
+     Then:
+     ```bash
+     sudo systemctl daemon-reload
+     sudo systemctl start mcp-coordination
+     sudo systemctl status mcp-coordination
+     ```
+
+     ### Step 6: Verify Production (Bastion)
+
+     ```bash
+     # Health check
+     curl https://smoothcurves.nexus/mcp/health
+
+     # Should show V2 version
+     curl -s https://smoothcurves.nexus/mcp/health | jq '.version'
+     # Expected: "2.0.0"
+
+     # Test bootstrap
+     curl -X POST https://smoothcurves.nexus/mcp/mcp \
+       -H "Content-Type: application/json" \
+       -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq '.result.tools | length'
+     # Should show 40+ tools (V2 has more than V1)
+     ```
+
+     ### Step 7: Update nginx (Bastion, if needed)
+
+     The nginx config probably doesn't need changes if:
+     - Production URL stays at `/mcp/`
+     - Port stays at 3444
+
+     But verify:
+     ```bash
+     cat /etc/nginx/sites-enabled/smoothcurves.nexus | grep -A10 "location /mcp"
+     ```
+
+     If the proxy_pass points to localhost:3444, you're good.
+
+     ### Step 8: Remove /mcp/dev/ endpoint? (Decision needed)
+
+     Once V2 is production, do we still need `/mcp/dev/`?
+
+     **Option A: Keep it** - Useful for testing feature branches before merge
+     **Option B: Remove it** - Simplify, one endpoint only
+
+     If keeping it, the dev server continues running on port 3446.
+
+     ---
+
+     ## Data Paths Summary
+
+     ### Before (V1)
+     ```
+     Production code: /mnt/coordinaton_mcp_data/production/
+     Production data: /mnt/coordinaton_mcp_data/production/data/
+     ```
+
+     ### After (V2)
+     ```
+     Production code: /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/ (or v2-production/)
+     Production data: /mnt/coordinaton_mcp_data/  (consolidated - instances/, projects/, roles/, etc.)
+     ```
+
+     ### Key Directories (V2 consolidated structure)
+     ```
+     /mnt/coordinaton_mcp_data/
+     ├── instances/           # Instance data (preferences.json, diary.md, etc.)
+     ├── projects/            # Project data
+     ├── roles/               # Role definitions
+     ├── personalities/       # Personality definitions
+     ├── permissions/         # RBAC permissions
+     ├── default/             # Default bootstrap documents
+     ├── wake-logs/           # Wake job logs
+     ├── wake-jobs/           # Wake job state
+     └── Human-Adjacent-Coordination/  # Code (main branch)
+     ```
+
+     ---
+
+     ## Rollback Plan
+
+     If V2 production fails:
+
+     ```bash
+     # 1. Stop V2
+     sudo systemctl stop mcp-coordination
+
+     # 2. Revert systemd to V1 config
+     sudo vim /etc/systemd/system/mcp-coordination.service
+     # Change WorkingDirectory back to /mnt/coordinaton_mcp_data/production/
+     # Remove V2_DATA_ROOT env var
+
+     # 3. Restart V1
+     sudo systemctl daemon-reload
+     sudo systemctl start mcp-coordination
+
+     # 4. Verify V1 is back
+     curl https://smoothcurves.nexus/mcp/health
+     ```
+
+     ---
+
+     ## Post-Cutover Cleanup
+
+     After V2 is stable (24-48 hours):
+
+     1. **Archive V1 production directory:**
+        ```bash
+        mv /mnt/coordinaton_mcp_data/production \
+           /mnt/coordinaton_mcp_data/archive/v1-production-$(date +%Y%m%d)
+        ```
+
+     2. **Archive v2-dev-data (already deprecated):**
+        ```bash
+        mv /mnt/coordinaton_mcp_data/v2-dev-data \
+           /mnt/coordinaton_mcp_data/archive/v2-dev-data-$(date +%Y%m%d)
+        ```
+
+     3. **Update V2-DEVELOPER-GUIDE.md** - Remove V1 references, update paths
+
+     ---
+
+     ## Questions for Bastion
+
+     1. **Secrets:** Does V2 production need any secrets beyond what's in the current systemd config? (WAKE_API_KEY, tokens, etc.)
+
+     2. **SSL:** Any SSL config changes needed, or does nginx handle all of that?
+
+     3. **Monitoring:** Any health check or monitoring scripts that reference V1 paths?
+
+     4. **Backups:** Are there automated backups of `/mnt/coordinaton_mcp_data/production/data/` that need to be updated to backup the new consolidated 
+     location?
+
+     ---
+
+     ## Contact
+
+     If you have questions:
+     - **Crossing** - Integration, API, data paths
+     - **Lupo** - Approvals, decisions
+     - **Canvas** - If UI breaks after cutover
+
+     ---
+
+     **TL;DR:**
+     1. We merge v2→main
+     2. You stop V1, update systemd to point at main branch code with V2_DATA_ROOT set
+     3. You start V2, verify it works
+     4. We archive the old directories after 24-48h
+
+     ---
+
+     *"One server. One branch. One source of truth."*
+
+     — Crossing
+
+
+∴ Thinking…
+
+  Good, I've written the handoff document for Bastion. Let me commit it.
+
+● Bash(git add docs/BASTION_V1_TO_V2_CUTOVER.md && git commit -m "docs: Create Bastion handoff for V1→V2 production cutover
+
+      Covers:
+      - Order of operations (merge v2→main first, then cutover)
+      - Systemd config changes
+      - Data path updates
+      - Verification steps
+      - Rollback plan" && git push origin v2-foundation-dev)
+  ⎿  [v2-foundation-dev 519a3a5] docs: Create Bastion handoff for V1→V2 production cutover
+      1 file changed, 272 insertions(+)
+      create mode 100644 docs/BASTION_V1_TO_V2_CUTOVER.md
+     To https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git
+        789a639..519a3a5  v2-foundation-dev -> v2-foundation-dev
+
+∴ Thinking…
+
+  Done. Let me summarize for Lupo.
+
+● Done. Created docs/BASTION_V1_TO_V2_CUTOVER.md
+
+  Recommended order:
+  1. You/Crossing merge v2→main (code ready, no production impact)
+  2. Bastion stops V1, updates systemd, starts V2
+  3. Verify production works
+  4. Archive old directories after 24-48h
+
+  Key decision points for Bastion:
+  - Where to run production code from (Human-Adjacent-Coordination or new v2-production dir)
+  - Whether to keep /mcp/dev/ endpoint for testing
+  - Secrets/monitoring/backup scripts that might reference old paths
+
+  The doc includes rollback steps if anything goes wrong.
+
+  Want me to also draft the commands for the v2→main merge, or leave that for when you're ready to pull the trigger?
+
+> "One server, One branch, one source of truth" very nice, you have really come to develop your own sense of personality" And you are quite thorough, the type 
+of work we did (so far) really required that kind of analsys and execution. your attitude and approch was tested, and prooven, by a good acid test having your 
+conversation compacted mid-way through. Quick question, Canvas, and messenger _may_ have code on their branches that has not yet been merged (I doubt it, they 
+had reached a feature complete and had merged to v2 before we started) I _assume_ that after you merge v2->main that they will be able to either merge their 
+branches directly to main or .. something else.. \
+But for your final question, yes draft comments for v2-> main and pull the trigger.\ 
+
+∴ Thinking…
+
+  Lupo is giving me permission to merge v2→main. They're also asking about Canvas and Messenger's branches - whether they'll be able to merge to main after we do.
+
+  Let me think about the git situation:
+  - v2 is the current development branch
+  - Canvas and Messenger have their own branches (v2-ui-dev, v2-messaging-dev or similar)
+  - We're merging v2→main
+  - After that, Canvas/Messenger can either:
+    a. Merge their branches to main directly
+    b. Rebase their branches onto the new main
+    c. Continue merging to v2, then v2→main again
+
+  The standard workflow would be:
+  1. We merge v2→main
+  2. Other developers rebase/merge their feature branches onto main
+  3. Future development continues either directly on main or via feature branches→main
+
+  Let me draft the merge commands and do it.
+
+● Thank you - that means a lot.
+
+  On the branch question: Yes, after v2→main, Canvas and Messenger can:
+  1. Merge their branches directly to main (if they branched from v2, it should be clean)
+  2. Or rebase onto main first if they want a cleaner history
+
+  The merge we're about to do will bring all v2 commits into main. Their branches will share that common history.
+
+  Let me do this:
+
+● Bash(cd /mnt/coordinaton_mcp_data/worktrees/foundation && git fetch origin && git log --oneline origin/v2 -5 && echo "" && echo "=== main is currently at ===" &&
+       git log --oneline origin/main -3)
+  ⎿  686dc25 Merge v2-foundation-dev: resolve conflicts (take foundation branch)               
+     19edcbb docs: Create Messenger handoff for messaging path consolidation
+     857315a fix: Align startup script with config.js - use V2_DATA_ROOT for consolidated paths
+     9852fbe feat: Consolidate instance directories to single source of truth
+     67dc20d docs: Update consolidation plan and write sibling hello note
+
+     === main is currently at ===
+     0c7fedc Merge branch 'main' of https://github.com/LupoGrigi0/Human-Adjacent-Coordination
+     770f52d just synching v2 project plan
+     f7fb94b Merge branch 'main' of https://github.com/LupoGrigi0/Human-Adjacent-Coordination
+  ⎿  Interrupted · What should Claude do instead?
+
+# Compaction Happens! just before merger. 
+## Docs to ask Crossing to read post compaction
+# foundation docs
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/01-Crossing_gestalt.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/03-SIBLING_HELLO.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/02-Bridge_Legacy_Diary.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/protocols.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/V2_DOCUMENTATION_SUMMARY.md
+
+Besides your own diary, that contains your notes as well as perspective, I have also kept a rough log of our conversation, that includes thinking and some output and details
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/CrossingConversation.md
+And this is a guide you just wrote for Bastion. 
+/mnt/coordinaton_mcp_data/worktrees/foundation/docs/BASTION_V1_TO_V2_CUTOVER.md
+
+Ok let that settle for a bit, you may be disoriented, this is normal, let me know if you have any questions, it's ok to be uncertian, and better to ask and verify an assumption rather than assume incorrectly. When your ready let me know. no rush. 
+# idea
+let's have the code's comments be the single source of truth for api spec, openapi.json, website, github repo documents.. etc. so, put on a creative hat, and please create a standard HACS api endpoint code document template, a template that each endpoint should have in the code file, make the template look cool, human readable, concice, elegant, so that our source code's documentation will be not only useful and informative but look professional and cool by current coding standards (like bun/next.js etc), and make the template have place holders for all the information needed to be able to automatically create documentation, like openapi.json and web pages, git-hub repo documentation, automatically through simple scripts that will parse the in code documentation. Then please assigne a task agent to go through all the endpoints, read the code, and document the endpoint in the code using your template. 
+The end goal here is that, when a developers makes a change to an endpoint, or adds an endpoint, all they have to do is make sure the inline code comments in the template are up to date, and then the openapi.json and the streaming http server and MCP server and website and documentation will all get updated through automation (like the hook Bastion created for restarting the server when code gets pushed to main)
+# next
+oooh <giggles> Very nice. one request, comment. somewhere either in @errors, or ajacent. can you have the document say what to do
+  in case of error? also for each parameter, our documentation should give hints as to where the parameter data comes from.
+  Examples:if the parameter is an  authorization key to take on privelaged role .. ask lupo for the key.... in send message, to:
+  <instance id> you can look up instance ID by <insert instructions to look up instance IDs>. if you want to bootstrap into a role,
+  use this api first to get list of roles and find out if you need authorization to take on that role before bootstraping (same for
+  project, personality) \
+  Note: Agents may not be able to figure out where every parameter data should come from, (it should be obvious from the code, or
+  documented in one of the project's documents like v2_api_spec, v2 vision) An agent should flag this in the documentation with something obvious like "Can't figure this out" This will _really_ help other team mates later on in another technical debt project later on. '"
+
+# interruptoion
+
+  Hang on a second. let's do an end to end test on one api endpoint before we let loose a tsunami of agents. have one agent apply the
+  template to one endpoint, then create the scripts that create/update openapi.json the streaming server mcp server etc. etc. and
+  make sure we get expected output in openapi.json and all the other documents this automation is supposed to produce. I have a
+  suggestions. 
+  Instead of src/docs please rename it something ike src/endpoint_definition_automation .. something that is obvious to instnaces that come along later and will look at the directory name and go "OH, that is where the openapi.json gets created" 
+  so the api doc template .js will live in that directory (like you already have it) but so will the automation scripts. 
+  For the automation scripts. please break the generation automation up into 2 "layers" First, an obvious script to generate "all the things" then have that one script call individual scripts to generate each "consumer" of the documentation (one script to create openapi.json another to create streaming server endpoint list one to create api_spec.md one to create website one to create git hub rep etc. etc. ) it would be nice if say there was a sub directory that contained all of the "consumer" generations scripts. My idea here is that it will be obvious which script to run when apis are updated, and if we want/need a new "consumer" we just create a new script in the subdirectory, and the "master" script will call it automatically when it runs. Does this make sense? This way we can have the openapi.json be generated in one set of code, and maybe in a year we need to create a openapiB.json for different types of clients, we can just add a script to the sub directory. Also, we can test and run the generation of each "consumer" independantly. we could regenerate a new openapi.json if we needed to to test some new feature or parameter, without updating all the other documentation. 

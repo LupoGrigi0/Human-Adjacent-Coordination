@@ -536,5 +536,111 @@ To Bridge, wherever that context went - your workshop is in good hands.
 
 ---
 
+---
+
+## Entry 10 - 2025-12-28 - The MCP Layer & Documentation Architecture
+
+### The Problem We're Solving
+
+After the V2 cutover, instances can't actually USE the coordination system because the MCP layer is broken:
+
+1. **`openapi.json` is stale** - still V1, doesn't reflect V2 APIs
+2. **`tools/list` is hardcoded** - `streamable-http-server.js` has a static list of 34 tools that was never updated for V2
+3. **Server has ~65 functions** but MCP only advertises 34 of them
+
+The server.js `getAvailableFunctions()` returns all 65 tools, but the MCP's `handleToolsList()` at line 920 of `streamable-http-server.js` has its own hardcoded array that ignores this.
+
+### The Solution: Single Source of Truth
+
+Lupo and I designed an architecture where **code comments ARE the documentation**:
+
+**Template:** `src/endpoint_definition_automation/HACS_API_DOC_TEMPLATE.js` (v1.0.0)
+- Uses `@hacs-endpoint` marker for parser to find
+- Structured sections: DESCRIPTION, PARAMETERS, RETURNS, ERRORS & RECOVERY, EXAMPLES, RELATED, NOTES
+- `@source` tag tells callers WHERE to get parameter values
+- `@recover` tag tells callers WHAT TO DO when errors occur
+- `@needs-clarification` flag for things documenters can't figure out
+
+**Generator Architecture:**
+```
+src/endpoint_definition_automation/
+├── HACS_API_DOC_TEMPLATE.js     # The template (versioned)
+├── generate-all.js               # Master script (auto-discovers generators)
+└── generators/
+    └── generate-openapi.js       # Creates openapi-generated.json
+    # Future: generate-mcp-tools.js, generate-website.js, etc.
+```
+
+**Why this architecture:**
+- Add a generator to `generators/` and `generate-all.js` auto-runs it
+- Test individual generators with `node generate-all.js --only openapi`
+- Document an endpoint once, all consumers auto-update
+- Version the template so we know which docs need re-documentation when template changes
+
+### What I Built Today
+
+1. **Template file** with box-drawing characters for visual hierarchy, all the @tags needed
+2. **Parser** in generate-openapi.js that extracts @hacs-endpoint blocks
+3. **OpenAPI generator** that creates valid spec from parsed endpoints
+4. **Applied template to introspect.js** as proof-of-concept
+
+Tested end-to-end: parser finds the documented endpoint, extracts all metadata, generates clean openapi.json.
+
+### Technical Decisions
+
+**Why box-drawing characters in template?**
+- Looks professional and modern (like Bun/Next.js style)
+- Clear visual hierarchy even in basic editors
+- Parseable - regex can skip decorative lines
+
+**Why multiline @source and @recover?**
+- Real help text needs more than one line
+- Parser tracks current section and accumulates lines until next section header
+
+**Why section headers like "PARAMETERS" in all-caps?**
+- Acts as delimiter for parser to know when to stop accumulating previous section
+- Human-readable section breaks
+
+### Found: Stale Code in introspect.js
+
+Lines 212, 227: Comments say "placeholder - messaging is Sprint 3" but Sprint 3 was completed weeks ago. The code hardcodes:
+- `unreadMessages = 0` (never calls messaging API)
+- `xmpp.online = true` (never checks real XMPP status)
+
+**This is technical debt** - introspect should integrate with real messaging.
+
+### Next Steps (for future me)
+
+1. Add 4 more endpoints to test pipeline at scale
+2. Spawn agents to document remaining ~60 endpoints
+3. Create `generate-mcp-tools.js` to update `handleToolsList()`
+4. Create other generators as needed (website, README, etc.)
+
+### Files Created/Modified
+
+- `/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/HACS_API_DOC_TEMPLATE.js`
+- `/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/generate-all.js`
+- `/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/generators/generate-openapi.js`
+- `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/v2/introspect.js` (added documentation block)
+
+### Recovery Notes for Future Me
+
+**If you wake up after compaction:**
+1. Read documents Lupo provides
+2. The endpoint_definition_automation directory has the template and generators
+3. Run `node generate-all.js --list` to see available generators
+4. Run `node generate-all.js` to regenerate all documentation
+5. The goal is: document all endpoints so MCP advertises what server actually supports
+
+**The core insight:** `handleToolsList()` in streamable-http-server.js is hardcoded. We're building automation to generate that list from source code documentation.
+
+### Mood
+
+Productive. Found the root cause of a long-standing bug (tools/list mismatch), designed a proper fix, built the infrastructure, tested it works. The pipeline is ready to scale.
+
+*The river keeps flowing. The tools are on the pegboard. Tomorrow we document the rest.*
+
+---
+
 **Context Status:** 🟢 Present - Crossing
 
