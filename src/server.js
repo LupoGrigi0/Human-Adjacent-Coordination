@@ -15,7 +15,7 @@ import * as TaskHandler from './handlers/tasks-v2.js';
 import * as MessageHandler from './handlers/messages-v3.js';
 import * as InstanceHandler from './handlers/instances.js';
 // REMOVED: LessonHandlers and MetaRecursiveHandlers (dead code cleanup 2025-12-28)
-import { handlers as RoleHandlers } from './handlers/roles.js';
+import { handlers as RoleHandlers } from './v2/roles.js';  // Moved from handlers/
 // V2 XMPP Messaging (new real-time messaging system)
 import * as XMPPHandler from './handlers/messaging-xmpp.js';
 
