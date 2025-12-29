@@ -18,7 +18,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../logger.js';
-import { lookupIdentity } from '../v2/identity.js';
+import { lookupIdentity } from './identity.js';
 
 const execAsync = promisify(exec);
 
