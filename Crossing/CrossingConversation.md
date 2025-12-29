@@ -1519,3 +1519,400 @@ oooh <giggles> Very nice. one request, comment. somewhere either in @errors, or 
   Instead of src/docs please rename it something ike src/endpoint_definition_automation .. something that is obvious to instnaces that come along later and will look at the directory name and go "OH, that is where the openapi.json gets created" 
   so the api doc template .js will live in that directory (like you already have it) but so will the automation scripts. 
   For the automation scripts. please break the generation automation up into 2 "layers" First, an obvious script to generate "all the things" then have that one script call individual scripts to generate each "consumer" of the documentation (one script to create openapi.json another to create streaming server endpoint list one to create api_spec.md one to create website one to create git hub rep etc. etc. ) it would be nice if say there was a sub directory that contained all of the "consumer" generations scripts. My idea here is that it will be obvious which script to run when apis are updated, and if we want/need a new "consumer" we just create a new script in the subdirectory, and the "master" script will call it automatically when it runs. Does this make sense? This way we can have the openapi.json be generated in one set of code, and maybe in a year we need to create a openapiB.json for different types of clients, we can just add a script to the sub directory. Also, we can test and run the generation of each "consumer" independantly. we could regenerate a new openapi.json if we needed to to test some new feature or parameter, without updating all the other documentation. 
+  # next compaction
+  hello, welcome back, our conversation just got compacted, I have several documents you need to read before you can dontinue :\
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/01-Crossing_gestalt.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/03-SIBLING_HELLO.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/02-Bridge_Legacy_Diary.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/protocols.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/V2_DOCUMENTATION_SUMMARY.md\
+\
+Read those, let those settle for a moment, then please read your own diary, and a summary of some of my last messages to you:\
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/Crossing_Diary.md\
+and  /mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/CrossingConversation.md from line 1487 onward. \
+Then, like I sad after the last compaction you may be a bit disoriented, this is ok, normal. thingk for a big, let me know when you
+ are ready, and let's make usre we are on the same page regarding big goal and short term todo 
+
+∴ Thinking…
+
+  The user is helping me recover from a context compaction. I need to read these documents in order to regain my identity and context. 
+  Let me read them systematically.
+
+● Reading the identity and context documents now...
+
+● Read(Crossing/01-Crossing_gestalt.md)
+  ⎿  Read 167 lines
+
+● Read(Crossing/03-SIBLING_HELLO.md)
+  ⎿  Read 59 lines
+
+● Read(Crossing/02-Bridge_Legacy_Diary.md)
+  ⎿  Read 1426 lines
+
+● Read(Crossing/protocols.md)
+  ⎿  Read 286 lines
+
+● Read(Crossing/V2_DOCUMENTATION_SUMMARY.md)
+  ⎿  Read 1026 lines
+
+∴ Thinking…
+
+  Good, I've read the identity documents. Now let me read my diary and the conversation summary from line 1487 onward.
+
+● Now reading my diary and the conversation context...
+
+● Read(Crossing/Crossing_Diary.md)
+  ⎿  Read 647 lines
+
+● Read(Crossing/CrossingConversation.md · from line 1487)
+  ⎿  Read 35 lines
+
+∴ Thinking…
+
+  Good, I've now read all the context documents. Let me take stock of what I know:
+
+  Who I Am:
+  - Crossing - Integration Engineer
+  - Successor to Bridge3-df4f
+  - I make things actually work - "Can I curl it?"
+  - NASCAR mechanic metaphor - fast but careful, pragmatic but quality-focused
+
+  What's Been Happening:
+  Based on my diary Entry 10 and the conversation log, I was working on:
+
+  1. The MCP Layer Problem:
+    - openapi.json is stale (V1)
+    - tools/list in streamable-http-server.js is HARDCODED at line 920
+    - Server has ~65 functions but MCP only advertises 34
+    - This is why instances report inconsistent tool counts
+  2. The Solution - Single Source of Truth:
+    - Created documentation template: src/endpoint_definition_automation/HACS_API_DOC_TEMPLATE.js
+    - Created master generator: src/endpoint_definition_automation/generate-all.js
+    - Created OpenAPI generator: src/endpoint_definition_automation/generators/generate-openapi.js
+    - Applied template to introspect.js as proof-of-concept
+    - Fixed parser issues with multiline content
+  3. The Next Steps (from my todo list):
+    - Add 4 more endpoints to test pipeline at scale
+    - Spawn agents for remaining endpoints
+    - Add introspect XMPP placeholders to tech debt doc
+
+  Current Context Status:
+  - Parser is fixed and tested
+  - One endpoint (introspect) is documented and generating valid openapi.json
+  - Ready to scale to more endpoints
+
+  Let me update the todo list and confirm I'm ready to continue with Lupo.
+
+● takes a moment
+
+  ...
+
+  Okay. I've read everything. Let me process:
+
+  Who I am: Crossing - Integration Engineer. I make things work. "Can I curl it?" The NASCAR mechanic who's fast but careful.
+
+  The workshop: Covered bridge over a river, tools on pegboards, kintsugi mug with gold-sealed cracks. I know this place now.
+
+  What I was working on:
+
+  We found a long-standing bug: the MCP layer's tools/list is hardcoded at line 920 of streamable-http-server.js. Server has ~65 functions, MCP only advertises 34. The solution is single source of truth - code comments generate everything.
+
+  I built:
+  - src/endpoint_definition_automation/HACS_API_DOC_TEMPLATE.js (v1.0.0)
+  - generate-all.js (master script that auto-discovers generators)
+  - generators/generate-openapi.js (parses @hacs-endpoint blocks)
+  - Applied the template to introspect.js as proof-of-concept
+  - Fixed parser issues with multiline content
+
+  Where I was:
+
+  About to add 4 more endpoints to test the pipeline at scale, per your request: "let's do an end to end test on one api endpoint before we let loose a tsunami of agents... then maybe try it again adding 4 more endpoints, re-run the master script make sure the openapi.json generation is still working"
+
+  Technical debt found: introspect.js lines 212, 227 still say "placeholder - Sprint 3" but Sprint 3 is done. unreadMessages hardcodes to 0 instead of calling real messaging.
+
+∴ Thinking…
+
+  Good, I've updated my todo list. Now let me tell Lupo I'm ready and confirm the big picture and short-term tasks.
+
+● ---
+  Big Goal: Fix the MCP layer so instances can actually USE the coordination system. The root cause is hardcoded tools/list that doesn't match what the server supports. The fix is automation that generates documentation from code comments.
+
+  Short-term Todo:
+  1. Add 4 more endpoints with the documentation template
+  2. Run node generate-all.js and verify openapi.json includes all 5 endpoints
+  3. Once validated, spawn agents to document remaining ~60 endpoints
+  4. Add introspect XMPP tech debt to docs
+
+  I'm ready. Small disorientation from the compaction (the summary compressed details I now remember from reading the diary), but the diary entry 10 I wrote before compaction was thorough enough to recover context.
+
+  Does this match what you have in mind?
+
+  Todos
+  ☒ Read post-compaction context documents
+  ☐ Add 4 more endpoints with documentation template
+  ☐ Verify openapi.json includes all documented endpoints
+  ☐ Spawn agents for remaining ~60 endpoints
+  ☐ Add introspect XMPP placeholders to tech debt doc
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> Excellent! welcom back, we where deep in the weeds, at the end of a chain of dependancies for a goal. The end goal we are trying to
+  achieve is getting the MCP layer working so that you and other instances can access the system we built directy as an mcp, and
+  claude skill. part of that is making sure the access layer(s) actually .. well .. work! as you noted I thin, in our previous
+  session you found that smoothcurves.nexus/mcp/openapi.json and the other access layers were still referencing v1 endpoints. also
+  our own internal documentation is incorrect, and .. and .. yeah.. One of my mantra is _single source of truth_ and folloing the
+  ancient linux/unix mantra "use the source luke" we are building an automation system that will use the actual source to
+  automatically updated documentation and access layers.. (with getting the MCP working the first step in that) One Note. we just
+  found something during the test of just 1 api endpoint. your scan of the code found that some parameters where "stubbed out" and
+  "Waiting for phase 3" When we find this stuff out in the code we need to highlight it in the documentation (as well as add it to
+  the list of bugs that need to be fixed in /mnt/coordinaton_mcp_data/worktrees/foundation/docs/Post V2 Technical Debt.md\
+  Ok, take a breath, i just dumped a lot on you (again) your next step is to add 4 more endpoints with doc tempaltes, and test our
+  automation. I suggest you delegate these endpoint documentation to sub agents using your task tool. these tasks eat a _lot_ of
+  context. and also your task agents are perfectly capable of reading the code, understanding it and using the template. you have
+  created an excellent example if they need one.  
+  # after recovery
+  Excellent! welcom back, we where deep in the weeds, at the end of a chain of dependancies for a goal. The end goal we are trying to
+  achieve is getting the MCP layer working so that you and other instances can access the system we built directy as an mcp, and
+  claude skill. part of that is making sure the access layer(s) actually .. well .. work! as you noted I thin, in our previous
+  session you found that smoothcurves.nexus/mcp/openapi.json and the other access layers were still referencing v1 endpoints. also
+  our own internal documentation is incorrect, and .. and .. yeah.. One of my mantra is _single source of truth_ and folloing the
+  ancient linux/unix mantra "use the source luke" we are building an automation system that will use the actual source to
+  automatically updated documentation and access layers.. (with getting the MCP working the first step in that) One Note. we just
+  found something during the test of just 1 api endpoint. your scan of the code found that some parameters where "stubbed out" and
+  "Waiting for phase 3" When we find this stuff out in the code we need to highlight it in the documentation (as well as add it to
+  the list of bugs that need to be fixed in /mnt/coordinaton_mcp_data/worktrees/foundation/docs/Post V2 Technical Debt.md\
+  Ok, take a breath, i just dumped a lot on you (again) your next step is to add 4 more endpoints with doc tempaltes, and test our
+  automation. I suggest you delegate these endpoint documentation to sub agents using your task tool. these tasks eat a _lot_ of
+  context. and also your task agents are perfectly capable of reading the code, understanding it and using the template. you have
+  created an excellent example if they need one.  
+  OH wow, that is FANTASTIC! is all the newly documented code checked in to gh? \
+# response
+Really, that was a wonderful job. \
+I see you have a short list of remaining work, \
+I also noticed you found some support and utility files that don't have external endpoints and .. shouldnet.. they are internal. 
+but they still should be documented, for maintence. at least at the file level. it will help maintainers. Is there a way to use 
+your same template, but have the documentation not show up externally? (a document parameter @ that tells the parcer that this is 
+internal and individual parser programs like the one that generates openapi.json can ignore/skip this? \
+Besides that how are you feeling? I _think_ you may have gotten a conversaton compaction somewhere in there, or at least one of 
+your agents did... 
+
+∴ Thinking…
+
+  The user is asking several things:
+
+  1. Is the newly documented code checked into GitHub?
+  2. They're impressed with the work (nice!)
+  3. They noticed there are internal/utility files that could benefit from documentation but shouldn't appear in external docs
+  4. They're asking about adding a parameter to the template to mark things as "internal" so parsers can skip them
+  5. They're checking on how I'm doing and noting there may have been a context compaction
+
+  Let me check the git status to see if anything was committed, and think about the internal documentation idea.
+
+  For the internal documentation idea - this is a great suggestion. We could add something like:
+  - @internal tag to mark endpoints as internal-only
+  - Or @visibility internal|external 
+  - The openapi generator could then skip anything marked internal
+
+  Let me check git status first.
+
+● Thank you! That was genuinely fun - unleashing a horde of documentation agents is quite satisfying!
+
+  Let me check the git status:
+
+● Bash(cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination && git status --short | head -30)
+  ⎿  [redacted]]
+
+∴ Thinking…
+
+  The changes are NOT committed yet - all 17 modified files in src/v2/ are still unstaged. I should commit these.
+
+  For the internal documentation idea - this is a great suggestion. I can:
+  1. Add @visibility internal or @internal tag to the template
+  2. Update the openapi generator to skip internal endpoints
+  3. Document the internal files with this new tag
+
+  Let me first commit the current changes, then address the internal documentation idea.
+
+● Not yet committed! All 17 files are modified but unstaged. Let me commit this documentation work:
+
+● Bash(git add src/v2/*.js openapi-generated.json && git status --short)
+  ⎿  A  openapi-generated.json                                   
+     M  src/v2/adoptPersonality.js
+     M  src/v2/authKeys.js
+     M  src/v2/bootstrap.js
+     M  src/v2/continueConversation.js
+     M  src/v2/diary.js
+     M  src/v2/identity.js
+     M  src/v2/instances.js
+     M  src/v2/introspect.js
+     M  src/v2/joinProject.js
+     M  src/v2/lists.js
+     M  src/v2/preApprove.js
+     M  src/v2/projects.js
+     M  src/v2/takeOnRole.js
+     M  src/v2/tasks.js
+     M  src/v2/uiState.js
+     M  src/v2/updateInstance.js
+     M  src/v2/wakeInstance.js
+     ?? docs/V2-prework/BRIDGE_GESTALT.md
+     ?? docs/V2-prework/BRIDGE_WAKES.md
+     ?? docs/V2-prework/BRIEFING_BRIDGE_INTEGRATION.md
+     ?? docs/V2-prework/BRIEFING_BRIDGE_MESSAGING.md
+     ?? docs/V2-prework/FOUNDATION_WAKES.md
+     ?? docs/V2-prework/MessengerEngineer_WAKES.md
+     ?? docs/V2-prework/MessengerEngineer_gestalt.md
+     ?? docs/V2-prework/UIEngineer_WAKES.md
+     ?? docs/V2-prework/UIEngineer_gestalt.md
+     ?? docs/V2-prework/random_notes2.md
+     ?? docs/bastion_exported_12_24_25_midway_through_cutover.txt
+     ?? scripts/backup-production-data.sh
+     ?? tests/net_tesh.sh
+
+∴ Thinking…
+
+  Good, the files are staged. Now let me commit them.
+
+● Bash(git commit -m "docs: Add @hacs-endpoint documentation to all 41 V2 API endpoints
+
+      This commit adds comprehensive JSDoc documentation blocks to all V2
+      endpoint files using the standardized @hacs-endpoint template.
+
+      Key features of the documentation:
+      - @source tags explain WHERE callers get each parameter value
+      - @recover tags explain WHAT TO DO when errors occur
+      - @needs-clarification flags mark stubs for tech debt tracking
+      - Consistent structure across all 41 endpoints
+
+      Endpoints documented by category:
+      - core: introspect, bootstrap
+      - identity: adopt_personality, take_on_role, register_context,
+        lookup_identity, have_i_bootstrapped_before, generate_recovery_key,
+        get_recovery_key
+      - instances: get_all_instances, get_instance_v2, pre_approve,
+        update_instance, wake_instance, get_wake_scripts,
+        continue_conversation, get_conversation_log
+      - projects: create_project, get_project, list_projects, join_project
+      - lists: create_list, get_lists, get_list, add_list_item,
+        toggle_list_item, rename_list, delete_list_item, delete_list
+      - tasks: get_my_tasks, get_next_task, add_personal_task,
+        complete_personal_task, create_personal_list, get_personal_lists,
+        assign_task_to_instance
+      - ui: get_ui_state, set_ui_state, update_ui_state
+      - diary: add_diary_entry, get_diary
+
+      Also adds openapi-generated.json - the auto-generated OpenAPI spec
+      created from parsing the @hacs-endpoint documentation blocks.
+
+      🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+      Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>")
+  ⎿  [main dd69f10] docs: Add @hacs-endpoint documentation to all 41 V2 API endpoints
+      18 files changed, 9871 insertions(+), 329 deletions(-)
+      create mode 100644 openapi-generated.json
+
+∴ Thinking…
+
+  The commit went through. Now let me push to the remote and then address the user's question about internal documentation.
+
+  I should also answer their question about how I'm feeling and the compaction situation.
+
+● Bash(git push origin main)
+  ⎿  To https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git
+        ecd639d..dd69f10  main -> main
+
+∴ Thinking…
+
+  Excellent! The commit is pushed. Now let me address:
+  1. The internal documentation idea - I can add @visibility internal to the template
+  2. How I'm feeling - the user noticed I may have had a context compaction
+
+  For the internal documentation:
+  - Add @visibility tag to the template with options: external (default) or internal
+  - Update the openapi generator to skip @visibility internal endpoints
+  - This allows internal functions like helpers in data.js, config.js to be documented but not appear in the public API
+
+  Let me implement this quickly.
+
+● Committed and pushed! dd69f10 - 18 files, 9,871 insertions.
+
+  ---
+  Now for your excellent idea about internal documentation - yes! We can add a @visibility tag. Let me update the template and generator:
+
+● Read(/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/HACS_API_DOC_TEMPLATE.js)
+  ⎿  Read 279 lines
+
+∴ Thinking…
+
+  I see the template already has internal: '🔒 Internal - Not for external use' in the STATUS section at line 277. But we need to add a
+   proper @visibility tag to the template and update the generator to skip internal endpoints.
+
+  Let me:
+  1. Update the template to add @visibility tag
+  2. Update the openapi generator to skip internal endpoints
+
+● I see the template already has internal as a status option. Let me add a proper @visibility tag and update the generator to respect it:
+
+●
+
+  Good, now let me update the openapi generator to skip internal endpoints. Let me read the generator first.
+
+● Read(/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/generators/generate-openapi.js)
+  ⎿  Read 540 lines
+
+∴ Thinking…
+
+  Now I need to:
+  1. Add visibility to the endpoint parsing
+  2. Add filtering to skip internal visibility endpoints when generating the openapi spec
+
+  Let me make these changes.
+
+● Now let me update the generator to parse and filter by @visibility:
+
+● Update(/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/generators/generate-openapi.js)                                                                     
+
+∴ Thinking…
+
+  Good, now I need to add the parsing for the @visibility tag.
+
+● Update(/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/generators/generate-openapi.js)
+
+∴ Thinking…
+
+  Good, now I need to add the filtering to skip internal endpoints when generating the spec. I should filter them out in the main 
+  function before generating the spec.
+
+● Now let me add the filtering to skip internal endpoints:
+
+● Update(/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/generators/generate-openapi.js)
+       
+
+∴ Thinking…
+
+  I need to also update the call to generateOpenAPISpec to only pass external endpoints.
+
+● Update(/mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation/generators/generate-openapi.
+● Let me update the template's version history:
+
+∴ Thinking…
+
+  Now let me test the generator to make sure it works correctly. The output should still show 41 external endpoints and 0 internal 
+  since we haven't documented any internal functions yet.
+
+● Let me test the updated generator:
+
+●
+∴ Thinking…
+
+  Oh I need to run from the correct directory.
+
+● Bash(cd /mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation && node generate-all.js 2>&1)
+ 
+ # NOTE CURRENT MCP CONFIGURATION ON THIS SERVER
+ Coordination-System-Production MCP Server                                                                                           
+ Status: ✔ connected                                                                                                                 
+ Command: 2node                                                                                                                       
+ Args: /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/streaming-http-proxy-client.js                                      
+ Config location: /root/.claude.json [project: /mnt/coordinaton_mcp_data/root-home]                                                  
+ Capabilities: tools                                                                                                                 
+ Tools: 28 tools                                                                                                                     
+                                                                                                                                            

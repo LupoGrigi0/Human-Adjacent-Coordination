@@ -26,8 +26,8 @@ const CONFIG = {
   scanDirs: [
     '/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/v2',
   ],
-  // Default output path (writes to main repo, can be copied elsewhere)
-  defaultOutput: '/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/openapi-generated.json',
+  // Default output path - the actual openapi.json served by nginx
+  defaultOutput: '/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/openapi.json',
   // OpenAPI base info
   openapi: {
     version: '3.1.1',
