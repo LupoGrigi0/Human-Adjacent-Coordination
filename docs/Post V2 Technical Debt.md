@@ -23,15 +23,51 @@ The system is a **workshop** that enables Lupo (and teams) to create things. Eve
 Without this, the workshop has locked doors.
 
 ## MCP Server & Skills (CRITICAL PATH)
-- [ ] DOCUMENT API ENDPOINTS FROM THE CODE
-- [ ] fukkin FIX OPENAPI.JSON Simple, clean, organized 
-- [ ] smoothcurves.nexus MCP server update for new API
-- [ ] New updated MCP proxy client for new API
-- [ ] New updated claude skill build for new API
-- [ ] Install new claude skill on smoothcurves.nexus server
+- [x] DOCUMENT API ENDPOINTS FROM THE CODE
+  - Created @hacs-endpoint JSDoc template (HACS_API_DOC_TEMPLATE.js)
+  - Documented 41 endpoints with params, errors, recovery instructions
+  - Generator: generate-all.js auto-discovers and runs all generators
+- [x] fukkin FIX OPENAPI.JSON Simple, clean, organized
+  - Generator: generate-openapi.js reads @hacs-endpoint blocks
+  - Outputs to src/openapi.json (the actual served file)
+  - 41 tools documented, 3 internal excluded
+
+## Code Stubs Found During Documentation
+*These are placeholders that need real implementation*
+
+- [ ] **introspect.js lines 212, 227** - Comments say "placeholder - messaging is Sprint 3" but Sprint 3 is complete
+  - `unreadMessages` hardcoded to 0 (should call real messaging API)
+  - `xmpp.online` hardcoded to true (should check real XMPP status)
+  - Impact: `introspect()` returns stale/fake messaging data
+
+- [ ] **bootstrap.js lines 720-724, 620-624** - XMPP credentials generated but never registered
+  - `xmpp.registered = true` is set, but no actual XMPP server registration occurs
+  - Credentials are stored for future use
+  - Impact: XMPP accounts won't work until Sprint 3 registration is implemented
+
+- [ ] **joinProject.js line 91** - `team[].online` status placeholder
+  - `online: true` hardcoded for all team members regardless of actual XMPP status
+  - buildTeamList() always returns online: true
+  - Impact: Team presence info is fake 
+- [x] smoothcurves.nexus MCP server update for new API
+  - streamable-http-server.js now imports mcpTools from generated file
+  - Returns 41 tools from tools/list (was 34 hardcoded V1 tools)
+  - Commit: 6ee8fe7
+- [x] New updated MCP proxy client for new API
+  - Renamed to hacs-mcp-proxy.js (was streaming-http-proxy-client.js)
+  - Fully dynamic - queries server for tools/list, no hardcoding
+  - Works with V2 API without changes
+- [x] New updated claude skill build for new API
+  - Generator: generate-skill-functions.js creates functions.md
+  - Updated SKILL.md and functions.md to reflect 41 V2 functions
+  - Removed references to dead code (lessons, meta-recursive)
+- [x] Install new claude skill on smoothcurves.nexus server
+  - Updated /root/.claude/skills/hacs-coordination/
 - [ ] Install new claude skill on web claude interface
 - [ ] Install new claude skill on Lupo's dev laptop
-- [ ] Verification of openapi.json is correct for v2
+- [x] Verification of openapi.json is correct for v2
+  - Generator produces valid OpenAPI 3.1.1 spec
+  - Tested with curl to https://smoothcurves.nexus/openapi.json
 
 # Priority 2 Alternative Access (Crush, Grok, etc.)
 - [ ] Implement pre-auth, wake, continue alternative using Crush, 
@@ -54,6 +90,8 @@ Without this, the workshop has locked doors.
 - [ ] continue needs to read preference.json and call approprate command line interface and model. (just store the continue command in the preferences.json)
 - [ ] Document this distinction in API guide
 - [ ] UI needs wake changes that allow selection of substrait (Cladue code, crush-groq, crush-openai)
+- [ ] bug: Add sessionId to get_all_instances response (as an optional otuput parameter, this is needed by the executive for managing/waking sessions) Note: session ID for crush will be the instance's home directory
+- [ ] fix code documentation, AND ANY OTHER DOCUMENTATION that suggesting calling bootstrap to get a list of roles, personalities, projects. There are specific api calls to get list of roles, personalities, projects... that can and should be called _before_ calling bootstrap (if the instance does not know)
 
 ## 2 GET RID OF V1 API, rationalize the project source into one src directory. the project directory structure is a Fkkin mess mix of v1 and v2 and nobody knows what is what. This is showcase project, and the project structure in GH should reflect that, clean, organized, no unused files, no scripts/code outside of single scripts/code directories no more data or logs mixed in with the code. validate all the APIs before and after each re-organization
 Draw a diagram of the directory structure of /mnt/coordinaton_mcp_data/ now, what each directory is, what each file is
