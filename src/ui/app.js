@@ -2411,8 +2411,9 @@ async function createTask() {
 }
 
 // Direct RPC call for APIs that don't go through our wrapper
+// NOTE: Should eventually use api.js environment system, but for now hardcode production
 async function rpcCallDirect(method, args) {
-    const url = 'https://smoothcurves.nexus/mcp/dev/mcp';
+    const url = 'https://smoothcurves.nexus/mcp';
     const payload = {
         jsonrpc: '2.0',
         id: Date.now(),
