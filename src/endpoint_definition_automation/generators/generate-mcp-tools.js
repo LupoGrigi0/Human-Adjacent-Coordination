@@ -15,6 +15,7 @@
 import { readdir, readFile, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { SHARED_CONFIG } from '../shared-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,12 +24,10 @@ const __dirname = dirname(__filename);
 // CONFIGURATION
 // ============================================================================
 const CONFIG = {
-  // Directories to scan for endpoint files
-  scanDirs: [
-    '/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/v2',
-  ],
+  // Directories to scan - from shared config (single source of truth)
+  scanDirs: SHARED_CONFIG.scanDirs,
   // Default output path
-  defaultOutput: '/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/mcp-tools-generated.js',
+  defaultOutput: join(SHARED_CONFIG.srcRoot, 'mcp-tools-generated.js'),
 };
 
 // ============================================================================
