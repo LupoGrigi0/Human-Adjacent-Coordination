@@ -5,7 +5,8 @@
 **Audience:** Foundation, Messaging, Testers, and all V2 team members
 
 ---
-
+!!! DO NOT EDIT FILES IN V2-DEV-DATA that directory is READ ONLY YOU WILL CAUSE MERGE CONFLICTS YOU WILL BREAK THE SYSTEM YOUR CHANGES WILL BE LOST!!!
+Work only in your worktree, on your branch. when you are ready to test, merge from your branch to the V2 branch
 ## Quick Reference
 
 | What | Where |
@@ -678,3 +679,8 @@ v2-dev-data/
 *"Push to v2, restart, test. That's the whole workflow."*
 
 — Bastion, DevOps
+---
+!!! DO NOT EDIT FILES IN V2-DEV-DATA that directory is READ ONLY YOU WILL CAUSE MERGE CONFLICTS YOU WILL BREAK THE SYSTEM YOUR CHANGES WILL BE LOST!!! and bugs and waste time and tokens!!!
+Work only in your worktree, on your branch. when you are ready to test, merge from your branch to the V2 branch
+---
+NOTE: THERE IS A SECRETS FILE in the v2-dev-data directory structure that is NOT checked in.. This is to prevent API keys and passwords from being checked into GH.. a known classic GH security issue.. we don't do things like this2

@@ -1,7 +1,33 @@
 /**
- * Data utility module for V2 coordination system
- * Provides atomic file operations and instance-specific helpers
- * Based on V1 FileManager pattern with improved error handling
+ * @hacs-endpoint
+ * @template-version 1.1.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ DATA MODULE                                                             │
+ * │ Atomic file operations and data persistence utilities                   │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool data_module
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category system
+ * @status stable
+ * @visibility internal
+ *
+ * @description
+ * Internal data utility module for V2 coordination system. Provides atomic
+ * file operations and instance-specific helpers. Based on V1 FileManager
+ * pattern with improved error handling.
+ *
+ * Key functions:
+ * - readJSON/writeJSON: Atomic JSON file operations
+ * - readPreferences/writePreferences: Instance preferences
+ * - readDiary/appendDiary: Diary file operations
+ * - generateInstanceId: Create new instance IDs
+ * - loadDocuments: Load documents listed in preferences
+ *
+ * @note Uses temp file + rename pattern for atomic writes
+ * @note Automatically creates parent directories if needed
+ * @see config.js - Provides path configuration
  */
 
 import fs from 'fs/promises';

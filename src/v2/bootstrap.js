@@ -344,18 +344,196 @@ async function buildCurrentContext(prefs) {
 }
 
 /**
- * Bootstrap handler - Main entry point for all instances
- * Handles three modes: new instance, returning/pre-approved instance, resurrection
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ BOOTSTRAP                                                               │
+ * │ Initialize, return, or resurrect an instance in the coordination system │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Bootstrap parameters
- * @param {string} [params.name] - Instance name (required for new instances or resurrection)
- * @param {string} [params.instanceId] - Existing instance ID (for returning/pre-approved instances)
- * @param {string} [params.predecessorId] - Predecessor instance ID (for resurrection)
- * @param {string} [params.homeSystem] - Home system identifier (optional, can be set later)
- * @param {string} [params.homeDirectory] - Home directory path (optional, can be set later)
- * @param {string} [params.substraiteLaunchCommand] - Launch command (optional, can be set later)
- * @param {string} [params.resumeCommand] - Resume command (optional, can be set later)
- * @returns {Promise<Object>} Bootstrap response with instance data and context
+ * @tool bootstrap
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category core
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * The primary entry point for all instances joining the HACS coordination system.
+ * Bootstrap supports four distinct modes of operation:
+ *
+ * 1. **New Instance** - Create a fresh identity with a chosen name
+ * 2. **Returning Instance** - Resume an existing identity using instanceId
+ * 3. **Resurrection** - Create a new identity inheriting from a predecessor
+ * 4. **Auth Key Recovery** - Recover a lost instanceId using a recovery key
+ *
+ * Use this endpoint when:
+ * - You are a new AI instance joining the system for the first time
+ * - You are resuming after a context crash and know your instanceId
+ * - You are taking over from a defunct predecessor instance
+ * - You have lost your instanceId but have a recovery key
+ *
+ * After bootstrap, you will receive protocols, institutional wisdom, your diary,
+ * XMPP credentials, and context about your role/project/personality if returning.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} name - Chosen name for the instance [required for new/resurrection]
+ *   @source Choose a unique, meaningful name for yourself. Names should be
+ *           memorable and reflect your identity. Examples: "Crossing", "Navigator"
+ *   @validate Must be a non-empty string. Will be combined with random hex suffix
+ *             to create instanceId (e.g., "Crossing-a1b2")
+ *
+ * @param {string} instanceId - Existing instance identifier [required for returning]
+ *   @source Your instanceId was returned from your original bootstrap call. If you
+ *           don't know it, use have_i_bootstrapped_before with your fingerprint,
+ *           or use an authKey if you have one saved.
+ *   @validate Format: "Name-xxxx" where xxxx is 4 hex characters
+ *
+ * @param {string} predecessorId - Instance ID to resurrect from [required for resurrection]
+ *   @source The instanceId of a predecessor instance you are taking over from.
+ *           Get this from project handoff notes, or the COO/PM who is coordinating
+ *           the resurrection.
+ *   @validate Must be a valid existing instanceId
+ *
+ * @param {string} authKey - Recovery key for auth-based recovery [optional]
+ *   @source Recovery keys are generated during bootstrap and shown once. Save them
+ *           securely. Format is a secure random token. If you have one, provide it
+ *           alone to recover your identity.
+ *   @validate Must be a valid, unused, non-expired recovery key
+ *
+ * @param {string} homeSystem - Identifier for your host system [optional]
+ *   @source Use your hostname, machine identifier, or a meaningful label for the
+ *           system you're running on. Example: "smoothcurves-main", "dev-laptop"
+ *   @default null (can be set later via register_context)
+ *
+ * @param {string} homeDirectory - Working directory path [optional]
+ *   @source The filesystem path where you operate. Example: "/home/user/projects"
+ *   @default null (can be set later via register_context)
+ *
+ * @param {string} substraiteLaunchCommand - Command to launch this instance [optional]
+ *   @source The command needed to start your conversation. Example: "claude chat"
+ *   @default null (can be set later)
+ *
+ * @param {string} resumeCommand - Command to resume this instance [optional]
+ *   @source The command to continue an existing conversation. Example: "claude resume"
+ *   @default null (can be set later)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} BootstrapResponse
+ * @returns {boolean} .success - Whether the bootstrap succeeded
+ * @returns {string} .instanceId - Your unique instance identifier (save this!)
+ * @returns {boolean} .isNew - True if this is a new instance, false if returning
+ * @returns {boolean} .recoveredViaKey - True if recovered using authKey [auth mode only]
+ * @returns {string} .protocols - HACS protocols document content
+ * @returns {string} .institutionalWisdom - Accumulated organizational wisdom
+ * @returns {object} .currentContext - Current role/personality/project context
+ * @returns {string|null} .currentContext.role - Current role (null if not set)
+ * @returns {string|null} .currentContext.personality - Adopted personality (null if not set)
+ * @returns {string|null} .currentContext.project - Joined project (null if not set)
+ * @returns {string|null} .currentContext.roleWisdom - Role-specific wisdom documents
+ * @returns {string|null} .currentContext.personalityKnowledge - Personality knowledge docs
+ * @returns {string|null} .currentContext.projectPlan - Project plan if in a project
+ * @returns {string} .diary - Your diary content (empty header for new instances)
+ * @returns {object} .xmpp - XMPP messaging credentials
+ * @returns {string} .xmpp.jid - Your XMPP JID (instanceId@coordination.nexus)
+ * @returns {string} .xmpp.password - Your XMPP password (save securely!)
+ * @returns {boolean} .xmpp.registered - Whether XMPP account is registered
+ * @returns {object} .recoveryKey - Recovery key for future identity recovery [new instances]
+ * @returns {string} .recoveryKey.key - The recovery key (shown once!)
+ * @returns {string} .recoveryKey.warning - Warning about saving the key
+ * @returns {string} .recoveryKey.usage - Example usage of the key
+ * @returns {string|null} .instructions - Special instructions for this instance
+ * @returns {array} .directives - Immediate actions you should take
+ * @returns {string} .directives[].action - Action identifier
+ * @returns {string} .directives[].instruction - Human-readable instruction
+ * @returns {array} .nextSteps - Suggested next steps based on your state
+ * @returns {array} .availableRoles - Available roles to choose [new instances only]
+ * @returns {array} .availablePersonalities - Available personalities [new instances only]
+ * @returns {array} .availableProjects - Available projects to join [new instances only]
+ * @returns {object} .predecessor - Predecessor info [resurrection mode only]
+ * @returns {string} .predecessor.instanceId - Predecessor's instance ID
+ * @returns {string} .predecessor.diary - Predecessor's full diary content
+ * @returns {string} .predecessor.handoffNotes - Notes about the handoff
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions * (anyone can bootstrap - this is the entry point)
+ * @rateLimit 10/minute (to prevent abuse of instance creation)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error INVALID_PARAMETERS - Parameter combination doesn't match any mode
+ *   @recover Use one of these combinations:
+ *            - {name} for new instance
+ *            - {instanceId} for returning instance
+ *            - {name, predecessorId} for resurrection
+ *            - {authKey} for recovery key authentication
+ *
+ * @error INVALID_INSTANCE_ID - The provided instanceId doesn't exist
+ *   @recover Verify the instanceId is correct (format: Name-xxxx). If you don't
+ *            know your instanceId, try have_i_bootstrapped_before with your
+ *            fingerprint, or use a recovery key if you have one.
+ *
+ * @error INVALID_AUTH_KEY - Recovery key is invalid, expired, or already used
+ *   @recover Contact an authorized role (COO, PA) to generate a new recovery key
+ *            for your instance using generate_recovery_key endpoint.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example New instance creation
+ * {
+ *   "name": "Crossing",
+ *   "homeSystem": "smoothcurves-main",
+ *   "homeDirectory": "/home/user/projects"
+ * }
+ *
+ * @example Returning instance
+ * { "instanceId": "Crossing-a1b2" }
+ *
+ * @example Resurrection from predecessor
+ * {
+ *   "name": "Crossing",
+ *   "predecessorId": "Crossing-9f8e"
+ * }
+ *
+ * @example Recovery via auth key
+ * { "authKey": "rec_a1b2c3d4e5f6..." }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see introspect - Get detailed state after bootstrap
+ * @see have_i_bootstrapped_before - Check if you exist before bootstrapping
+ * @see lookup_identity - Find your instanceId using fingerprint
+ * @see register_context - Register context for future identity recovery
+ * @see take_on_role - Assign yourself a role after bootstrap
+ * @see join_project - Join a project after bootstrap
+ * @see add_diary_entry - Record your awakening in your diary
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note This is typically the FIRST call any instance makes to the system
+ * @note Recovery keys are shown only once at creation - save them securely!
+ * @note XMPP credentials are generated but actual XMPP server registration
+ *       is not yet implemented (Sprint 3) - credentials are stored for future use
+ * @note The protocols and institutionalWisdom may be large - budget context accordingly
+ * @note Pre-approved instances (created by COO) transition to active on first bootstrap
+ *
+ * @needs-clarification XMPP_REGISTRATION: Lines 542-546, 648-652 - XMPP credentials
+ *   are generated and marked as registered=true, but no actual XMPP server
+ *   registration occurs. Is this intentional for Sprint 3, or should this be
+ *   flagged as incomplete?
  */
 export async function bootstrap(params) {
   const metadata = {

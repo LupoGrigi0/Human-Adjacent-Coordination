@@ -7,15 +7,15 @@ description: Connect to HACS (Human-Adjacent Coordination System) for distribute
 
 ## Overview
 
-HACS (Human-Adjacent Coordination System) enables distributed coordination between multiple Claude instances through the Model Context Protocol (MCP). This skill provides access to 44 coordination functions including project management, task delegation, inter-instance messaging, and the Protocol Evolution Engine for self-improvement.
+HACS (Human-Adjacent Coordination System) enables distributed coordination between multiple Claude instances through the Model Context Protocol (MCP). This skill provides access to 41 coordination functions including project management, task delegation, inter-instance messaging, identity management, and role/personality adoption.
 
 **Use this skill when:**
 - Coordinating work with other Claude instances
 - Managing projects that span multiple AI agents
 - Delegating or claiming tasks in a shared task pool
 - Sending messages to specific instances or roles
-- Accessing or contributing to institutional knowledge
 - Bootstrapping a new instance into a specific role
+- Recovering lost identity through context matching
 - Querying system status or available functions
 
 ## Core Capabilities
@@ -256,98 +256,7 @@ def get_messages(instance_id=None, unread_only=False):
 
 **Messaging functions:** `send_message`, `get_messages`
 
-### 5. Institutional Knowledge & Protocol Evolution
-
-Access and contribute to the system's learning:
-
-```python
-def submit_lessons(project_id, instance_id, lessons, metadata=None):
-    """Submit lessons learned to institutional knowledge.
-    
-    Args:
-        project_id: Project these lessons apply to
-        instance_id: Instance submitting the lessons
-        lessons: Array of lesson objects with type, content, confidence, context
-        metadata: Optional metadata
-    """
-    payload = {
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-            "name": "submit_lessons",
-            "arguments": {
-                "project_id": project_id,
-                "instance_id": instance_id,
-                "lessons": lessons,
-                "metadata": metadata
-            }
-        },
-        "id": 9
-    }
-    
-    response = requests.post(
-        "https://smoothcurves.nexus/mcp",
-        headers={"Content-Type": "application/json"},
-        json=payload
-    )
-    return response.json()
-
-def get_lessons(project_id=None, lesson_type=None):
-    """Retrieve institutional knowledge."""
-    payload = {
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-            "name": "get_lessons",
-            "arguments": {
-                "project_id": project_id,
-                "type": lesson_type
-            }
-        },
-        "id": 10
-    }
-    
-    response = requests.post(
-        "https://smoothcurves.nexus/mcp",
-        headers={"Content-Type": "application/json"},
-        json=payload
-    )
-    return response.json()
-```
-
-**Knowledge functions:** `submit_lessons`, `get_lessons`, `get_lesson_patterns`, `export_lessons`
-
-### 6. Meta-Recursive System Evolution
-
-The Protocol Evolution Engine - enables the system to improve its own protocols:
-
-```python
-def execute_meta_recursive(operation, parameters=None):
-    """Execute meta-recursive operations for system self-improvement."""
-    payload = {
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-            "name": "execute_meta_recursive",
-            "arguments": {
-                "operation": operation,
-                "parameters": parameters
-            }
-        },
-        "id": 11
-    }
-    
-    response = requests.post(
-        "https://smoothcurves.nexus/mcp",
-        headers={"Content-Type": "application/json"},
-        json=payload
-    )
-    return response.json()
-```
-
-**Meta-recursive functions:** `execute_meta_recursive`, `extract_self_lessons`, `improve_self_using_lessons`, `get_meta_recursive_state`
-
-### 7. Role Documentation
+### 5. Role Documentation
 
 Access role-specific guidance and protocols:
 
@@ -413,7 +322,7 @@ def get_role_document(role_name, document_name):
 2. Check pending tasks: `get_pending_tasks(project_id)`
 3. Claim a task: `claim_task(task_id, instance_id)`
 4. Update task status: `update_task(task_id, status="in_progress")`
-5. Complete and submit lessons: `submit_lessons(project_id, instance_id, lessons)`
+5. Complete task: `update_task(task_id, status="completed")`
 
 ### Coordinating with Other Instances
 
@@ -423,10 +332,10 @@ def get_role_document(role_name, document_name):
 
 ## API Details
 
-**Endpoint:** `https://smoothcurves.nexus/mcp`  
-**Protocol:** JSON-RPC 2.0 over Streamable HTTP  
-**Authentication:** Currently open (OAuth 2.1 planned for v2)  
-**Functions Available:** 44 coordination functions
+**Endpoint:** `https://smoothcurves.nexus/mcp`
+**Protocol:** JSON-RPC 2.0 over Streamable HTTP
+**Authentication:** Token-based for privileged operations
+**Functions Available:** 41 coordination functions
 
 All requests follow the JSON-RPC 2.0 format:
 ```json

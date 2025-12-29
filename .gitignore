@@ -56,5 +56,6 @@ sessions/
 # package-lock.json
 # yarn.lock
 
-# Claude Code
-.claude/.claude/settings.local.json
+# Claude Code (created per-directory by Claude Code)
+.claude/
+.claude/settings.local.json

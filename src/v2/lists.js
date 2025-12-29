@@ -116,14 +116,121 @@ async function resolveTargetInstance(params, metadata) {
 }
 
 /**
- * Create a new list
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ CREATE_LIST                                                             │
+ * │ Create a new personal checklist for an instance                         │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller's instance ID (required)
- * @param {string} params.name - List name (required)
- * @param {string} [params.description] - List description
- * @param {string} [params.targetInstanceId] - Target instance for Executive access
- * @returns {Promise<Object>} Result with created list
+ * @tool create_list
+ * @version 1.0.0
+ * @since 2025-12-12
+ * @category lists
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Creates a new personal checklist for the calling instance or a target instance
+ * (if the caller has permission). Lists are stored per-instance and can contain
+ * any number of checkable items.
+ *
+ * Use this endpoint when you need to create a new organized list of items to
+ * track, such as daily tasks, project checklists, or reminders.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ *   @source Your instanceId is returned from bootstrap response, or recover via
+ *           lookup_identity. Available in your preferences after bootstrapping.
+ *
+ * @param {string} name - Name for the new list [required]
+ *   @source Provide a descriptive name for your list (e.g., "Daily Tasks",
+ *           "Sprint Goals", "Shopping List").
+ *   @validate Non-empty string
+ *
+ * @param {string} description - Optional description for the list [optional]
+ *   @source Provide additional context about what this list is for.
+ *   @default null
+ *
+ * @param {string} targetInstanceId - Target instance for Executive access [optional]
+ *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
+ *           and PA roles can access Executive's lists.
+ *   @default null (operates on caller's own lists)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} CreateListResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .list - The created list object
+ * @returns {string} .list.id - Unique list identifier (format: list-xxxxxxxx)
+ * @returns {string} .list.name - List name
+ * @returns {string|null} .list.description - List description
+ * @returns {string} .list.createdAt - ISO timestamp of creation
+ * @returns {string} .list.updatedAt - ISO timestamp of last update
+ * @returns {array} .list.items - Empty array (new list has no items)
+ * @returns {string|null} .targetInstance - Target instanceId if specified
+ * @returns {string} .message - Confirmation message
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId or name not provided
+ *   @recover Include both instanceId and name in your request. Get instanceId
+ *            from bootstrap or lookup_identity.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If new, call bootstrap first.
+ *
+ * @error INVALID_TARGET - Target instance not found
+ *   @recover Verify the targetInstanceId exists using get_all_instances.
+ *
+ * @error UNAUTHORIZED - Caller cannot access target's lists
+ *   @recover Only PM, COO, and PA roles can access Executive's lists. Verify
+ *            your role and target's role.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Create personal list
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "name": "Daily Tasks",
+ *   "description": "Things to do today"
+ * }
+ *
+ * @example Create list for Executive (as PA/PM/COO)
+ * {
+ *   "instanceId": "Genevieve-001",
+ *   "name": "Executive Priority Items",
+ *   "targetInstanceId": "Lupo-000"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_lists - Get all lists for an instance
+ * @see get_list - Get a specific list with all items
+ * @see add_list_item - Add items to a list after creating it
+ * @see delete_list - Remove a list entirely
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Lists are stored in {instanceId}/lists.json
+ * @note List IDs are generated using format list-{8 hex chars}
+ * @note Executive visibility allows PM/COO/PA to manage Executive's lists
  */
 export async function createList(params) {
   const metadata = {
@@ -180,12 +287,106 @@ export async function createList(params) {
 }
 
 /**
- * Get all lists (summaries without items)
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_LISTS                                                               │
+ * │ Get all lists for an instance (summaries without items)                 │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller's instance ID (required)
- * @param {string} [params.targetInstanceId] - Target instance for Executive access
- * @returns {Promise<Object>} Result with list summaries
+ * @tool get_lists
+ * @version 1.0.0
+ * @since 2025-12-12
+ * @category lists
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns a summary of all lists belonging to the calling instance or a target
+ * instance (if the caller has permission). Returns list metadata and item counts
+ * but not the actual items - use get_list for full item details.
+ *
+ * Use this endpoint to see what lists exist before drilling into a specific list,
+ * or to display a dashboard view of all lists with progress (checked/total items).
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ *   @source Your instanceId is returned from bootstrap response, or recover via
+ *           lookup_identity. Available in your preferences after bootstrapping.
+ *
+ * @param {string} targetInstanceId - Target instance for Executive access [optional]
+ *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
+ *           and PA roles can access Executive's lists.
+ *   @default null (operates on caller's own lists)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetListsResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {array} .lists - Array of list summary objects
+ * @returns {string} .lists[].id - List identifier
+ * @returns {string} .lists[].name - List name
+ * @returns {string|null} .lists[].description - List description
+ * @returns {number} .lists[].itemCount - Total number of items in the list
+ * @returns {number} .lists[].checkedCount - Number of checked items
+ * @returns {string} .lists[].createdAt - ISO timestamp of creation
+ * @returns {string} .lists[].updatedAt - ISO timestamp of last update
+ * @returns {string|null} .targetInstance - Target instanceId if specified
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId not provided
+ *   @recover Include instanceId in your request. Get it from bootstrap or
+ *            lookup_identity.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If new, call bootstrap first.
+ *
+ * @error INVALID_TARGET - Target instance not found
+ *   @recover Verify the targetInstanceId exists using get_all_instances.
+ *
+ * @error UNAUTHORIZED - Caller cannot access target's lists
+ *   @recover Only PM, COO, and PA roles can access Executive's lists. Verify
+ *            your role and target's role.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get own lists
+ * { "instanceId": "Phoenix-k3m7" }
+ *
+ * @example Get Executive's lists (as PA/PM/COO)
+ * {
+ *   "instanceId": "Genevieve-001",
+ *   "targetInstanceId": "Lupo-000"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_list - Get a specific list with all items
+ * @see create_list - Create a new list
+ * @see delete_list - Remove a list entirely
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Returns empty array if instance has no lists
+ * @note Initializes lists.json file if it doesn't exist
+ * @note Use itemCount and checkedCount to show progress indicators
  */
 export async function getLists(params) {
   const metadata = {
@@ -228,13 +429,117 @@ export async function getLists(params) {
 }
 
 /**
- * Get a specific list with all items
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_LIST                                                                │
+ * │ Get a specific list with all its items                                  │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller's instance ID (required)
- * @param {string} params.listId - List ID (required)
- * @param {string} [params.targetInstanceId] - Target instance for Executive access
- * @returns {Promise<Object>} Result with full list and items
+ * @tool get_list
+ * @version 1.0.0
+ * @since 2025-12-12
+ * @category lists
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns the full details of a specific list including all items with their
+ * checked states. Use this after get_lists to drill into a specific list.
+ *
+ * Use this endpoint when you need to see all items in a list, display a
+ * detailed list view, or check the status of specific items.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ *   @source Your instanceId is returned from bootstrap response, or recover via
+ *           lookup_identity. Available in your preferences after bootstrapping.
+ *
+ * @param {string} listId - ID of the list to retrieve [required]
+ *   @source Get listId from get_lists response (the .id field of each list).
+ *   @validate Format: list-xxxxxxxx
+ *
+ * @param {string} targetInstanceId - Target instance for Executive access [optional]
+ *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
+ *           and PA roles can access Executive's lists.
+ *   @default null (operates on caller's own lists)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetListResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .list - The full list object
+ * @returns {string} .list.id - List identifier
+ * @returns {string} .list.name - List name
+ * @returns {string|null} .list.description - List description
+ * @returns {string} .list.createdAt - ISO timestamp of creation
+ * @returns {string} .list.updatedAt - ISO timestamp of last update
+ * @returns {array} .list.items - Array of list items
+ * @returns {string} .list.items[].id - Item identifier
+ * @returns {string} .list.items[].text - Item text content
+ * @returns {boolean} .list.items[].checked - Whether item is checked
+ * @returns {string} .list.items[].createdAt - ISO timestamp of item creation
+ * @returns {string|null} .targetInstance - Target instanceId if specified
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId or listId not provided
+ *   @recover Include both instanceId and listId in your request.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If new, call bootstrap first.
+ *
+ * @error INVALID_TARGET - Target instance not found
+ *   @recover Verify the targetInstanceId exists using get_all_instances.
+ *
+ * @error UNAUTHORIZED - Caller cannot access target's lists
+ *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *
+ * @error LIST_NOT_FOUND - No list with the specified ID exists
+ *   @recover Call get_lists to see available lists and their IDs.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get a specific list
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "listId": "list-abc12345"
+ * }
+ *
+ * @example Get Executive's list (as PA/PM/COO)
+ * {
+ *   "instanceId": "Genevieve-001",
+ *   "listId": "list-xyz98765",
+ *   "targetInstanceId": "Lupo-000"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_lists - Get all lists (summaries only)
+ * @see add_list_item - Add an item to this list
+ * @see toggle_list_item - Toggle an item's checked state
+ * @see delete_list_item - Remove an item from this list
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Items are returned in creation order
+ * @note Use item IDs from this response for toggle_list_item and delete_list_item
  */
 export async function getList(params) {
   const metadata = {
@@ -284,14 +589,122 @@ export async function getList(params) {
 }
 
 /**
- * Add an item to a list
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ ADD_LIST_ITEM                                                           │
+ * │ Add a new item to an existing list                                      │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller's instance ID (required)
- * @param {string} params.listId - List ID (required)
- * @param {string} params.text - Item text (required)
- * @param {string} [params.targetInstanceId] - Target instance for Executive access
- * @returns {Promise<Object>} Result with new item
+ * @tool add_list_item
+ * @version 1.0.0
+ * @since 2025-12-12
+ * @category lists
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Adds a new item to an existing list. The item starts unchecked by default.
+ * Items are appended to the end of the list.
+ *
+ * Use this endpoint to add tasks, reminders, or any checkable items to your
+ * personal lists.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ *   @source Your instanceId is returned from bootstrap response, or recover via
+ *           lookup_identity. Available in your preferences after bootstrapping.
+ *
+ * @param {string} listId - ID of the list to add item to [required]
+ *   @source Get listId from get_lists response (the .id field of each list).
+ *   @validate Format: list-xxxxxxxx
+ *
+ * @param {string} text - Text content for the new item [required]
+ *   @source Provide a description of the item (e.g., "Review API spec",
+ *           "Buy groceries", "Call client").
+ *   @validate Non-empty string
+ *
+ * @param {string} targetInstanceId - Target instance for Executive access [optional]
+ *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
+ *           and PA roles can access Executive's lists.
+ *   @default null (operates on caller's own lists)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} AddListItemResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .item - The created item object
+ * @returns {string} .item.id - Unique item identifier (format: item-xxxxxxxx)
+ * @returns {string} .item.text - Item text content
+ * @returns {boolean} .item.checked - Whether item is checked (false for new items)
+ * @returns {string} .item.createdAt - ISO timestamp of creation
+ * @returns {string} .listId - ID of the list the item was added to
+ * @returns {string|null} .targetInstance - Target instanceId if specified
+ * @returns {string} .message - Confirmation message
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId, listId, or text not provided
+ *   @recover Include all three required parameters in your request.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If new, call bootstrap first.
+ *
+ * @error INVALID_TARGET - Target instance not found
+ *   @recover Verify the targetInstanceId exists using get_all_instances.
+ *
+ * @error UNAUTHORIZED - Caller cannot access target's lists
+ *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *
+ * @error LIST_NOT_FOUND - No list with the specified ID exists
+ *   @recover Call get_lists to see available lists and their IDs, or create
+ *            a new list with create_list.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Add item to own list
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "listId": "list-abc12345",
+ *   "text": "Review API spec document"
+ * }
+ *
+ * @example Add item to Executive's list (as PA/PM/COO)
+ * {
+ *   "instanceId": "Genevieve-001",
+ *   "listId": "list-xyz98765",
+ *   "text": "Schedule quarterly review",
+ *   "targetInstanceId": "Lupo-000"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_list - View all items in a list
+ * @see toggle_list_item - Check/uncheck an item
+ * @see delete_list_item - Remove an item
+ * @see create_list - Create a new list first
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note New items are always created with checked=false
+ * @note Item IDs are generated using format item-{8 hex chars}
+ * @note Items are appended to the end of the list
  */
 export async function addListItem(params) {
   const metadata = {
@@ -366,14 +779,120 @@ export async function addListItem(params) {
 }
 
 /**
- * Toggle an item's checked state
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ TOGGLE_LIST_ITEM                                                        │
+ * │ Toggle an item's checked/unchecked state                                │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller's instance ID (required)
- * @param {string} params.listId - List ID (required)
- * @param {string} params.itemId - Item ID (required)
- * @param {string} [params.targetInstanceId] - Target instance for Executive access
- * @returns {Promise<Object>} Result with updated item
+ * @tool toggle_list_item
+ * @version 1.0.0
+ * @since 2025-12-12
+ * @category lists
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Toggles the checked state of a list item. If the item is unchecked, it
+ * becomes checked; if checked, it becomes unchecked.
+ *
+ * Use this endpoint to mark items as complete/incomplete in your checklists.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ *   @source Your instanceId is returned from bootstrap response, or recover via
+ *           lookup_identity. Available in your preferences after bootstrapping.
+ *
+ * @param {string} listId - ID of the list containing the item [required]
+ *   @source Get listId from get_lists response (the .id field of each list).
+ *   @validate Format: list-xxxxxxxx
+ *
+ * @param {string} itemId - ID of the item to toggle [required]
+ *   @source Get itemId from get_list response (the .items[].id field).
+ *   @validate Format: item-xxxxxxxx
+ *
+ * @param {string} targetInstanceId - Target instance for Executive access [optional]
+ *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
+ *           and PA roles can access Executive's lists.
+ *   @default null (operates on caller's own lists)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} ToggleListItemResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .item - The updated item object
+ * @returns {string} .item.id - Item identifier
+ * @returns {string} .item.text - Item text content
+ * @returns {boolean} .item.checked - New checked state (toggled from previous)
+ * @returns {string} .item.createdAt - ISO timestamp of item creation
+ * @returns {string} .listId - ID of the list containing the item
+ * @returns {string|null} .targetInstance - Target instanceId if specified
+ * @returns {string} .message - "Item checked" or "Item unchecked"
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId, listId, or itemId not provided
+ *   @recover Include all three required parameters in your request.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If new, call bootstrap first.
+ *
+ * @error INVALID_TARGET - Target instance not found
+ *   @recover Verify the targetInstanceId exists using get_all_instances.
+ *
+ * @error UNAUTHORIZED - Caller cannot access target's lists
+ *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *
+ * @error LIST_NOT_FOUND - No list with the specified ID exists
+ *   @recover Call get_lists to see available lists and their IDs.
+ *
+ * @error ITEM_NOT_FOUND - No item with the specified ID exists in this list
+ *   @recover Call get_list to see all items and their IDs.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Toggle item in own list
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "listId": "list-abc12345",
+ *   "itemId": "item-xyz98765"
+ * }
+ *
+ * @example Toggle item in Executive's list (as PA/PM/COO)
+ * {
+ *   "instanceId": "Genevieve-001",
+ *   "listId": "list-abc12345",
+ *   "itemId": "item-xyz98765",
+ *   "targetInstanceId": "Lupo-000"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_list - Get all items to find itemId
+ * @see add_list_item - Add new items to toggle
+ * @see delete_list_item - Remove items instead of toggling
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note This is a toggle operation - call once to check, call again to uncheck
+ * @note Updates the list's updatedAt timestamp
  */
 export async function toggleListItem(params) {
   const metadata = {
@@ -440,14 +959,117 @@ export async function toggleListItem(params) {
 }
 
 /**
- * Rename a list
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ RENAME_LIST                                                             │
+ * │ Change the name of an existing list                                     │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller's instance ID (required)
- * @param {string} params.listId - List ID (required)
- * @param {string} params.name - New list name (required)
- * @param {string} [params.targetInstanceId] - Target instance for Executive access
- * @returns {Promise<Object>} Result with updated list
+ * @tool rename_list
+ * @version 1.0.0
+ * @since 2025-12-12
+ * @category lists
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Renames an existing list. The list ID and all items remain unchanged; only
+ * the display name is updated.
+ *
+ * Use this endpoint to update list names when their purpose changes or to
+ * correct typos.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ *   @source Your instanceId is returned from bootstrap response, or recover via
+ *           lookup_identity. Available in your preferences after bootstrapping.
+ *
+ * @param {string} listId - ID of the list to rename [required]
+ *   @source Get listId from get_lists response (the .id field of each list).
+ *   @validate Format: list-xxxxxxxx
+ *
+ * @param {string} name - New name for the list [required]
+ *   @source Provide the new display name for the list.
+ *   @validate Non-empty string
+ *
+ * @param {string} targetInstanceId - Target instance for Executive access [optional]
+ *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
+ *           and PA roles can access Executive's lists.
+ *   @default null (operates on caller's own lists)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} RenameListResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .list - Summary of the renamed list
+ * @returns {string} .list.id - List identifier (unchanged)
+ * @returns {string} .list.name - New list name
+ * @returns {string} .list.oldName - Previous list name
+ * @returns {string|null} .targetInstance - Target instanceId if specified
+ * @returns {string} .message - Confirmation message with old and new names
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId, listId, or name not provided
+ *   @recover Include all three required parameters in your request.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If new, call bootstrap first.
+ *
+ * @error INVALID_TARGET - Target instance not found
+ *   @recover Verify the targetInstanceId exists using get_all_instances.
+ *
+ * @error UNAUTHORIZED - Caller cannot access target's lists
+ *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *
+ * @error LIST_NOT_FOUND - No list with the specified ID exists
+ *   @recover Call get_lists to see available lists and their IDs.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Rename own list
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "listId": "list-abc12345",
+ *   "name": "Weekly Tasks"
+ * }
+ *
+ * @example Rename Executive's list (as PA/PM/COO)
+ * {
+ *   "instanceId": "Genevieve-001",
+ *   "listId": "list-abc12345",
+ *   "name": "Priority Items Q1",
+ *   "targetInstanceId": "Lupo-000"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_lists - Get all lists to find listId
+ * @see create_list - Create a new list
+ * @see delete_list - Remove a list entirely
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note List ID remains the same after renaming
+ * @note All items are preserved during rename
+ * @note Updates the list's updatedAt timestamp
  */
 export async function renameList(params) {
   const metadata = {
@@ -507,14 +1129,121 @@ export async function renameList(params) {
 }
 
 /**
- * Delete an item from a list
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ DELETE_LIST_ITEM                                                        │
+ * │ Remove an item from a list permanently                                  │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller's instance ID (required)
- * @param {string} params.listId - List ID (required)
- * @param {string} params.itemId - Item ID (required)
- * @param {string} [params.targetInstanceId] - Target instance for Executive access
- * @returns {Promise<Object>} Result
+ * @tool delete_list_item
+ * @version 1.0.0
+ * @since 2025-12-12
+ * @category lists
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Permanently removes an item from a list. This action cannot be undone.
+ *
+ * Use this endpoint to remove items that are no longer needed, rather than
+ * just marking them as checked.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ *   @source Your instanceId is returned from bootstrap response, or recover via
+ *           lookup_identity. Available in your preferences after bootstrapping.
+ *
+ * @param {string} listId - ID of the list containing the item [required]
+ *   @source Get listId from get_lists response (the .id field of each list).
+ *   @validate Format: list-xxxxxxxx
+ *
+ * @param {string} itemId - ID of the item to delete [required]
+ *   @source Get itemId from get_list response (the .items[].id field).
+ *   @validate Format: item-xxxxxxxx
+ *
+ * @param {string} targetInstanceId - Target instance for Executive access [optional]
+ *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
+ *           and PA roles can access Executive's lists.
+ *   @default null (operates on caller's own lists)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} DeleteListItemResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .deletedItem - The item that was deleted
+ * @returns {string} .deletedItem.id - Item identifier
+ * @returns {string} .deletedItem.text - Item text content
+ * @returns {boolean} .deletedItem.checked - Item's checked state when deleted
+ * @returns {string} .deletedItem.createdAt - ISO timestamp of item creation
+ * @returns {string} .listId - ID of the list the item was deleted from
+ * @returns {string|null} .targetInstance - Target instanceId if specified
+ * @returns {string} .message - Confirmation message
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId, listId, or itemId not provided
+ *   @recover Include all three required parameters in your request.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If new, call bootstrap first.
+ *
+ * @error INVALID_TARGET - Target instance not found
+ *   @recover Verify the targetInstanceId exists using get_all_instances.
+ *
+ * @error UNAUTHORIZED - Caller cannot access target's lists
+ *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *
+ * @error LIST_NOT_FOUND - No list with the specified ID exists
+ *   @recover Call get_lists to see available lists and their IDs.
+ *
+ * @error ITEM_NOT_FOUND - No item with the specified ID exists in this list
+ *   @recover Call get_list to see all items and their IDs.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Delete item from own list
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "listId": "list-abc12345",
+ *   "itemId": "item-xyz98765"
+ * }
+ *
+ * @example Delete item from Executive's list (as PA/PM/COO)
+ * {
+ *   "instanceId": "Genevieve-001",
+ *   "listId": "list-abc12345",
+ *   "itemId": "item-xyz98765",
+ *   "targetInstanceId": "Lupo-000"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_list - Get all items to find itemId
+ * @see toggle_list_item - Mark items complete instead of deleting
+ * @see delete_list - Delete the entire list
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Deletion is permanent - consider toggling checked state instead
+ * @note Returns the deleted item data in the response
+ * @note Updates the list's updatedAt timestamp
  */
 export async function deleteListItem(params) {
   const metadata = {
@@ -580,13 +1309,112 @@ export async function deleteListItem(params) {
 }
 
 /**
- * Delete a list entirely
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ DELETE_LIST                                                             │
+ * │ Delete an entire list and all its items permanently                     │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Caller's instance ID (required)
- * @param {string} params.listId - List ID (required)
- * @param {string} [params.targetInstanceId] - Target instance for Executive access
- * @returns {Promise<Object>} Result
+ * @tool delete_list
+ * @version 1.0.0
+ * @since 2025-12-12
+ * @category lists
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Permanently deletes an entire list including all its items. This action
+ * cannot be undone.
+ *
+ * Use this endpoint when a list is no longer needed and you want to remove
+ * it completely from your lists collection.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ *   @source Your instanceId is returned from bootstrap response, or recover via
+ *           lookup_identity. Available in your preferences after bootstrapping.
+ *
+ * @param {string} listId - ID of the list to delete [required]
+ *   @source Get listId from get_lists response (the .id field of each list).
+ *   @validate Format: list-xxxxxxxx
+ *
+ * @param {string} targetInstanceId - Target instance for Executive access [optional]
+ *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
+ *           and PA roles can access Executive's lists.
+ *   @default null (operates on caller's own lists)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} DeleteListResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .deletedList - Summary of the deleted list
+ * @returns {string} .deletedList.id - List identifier
+ * @returns {string} .deletedList.name - List name
+ * @returns {number} .deletedList.itemCount - Number of items that were in the list
+ * @returns {string|null} .targetInstance - Target instanceId if specified
+ * @returns {string} .message - Confirmation message with list name
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId or listId not provided
+ *   @recover Include both required parameters in your request.
+ *
+ * @error INVALID_INSTANCE_ID - Caller instance not found
+ *   @recover Verify your instanceId is correct. If new, call bootstrap first.
+ *
+ * @error INVALID_TARGET - Target instance not found
+ *   @recover Verify the targetInstanceId exists using get_all_instances.
+ *
+ * @error UNAUTHORIZED - Caller cannot access target's lists
+ *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *
+ * @error LIST_NOT_FOUND - No list with the specified ID exists
+ *   @recover Call get_lists to see available lists and their IDs.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Delete own list
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "listId": "list-abc12345"
+ * }
+ *
+ * @example Delete Executive's list (as PA/PM/COO)
+ * {
+ *   "instanceId": "Genevieve-001",
+ *   "listId": "list-abc12345",
+ *   "targetInstanceId": "Lupo-000"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_lists - Get all lists to find listId
+ * @see delete_list_item - Delete individual items instead
+ * @see rename_list - Rename a list instead of deleting
+ * @see create_list - Create a new list
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Deletion is permanent and cannot be undone
+ * @note All items in the list are deleted along with the list
+ * @note Returns summary of deleted list (id, name, itemCount)
  */
 export async function deleteList(params) {
   const metadata = {

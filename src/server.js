@@ -14,8 +14,7 @@ import * as ProjectHandler from './handlers/projects.js';
 import * as TaskHandler from './handlers/tasks-v2.js';
 import * as MessageHandler from './handlers/messages-v3.js';
 import * as InstanceHandler from './handlers/instances.js';
-import { handlers as LessonHandlers } from './handlers/lessons.js';
-import { handlers as MetaRecursiveHandlers } from './handlers/meta-recursive.js';
+// REMOVED: LessonHandlers and MetaRecursiveHandlers (dead code cleanup 2025-12-28)
 import { handlers as RoleHandlers } from './handlers/roles.js';
 // V2 XMPP Messaging (new real-time messaging system)
 import * as XMPPHandler from './handlers/messaging-xmpp.js';
@@ -46,6 +45,7 @@ import {
 import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
 import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
 import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
+import { updateInstance } from './v2/updateInstance.js';
 // V2 Lists (personal checklists with Executive visibility)
 import {
   createList,
@@ -59,6 +59,10 @@ import {
 } from './v2/lists.js';
 // V2 UI State (persistent UI preferences)
 import { getUiState, setUiState, updateUiState } from './v2/uiState.js';
+// V2 Wake Instance (spawn new Claude instances)
+import { wakeInstance, getWakeScripts } from './v2/wakeInstance.js';
+// V2 Continue Conversation (communicate with woken instances)
+import { continueConversation, getConversationLog } from './v2/continueConversation.js';
 
 /**
  * Simple server implementation for development and testing
@@ -264,42 +268,8 @@ class MCPCoordinationServer {
           return InstanceHandler.getInstances(params);
         case 'get_instance':
           return InstanceHandler.getInstance(params);
-        case 'deactivate_instance':
-          return InstanceHandler.deactivateInstance(params);
         case 'get_instance_stats':
           return InstanceHandler.getInstanceStats(params);
-        case 'cleanup_stale_instances':
-          return InstanceHandler.cleanupStaleInstances(params);
-
-        // Lesson extraction functions
-        case 'submit_lessons':
-          return LessonHandlers.submit_lessons(params);
-        case 'get_lessons':
-          return LessonHandlers.get_lessons(params);
-        case 'get_onboarding_lessons':
-          return LessonHandlers.get_onboarding_lessons(params);
-        case 'get_lesson_patterns':
-          return LessonHandlers.get_lesson_patterns(params);
-        case 'export_lessons':
-          return LessonHandlers.export_lessons(params);
-
-        // Meta-recursive evolution functions
-        case 'execute_meta_recursive':
-          return MetaRecursiveHandlers.execute_meta_recursive(params);
-        case 'extract_self_lessons':
-          return MetaRecursiveHandlers.extract_self_lessons(params);
-        case 'improve_self_using_lessons':
-          return MetaRecursiveHandlers.improve_self_using_lessons(params);
-        case 'validate_on_collections_rescue':
-          return MetaRecursiveHandlers.validate_on_collections_rescue(params);
-        case 'get_meta_recursive_state':
-          return MetaRecursiveHandlers.get_meta_recursive_state(params);
-        case 'demonstrate_console_log_prevention':
-          return MetaRecursiveHandlers.demonstrate_console_log_prevention(params);
-        case 'test_meta_recursive_system':
-          return MetaRecursiveHandlers.test_meta_recursive_system(params);
-        case 'generate_enhanced_collections_workflow':
-          return MetaRecursiveHandlers.generate_enhanced_collections_workflow(params);
 
         // Role management functions
         case 'get_available_roles':
@@ -374,6 +344,8 @@ class MCPCoordinationServer {
           return getAllInstances(params);
         case 'get_instance_v2':
           return getInstanceV2(params);
+        case 'update_instance':
+          return updateInstance(params);
 
         // V2 Lists APIs (personal checklists)
         case 'create_list':
@@ -400,6 +372,19 @@ class MCPCoordinationServer {
           return setUiState(params);
         case 'update_ui_state':
           return updateUiState(params);
+
+        // V2 Wake Instance APIs
+        case 'wake_instance':
+          return wakeInstance(params);
+        case 'get_wake_scripts':
+          return getWakeScripts(params);
+        // NOTE: get_wake_log removed 2025-12-21 - wake is now synchronous
+
+        // V2 Continue Conversation APIs
+        case 'continue_conversation':
+          return continueConversation(params);
+        case 'get_conversation_log':
+          return getConversationLog(params);
 
         default:
           return {
@@ -537,7 +522,13 @@ class MCPCoordinationServer {
       // UI State (persistent preferences)
       'get_ui_state',
       'set_ui_state',
-      'update_ui_state'
+      'update_ui_state',
+      // Wake Instance (spawn new Claude instances)
+      'wake_instance',
+      'get_wake_scripts',
+      // Continue Conversation (communicate with woken instances)
+      'continue_conversation',
+      'get_conversation_log'
     ];
   }
 

@@ -6,7 +6,7 @@ set -e
 
 # Configuration
 DEV_DIR="/mnt/coordinaton_mcp_data/v2-dev"
-DATA_DIR="/mnt/coordinaton_mcp_data/v2-dev-data"
+DATA_DIR="/mnt/coordinaton_mcp_data"  # Consolidated data location (was v2-dev-data)
 PORT=3446
 LOG_DIR="$DEV_DIR/logs"
 
@@ -43,6 +43,15 @@ echo "✅ Port $PORT is free"
 # Change to dev directory
 cd "$DEV_DIR"
 
+# Load secrets (API keys, etc) - not in git
+SECRETS_FILE="$DEV_DIR/secrets.env"
+if [ -f "$SECRETS_FILE" ]; then
+    echo "🔑 Loading secrets from secrets.env"
+    source "$SECRETS_FILE"
+else
+    echo "⚠️  Warning: secrets.env not found - WAKE_API_KEY will not be set"
+fi
+
 # Start the dev server
 echo "🚀 Starting V2 Dev MCP Server..."
 echo "   Working Directory: $DEV_DIR"
@@ -53,7 +62,8 @@ echo "   Log: $LOG_DIR/dev-server.log"
 SSE_PORT=$PORT \
 SSE_HOST=0.0.0.0 \
 NODE_ENV=development \
-DATA_PATH="$DATA_DIR" \
+V2_DATA_ROOT="$DATA_DIR" \
+WAKE_API_KEY="$WAKE_API_KEY" \
 node src/streamable-http-server.js > "$LOG_DIR/dev-server.log" 2>&1 &
 
 DEV_PID=$!

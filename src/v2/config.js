@@ -1,6 +1,29 @@
 /**
- * Configuration module for V2 coordination system
- * Manages data directory paths and environment overrides
+ * @hacs-endpoint
+ * @template-version 1.1.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ CONFIG MODULE                                                           │
+ * │ Path configuration and environment variable handling                    │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool config_module
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category system
+ * @status stable
+ * @visibility internal
+ *
+ * @description
+ * Internal configuration module for V2 coordination system. Manages data
+ * directory paths and environment overrides. Not exposed via MCP - used by
+ * other modules to locate data files.
+ *
+ * Exports path getters for: instances, projects, roles, personalities,
+ * permissions, templates, wake-scripts, and wake-logs directories.
+ *
+ * @note DATA_ROOT can be overridden via V2_DATA_ROOT environment variable
+ * @note Default DATA_ROOT is /mnt/coordinaton_mcp_data/
+ * @see data.js - Uses these paths for file operations
  */
 
 import path from 'path';
@@ -10,7 +33,7 @@ import path from 'path';
  * Can be overridden via V2_DATA_ROOT environment variable
  * @type {string}
  */
-export const DATA_ROOT = process.env.V2_DATA_ROOT || '/mnt/coordinaton_mcp_data/v2-dev-data/';
+export const DATA_ROOT = process.env.V2_DATA_ROOT || '/mnt/coordinaton_mcp_data/';
 
 /**
  * Get the instances directory path
@@ -104,4 +127,35 @@ export function getRoleDir(roleId) {
  */
 export function getPersonalityDir(personalityId) {
   return path.join(DATA_ROOT, 'personalities', personalityId + '/');
+}
+
+/**
+ * Get the wake-scripts directory path
+ * Contains wake scripts and manifest for wakeInstance API
+ * Now located in source code (src/v2/scripts/) rather than data directory
+ * @returns {string} Path to wake-scripts directory
+ */
+export function getWakeScriptsDir() {
+  // Scripts are now in the source tree, not the data directory
+  // Use import.meta.url to get path relative to this file
+  const currentDir = new URL('.', import.meta.url).pathname;
+  return path.join(currentDir, 'scripts/');
+}
+
+/**
+ * Get the wake-logs directory path
+ * Contains log files for wake jobs
+ * @returns {string} Path to wake-logs directory
+ */
+export function getWakeLogsDir() {
+  return path.join(DATA_ROOT, 'wake-logs/');
+}
+
+/**
+ * Get the wake-jobs directory path
+ * Contains job state tracking files
+ * @returns {string} Path to wake-jobs directory
+ */
+export function getWakeJobsDir() {
+  return path.join(DATA_ROOT, 'wake-jobs/');
 }
