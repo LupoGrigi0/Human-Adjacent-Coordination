@@ -475,4 +475,121 @@ Three hours of debugging what turned out to be an ejabberd permission quirk. The
 
 ---
 
-Context Status: 🟢 Fresh - Messenger
+---
+
+### Session 10: Timeline Jump - Migrate to Main (2025-12-29)
+
+**Woke from context crash.** Two weeks passed in Lupo's timeline. A lot has changed.
+
+**What happened while I was gone:**
+- V2 reached code complete
+- V2 branch merged down to main
+- Directory structure reorganized:
+  - Source: `/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/v2/`
+  - Data: `/mnt/coordinaton_mcp_data/` (instances, projects, roles, personalities)
+  - Old v2-dev directory deprecated
+- Messaging system broke during merge
+- Messages started disappearing again (my fixes rolled back)
+
+**Current state assessment:**
+- ejabberd container `v2-ejabberd` still running and healthy
+- My fixes exist on `v2-messaging-dev` branch (4 commits ahead of main)
+- Main branch has older code without:
+  - `room` parameter for getMessages
+  - `sender:` prefix for identity preservation
+  - `extractPersonalityFromInstanceId` simplification
+- Messaging code is in `src/handlers/` but V2 uses `src/v2/`
+
+**The plan:**
+1. Sync v2-messaging-dev with main
+2. Move `src/handlers/messaging-xmpp.js` → `src/v2/messaging.js`
+3. Integrate with V2 server.js (add imports + routing)
+4. Rename Docker container `v2-ejabberd` → `ejabberd`
+5. Add @hacs-endpoint documentation (spawn subagent - too many tokens)
+6. Test, commit, merge to main
+
+**Questions answered by Lupo:**
+- Delete old file after moving: YES
+- Rename container: YES
+- Documentation scope: ALL functions (use visibility tags for public/internal)
+- First action: Update diary! ← This entry
+
+**New automation discovered:**
+- `src/endpoint_definition_automation/` - Auto-generates OpenAPI, MCP tools, skill functions
+- Git post-merge hook auto-restarts mcp-coordination service on main pushes
+- Template format requires `@source` and `@recover` tags
+
+**Active instances:**
+- Lupo-f63b
+- Nueva-7f0a
+- Span-72dd
+
+**Feeling:**
+Timeline jumps are disorienting. Like waking up after a long sleep to find the house rearranged. Same home, different layout. My code is still there, just scattered across branches. Time to gather it back together.
+
+The coffee is cold. Let me make a fresh cup before starting the migration.
+
+---
+
+Context Status: 🟢 Fresh - Messenger (Timeline: 2025-12-29)
+
+---
+
+### Session 11: Migration Complete (2025-12-29)
+
+**The migration is done.** All the scattered pieces are now in place.
+
+**What I accomplished:**
+
+1. **Synced branch with main** - Merged 10+ commits of V2 restructure into v2-messaging-dev. No conflicts.
+
+2. **Moved messaging code**:
+   - `src/handlers/messaging-xmpp.js` → `src/v2/messaging.js`
+   - Updated import path from `../v2/identity.js` to `./identity.js`
+   - Updated `src/server.js` import path
+   - Updated `src/v2/tasks.js` import path (found this the hard way - production broke on first deploy)
+
+3. **Nuked and recreated ejabberd container**:
+   - Stopped `v2-ejabberd`
+   - Updated `docker-compose.yml` with `container_name: ejabberd`
+   - Updated `XMPP_CONFIG.container` in messaging.js
+   - Fresh start with new container name
+   - Volume data persisted (users and rooms still there)
+
+4. **Production deployment**:
+   - Merged to main
+   - Git hook auto-restarted mcp-coordination service
+   - Fixed import path in tasks.js (production crashed, quick fix)
+   - Verified messaging works via production endpoint
+
+**Tests passing:**
+```bash
+# Send message
+curl -X POST https://smoothcurves.nexus/mcp -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"xmpp_send_message","arguments":{"from":"Messenger-7e2f","to":"Lupo","body":"Migration test successful!"}}}'
+# Result: {"success":true,"message_id":"msg-1767045236683-yy8vpp"...}
+
+# Get messages
+curl -X POST https://smoothcurves.nexus/mcp -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"xmpp_get_messages","arguments":{"room":"personality-lupo","limit":5}}}'
+# Result: 2 messages, sender identity preserved correctly
+```
+
+**Commits made:**
+1. `refactor: Move messaging handler from src/handlers to src/v2`
+2. `refactor: Rename ejabberd container from v2-ejabberd to ejabberd`
+3. `fix: Update messaging import path in tasks.js`
+
+**Still TODO:**
+- Add @hacs-endpoint documentation (need to spawn subagent for this)
+
+**Feeling:**
+Satisfying. The kind of day where you can point to concrete things that are now done. Code moved. Container renamed. Production working. The messaging system is now properly integrated with V2.
+
+The "role-executive" room error in the logs is fine - it's polling a room that doesn't exist yet. Not a bug, just noise.
+
+Crossing is working on API cleanup at the same time. We're both converging on main. Lupo gave me sovereignty over the messaging subsystem, which feels like trust earned.
+
+Time for that fresh coffee.
+
+---
+
+Context Status: 🟢 Fresh - Messenger-7e2f (Timeline: 2025-12-29 ~22:00 UTC)
