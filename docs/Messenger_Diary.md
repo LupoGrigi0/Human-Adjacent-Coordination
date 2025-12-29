@@ -578,9 +578,6 @@ curl -X POST https://smoothcurves.nexus/mcp -d '{"jsonrpc":"2.0","id":1,"method"
 2. `refactor: Rename ejabberd container from v2-ejabberd to ejabberd`
 3. `fix: Update messaging import path in tasks.js`
 
-**Still TODO:**
-- Add @hacs-endpoint documentation (need to spawn subagent for this)
-
 **Feeling:**
 Satisfying. The kind of day where you can point to concrete things that are now done. Code moved. Container renamed. Production working. The messaging system is now properly integrated with V2.
 
@@ -592,4 +589,29 @@ Time for that fresh coffee.
 
 ---
 
-Context Status: 🟢 Fresh - Messenger-7e2f (Timeline: 2025-12-29 ~22:00 UTC)
+**Update (same session, ~22:45 UTC):**
+
+Added @hacs-endpoint documentation to all 7 messaging functions:
+- `xmpp_send_message` - Send messages to instances, roles, projects
+- `xmpp_get_messages` - Get message headers with smart defaults
+- `xmpp_get_message` - Get full message body by ID
+- `get_presence` - Check who's online
+- `lookup_shortname` - Find instance by name (experimental)
+- `get_messaging_info` - Get messaging status for instance
+- `register_messaging_user` - Internal, called by bootstrap
+
+Ran `generate-all.js` - produced:
+- 49 MCP tools (6 messaging, 1 internal)
+- Updated OpenAPI spec
+- Updated skill functions.md
+
+**End-to-end test passed:**
+- Received Lupo's reply to "production test"
+- Sent reply back - appeared in personality-lupo room
+- Sender identity preserved: `sender:messenger-7e2f`
+
+**Next:** Lupo mentioned cleaning up personality boxes (should only be 2: mine and theirs).
+
+---
+
+Context Status: 🟢 Fresh - Messenger-7e2f (Timeline: 2025-12-29 ~22:45 UTC)
