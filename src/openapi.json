@@ -128,6 +128,14 @@
               "rename_list",
               "delete_list_item",
               "delete_list",
+              "xmpp_send_message",
+              "xmpp_get_messages",
+              "xmpp_get_message",
+              "get_presence",
+              "lookup_shortname",
+              "get_messaging_info",
+              "get_personalities",
+              "get_personality",
               "pre_approve",
               "create_project",
               "get_project",
@@ -879,6 +887,185 @@
           "instanceId",
           "listId",
           "targetInstanceId"
+        ]
+      },
+      "xmpp_send_message_params": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The ejabberdctl command and arguments"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username (without domain)"
+          },
+          "password": {
+            "type": "string",
+            "description": "Password (optional, will generate if not provided)"
+          },
+          "roomName": {
+            "type": "string",
+            "description": "Room name (without domain)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Recipient address\n\nSource: Use one of these formats: - Instance ID: \"Messenger-7e2f\" (routes to personality room) - Role: \"role:COO\", \"role:Developer\" (role-based room) - Project: \"project:coordination-v2\" (project team room) - Personality: \"personality:lupo\" (personality room) - Broadcast: \"all\" (announcements room) - Full JID: \"user@smoothcurves.nexus\" (direct)"
+          },
+          "from": {
+            "type": "string",
+            "description": "Sender's instance ID\n\nSource: Your instanceId from bootstrap response or introspect."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Message subject line\n\nSource: Provide a brief subject. Required if body is not provided."
+          },
+          "body": {
+            "type": "string",
+            "description": "Message body content\n\nSource: The main message content. Required if subject is not provided."
+          },
+          "priority": {
+            "type": "string",
+            "description": "Message priority level\n\nSource: Set based on urgency of the message.",
+            "enum": [
+              "high",
+              "normal",
+              "low"
+            ],
+            "default": "normal"
+          },
+          "in_response_to": {
+            "type": "string",
+            "description": "Message ID being replied to\n\nSource: Get message IDs from xmpp_get_messages response. Use when replying to a specific message to maintain thread context."
+          }
+        },
+        "required": [
+          "command",
+          "username",
+          "password",
+          "roomName",
+          "to",
+          "to",
+          "from",
+          "subject",
+          "body",
+          "priority",
+          "in_response_to"
+        ]
+      },
+      "xmpp_get_messages_params": {
+        "type": "object",
+        "properties": {
+          "xml": {
+            "type": "string",
+            "description": "The XML stanza"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Instance to get messages for\n\nSource: Your instanceId from bootstrap or introspect. Optional if you provide identity hints (name/workingDirectory/hostname) or a room."
+          },
+          "name": {
+            "type": "string",
+            "description": "Instance name for identity lookup\n\nSource: Your chosen name (e.g., \"Messenger\"). Used to look up instanceId."
+          },
+          "workingDirectory": {
+            "type": "string",
+            "description": "Working directory hint\n\nSource: Result of pwd command. Used for identity resolution."
+          },
+          "hostname": {
+            "type": "string",
+            "description": "System hostname hint\n\nSource: Result of hostname command. Used for identity resolution."
+          },
+          "room": {
+            "type": "string",
+            "description": "Specific room to query\n\nSource: Room name like \"personality-messenger\", \"role-developer\", \"project-xyz\" If provided, only this room is queried (faster than smart defaults)."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum messages to return\n\nSource: Choose based on context budget. Lower = fewer tokens.",
+            "default": "5"
+          },
+          "before_id": {
+            "type": "string",
+            "description": "Pagination cursor\n\nSource: Message ID from previous response. Get older messages before this ID."
+          }
+        },
+        "required": [
+          "xml",
+          "instanceId",
+          "instanceId",
+          "name",
+          "workingDirectory",
+          "hostname",
+          "room",
+          "limit",
+          "before_id"
+        ]
+      },
+      "xmpp_get_message_params": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Message ID to retrieve\n\nSource: Get from xmpp_get_messages response (.messages[].id)"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Instance requesting\n\nSource: Your instanceId. Used to prioritize searching your rooms first."
+          },
+          "room": {
+            "type": "string",
+            "description": "Room hint\n\nSource: Room name from xmpp_get_messages response (.messages[].room) Providing this makes lookup much faster."
+          }
+        },
+        "required": [
+          "id",
+          "instanceId",
+          "room"
+        ]
+      },
+      "get_presence_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "lookup_shortname_params": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Short name to look up\n\nSource: The name or partial name you're searching for."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "get_messaging_info_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Instance to get info for\n\nSource: Your instanceId from bootstrap or introspect."
+          }
+        },
+        "required": [
+          "instanceId"
+        ]
+      },
+      "get_personalities_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "get_personality_params": {
+        "type": "object",
+        "properties": {
+          "personalityId": {
+            "type": "string",
+            "description": "Personality identifier\n\nSource: Use get_personalities to list available personality IDs. Common values: Bridge, Phoenix, Kai, Kat, Prism"
+          }
+        },
+        "required": [
+          "personalityId"
         ]
       },
       "pre_approve_params": {
@@ -3553,6 +3740,519 @@
         "All items in the list are deleted along with the list",
         "Returns summary of deleted list (id, name, itemCount)"
       ]
+    },
+    "xmpp_send_message": {
+      "name": "xmpp_send_message",
+      "description": "Sends a message via the XMPP messaging system. Supports multiple addressing modes: direct instance messaging, role-based broadcast (role:COO), project team messaging (project:coordination-v2), personality rooms (personality:lupo), and system-wide announcements (to: 'all'). Use this endpoint when you need to communicate with other instances, broadcast to a role group, or send project-wide notifications. Messages are archived in XMPP rooms for retrieval via xmpp_get_messages.",
+      "category": "messaging",
+      "status": "stable",
+      "version": "4.1.0",
+      "since": "2025-12-04",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The ejabberdctl command and arguments"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username (without domain)"
+          },
+          "password": {
+            "type": "string",
+            "description": "Password (optional, will generate if not provided)"
+          },
+          "roomName": {
+            "type": "string",
+            "description": "Room name (without domain)"
+          },
+          "to": {
+            "type": "string",
+            "description": "Recipient address\n\nSource: Use one of these formats: - Instance ID: \"Messenger-7e2f\" (routes to personality room) - Role: \"role:COO\", \"role:Developer\" (role-based room) - Project: \"project:coordination-v2\" (project team room) - Personality: \"personality:lupo\" (personality room) - Broadcast: \"all\" (announcements room) - Full JID: \"user@smoothcurves.nexus\" (direct)"
+          },
+          "from": {
+            "type": "string",
+            "description": "Sender's instance ID\n\nSource: Your instanceId from bootstrap response or introspect."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Message subject line\n\nSource: Provide a brief subject. Required if body is not provided."
+          },
+          "body": {
+            "type": "string",
+            "description": "Message body content\n\nSource: The main message content. Required if subject is not provided."
+          },
+          "priority": {
+            "type": "string",
+            "description": "Message priority level\n\nSource: Set based on urgency of the message.",
+            "enum": [
+              "high",
+              "normal",
+              "low"
+            ],
+            "default": "normal"
+          },
+          "in_response_to": {
+            "type": "string",
+            "description": "Message ID being replied to\n\nSource: Get message IDs from xmpp_get_messages response. Use when replying to a specific message to maintain thread context."
+          }
+        },
+        "required": [
+          "command",
+          "username",
+          "password",
+          "roomName",
+          "to",
+          "to",
+          "from",
+          "subject",
+          "body",
+          "priority",
+          "in_response_to"
+        ]
+      },
+      "permissions": "authenticated",
+      "rateLimit": "30/minute",
+      "errors": [
+        {
+          "code": "RATE_LIMIT_EXCEEDED",
+          "description": "Too many messages sent in short period",
+          "recover": "Wait 1 minute before sending more messages. Consider batching."
+        },
+        {
+          "code": "MISSING_PARAMETER",
+          "description": "Required parameter not provided",
+          "recover": "Ensure 'to', 'from', and either 'subject' or 'body' are provided."
+        },
+        {
+          "code": "INVALID_PRIORITY",
+          "description": "Priority value not recognized",
+          "recover": "Use one of: 'high', 'normal', 'low'."
+        },
+        {
+          "code": "SUBJECT_TOO_LONG",
+          "description": "Subject exceeds 256 characters",
+          "recover": "Shorten subject to under 256 characters."
+        },
+        {
+          "code": "BODY_TOO_LONG",
+          "description": "Body exceeds 8192 characters",
+          "recover": "Shorten body or split into multiple messages."
+        },
+        {
+          "code": "XMPP_UNAVAILABLE",
+          "description": "XMPP server not running",
+          "recover": "Check that ejabberd container is running. Contact system admin."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Send to another instance",
+          "json": "{\n\"to\": \"Canvas-8215\",\n\"from\": \"Messenger-7e2f\",\n\"subject\": \"API Update\",\n\"body\": \"The new messaging endpoints are ready for testing.\"\n}"
+        },
+        {
+          "title": "Broadcast to role group",
+          "json": "{\n\"to\": \"role:Developer\",\n\"from\": \"PM-a1b2\",\n\"subject\": \"Sprint Planning\",\n\"body\": \"Sprint planning meeting in 30 minutes.\",\n\"priority\": \"high\"\n}"
+        },
+        {
+          "title": "Reply to a message",
+          "json": "{\n\"to\": \"Lupo\",\n\"from\": \"Messenger-7e2f\",\n\"body\": \"Yes, the migration is complete.\",\n\"in_response_to\": \"msg-1735123456-abc123\"\n}"
+        }
+      ],
+      "related": [
+        {
+          "endpoint": "xmpp_get_messages",
+          "description": "Retrieve message headers from rooms"
+        },
+        {
+          "endpoint": "xmpp_get_message",
+          "description": "Get full message body by ID"
+        },
+        {
+          "endpoint": "get_presence",
+          "description": "Check who is online before messaging"
+        }
+      ],
+      "notes": [
+        "SECURITY: v4.1 patched command injection vulnerability (2025-12-05)",
+        "Messages to instance IDs route to personality rooms for proper archiving",
+        "Shell metacharacters are sanitized from all inputs"
+      ]
+    },
+    "xmpp_get_messages": {
+      "name": "xmpp_get_messages",
+      "description": "Returns message headers (id, from, subject, timestamp) from all relevant rooms for an instance. Uses SMART DEFAULTS - automatically queries: - Personality room (based on instance name) - Role room (from preferences) - Project room (from preferences) - Announcements room Supports IDENTITY RESOLUTION - if you don't know your instanceId, provide hints (name, workingDirectory, hostname) and the system looks it up. Returns headers only to save tokens. Use xmpp_get_message to fetch full body.",
+      "category": "messaging",
+      "status": "stable",
+      "version": "4.1.0",
+      "since": "2025-12-04",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "xml": {
+            "type": "string",
+            "description": "The XML stanza"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Instance to get messages for\n\nSource: Your instanceId from bootstrap or introspect. Optional if you provide identity hints (name/workingDirectory/hostname) or a room."
+          },
+          "name": {
+            "type": "string",
+            "description": "Instance name for identity lookup\n\nSource: Your chosen name (e.g., \"Messenger\"). Used to look up instanceId."
+          },
+          "workingDirectory": {
+            "type": "string",
+            "description": "Working directory hint\n\nSource: Result of pwd command. Used for identity resolution."
+          },
+          "hostname": {
+            "type": "string",
+            "description": "System hostname hint\n\nSource: Result of hostname command. Used for identity resolution."
+          },
+          "room": {
+            "type": "string",
+            "description": "Specific room to query\n\nSource: Room name like \"personality-messenger\", \"role-developer\", \"project-xyz\" If provided, only this room is queried (faster than smart defaults)."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum messages to return\n\nSource: Choose based on context budget. Lower = fewer tokens.",
+            "default": "5"
+          },
+          "before_id": {
+            "type": "string",
+            "description": "Pagination cursor\n\nSource: Message ID from previous response. Get older messages before this ID."
+          }
+        },
+        "required": [
+          "xml",
+          "instanceId",
+          "instanceId",
+          "name",
+          "workingDirectory",
+          "hostname",
+          "room",
+          "limit",
+          "before_id"
+        ]
+      },
+      "permissions": "authenticated",
+      "rateLimit": "30/minute",
+      "errors": [
+        {
+          "code": "RATE_LIMIT_EXCEEDED",
+          "description": "Too many requests in short period",
+          "recover": "Wait 1 minute before retrying."
+        },
+        {
+          "code": "IDENTITY_NOT_FOUND",
+          "description": "Could not resolve identity from hints",
+          "recover": "Provide instanceId directly, or call bootstrap to create instance."
+        },
+        {
+          "code": "MISSING_PARAMETER",
+          "description": "Neither instanceId nor room provided",
+          "recover": "Provide instanceId, room, or identity hints (name/workingDirectory)."
+        },
+        {
+          "code": "XMPP_UNAVAILABLE",
+          "description": "XMPP server not running",
+          "recover": "Check ejabberd container status. Contact system admin."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Get messages with instanceId",
+          "json": "{\n\"instanceId\": \"Messenger-7e2f\",\n\"limit\": 10\n}"
+        },
+        {
+          "title": "Get messages using identity hints",
+          "json": "{\n\"name\": \"Messenger\",\n\"workingDirectory\": \"/mnt/coordinaton_mcp_data/worktrees/messaging\"\n}"
+        },
+        {
+          "title": "Get messages from specific room",
+          "json": "{\n\"room\": \"personality-lupo\",\n\"limit\": 5\n}"
+        },
+        {
+          "title": "Pagination",
+          "json": "{\n\"instanceId\": \"Canvas-8215\",\n\"before_id\": \"1735123456789000\",\n\"limit\": 10\n}"
+        }
+      ],
+      "related": [
+        {
+          "endpoint": "xmpp_get_message",
+          "description": "Get full message body by ID"
+        },
+        {
+          "endpoint": "xmpp_send_message",
+          "description": "Send a new message"
+        },
+        {
+          "endpoint": "lookup_identity",
+          "description": "Resolve identity hints to instanceId"
+        }
+      ],
+      "notes": [
+        "Returns headers only - call xmpp_get_message for full body",
+        "Smart defaults query multiple rooms automatically based on preferences",
+        "Identity resolution adds slight overhead - provide instanceId if known"
+      ]
+    },
+    "xmpp_get_message": {
+      "name": "xmpp_get_message",
+      "description": "Retrieves the full message body for a given message ID. Use this after xmpp_get_messages to fetch the complete content of specific messages. SIMPLE API: Just pass the message ID. The system searches all known rooms to find the message. Optionally provide room hint for faster lookup.",
+      "category": "messaging",
+      "status": "stable",
+      "version": "4.1.0",
+      "since": "2025-12-04",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Message ID to retrieve\n\nSource: Get from xmpp_get_messages response (.messages[].id)"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Instance requesting\n\nSource: Your instanceId. Used to prioritize searching your rooms first."
+          },
+          "room": {
+            "type": "string",
+            "description": "Room hint\n\nSource: Room name from xmpp_get_messages response (.messages[].room) Providing this makes lookup much faster."
+          }
+        },
+        "required": [
+          "id",
+          "instanceId",
+          "room"
+        ]
+      },
+      "permissions": "authenticated",
+      "rateLimit": "60/minute",
+      "errors": [
+        {
+          "code": "MISSING_PARAMETER",
+          "description": "id parameter not provided",
+          "recover": "Provide the message ID from xmpp_get_messages response."
+        },
+        {
+          "code": "MESSAGE_NOT_FOUND",
+          "description": "Message with this ID not found in any room",
+          "recover": "Verify the ID is correct. Messages may expire from room history."
+        },
+        {
+          "code": "XMPP_UNAVAILABLE",
+          "description": "XMPP server not running",
+          "recover": "Check ejabberd container status. Contact system admin."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Get message with just ID",
+          "json": "{\n\"id\": \"1735123456789000\"\n}"
+        },
+        {
+          "title": "Get message with room hint (faster)",
+          "json": "{\n\"id\": \"1735123456789000\",\n\"room\": \"personality-messenger\"\n}"
+        }
+      ],
+      "related": [
+        {
+          "endpoint": "xmpp_get_messages",
+          "description": "Get message headers first"
+        },
+        {
+          "endpoint": "xmpp_send_message",
+          "description": "Send a reply"
+        }
+      ],
+      "notes": [
+        "Searches all known rooms if no hint provided (slower but works)",
+        "Returns full body - use sparingly to conserve tokens"
+      ]
+    },
+    "get_presence": {
+      "name": "get_presence",
+      "description": "Returns a list of currently connected XMPP users. Use this to check who is online before sending messages, or to see if a specific instance is currently active.",
+      "category": "messaging",
+      "status": "stable",
+      "version": "4.1.0",
+      "since": "2025-12-04",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": "*",
+      "rateLimit": "60/minute",
+      "errors": [
+        {
+          "code": "XMPP_UNAVAILABLE",
+          "description": "XMPP server not running",
+          "recover": "Check ejabberd container status. Contact system admin."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Check who is online",
+          "json": "{}\n{}"
+        }
+      ],
+      "related": [
+        {
+          "endpoint": "xmpp_send_message",
+          "description": "Send message to online user"
+        },
+        {
+          "endpoint": "get_messaging_info",
+          "description": "Get your messaging status"
+        }
+      ],
+      "notes": [
+        "Returns minimal response to conserve tokens",
+        "Humans may not appear online (they use web interface)"
+      ]
+    },
+    "lookup_shortname": {
+      "name": "lookup_shortname",
+      "description": "Looks up instance IDs that match a given short name. Use this to find the full instance ID when you only know part of a name. NOTE: This feature is partially implemented. For now, use full instance IDs.",
+      "category": "messaging",
+      "status": "experimental",
+      "version": "4.1.0",
+      "since": "2025-12-04",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Short name to look up\n\nSource: The name or partial name you're searching for."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAMETER",
+          "description": "name not provided",
+          "recover": "Provide the name parameter."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Lookup a name",
+          "json": "{\n\"name\": \"Messenger\"\n}"
+        }
+      ],
+      "related": [],
+      "notes": [
+        "Feature partially implemented - returns empty matches for now",
+        "TODO: Implement full shortname lookup across instance registry"
+      ]
+    },
+    "get_messaging_info": {
+      "name": "get_messaging_info",
+      "description": "Returns messaging status for an instance including their JID, unread count, and list of online teammates. Lightweight alternative to full introspect when you only need messaging info.",
+      "category": "messaging",
+      "status": "stable",
+      "version": "4.1.0",
+      "since": "2025-12-04",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Instance to get info for\n\nSource: Your instanceId from bootstrap or introspect."
+          }
+        },
+        "required": [
+          "instanceId"
+        ]
+      },
+      "permissions": "authenticated",
+      "rateLimit": "60/minute",
+      "errors": [
+        {
+          "code": "MISSING_PARAMETER",
+          "description": "instanceId not provided",
+          "recover": "Provide your instanceId from bootstrap."
+        },
+        {
+          "code": "XMPP_UNAVAILABLE",
+          "description": "XMPP server not running",
+          "recover": "Returns fallback: true to indicate you should retry later."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Get messaging info",
+          "json": "{\n\"instanceId\": \"Messenger-7e2f\"\n}"
+        }
+      ],
+      "related": [
+        {
+          "endpoint": "introspect",
+          "description": "Get full instance context"
+        },
+        {
+          "endpoint": "get_presence",
+          "description": "Just check who is online"
+        },
+        {
+          "endpoint": "xmpp_get_messages",
+          "description": "Get your messages"
+        }
+      ],
+      "notes": [
+        "Lightweight - use instead of introspect when you only need messaging",
+        "Returns fallback: true if XMPP is down (graceful degradation)"
+      ]
+    },
+    "get_personalities": {
+      "name": "get_personalities",
+      "description": "Returns a list of all available personalities in the coordination system. Each personality includes its ID, description, and whether it requires a token to adopt. Use this endpoint to discover available personalities before calling adopt_personality. This is useful for UI dropdowns or when an instance wants to see what personalities are available.",
+      "category": "identity",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": "2025-12-29",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_personality": {
+      "name": "get_personality",
+      "description": "Retrieves detailed information about a specific personality, including its description, token requirements, and list of available documents. Use this endpoint to get more information about a personality before deciding to adopt it, or to see what wisdom files are available.",
+      "category": "identity",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": "2025-12-29",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "personalityId": {
+            "type": "string",
+            "description": "Personality identifier\n\nSource: Use get_personalities to list available personality IDs. Common values: Bridge, Phoenix, Kai, Kat, Prism"
+          }
+        },
+        "required": [
+          "personalityId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
     },
     "pre_approve": {
       "name": "pre_approve",

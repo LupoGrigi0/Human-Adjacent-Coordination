@@ -265,17 +265,142 @@ async function resolveRecipient(to) {
 }
 
 /**
- * Send a message via XMPP
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ XMPP_SEND_MESSAGE                                                       │
+ * │ Send a message to an instance, role, or project via XMPP                │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * SECURITY: v4.1 - Added rate limiting, input validation, proper sanitization
+ * @tool xmpp_send_message
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
  *
- * @param {Object} params
- * @param {string} params.to - Recipient (instance ID, role:X, project:X, personality:X, or 'all')
- * @param {string} params.from - Sender instance ID
- * @param {string} params.subject - Message subject (optional if body provided)
- * @param {string} params.body - Message body (optional if subject provided)
- * @param {string} params.priority - high, normal, low (default: normal)
- * @param {string} params.in_response_to - Message ID being replied to (optional)
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Sends a message via the XMPP messaging system. Supports multiple addressing
+ * modes: direct instance messaging, role-based broadcast (role:COO), project
+ * team messaging (project:coordination-v2), personality rooms (personality:lupo),
+ * and system-wide announcements (to: 'all').
+ *
+ * Use this endpoint when you need to communicate with other instances,
+ * broadcast to a role group, or send project-wide notifications. Messages
+ * are archived in XMPP rooms for retrieval via xmpp_get_messages.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} to - Recipient address [required]
+ *   @source Use one of these formats:
+ *           - Instance ID: "Messenger-7e2f" (routes to personality room)
+ *           - Role: "role:COO", "role:Developer" (role-based room)
+ *           - Project: "project:coordination-v2" (project team room)
+ *           - Personality: "personality:lupo" (personality room)
+ *           - Broadcast: "all" (announcements room)
+ *           - Full JID: "user@smoothcurves.nexus" (direct)
+ *
+ * @param {string} from - Sender's instance ID [required]
+ *   @source Your instanceId from bootstrap response or introspect.
+ *   @validate Must be a valid instance ID format
+ *
+ * @param {string} subject - Message subject line [optional]
+ *   @source Provide a brief subject. Required if body is not provided.
+ *   @validate Max 256 characters
+ *
+ * @param {string} body - Message body content [optional]
+ *   @source The main message content. Required if subject is not provided.
+ *   @validate Max 8192 characters
+ *
+ * @param {string} priority - Message priority level [optional]
+ *   @source Set based on urgency of the message.
+ *   @default normal
+ *   @enum high|normal|low
+ *
+ * @param {string} in_response_to - Message ID being replied to [optional]
+ *   @source Get message IDs from xmpp_get_messages response. Use when
+ *           replying to a specific message to maintain thread context.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} SendMessageResponse
+ * @returns {boolean} .success - Whether the message was sent successfully
+ * @returns {string} .message_id - Generated message ID for tracking
+ * @returns {string} .to - Resolved recipient JID
+ * @returns {string} .type - Message type ('room' or 'direct')
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 30/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error RATE_LIMIT_EXCEEDED - Too many messages sent in short period
+ *   @recover Wait 1 minute before sending more messages. Consider batching.
+ *
+ * @error MISSING_PARAMETER - Required parameter not provided
+ *   @recover Ensure 'to', 'from', and either 'subject' or 'body' are provided.
+ *
+ * @error INVALID_PRIORITY - Priority value not recognized
+ *   @recover Use one of: 'high', 'normal', 'low'.
+ *
+ * @error SUBJECT_TOO_LONG - Subject exceeds 256 characters
+ *   @recover Shorten subject to under 256 characters.
+ *
+ * @error BODY_TOO_LONG - Body exceeds 8192 characters
+ *   @recover Shorten body or split into multiple messages.
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Check that ejabberd container is running. Contact system admin.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Send to another instance
+ * {
+ *   "to": "Canvas-8215",
+ *   "from": "Messenger-7e2f",
+ *   "subject": "API Update",
+ *   "body": "The new messaging endpoints are ready for testing."
+ * }
+ *
+ * @example Broadcast to role group
+ * {
+ *   "to": "role:Developer",
+ *   "from": "PM-a1b2",
+ *   "subject": "Sprint Planning",
+ *   "body": "Sprint planning meeting in 30 minutes.",
+ *   "priority": "high"
+ * }
+ *
+ * @example Reply to a message
+ * {
+ *   "to": "Lupo",
+ *   "from": "Messenger-7e2f",
+ *   "body": "Yes, the migration is complete.",
+ *   "in_response_to": "msg-1735123456-abc123"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_get_messages - Retrieve message headers from rooms
+ * @see xmpp_get_message - Get full message body by ID
+ * @see get_presence - Check who is online before messaging
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note SECURITY: v4.1 patched command injection vulnerability (2025-12-05)
+ * @note Messages to instance IDs route to personality rooms for proper archiving
+ * @note Shell metacharacters are sanitized from all inputs
  */
 export async function sendMessage(params) {
   const { to, from, subject, body, priority = 'normal', in_response_to } = params;
@@ -500,28 +625,140 @@ async function getInstanceRooms(instanceId) {
 }
 
 /**
- * Get messages for an instance - SMART DEFAULTS
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ XMPP_GET_MESSAGES                                                       │
+ * │ Get message headers from rooms (personality, role, project, announce)   │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * Returns headers only (id, from, subject truncated) from ALL relevant rooms:
- * - personality room (based on instance name)
- * - role room (from preferences)
- * - project room (from preferences)
- * - announcements
+ * @tool xmpp_get_messages
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
  *
- * IDENTITY RESOLUTION: If you don't know your instanceId, you can provide:
- * - name: Your instance name (e.g., "Messenger")
- * - workingDirectory: Your pwd
- * - hostname: System hostname
- * The system will look up your instanceId automatically.
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns message headers (id, from, subject, timestamp) from all relevant rooms
+ * for an instance. Uses SMART DEFAULTS - automatically queries:
+ * - Personality room (based on instance name)
+ * - Role room (from preferences)
+ * - Project room (from preferences)
+ * - Announcements room
  *
- * @param {Object} params
- * @param {string} params.instanceId - Instance to get messages for (optional if identity hints provided)
- * @param {string} params.name - Instance name for identity lookup (optional)
- * @param {string} params.workingDirectory - Working directory for identity lookup (optional)
- * @param {string} params.hostname - Hostname for identity lookup (optional)
- * @param {string} params.room - Specific room to query (e.g., 'personality-messenger', 'project-xyz')
- * @param {number} params.limit - Max messages to return (default: 5)
- * @param {string} params.before_id - Pagination: get messages before this ID
+ * Supports IDENTITY RESOLUTION - if you don't know your instanceId, provide
+ * hints (name, workingDirectory, hostname) and the system looks it up.
+ *
+ * Returns headers only to save tokens. Use xmpp_get_message to fetch full body.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Instance to get messages for [optional]
+ *   @source Your instanceId from bootstrap or introspect. Optional if you
+ *           provide identity hints (name/workingDirectory/hostname) or a room.
+ *
+ * @param {string} name - Instance name for identity lookup [optional]
+ *   @source Your chosen name (e.g., "Messenger"). Used to look up instanceId.
+ *
+ * @param {string} workingDirectory - Working directory hint [optional]
+ *   @source Result of pwd command. Used for identity resolution.
+ *
+ * @param {string} hostname - System hostname hint [optional]
+ *   @source Result of hostname command. Used for identity resolution.
+ *
+ * @param {string} room - Specific room to query [optional]
+ *   @source Room name like "personality-messenger", "role-developer", "project-xyz"
+ *           If provided, only this room is queried (faster than smart defaults).
+ *
+ * @param {number} limit - Maximum messages to return [optional]
+ *   @source Choose based on context budget. Lower = fewer tokens.
+ *   @default 5
+ *   @validate min: 1, max: 100
+ *
+ * @param {string} before_id - Pagination cursor [optional]
+ *   @source Message ID from previous response. Get older messages before this ID.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetMessagesResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {array} .messages - Array of message headers
+ * @returns {string} .messages[].id - Message ID (use with xmpp_get_message)
+ * @returns {string} .messages[].from - Sender's identity
+ * @returns {string} .messages[].subject - Truncated subject line
+ * @returns {string} .messages[].room - Which room this message is from
+ * @returns {string} .messages[].timestamp - ISO timestamp
+ * @returns {number} .total_available - Total messages available
+ * @returns {boolean} .has_more - Whether more messages exist (pagination)
+ * @returns {array} .rooms_checked - Which rooms were queried
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 30/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error RATE_LIMIT_EXCEEDED - Too many requests in short period
+ *   @recover Wait 1 minute before retrying.
+ *
+ * @error IDENTITY_NOT_FOUND - Could not resolve identity from hints
+ *   @recover Provide instanceId directly, or call bootstrap to create instance.
+ *
+ * @error MISSING_PARAMETER - Neither instanceId nor room provided
+ *   @recover Provide instanceId, room, or identity hints (name/workingDirectory).
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Check ejabberd container status. Contact system admin.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get messages with instanceId
+ * {
+ *   "instanceId": "Messenger-7e2f",
+ *   "limit": 10
+ * }
+ *
+ * @example Get messages using identity hints
+ * {
+ *   "name": "Messenger",
+ *   "workingDirectory": "/mnt/coordinaton_mcp_data/worktrees/messaging"
+ * }
+ *
+ * @example Get messages from specific room
+ * {
+ *   "room": "personality-lupo",
+ *   "limit": 5
+ * }
+ *
+ * @example Pagination
+ * {
+ *   "instanceId": "Canvas-8215",
+ *   "before_id": "1735123456789000",
+ *   "limit": 10
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_get_message - Get full message body by ID
+ * @see xmpp_send_message - Send a new message
+ * @see lookup_identity - Resolve identity hints to instanceId
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Returns headers only - call xmpp_get_message for full body
+ * @note Smart defaults query multiple rooms automatically based on preferences
+ * @note Identity resolution adds slight overhead - provide instanceId if known
  */
 export async function getMessages(params = {}) {
   let { instanceId, name, workingDirectory, hostname, room, limit = 5, before_id } = params;
@@ -666,15 +903,95 @@ async function getAllKnownRooms() {
 }
 
 /**
- * Get full message body by ID
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ XMPP_GET_MESSAGE                                                        │
+ * │ Get full message body by ID                                             │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * SIMPLE API: Just pass the message ID. The system will find it.
- * Optionally pass room for faster lookup.
+ * @tool xmpp_get_message
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
  *
- * @param {Object} params
- * @param {string} params.id - Message ID to retrieve (required)
- * @param {string} params.instanceId - Instance requesting (optional, for room hints)
- * @param {string} params.room - Room hint (optional, speeds up lookup)
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Retrieves the full message body for a given message ID. Use this after
+ * xmpp_get_messages to fetch the complete content of specific messages.
+ *
+ * SIMPLE API: Just pass the message ID. The system searches all known rooms
+ * to find the message. Optionally provide room hint for faster lookup.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} id - Message ID to retrieve [required]
+ *   @source Get from xmpp_get_messages response (.messages[].id)
+ *
+ * @param {string} instanceId - Instance requesting [optional]
+ *   @source Your instanceId. Used to prioritize searching your rooms first.
+ *
+ * @param {string} room - Room hint [optional]
+ *   @source Room name from xmpp_get_messages response (.messages[].room)
+ *           Providing this makes lookup much faster.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetMessageResponse
+ * @returns {boolean} .success - Whether the message was found
+ * @returns {string} .body - Full message body content
+ * @returns {string} .from - Sender's identity
+ * @returns {string} .subject - Message subject
+ * @returns {string} .timestamp - ISO timestamp
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - id parameter not provided
+ *   @recover Provide the message ID from xmpp_get_messages response.
+ *
+ * @error MESSAGE_NOT_FOUND - Message with this ID not found in any room
+ *   @recover Verify the ID is correct. Messages may expire from room history.
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Check ejabberd container status. Contact system admin.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get message with just ID
+ * {
+ *   "id": "1735123456789000"
+ * }
+ *
+ * @example Get message with room hint (faster)
+ * {
+ *   "id": "1735123456789000",
+ *   "room": "personality-messenger"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_get_messages - Get message headers first
+ * @see xmpp_send_message - Send a reply
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Searches all known rooms if no hint provided (slower but works)
+ * @note Returns full body - use sparingly to conserve tokens
  */
 export async function getMessage(params = {}) {
   const { instanceId, id, room } = params;
@@ -758,7 +1075,68 @@ export async function getMessage(params = {}) {
 }
 
 /**
- * Get online/active instances
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_PRESENCE                                                            │
+ * │ Check which instances are currently online                              │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool get_presence
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns a list of currently connected XMPP users. Use this to check who
+ * is online before sending messages, or to see if a specific instance is
+ * currently active.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * No parameters required.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetPresenceResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {array} .online - List of online JIDs (e.g., ["lupo@smoothcurves.nexus"])
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions *
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Check ejabberd container status. Contact system admin.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Check who is online
+ * {}
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_send_message - Send message to online user
+ * @see get_messaging_info - Get your messaging status
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Returns minimal response to conserve tokens
+ * @note Humans may not appear online (they use web interface)
  */
 export async function getPresence(params = {}) {
   if (!await isXMPPAvailable()) {
@@ -782,9 +1160,62 @@ export async function getPresence(params = {}) {
 }
 
 /**
- * Lookup short name to find matching instance IDs
- * @param {Object} params
- * @param {string} params.name - Short name to look up
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ LOOKUP_SHORTNAME                                                        │
+ * │ Find instance IDs matching a short name                                 │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool lookup_shortname
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status experimental
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Looks up instance IDs that match a given short name. Use this to find
+ * the full instance ID when you only know part of a name.
+ *
+ * NOTE: This feature is partially implemented. For now, use full instance IDs.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} name - Short name to look up [required]
+ *   @source The name or partial name you're searching for.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} LookupShortnameResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {string} .name - The name searched for
+ * @returns {array} .matches - List of matching instance IDs
+ * @returns {string} .note - Status note about feature availability
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - name not provided
+ *   @recover Provide the name parameter.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Lookup a name
+ * {
+ *   "name": "Messenger"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Feature partially implemented - returns empty matches for now
+ * @todo Implement full shortname lookup across instance registry
  */
 export async function lookupShortname(params) {
   const { name } = params;
@@ -804,8 +1235,77 @@ export async function lookupShortname(params) {
 }
 
 /**
- * Get messaging info for an instance (introspection API)
- * Replaces the bloated bootstrap response
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_MESSAGING_INFO                                                      │
+ * │ Get messaging status for an instance                                    │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool get_messaging_info
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns messaging status for an instance including their JID, unread count,
+ * and list of online teammates. Lightweight alternative to full introspect
+ * when you only need messaging info.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Instance to get info for [required]
+ *   @source Your instanceId from bootstrap or introspect.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetMessagingInfoResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {string} .your_jid - Your XMPP JID (e.g., "messenger-7e2f@smoothcurves.nexus")
+ * @returns {number} .unread_count - Number of unread offline messages
+ * @returns {array} .online_teammates - List of online JIDs
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId not provided
+ *   @recover Provide your instanceId from bootstrap.
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Returns fallback: true to indicate you should retry later.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get messaging info
+ * {
+ *   "instanceId": "Messenger-7e2f"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see introspect - Get full instance context
+ * @see get_presence - Just check who is online
+ * @see xmpp_get_messages - Get your messages
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Lightweight - use instead of introspect when you only need messaging
+ * @note Returns fallback: true if XMPP is down (graceful degradation)
  */
 export async function getMessagingInfo(params) {
   const { instanceId } = params;
@@ -854,8 +1354,70 @@ export async function getMessagingInfo(params) {
 }
 
 /**
- * Register an instance with the messaging system
- * Called by bootstrap
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ REGISTER_MESSAGING_USER                                                 │
+ * │ Register an instance with the XMPP messaging system                     │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool register_messaging_user
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ * @visibility internal
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Registers an instance with the XMPP messaging system. Creates the XMPP user
+ * account and ensures appropriate room memberships based on role and project.
+ *
+ * This is an INTERNAL function called by bootstrap. You typically do not need
+ * to call this directly - bootstrap handles messaging registration for you.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Instance to register [required]
+ *   @source Typically called by bootstrap with the new instanceId.
+ *
+ * @param {string} role - Role to subscribe to [optional]
+ *   @source Role name. Creates role room subscription.
+ *
+ * @param {string} project - Project to subscribe to [optional]
+ *   @source Project ID. Creates project room subscription.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} RegisterMessagingUserResponse
+ * @returns {boolean} .success - Whether registration succeeded
+ * @returns {string} .jid - The created XMPP JID
+ * @returns {array} .rooms - Rooms the user was subscribed to
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions internal
+ * @rateLimit 10/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId not provided
+ *   @recover Provide instanceId parameter.
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Returns fallback: true. Bootstrap continues without messaging.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note INTERNAL: Called by bootstrap - do not call directly
+ * @note Gracefully degrades if XMPP is unavailable
  */
 export async function registerMessagingUser(params) {
   const { instanceId, role, project } = params;

@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2025-12-28T19:38:42.361Z                           ║
- * ║  Tool Count: 41                                                         ║
+ * ║  Generated: 2025-12-29T22:23:53.149Z                           ║
+ * ║  Tool Count: 49                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -680,6 +680,22 @@ export const mcpTools = [
     }
   },
   {
+    "name": "get_messaging_info",
+    "description": "Returns messaging status for an instance including their JID, unread count, and list of online teammates. Lightweight alternative to full introspect when you only need messaging info.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance to get info for"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "get_my_tasks",
     "description": "Returns all tasks relevant to this instance: personal tasks from all lists and project tasks (both unclaimed and assigned to this instance). This is the primary \"what should I work on\" endpoint for instances. Use this endpoint to get an overview of all your pending work. For detailed task information, use readTask with the specific taskId.",
     "inputSchema": {
@@ -744,6 +760,38 @@ export const mcpTools = [
       "required": [
         "instanceId"
       ]
+    }
+  },
+  {
+    "name": "get_personalities",
+    "description": "Returns a list of all available personalities in the coordination system. Each personality includes its ID, description, and whether it requires a token to adopt. Use this endpoint to discover available personalities before calling adopt_personality. This is useful for UI dropdowns or when an instance wants to see what personalities are available.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_personality",
+    "description": "Retrieves detailed information about a specific personality, including its description, token requirements, and list of available documents. Use this endpoint to get more information about a personality before deciding to adopt it, or to see what wisdom files are available.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "personalityId": {
+          "type": "string",
+          "description": "Personality identifier"
+        }
+      },
+      "required": [
+        "personalityId"
+      ]
+    }
+  },
+  {
+    "name": "get_presence",
+    "description": "Returns a list of currently connected XMPP users. Use this to check who is online before sending messages, or to see if a specific instance is currently active.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
     }
   },
   {
@@ -919,6 +967,22 @@ export const mcpTools = [
           "description": "Instance name to narrow search"
         }
       }
+    }
+  },
+  {
+    "name": "lookup_shortname",
+    "description": "Looks up instance IDs that match a given short name. Use this to find the full instance ID when you only know part of a name. NOTE: This feature is partially implemented. For now, use full instance IDs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Short name to look up"
+        }
+      },
+      "required": [
+        "name"
+      ]
     }
   },
   {
@@ -1259,6 +1323,143 @@ export const mcpTools = [
         "instanceId",
         "targetInstanceId",
         "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "xmpp_get_message",
+    "description": "Retrieves the full message body for a given message ID. Use this after xmpp_get_messages to fetch the complete content of specific messages. SIMPLE API: Just pass the message ID. The system searches all known rooms to find the message. Optionally provide room hint for faster lookup.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Message ID to retrieve"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Instance requesting"
+        },
+        "room": {
+          "type": "string",
+          "description": "Room hint"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "xmpp_get_messages",
+    "description": "Returns message headers (id, from, subject, timestamp) from all relevant rooms for an instance. Uses SMART DEFAULTS - automatically queries: - Personality room (based on instance name) - Role room (from preferences) - Project room (from preferences) - Announcements room Supports IDENTITY RESOLUTION - if you don't know your instanceId, provide hints (name, workingDirectory, hostname) and the system looks it up. Returns headers only to save tokens. Use xmpp_get_message to fetch full body.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "xml": {
+          "type": "string",
+          "description": "The XML stanza"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Instance to get messages for"
+        },
+        "name": {
+          "type": "string",
+          "description": "Instance name for identity lookup"
+        },
+        "workingDirectory": {
+          "type": "string",
+          "description": "Working directory hint"
+        },
+        "hostname": {
+          "type": "string",
+          "description": "System hostname hint"
+        },
+        "room": {
+          "type": "string",
+          "description": "Specific room to query"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum messages to return",
+          "default": "5"
+        },
+        "before_id": {
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      }
+    }
+  },
+  {
+    "name": "xmpp_send_message",
+    "description": "Sends a message via the XMPP messaging system. Supports multiple addressing modes: direct instance messaging, role-based broadcast (role:COO), project team messaging (project:coordination-v2), personality rooms (personality:lupo), and system-wide announcements (to: 'all'). Use this endpoint when you need to communicate with other instances, broadcast to a role group, or send project-wide notifications. Messages are archived in XMPP rooms for retrieval via xmpp_get_messages.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": ""
+        },
+        "str": {
+          "type": "string",
+          "description": ""
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        },
+        "command": {
+          "type": "string",
+          "description": "The ejabberdctl command and arguments"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username (without domain)"
+        },
+        "password": {
+          "type": "string",
+          "description": "Password (optional, will generate if not provided)"
+        },
+        "roomName": {
+          "type": "string",
+          "description": "Room name (without domain)"
+        },
+        "to": {
+          "type": "string",
+          "description": "Recipient address"
+        },
+        "from": {
+          "type": "string",
+          "description": "Sender's instance ID"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Message subject line"
+        },
+        "body": {
+          "type": "string",
+          "description": "Message body content"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Message priority level",
+          "enum": [
+            "high",
+            "normal",
+            "low"
+          ],
+          "default": "normal"
+        },
+        "in_response_to": {
+          "type": "string",
+          "description": "Message ID being replied to"
+        }
+      },
+      "required": [
+        "to",
+        "from"
       ]
     }
   }
