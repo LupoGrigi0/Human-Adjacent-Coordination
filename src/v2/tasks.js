@@ -13,7 +13,7 @@ import path from 'path';
 import { DATA_ROOT, getInstanceDir, getProjectsDir } from './config.js';
 import { readJSON, writeJSON, ensureDir, readPreferences } from './data.js';
 // Import XMPP messaging for task assignment notifications
-import * as XMPPHandler from '../handlers/messaging-xmpp.js';
+import * as XMPPHandler from './messaging.js';
 
 /**
  * Get path to project's task file
