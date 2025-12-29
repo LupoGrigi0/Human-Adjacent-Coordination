@@ -26,7 +26,7 @@ const execAsync = promisify(exec);
 const XMPP_CONFIG = {
   domain: 'smoothcurves.nexus',
   conference: 'conference.smoothcurves.nexus',
-  container: 'v2-ejabberd',
+  container: 'ejabberd',
   // Persistent personalities (humans and system)
   persistentUsers: ['lupo', 'system', 'genevieve'],
   // Role rooms - auto-created
