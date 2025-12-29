@@ -25,6 +25,7 @@ import { preApprove } from './v2/preApprove.js';
 import { introspect } from './v2/introspect.js';
 import { takeOnRole } from './v2/takeOnRole.js';
 import { adoptPersonality } from './v2/adoptPersonality.js';
+import { listPersonalities, getPersonality } from './v2/personalities.js';  // New: personality listing
 import { joinProject } from './v2/joinProject.js';
 import { addDiaryEntry, getDiary } from './v2/diary.js';
 import {
@@ -273,9 +274,13 @@ class MCPCoordinationServer {
 
         // Role management functions
         case 'get_available_roles':
+        case 'get_roles':  // UI alias
           return RoleHandlers.get_available_roles(params);
         case 'get_role_documents':
-          return RoleHandlers.get_role_documents(params);
+        case 'get_role':  // UI alias - transforms roleId to role_name
+          return RoleHandlers.get_role_documents({
+            role_name: params.roleId || params.role_name
+          });
         case 'get_role_document':
           return RoleHandlers.get_role_document(params);
         case 'get_all_role_documents':
@@ -294,6 +299,10 @@ class MCPCoordinationServer {
           return takeOnRole(params);
         case 'adopt_personality':
           return adoptPersonality(params);
+        case 'get_personalities':
+          return listPersonalities(params);
+        case 'get_personality':
+          return getPersonality(params);
         case 'join_project':
           return joinProject(params);
         case 'add_diary_entry':
@@ -343,9 +352,19 @@ class MCPCoordinationServer {
         case 'get_all_instances':
           return getAllInstances(params);
         case 'get_instance_v2':
+        case 'get_instance_details':  // UI alias
           return getInstanceV2(params);
         case 'update_instance':
           return updateInstance(params);
+        case 'promote_instance':
+          // TODO: Implement instance promotion (role/privilege escalation)
+          return {
+            success: false,
+            error: {
+              message: 'promote_instance is not yet implemented',
+              code: 'NOT_IMPLEMENTED'
+            }
+          };
 
         // V2 Lists APIs (personal checklists)
         case 'create_list':
