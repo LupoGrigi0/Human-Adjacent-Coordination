@@ -166,7 +166,7 @@ export class ApiError extends Error {
  * @param {string} [params.homeDirectory] - Working directory
  */
 export async function bootstrap(params) {
-  return rpcCall('bootstrap_v2', params);
+  return rpcCall('bootstrap', params);
 }
 
 /**
