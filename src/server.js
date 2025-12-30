@@ -6,7 +6,8 @@
  * @updated claude-code-BackendExpert-2025-08-23-1500
  */
 
-import { bootstrap } from './bootstrap.js';
+// Bootstrap is now in v2/ - single source of truth
+import { bootstrap } from './v2/bootstrap.js';
 import { logger } from './logger.js';
 
 // Import all handlers
@@ -20,7 +21,7 @@ import { handlers as RoleHandlers } from './v2/roles.js';  // Moved from handler
 import * as XMPPHandler from './v2/messaging.js';
 
 // V2 API handlers (Foundation's implementation)
-import { bootstrap as bootstrapV2 } from './v2/bootstrap.js';
+// Note: bootstrap is imported at top of file - single source of truth
 import { preApprove } from './v2/preApprove.js';
 import { introspect } from './v2/introspect.js';
 import { takeOnRole } from './v2/takeOnRole.js';
@@ -289,8 +290,7 @@ class MCPCoordinationServer {
         // ========================================
         // V2 APIs (Foundation's implementation)
         // ========================================
-        case 'bootstrap_v2':
-          return bootstrapV2(params);
+        // Note: 'bootstrap' case is handled above - there is no 'bootstrap_v2'
         case 'pre_approve':
           return preApprove(params);
         case 'introspect':
