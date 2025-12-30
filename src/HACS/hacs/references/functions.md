@@ -2,7 +2,7 @@
 
 Complete reference for all 49 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2025-12-30T00:29:01.909Z
+> **Auto-generated:** 2025-12-30T00:43:50.757Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions

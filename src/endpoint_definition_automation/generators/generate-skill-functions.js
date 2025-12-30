@@ -14,6 +14,7 @@
 import { readdir, readFile, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 import { SHARED_CONFIG } from '../shared-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -470,6 +471,23 @@ async function main() {
   console.log('');
   console.log(`✅ Generated skill functions.md: ${outputPath}`);
   console.log(`   Contains ${externalEndpoints.length} function definitions`);
+
+  // Package the skill as a .skill file (zip archive)
+  const hacsDir = join(SHARED_CONFIG.srcRoot, 'HACS');
+  const skillDir = join(hacsDir, 'hacs');
+  const skillFile = join(hacsDir, 'hacs.skill');
+
+  console.log('');
+  console.log('Packaging skill...');
+
+  try {
+    // Remove old .skill file if exists, then zip the hacs/ directory
+    // The -r flag recurses into directories, we cd into HACS so the zip root is 'hacs/'
+    execSync(`rm -f "${skillFile}" && cd "${hacsDir}" && zip -r hacs.skill hacs/`, { stdio: 'pipe' });
+    console.log(`✅ Packaged skill: ${skillFile}`);
+  } catch (error) {
+    console.error(`⚠️  Failed to package skill: ${error.message}`);
+  }
 }
 
 main().catch(console.error);
