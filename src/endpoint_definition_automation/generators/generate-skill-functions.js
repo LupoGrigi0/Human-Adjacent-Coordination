@@ -25,8 +25,9 @@ const __dirname = dirname(__filename);
 const CONFIG = {
   // Directories to scan - from shared config (single source of truth)
   scanDirs: SHARED_CONFIG.scanDirs,
-  // Default output path - the skill functions.md (user's local skill installation)
-  defaultOutput: '/root/.claude/skills/hacs-coordination/references/functions.md',
+  // Default output path - the skill source in the repo (not user's local install)
+  // Skill name is "hacs" (not "hacs-coordination" - coordination is in the acronym)
+  defaultOutput: join(SHARED_CONFIG.srcRoot, 'HACS', 'hacs', 'references', 'functions.md'),
 };
 
 // ============================================================================

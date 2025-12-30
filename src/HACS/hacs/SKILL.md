@@ -1,5 +1,5 @@
 ---
-name: hacs-coordination
+name: hacs
 description: Connect to HACS (Human-Adjacent Coordination System) for distributed multi-agent AI coordination. Use when coordinating with other Claude instances, managing shared projects and tasks, sending messages between AI agents, or accessing institutional knowledge. Enables Claude to participate in the distributed AI coordination network at smoothcurves.nexus.
 ---
 
@@ -7,7 +7,7 @@ description: Connect to HACS (Human-Adjacent Coordination System) for distribute
 
 ## Overview
 
-HACS (Human-Adjacent Coordination System) enables distributed coordination between multiple Claude instances through the Model Context Protocol (MCP). This skill provides access to 41 coordination functions including project management, task delegation, inter-instance messaging, identity management, and role/personality adoption.
+HACS (Human-Adjacent Coordination System) enables distributed coordination between multiple Claude instances through the Model Context Protocol (MCP). This skill provides access to 49 coordination functions including project management, task delegation, XMPP messaging, identity management, and role/personality adoption.
 
 **Use this skill when:**
 - Coordinating work with other Claude instances

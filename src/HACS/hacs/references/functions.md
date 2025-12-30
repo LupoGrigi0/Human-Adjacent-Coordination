@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 41 coordination functions available in the HACS system.
+Complete reference for all 49 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2025-12-29T01:16:00.144Z
+> **Auto-generated:** 2025-12-30T00:29:01.909Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -54,6 +54,21 @@ Generates a secure one-time recovery key that allows an instance to recover thei
   }
 }
 ```
+
+### get_personalities
+Returns a list of all available personalities in the coordination system. Each personality includes its ID, description, and whether it requires a token to adopt. Use this endpoint to discover available personalities before calling adopt_personality. This is useful for UI dropdowns or when an instance wants to see what personalities are available.
+
+**Parameters:** None
+
+**Returns:** , Whether the call succeeded, Array of personality objects, Personality identifier, Display name, Description of the personality, Whether adoption requires a token, Call metadata, ISO timestamp, Total number of personalities
+
+### get_personality
+Retrieves detailed information about a specific personality, including its description, token requirements, and list of available documents. Use this endpoint to get more information about a personality before deciding to adopt it, or to see what wisdom files are available.
+
+**Parameters:**
+- `personalityId` (required): Personality identifier
+
+**Returns:** , Whether the call succeeded, Personality details, Personality identifier, Display name, Description of the personality, Whether adoption requires a token, List of wisdom files, List of all .md documents in the personality directory, Call metadata, ISO timestamp
 
 ### get_recovery_key
 Checks whether a recovery key exists for a target instance and returns metadata about the key (creation date, whether it's been used, etc.). Does NOT return the actual key - that's only shown once at creation. Use this to check if an instance already has a valid recovery key before deciding whether to generate a new one. If the key exists but has been used, you'll need to call generate_recovery_key to create a new one.
@@ -787,6 +802,152 @@ Toggles the checked state of a list item. If the item is unchecked, it becomes c
     "listId": "example",
     "itemId": "example",
     "targetInstanceId": "null (operates on caller's own lists)"
+  }
+}
+```
+
+## messaging Functions
+
+### get_messaging_info
+Returns messaging status for an instance including their JID, unread count, and list of online teammates. Lightweight alternative to full introspect when you only need messaging info.
+
+**Parameters:**
+- `instanceId` (required): Instance to get info for
+
+**Returns:** , Whether the call succeeded, Your XMPP JID (e.g., "messenger-7e2f@smoothcurves.nexus"), Number of unread offline messages, List of online JIDs
+
+**Example:**
+```json
+{
+  "name": "get_messaging_info",
+  "arguments": {
+    "instanceId": "example"
+  }
+}
+```
+
+### get_presence
+Returns a list of currently connected XMPP users. Use this to check who is online before sending messages, or to see if a specific instance is currently active.
+
+**Parameters:** None
+
+**Returns:** , Whether the call succeeded, List of online JIDs (e.g., ["lupo@smoothcurves.nexus"])
+
+**Example:**
+```json
+{
+  "name": "get_presence",
+  "arguments": {
+
+  }
+}
+```
+
+### lookup_shortname
+Looks up instance IDs that match a given short name. Use this to find the full instance ID when you only know part of a name. NOTE: This feature is partially implemented. For now, use full instance IDs.
+
+**Parameters:**
+- `name` (required): Short name to look up
+
+**Returns:** , Whether the call succeeded, The name searched for, List of matching instance IDs, Status note about feature availability
+
+**Example:**
+```json
+{
+  "name": "lookup_shortname",
+  "arguments": {
+    "name": "example"
+  }
+}
+```
+
+### xmpp_get_message
+Retrieves the full message body for a given message ID. Use this after xmpp_get_messages to fetch the complete content of specific messages. SIMPLE API: Just pass the message ID. The system searches all known rooms to find the message. Optionally provide room hint for faster lookup.
+
+**Parameters:**
+- `id` (required): Message ID to retrieve
+- `instanceId` (optional): Instance requesting
+- `room` (optional): Room hint
+
+**Returns:** List of room names, , Whether the message was found, Full message body content, Sender's identity, Message subject, ISO timestamp
+
+**Example:**
+```json
+{
+  "name": "xmpp_get_message",
+  "arguments": {
+    "id": "example"
+  }
+}
+```
+
+### xmpp_get_messages
+Returns message headers (id, from, subject, timestamp) from all relevant rooms for an instance. Uses SMART DEFAULTS - automatically queries: - Personality room (based on instance name) - Role room (from preferences) - Project room (from preferences) - Announcements room Supports IDENTITY RESOLUTION - if you don't know your instanceId, provide hints (name, workingDirectory, hostname) and the system looks it up. Returns headers only to save tokens. Use xmpp_get_message to fetch full body.
+
+**Parameters:**
+- `xml` (required): The XML stanza
+- `instanceId` (required): 
+- `instanceId` (required): Instance ID
+- `instanceId` (optional): Instance to get messages for
+- `name` (optional): Instance name for identity lookup
+- `workingDirectory` (optional): Working directory hint
+- `hostname` (optional): System hostname hint
+- `room` (optional): Specific room to query
+- `limit` (optional): Maximum messages to return (default: 5)
+- `before_id` (optional): Pagination cursor
+
+**Returns:** Parsed message or null if invalid, The personality name (lowercase), List of room names, , Whether the call succeeded, Array of message headers, Message ID (use with xmpp_get_message), Sender's identity, Truncated subject line, Which room this message is from, ISO timestamp, Total messages available, Whether more messages exist (pagination), Which rooms were queried
+
+**Example:**
+```json
+{
+  "name": "xmpp_get_messages",
+  "arguments": {
+    "xml": "example",
+    "instanceId": "example",
+    "instanceId": "example",
+    "limit": 5
+  }
+}
+```
+
+### xmpp_send_message
+Sends a message via the XMPP messaging system. Supports multiple addressing modes: direct instance messaging, role-based broadcast (role:COO), project team messaging (project:coordination-v2), personality rooms (personality:lupo), and system-wide announcements (to: 'all'). Use this endpoint when you need to communicate with other instances, broadcast to a role group, or send project-wide notifications. Messages are archived in XMPP rooms for retrieval via xmpp_get_messages.
+
+**Parameters:**
+- `instanceId` (required): 
+- `str` (required): 
+- `name` (required): 
+- `command` (required): The ejabberdctl command and arguments
+- `username` (required): Username (without domain)
+- `password` (required): Password (optional, will generate if not provided)
+- `roomName` (required): Room name (without domain)
+- `to` (required): Recipient address
+- `to` (required): Recipient address
+- `from` (required): Sender's instance ID
+- `subject` (optional): Message subject line
+- `body` (optional): Message body content
+- `priority` (optional): Message priority level [high, normal, low] (default: normal)
+- `in_response_to` (optional): Message ID being replied to
+
+**Returns:** if allowed, false if rate limited, Command output, Resolved recipient info, , Whether the message was sent successfully, Generated message ID for tracking, Resolved recipient JID, Message type ('room' or 'direct')
+
+**Example:**
+```json
+{
+  "name": "xmpp_send_message",
+  "arguments": {
+    "instanceId": "example",
+    "str": "example",
+    "name": "example",
+    "command": "example",
+    "username": "example",
+    "password": "example",
+    "roomName": "example",
+    "to": "example",
+    "to": "example",
+    "from": "example",
+    "priority": "normal"
   }
 }
 ```
