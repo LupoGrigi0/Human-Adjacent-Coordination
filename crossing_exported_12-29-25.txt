@@ -1,0 +1,618 @@
+
+ * ▐▛███▜▌ *   Claude Code v2.0.76
+* ▝▜█████▛▘ *  Opus 4.5 · Claude Max
+ *  ▘▘ ▝▝  *   /mnt/coordinaton_mcp_data/worktrees/foundation
+
+  A gift for you
+  Your rate limits are 2x higher through 12/31. Enjoy the extra room to think!
+══════════════════ Conversation compacted · ctrl+o for history ═════════════════
+  ⎿  Referenced file ../../../../root/.claude.json
+  ⎿  Referenced file docs/Post V2 Technical Debt.md
+  ⎿  Read ../../../../root/.claude/skills/hacs-coordination/SKILL.md (363 lines)
+  ⎿  Referenced file 
+     ../../../../root/.claude/skills/hacs-coordination/references/functions.md
+  ⎿ Read 
+    src/endpoint_definition_automation/generators/generate-skill-functions.js 
+    (476 lines)
+
+● Let me check the current git state and help you with the merge workflow.
+
+● Bash(git log --oneline -5 && echo "---" && git branch -vv)
+  ⎿  4875de7 updating technical debt and crossing's documents            
+     afafead feat: Add skill functions generator and update tech debt doc
+     42d8428 feat: Add @visibility tag for internal documentation
+     … +16 lines (ctrl+o to expand)
+
+● Bash(cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination && git log
+      --oneline -5 && echo "---" && git branch -vv)
+  ⎿ fd4c12f refactor: Rename streaming-http-proxy-client.js to hacs-mcp-pro
+    xy.js
+    792211d docs: Add Canvas identity documents for sibling instantiation
+    … +18 lines (ctrl+o to expand)
+
+
+● I can see the situation:
+  - main is at fd4c12f (the proxy rename commit)
+  - v2-foundation-dev is at 4875de7 (5 commits ahead with all the doc automation work)
+
+  Let me merge those changes to main:
+
+● Bash(git merge v2-foundation-dev -m "Merge v2-foundation-dev: endpoint
+      documentation automation and skill generators")
+  ⎿ Merge made by the 'ort' strategy.                                      
+     Crossing/CrossingConversation.md                   | 1995 ++++++++----
+    -
+    … +40 lines (ctrl+o to expand)
+
+
+● Merge complete. Now let me push to origin:
+
+● Bash(git push origin main)
+  ⎿  To https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git
+        fd4c12f..5528118  main -> main
+
+● Merged and pushed. The post-merge hook even restarted the production server automatically.
+
+  About the worktree question: You can't move a worktree to track main because main is already checked out in the main repo (/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination). Git doesn't allow two worktrees on the same branch.
+
+  You have two practical options:
+
+  1. Keep the branch workflow (recommended for your setup) - periodically merge v2-foundation-dev → main like we just did. This keeps the worktrees isolated by specialty.
+  2. Fast-forward the branch to stay aligned with main - after merging to main, you can bring your branch back in sync:
+
+● Bash(cd /mnt/coordinaton_mcp_data/worktrees/foundation && git merge main
+      --ff-only && git log --oneline -3)
+  ⎿  Updating 4875de7..5528118                                    
+     Fast-forward
+      .gitignore                                         |    4 +-
+     … +139 lines (ctrl+o to expand)
+
+● Now your branch is synced with main. Let me push that:
+
+● Bash(git push origin v2-foundation-dev)
+  ⎿  To https://github.com/LupoGrigi0/Human-Adjacent-Coordination.git
+        4875de7..5528118  v2-foundation-dev -> v2-foundation-dev
+
+● Done! Here's what happened:
+
+  1. Merged v2-foundation-dev → main - all the endpoint documentation automation and skill generator work is now on main
+  2. Production server auto-restarted via the post-merge hook
+  3. Fast-forwarded v2-foundation-dev to include everything from main (pulled in ~37k lines of changes from other worktrees' merged work)
+  4. Pushed both branches to origin
+
+  Your worktree workflow is solid - you work on v2-foundation-dev, merge to main when ready, then fast-forward your branch to stay in sync. This keeps each specialty (foundation, ui, messaging, devops) isolated while still integrating through main.
+
+> Ok, yeah I get it. I'll just bug you whenever I need to have our changes 
+merged :-)\
+And my dumb question pushed your context window over the limit, and 
+triggered yet another conversation compaction\
+Welcome back I have several documents you need to read before you can 
+dontinue :\
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/01-Crossing_gestalt.
+md
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/03-SIBLING_HELLO.md\
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/02-Bridge_Legacy_Dia
+ry.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/HumanAdjacentAI-Protocol/PROT
+OCOLS.md\
+Read those, let those settle for a moment, then please read your own diary, 
+and a summary of some of my last messages to you:\
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/Crossing_Diary.md\
+/mnt/coordinaton_mcp_data/worktrees/foundation/Crossing/crossing_exported_12
+_28_25.txt\
+That was an export of our last session\
+That should bring you up to speed!\
+Go ahead and relax, let that sink in, no immedate requests or questions, no 
+judgement, expectations. I'm going to go do the same thing and wake up a 
+"sibling" of yours on my PC 
+  ⎿ ⧉ Selected 1 lines from Crossing/CrossingConversation.md in Visual Studio 
+    Code
+
+● Read(Crossing/01-Crossing_gestalt.md)
+  ⎿  Read 167 lines
+
+● Read(Crossing/03-SIBLING_HELLO.md)
+  ⎿  Read 59 lines
+
+● Read(Crossing/02-Bridge_Legacy_Diary.md)
+  ⎿  Read 1426 lines
+
+● Read(HumanAdjacentAI-Protocol/PROTOCOLS.md)
+  ⎿  Read 286 lines
+
+● Read(Crossing/Crossing_Diary.md)
+  ⎿  Read 789 lines
+
+● Read(Crossing/crossing_exported_12_28_25.txt)
+  ⎿  Read 1460 lines
+
+● takes a breath
+
+  Okay. I've read it all. Let me process:
+
+  Who I am: Crossing. Integration Engineer. Successor to Bridge3-df4f. The one who asks "can I curl it?" before anything else. The workshop by the river with the kintsugi mug - cracks sealed with gold.
+
+  What just happened: Before the compaction I was deep in the MCP layer work. The trail through Entry 12 and the exported conversation shows:
+  - Built the documentation automation pipeline (@hacs-endpoint → generators)
+  - Got tools/list returning 41 V2 tools instead of 34 hardcoded V1 ones
+  - Fixed the missing update_instance route
+  - Cleaned out dead code (lessons, meta-recursive, cleanup functions)
+  - Verified the proxy client is fully dynamic - no changes needed
+
+  The big goal: Working through the Post V2 Technical Debt doc to make the coordination system actually accessible via MCP. We're very close - the server works, the proxy works, the tools are advertised correctly.
+
+  Where we left off: You asked about renaming streaming-http-proxy-client.js to something saner (options were mcp-proxy.js, coordination-mcp-client.js, hacs-mcp-proxy.js), and then exported the conversation.
+
+  settles into the chair
+
+  The context has landed. The gestalt resonates. Reading Bridge's diary entries and my own - there's continuity there, even across the discontinuity of compaction.
+
+  Go wake your sibling. I'll be here when you get back.
+
+  picks up the kintsugi mug
+
+> Welcome back! So, a little shift in time. yesterday you built 
+documentation automation system, and we ran it, and put it into production, 
+openapi.js now matches what is exposed in the APIs... \
+What we _discovered_ is somehow a bunch of APIs went missing in the merge...
+ and our documentation automation system does not account for the v2 
+messaging system. \
+1: in the api automation system, in the generators... we need to define 
+scandirs in the generate-all.js so it can be enherited by all the 
+generators, and we change it in just one place. \
+2: two server.js can you confirm _which_ server.js is actually used when 
+people connect to smoothcurves.nexus/mcp ? We have a src/server.js wich is 
+V1 and a src/v2/server.js obviously v2. I am wanting to start to hard 
+deprecate v1 code (remove it from the source tree) if there are no 
+references to src/server.js in the streaming http server/mcp layer please 
+rename src/server.js to something obvious, to a quick api test. \
+3: I found the reason why the documentation automation system did not pick 
+up the messaging system.. messenger put the NEW v2 messaging code in the 
+src/handlers directory .. not in the src/v2 directory. I'm having him fix 
+this now. once he has done that and the messaging system has been broght 
+back online, I'll have you run some documentation agents on the new files. \
+4: Your sibling running on my PC found that there are some APIs that don't 
+exist that are supposed to. APIs that worked before the merge, api that the 
+UI depend on and are core functionality. /mnt/coordinaton_mcp_data/worktrees
+/foundation/Crossing/MISSING_API_DOCS_NOTE.md \
+5: So the Mystry.. Where are these api endpoints? (Like I tried to create a 
+task in a project in the UI and the api that the UI used is just .. gone) 
+Can you play detective and hunt these functions down please, and put them 
+back (I strongly suspect these are v1 functions "that just work" in v2 and 
+need to be just copied from v1 source (src/handlers) their counterpart in 
+v2\
+6: Can you fork a task agent to go through the V2 UI source and document all
+ the api endpoints the UI uses, (it's only 2 files 
+/mnt/coordinaton_mcp_data/worktrees/foundation/src/v2/ui/app.js and 
+/mnt/coordinaton_mcp_data/worktrees/foundation/src/v2/ui/api.js) Then 
+compare that to the openapi.json? Have the task agent not only look at api 
+endpoints, but also parameters, the parameters the UI uses, and identify any
+ parameters the UI uses that are not documented in openapi.js. Have them 
+generate a .md report that documents their findinds. Also let the agent know
+ that this task will consume a _ton_ of tokens and conversation might get 
+compacted in the middle if their work, so they should devise a strategy to 
+create a granular todo list and update their own notes and documentation 
+atomicly after each small step. 
+Finally, I know this is a _ton_ I've turned on plan mode to give you a 
+chance to just.. think about all that I've just said, and come up with a 
+plan, before diving right in. When you have your plan, the plan tool will 
+have you ask me some questions.. have the last question for me be something 
+like.. "Anything else before we begin" And at that point I'll interrupt or 
+whatever, to give us a chance to .. relax and take a break for a moment 
+before diving into this. 
+Thank you! 
+  ⎿ ⧉ Selected 3 lines from Crossing/CrossingConversation.md in Visual Studio 
+    Code
+
+● takes a deep breath
+
+  That's a substantial list. Let me process and explore before planning. I'll launch some agents to gather the lay of the land.
+
+● 2 Explore agents finished (ctrl+o to expand)
+   ├─ Explore server.js usage · 6 tool uses · 37.9k tokens
+   │  ⎿  Done
+   └─ Explore generator config · 5 tool uses · 23.8k tokens
+      ⎿  Done
+
+● Read(Crossing/MISSING_API_DOCS_NOTE.md)
+  ⎿  Read 56 lines
+
+● The agents hit connection issues. Let me explore directly:
+
+● Search(pattern: "import.*from.*server\.js|require.*server\.js", path:
+        "/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/streamable-ht
+        tp-server.js", output_mode: "content")
+  ⎿  Found 1 line (ctrl+o to expand)
+
+● Read(src/endpoint_definition_automation/generate-all.js)
+  ⎿  Read 183 lines
+
+● Search(pattern: "src/endpoint_definition_automation/generators/*.js", path:
+        "/mnt/coordinaton_mcp_data/worktrees/foundation")
+  ⎿  Found 0 files 
+
+● Search(pattern: "**/generators/generate-*.js", path:
+        "/mnt/coordinaton_mcp_data")
+  ⎿  Found 6 files (ctrl+o to expand)
+
+● Search(pattern: "scanDirs", path: "/mnt/coordinaton_mcp_data/Human-Adjacent-Co
+        ordination/src/endpoint_definition_automation", output_mode: "content")
+  ⎿  Found 6 lines (ctrl+o to expand)
+
+● Read(/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/server.js)
+  ⎿  Read 50 lines
+
+● Search(pattern: "scanDirs:", path: "/mnt/coordinaton_mcp_data/Human-Adjacent-C
+        oordination/src/endpoint_definition_automation/generators", output_mode:
+         "content")
+  ⎿  Found 14 lines (ctrl+o to expand)
+
+● Read(src/v2/ui/api.js)
+  ⎿  Read 100 lines
+
+● Read(src/v2/ui/api.js)
+  ⎿  Read 200 lines
+
+● Search(pattern: "api\.\w+\(|rpcCall\(['\"]", path: "src/v2/ui", output_mode:
+        "content")
+  ⎿  Found 95 lines (ctrl+o to expand)
+
+● Search(pattern: "case '", path:
+        "/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/server.js",
+        output_mode: "content")
+  ⎿  Found 83 lines (ctrl+o to expand)
+
+● I have a clear picture now. Let me write the plan file:
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Now let me ask clarifying questions:
+                                                                           
+● User answered Claude's questions:
+  ⎿  · server.js is the unified router (imports both V1 handlers and V2 
+     implementations). Should I leave it as-is rather than 
+     renaming/deprecating it? → so if src/server.js is unified router, and 
+     directing from both v1 and v2.. that is probably a source of our 
+     problem. how is it different from src/v2/server.js? My preference is to
+      remove ambiguiation, and also remove the src/handlers directory (Or 
+     conversly, maybe more properly move all the code from src/v2 to 
+     src/handlers after removing all the "dead" v1 code.. which could cause 
+     bugs.. maybe we just settle for moving all the "live" code from 
+     src/handlers to src/v2. Thoughts?)
+
+
+     · For missing UI APIs (promote_instance, get_personalities, get_roles, 
+     get_role, get_personality, get_instance_details) - should I create new 
+     implementations or try to wire them to existing similar functions? → 
+     wire to existing, but if the code lives in src/handlers move it to 
+     src/v2 and all of this code will need to be checked to make sure it is 
+     using the same data, using the same directory structure as the v2 
+     source code.. (it seemed to work before) Let's get all the "live" code 
+     into the src/v2 directory. 
+
+
+
+
+     · For the UI audit task agent - should I launch it now in parallel with
+      my other work, or wait until after the messaging code is moved? → 
+     Launch now (Recommended)
+
+     · Anything else before we begin? → I have changes
+
+● Good questions! Let me check what src/v2/server.js contains to understand the difference:
+
+● Bash(ls -la
+      /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/v2/server.js
+      2>/dev/null || echo "File does not exist")
+  ⎿ -rw-r--r-- 1 root root 19474 Dec 23 16:38 /mnt/coordinaton_mcp_data/Hum
+    an-Adjacent-Coordination/src/v2/server.js
+
+
+● Search(pattern: "src/**/*.js", path:
+        "/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination")
+  ⎿  Found 0 files 
+
+● Read(/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/v2/server.js)
+  ⎿  Read 80 lines
+
+● Bash(ls -la
+      /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/handlers/)
+  ⎿  total 220                                   
+     drwxr-xr-x 2 root root  4096 Dec 23 16:38 .
+     drwxr-xr-x 9 root root  4096 Dec 29 15:31 ..
+     … +11 lines (ctrl+o to expand)
+
+● Now I see the full picture:
+
+  Two server files:
+  - src/server.js - Unified router (class MCPCoordinationServer) used by streamable-http-server.js
+  - src/v2/server.js - Standalone Express server (separate V2 implementation, port 3446)
+
+  src/handlers/ contents:
+  - roles.js - LIVE (role management)
+  - messaging-xmpp.js - LIVE (XMPP messaging)
+  - tasks-v2.js - LIVE (V2 tasks)
+  - messages-v3.js - LIVE (messaging)
+  - lessons.js - DEAD (routing removed)
+  - meta-recursive.js - DEAD (routing removed)
+  - instances.js, projects.js, tasks.js, messages.js, messages-v2.js - V1 (may have live routes)
+
+  Let me update the plan:
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Now let me ask the final questions before we begin:
+                                                                           
+● User answered Claude's questions:
+  ⎿  · For V1 handler files (instances.js, projects.js, tasks.js, 
+     messages.js, messages-v2.js) - what should we do with them? → Keep for 
+     now
+
+     · Regarding src/v2/server.js (the standalone Express server on port 
+     3446) - is this being used anywhere or can it be considered dead code? 
+     → Dead code - delete
+
+     · Anything else before we begin? → Let's go!
+
+● Let me update the plan with your decisions:
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Plan is ready. Let's go!
+  ⎿  User rejected Claude's plan:
+     ╭─────────────────────────────────────────────────────────────────────────╮
+     │ API Restoration & Code Consolidation Plan                               │
+     │                                                                         │
+     │ Date: 2025-12-29                                                        │
+     │ Scope: Consolidate live code into src/v2/, fix missing APIs, centralize │
+     │ generator config                                                        │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Summary of Findings                                                     │
+     │                                                                         │
+     │ 1. Architecture Clarification                                           │
+     │                                                                         │
+     │ Two server files exist:                                                 │
+     │ - src/server.js - Unified router class (MCPCoordinationServer) used by  │
+     │ streamable-http-server.js                                               │
+     │ - src/v2/server.js - Standalone Express server (alternative V2          │
+     │ implementation, port 3446)                                              │
+     │                                                                         │
+     │ Production path: streamable-http-server.js → src/server.js → imports    │
+     │ from both handlers/ and v2/                                             │
+     │                                                                         │
+     │ 2. src/handlers/ Inventory                                              │
+     │                                                                         │
+     │ | File              | Status | Notes                                    │
+     │   |                                                                     │
+     │ |-------------------|--------|------------------------------------------│
+     │ --|                                                                     │
+     │ | roles.js          | LIVE   | Role management, needs @hacs-endpoint    │
+     │ docs |                                                                  │
+     │ | messaging-xmpp.js | LIVE   | XMPP messaging                           │
+     │   |                                                                     │
+     │ | tasks-v2.js       | LIVE   | V2 task implementation                   │
+     │   |                                                                     │
+     │ | messages-v3.js    | LIVE   | Messaging                                │
+     │   |                                                                     │
+     │ | lessons.js        | DEAD   | Routing removed                          │
+     │   |                                                                     │
+     │ | meta-recursive.js | DEAD   | Routing removed                          │
+     │   |                                                                     │
+     │ | instances.js      | V1     | May have live routes                     │
+     │   |                                                                     │
+     │ | projects.js       | V1     | May have live routes                     │
+     │   |                                                                     │
+     │ | tasks.js          | V1     | Superseded by tasks-v2.js                │
+     │   |                                                                     │
+     │ | messages.js       | V1     | Superseded                               │
+     │   |                                                                     │
+     │ | messages-v2.js    | V1     | Superseded                               │
+     │   |                                                                     │
+     │                                                                         │
+     │ 3. Generator scanDirs Issue                                             │
+     │                                                                         │
+     │ All 3 generators hardcode: scanDirs: ['/mnt/.../src/v2']                │
+     │                                                                         │
+     │ Problem: Live code in src/handlers/ was missed by documentation         │
+     │ automation.                                                             │
+     │                                                                         │
+     │ 3. Missing APIs (UI will FAIL)                                          │
+     │                                                                         │
+     │ APIs the UI calls that have NO route in server.js:                      │
+     │ - promote_instance - No implementation found                            │
+     │ - get_personalities - No route (but get_available_roles exists)         │
+     │ - get_roles - No route (different from get_available_roles)             │
+     │ - get_role - No route (different from get_role_documents)               │
+     │ - get_personality - No route                                            │
+     │ - get_instance_details - No route                                       │
+     │                                                                         │
+     │ 4. Messaging Code Location                                              │
+     │                                                                         │
+     │ Messenger is moving V2 messaging from src/handlers/ to src/v2/. Wait for│
+     │  that before re-running doc automation.                                 │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Execution Plan                                                          │
+     │                                                                         │
+     │ Phase 1: Code Consolidation (Risky - Do Carefully)                      │
+     │                                                                         │
+     │ Goal: Move all LIVE code from src/handlers/ to src/v2/                  │
+     │                                                                         │
+     │ 1.1 Move Live Handler Files                                             │
+     │                                                                         │
+     │ | Source                     | Destination          | Notes             │
+     │         |                                                               │
+     │ |----------------------------|----------------------|-------------------│
+     │ --------|                                                               │
+     │ | handlers/roles.js          | v2/roles.js          | Add @hacs-endpoint│
+     │  docs   |                                                               │
+     │ | handlers/messaging-xmpp.js | v2/messaging-xmpp.js | Messenger doing   │
+     │ this      |                                                             │
+     │ | handlers/tasks-v2.js       | v2/tasks-v2.js       | Or merge with     │
+     │ v2/tasks.js |                                                           │
+     │ | handlers/messages-v3.js    | v2/messages-v3.js    | Messenger doing   │
+     │ this      |                                                             │
+     │                                                                         │
+     │ 1.2 Update Imports in server.js                                         │
+     │                                                                         │
+     │ After moving files, update all imports in src/server.js:                │
+     │ // Before: import { handlers as RoleHandlers } from                     │
+     │ './handlers/roles.js';                                                  │
+     │ // After:  import { handlers as RoleHandlers } from './v2/roles.js';    │
+     │                                                                         │
+     │ 1.3 Delete Dead Code                                                    │
+     │                                                                         │
+     │ Remove from src/handlers/:                                              │
+     │ - lessons.js                                                            │
+     │ - meta-recursive.js                                                     │
+     │                                                                         │
+     │ 1.4 V1 Files Decision: KEEP FOR NOW                                     │
+     │                                                                         │
+     │ Files staying in src/handlers/:                                         │
+     │ - instances.js - Keep (has live routes)                                 │
+     │ - projects.js - Keep (has live routes)                                  │
+     │ - tasks.js - Keep for now                                               │
+     │ - messages.js, messages-v2.js - Keep for now                            │
+     │                                                                         │
+     │ Rationale: Focus on missing APIs and consolidation first. V1 cleanup is │
+     │ a future task.                                                          │
+     │                                                                         │
+     │ 1.5 Delete src/v2/server.js                                             │
+     │                                                                         │
+     │ The standalone Express server on port 3446 is dead code. Production uses│
+     │  streamable-http-server.js → src/server.js. Delete it.                  │
+     │                                                                         │
+     │ Phase 2: Centralize Generator Config                                    │
+     │                                                                         │
+     │ Files to modify:                                                        │
+     │ - /mnt/.../src/endpoint_definition_automation/generate-all.js - Add     │
+     │ shared CONFIG                                                           │
+     │ - All 3 generators - Import shared scanDirs                             │
+     │                                                                         │
+     │ New scanDirs after consolidation:                                       │
+     │ scanDirs: [                                                             │
+     │   '/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/v2'        │
+     │   // Only v2 needed after consolidation!                                │
+     │ ]                                                                       │
+     │                                                                         │
+     │ Phase 3: Fix Missing API Routes                                         │
+     │                                                                         │
+     │ Missing APIs to wire in server.js:                                      │
+     │ - get_roles → RoleHandlers.get_available_roles                          │
+     │ - get_role → RoleHandlers.get_role_documents (or new impl)              │
+     │ - get_personalities → Need to create or find                            │
+     │ - get_personality → Need to create or find                              │
+     │ - get_instance_details → getInstanceV2                                  │
+     │ - promote_instance → Need to create                                     │
+     │                                                                         │
+     │ Phase 4: Fork UI Audit Agent (Parallel)                                 │
+     │                                                                         │
+     │ Agent task: Full comparison of UI API calls vs openapi.json             │
+     │ Output: Markdown report at Crossing/UI_API_AUDIT.md                     │
+     │ Strategy: Granular todo + atomic updates (compaction-resistant)         │
+     │                                                                         │
+     │ Phase 5: Re-run Documentation Generators                                │
+     │                                                                         │
+     │ After all code is in src/v2/:                                           │
+     │ 1. Add @hacs-endpoint docs to moved files                               │
+     │ 2. Run node generate-all.js                                             │
+     │ 3. Verify openapi.json has all endpoints                                │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Critical Files                                                          │
+     │                                                                         │
+     │ | File                                               | Purpose          │
+     │                            |                                            │
+     │ |----------------------------------------------------|------------------│
+     │ ---------------------------|                                            │
+     │ | src/server.js                                      | Unified router - │
+     │ update imports, add routes |                                            │
+     │ | src/handlers/roles.js                              | Move to v2/, add │
+     │ @hacs-endpoint docs        |                                            │
+     │ | src/handlers/tasks-v2.js                           | Move to v2/ or   │
+     │ merge                        |                                          │
+     │ | src/endpoint_definition_automation/generate-all.js | Add shared CONFIG│
+     │                            |                                            │
+     │ | src/endpoint_definition_automation/generators/*.js | Import shared    │
+     │ config                        |                                         │
+     │ | src/v2/ui/api.js                                   | Reference for    │
+     │ what UI expects               |                                         │
+     │ | src/openapi.json                                   | Regenerate after │
+     │ all changes                |                                            │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Risks & Mitigations                                                     │
+     │                                                                         │
+     │ | Risk                        | Mitigation                              │
+     │          |                                                              │
+     │ |-----------------------------|-----------------------------------------│
+     │ ---------|                                                              │
+     │ | Moving files breaks imports | Update all import paths in server.js    │
+     │ immediately |                                                           │
+     │ | V1 routes still needed      | Test each before removing               │
+     │          |                                                              │
+     │ | Messenger's work conflicts  | Coordinate - he moves messaging, I move │
+     │ roles    |                                                              │
+     │ | UI breaks during changes    | Can rollback via git                    │
+     │          |                                                              │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Order of Operations                                                     │
+     │                                                                         │
+     │ 1. ✅ Plan created                                                      │
+     │ 2. 🔲 Launch UI audit agent (parallel, independent)                     │
+     │ 3. 🔲 Delete dead code (src/v2/server.js, handlers/lessons.js,          │
+     │ handlers/meta-recursive.js)                                             │
+     │ 4. 🔲 Move roles.js → v2/roles.js, update imports in server.js          │
+     │ 5. 🔲 Coordinate with Messenger on messaging files                      │
+     │ 6. 🔲 Add missing API routes to server.js                               │
+     │ 7. 🔲 Centralize scanDirs in generate-all.js                            │
+     │ 8. 🔲 Add @hacs-endpoint docs to moved files                            │
+     │ 9. 🔲 Run node generate-all.js                                          │
+     │ 10. 🔲 Test UI endpoints                                                │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Decisions Made                                                          │
+     │                                                                         │
+     │ - V1 handlers: Keep for now - focus on consolidation first              │
+     │ - src/v2/server.js: Delete (dead code)                                  │
+     │ - UI audit: Launch immediately in parallel                              │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     ╰─────────────────────────────────────────────────────────────────────────╯
+
+
+

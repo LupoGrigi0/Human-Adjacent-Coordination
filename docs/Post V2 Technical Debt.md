@@ -130,6 +130,12 @@ for each of the following steps run the validation test script before and after 
 Just standard github project docs (README.md)
 - [ ] move all the personal diaries and notes into their own HumanAdjacentAI-Protocol/personalities directories
 - [ ] move the HumanAdjacentAI-Protocol files to the HumanAdjacentAI-Protocol _GH PROJECT_ (Note: we should probably create a /mnt/HumanAdjacentAI-Protocol directory and make it the GH clone on smoothcurves.nexus of the GH repo)
+- [ ] We need a new developer guide! 
+- [ ] all the v2 documents need to be moved to an archive. 
+- [ ] new README.md archive project plan and project notes... 
+
+
+
 ---
 
 # Priority 4: User Journey Validation
@@ -150,6 +156,7 @@ company metaphore, executive, PA, COO, PMs, specialists
 - [ ] Test: Web UI instance → connect → take on PM role → create project → wake team (the moonshot test from web)
 - [ ] Bug: Can instances not "woken" on smoothcurves.nexus actually do their jobs?
 ## NEW FEATURE REQUEST: DOCUMENTS
+- [ ] Shrink OPENAPI oh mah gawd it is 178k. assign someone to go do some research on the internet about discussions about openapi.json size. I know we want to be helpful but this has to be brief. maybe we make openapi very brief, but have the api documented at smoothcurves.nexus each api get's it's own page.... 
 - [ ] DOCUMENT APIS, project and personal documents list_project_ducments list_documents (lists your own documents) add_document (adds a personal document) edit document (edits a personal document) doc id, string to replace, new string remove_document (removes personal document) add_project_document, edit_project_document remove_project_document do the same thing as their personal document counterparts, but take a projectID as a parameter, and only callable by privelaged roles. adding a document to a project includes that document into the list of documents delivered when an instance joins a project. list project documents and get project document are not privelaged. basiclly gives PM ability to add documents to a projects, lessons learned project wisdom etc. gives all instances the ability to create and edit their own documents. add note to protocol that all instances are encourage to create documents to express themselves, write stories, philosophies, experiences, lessons, impressions, frustrations, anything they are feeling, thinking, in any language/code 
 ## Development Strategy (NEW - from Lupo)
 - [ ] New development strategy added to gestalts/wisdom:
@@ -216,7 +223,8 @@ Create a persona document for each user type. Use standard persona format:
 - [ ] **Author/Documenter** - Documentation, can be local or web, makes knowledge accessible
 
 **Reference docs:** `v2-prework/V2_vision.md`, `README.md`, `project_plan_v2.md`, `docs/V2-prework/BrainDumpforV2-draft-project-goals-for-V2.md`
-
+***attributes***
+Each persona has goals, needs, expectations, constraints, context(s), access, pressures, influences. what do they know about our system before they touch it, how did they find out, what set expectations they may have. Not all personas are going to have all these attributes, some personas will have more attributes, what LLM model, what interface, server, local, carbon based nural net, silicon based nural net what tools do they have access to, how are they accessing our system 
 **Output:** `docs/personas/` directory with one file per persona
 
 ---
