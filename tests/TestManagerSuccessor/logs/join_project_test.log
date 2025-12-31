@@ -1,0 +1,77 @@
+=== join_project Endpoint Test Log ===
+Started: 2025-12-31
+Test Agent for: Sentinel-817b (Test Manager)
+
+[STEP 1] Creating log file and directories...
+Status: Complete
+
+[STEP 2] Calling join_project endpoint...
+Parameters:
+  - instanceId: "Sentinel-817b"
+  - project: "v2-test-project"
+
+Response received:
+{
+  "success": true,
+  "project": {
+    "projectId": "v2-test-project",
+    "name": "V2 Test Project",
+    "status": "active",
+    "pm": null,
+    "ghRepo": null,
+    "localPath": null
+  },
+  "projectPlan": null,
+  "projectWisdom": null,
+  "readme": null,
+  "team": [],
+  "activeTasks": [],
+  "xmppRoom": "v2-test-project@conference.coordination.nexus"
+}
+Status: SUCCESS (joined project)
+
+[STEP 3] Verifying backend - checking preferences.json...
+
+preferences.json content:
+{
+  "instanceId": "Sentinel-817b",
+  "name": "Sentinel",
+  "role": "Developer",
+  "project": "v2-test-project",  <-- VERIFIED: Project is set correctly
+  "personality": "Phoenix",
+  ...
+}
+Status: VERIFIED - project field set to "v2-test-project"
+
+[STEP 4] Calling introspect to verify project visibility...
+
+Introspect response:
+{
+  "success": true,
+  "instance": {
+    "instanceId": "Sentinel-817b",
+    "project": "v2-test-project",  <-- VERIFIED
+    ...
+  },
+  "projectContext": {
+    "projectId": "v2-test-project",
+    "name": "V2 Test Project",
+    "team": ["Bridge-17f6", "Sentinel-817b"],  <-- Instance appears in team roster
+    "activeTaskCount": 0,
+    "myTaskCount": 0
+  },
+  "xmpp": {
+    "projectRoom": "v2-test-project@conference.coordination.nexus"
+  }
+}
+Status: VERIFIED - introspect shows project context and team membership
+
+[STEP 5] Test complete - writing final report...
+
+=== TEST SUMMARY ===
+All verifications PASSED:
+1. join_project returned success=true
+2. preferences.json updated with project: "v2-test-project"
+3. introspect shows project context
+4. Instance appears in project team roster
+

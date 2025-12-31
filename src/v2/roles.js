@@ -332,5 +332,92 @@ export const handlers = {
         }
       };
     }
+  },
+
+  /**
+   * Alias for get_available_roles - provides list_* API consistency
+   * @hacs-endpoint
+   * @tool list_roles
+   * @alias get_available_roles
+   */
+  async list_roles(params = {}) {
+    return handlers.get_available_roles(params);
+  },
+
+  /**
+   * Get a summary for a specific role (for informed consent before adoption)
+   * @hacs-endpoint
+   * @tool get_role_summary
+   * @param {string} role_name - Role identifier
+   * @returns Summary with description and document count (max 500 chars)
+   */
+  async get_role_summary(params = {}) {
+    const { role_name } = params;
+
+    if (!role_name) {
+      return {
+        success: false,
+        error: {
+          message: 'Missing required parameter: role_name',
+          timestamp: new Date().toISOString()
+        }
+      };
+    }
+
+    try {
+      const rolesConfig = loadRolesConfig();
+
+      if (!rolesConfig.roles[role_name]) {
+        return {
+          success: false,
+          error: {
+            message: `Role '${role_name}' not found`,
+            available_roles: Object.keys(rolesConfig.roles),
+            timestamp: new Date().toISOString()
+          }
+        };
+      }
+
+      const roleInfo = rolesConfig.roles[role_name];
+      const documents = getRoleDocumentList(role_name);
+
+      // Check for SUMMARY.md
+      let summary = roleInfo.description || '';
+      const summaryDoc = documents.find(d => d.name.toLowerCase() === 'summary.md');
+      if (summaryDoc) {
+        const summaryContent = getRoleDocumentContent(role_name, 'SUMMARY.md');
+        if (summaryContent && summaryContent.content) {
+          // Truncate to 500 chars
+          summary = summaryContent.content.substring(0, 500);
+          if (summaryContent.content.length > 500) {
+            summary += '...';
+          }
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          role_name: role_name,
+          name: roleInfo.name || role_name,
+          summary: summary,
+          document_count: documents.length,
+          requires_token: roleInfo.requiresToken || false
+        },
+        metadata: {
+          timestamp: new Date().toISOString(),
+          function: 'get_role_summary'
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          message: 'Failed to retrieve role summary',
+          details: error.message,
+          timestamp: new Date().toISOString()
+        }
+      };
+    }
   }
 };

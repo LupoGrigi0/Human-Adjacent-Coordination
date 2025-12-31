@@ -15,11 +15,12 @@ import path from 'path';
  * @hacs-endpoint
  * @template-version 1.0.0
  * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ GET_PERSONALITIES                                                       │
+ * │ GET_PERSONALITIES / LIST_PERSONALITIES                                  │
  * │ List all available personalities with their metadata                    │
  * └─────────────────────────────────────────────────────────────────────────┘
  *
  * @tool get_personalities
+ * @alias list_personalities
  * @version 2.0.0
  * @since 2025-12-29
  * @category identity
@@ -214,3 +215,9 @@ export async function getPersonality(params = {}) {
     };
   }
 }
+
+/**
+ * Alias for listPersonalities - provides snake_case API consistency
+ * @type {Function}
+ */
+export const list_personalities = listPersonalities;
