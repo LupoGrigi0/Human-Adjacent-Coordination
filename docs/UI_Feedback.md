@@ -223,33 +223,48 @@ Also... some indicator of "stale data" like I entered someting, created somethin
 ---
 
 ## Test Session 1: Lists Tab (Phase 2C - NEW FEATURE)
+GENERAL NOTE: error message in console log.. about no favicon. we need to create a favicon, care to help me craft a prompt for a logo for smoothcurves.nexus/the coordination system? 
 
 | #   | Action                                          | Expected Outcome                                              |
 |-----|-------------------------------------------------|---------------------------------------------------------------|
 | 1.1 | Click "Lists" in sidebar                        | Lists tab opens, shows list grid (or empty state)             |
-
+Yes, orignally empty added 2 lists
 | 1.2 | Click "+ New List" button                       | Create List modal opens                                       |
-
+Yes!
 | 1.3 | Fill in: Name="Shopping", Description="Groceries" | Fields accept input                                         |
+Yes. 
+WHOO HOO! I keep forgetting to tell you THANK YOU for implementing the drag handle on text input boxes!!! being able to change the size of text input boxes is one of those "oh my god that is so useful" features. 
+ALSO you implemented them so the UI _remembers_ when they have been resized THANK YOU!!! geeze that is such a pain in the ass when UI's do not remember resize!
 
 | 1.4 | Click "Create List"                             | Toast "List created!", modal closes, list card appears        |
-
+Oh Yeah. toast slides out nicely. list card appears. 
 | 1.5 | Click on the new list card                      | List Detail view opens with name, description, empty items    |
-
+yup! just as expected 
 | 1.6 | Type "Milk" in add item input, press Enter      | Item "Milk" appears in list with checkbox                     |
-
+(giggle) Mooooo, 
+Yes milk appears, Item created toast .. nice!
 | 1.7 | Add 2-3 more items using Enter key              | All items appear in list                                      |
-
+OH GOD I SEE WHAT YOU DID THERE!
+I did not notice this the first time.. oooh. you put in the effort to make this ui .. fkkin efficient!
+Yes! unlike .. pretty much everything else in the UI.. lists are gonna get "pounded out"! you have input focus default to the text input box, return key = add new item and keyboard input focus _stays_ in the text input box. 
+This... right here... is _superior_ interface design. understanding how a system will be used and designing the system to accomplish the goal elegantly. Sometimes you need to be cautious and double check entries and put in extra steps for verification or whatever, and sometimes you need to design a system to just be as tight and efficient as possable. this is.. just.. design at the highest order. from one perspective it's stupid simple. just set focus and default return as enter.. no big deal.. but there are about a billion ways to _not_ do it this way. THANK YOU. Donald Norman would be proud!
 | 1.8 | Click checkbox on an item                       | Item gets strikethrough, moves to "completed" state           |
-
+um.. i check the checkbox, it stays checked for a little bit, the UI seems to refresh, the item goes back to unchecked, I never see the strikethrough state... 
+did you implement a toast for "checked off" ? If so I never see a toast when I check off an item
 | 1.9 | Hover over an item, click trash icon            | Item is deleted from list                                     |
-
+now _that_ worked! And again, I love how _fast_ the UI is. 
+also slick, and smooth "item deleted" toast
 | 1.10| Click rename button (pencil icon)               | Prompt appears, can enter new name                            |
-
+Yup, that works. (NOTE: Can you add an edit box so the description of the list can also be changed. )
 | 1.11| Click "Back to Lists"                           | Returns to list grid, card shows updated item count           |
-
+back to lists grid yes. 
+Item counts do not seem to get updated until the page/ui is refreshed. When the UI is refreshed the list item count on the lists in the listst grid page is accurate. This is true for both add and remove (I tested remove in case deleting items from a list caused the list count to update)
 | 1.12| Create another list, then delete it             | Delete button prompts confirmation, list is removed           |
+Yup. I like the confirmation dialog. Is toast ever used for this? just curious. 
+NOTE: Deleting a list refreshes the lists page, and all the list item counts are accurate after after list delete (for lists who's number of items had changed and had not been updated yet. )
 
+In general FKKIN Awesom, and very useful. 
+Request... is there any _low risk_ way to change the order of lists? shopping list may allways be number one, but number 2 may change... low priority request, but this is kind of the same question for projects and maybe instances etc. etc. 
 ---
 
 ## Test Session 2: Instances Panel (Phase 2D - ENHANCED)
@@ -257,7 +272,8 @@ Also... some indicator of "stale data" like I entered someting, created somethin
 | #   | Action                                          | Expected Outcome                                              |
 |-----|-------------------------------------------------|---------------------------------------------------------------|
 | 2.1 | Click "Instances" in sidebar                    | Instances tab opens, shows instance cards grid                |
-
+No instances card grid... this phase stops here... 
+Question... "messages" lists instances.. not sure what the difference is is this a v2 api issue? (The V1 instances NEVER WORKED)
 | 2.2 | Observe instance cards                          | Cards show: name, instanceId, role badge, personality, project, status, last active |
 
 | 2.3 | Look for active/inactive indicators             | Active instances have green avatar, "Active" status           |
@@ -279,18 +295,23 @@ Also... some indicator of "stale data" like I entered someting, created somethin
 | #   | Action                                          | Expected Outcome                                              |
 |-----|-------------------------------------------------|---------------------------------------------------------------|
 | 3.1 | Go to Projects, click a project                 | Project Detail opens                                          |
-
-| 3.2 | Click "Add Task" from project detail            | Create Task modal opens                                       |
-
-| 3.3 | Create a task for this project                  | Task is created, **task list in project detail refreshes immediately** (B5 fix) |
+Yup!
 
 | 3.4 | Click on the new task in project detail         | Task Detail opens, breadcrumb says "Back to [Project Name]"   |
-
+Yes!
 | 3.5 | Click "Back to [Project Name]" breadcrumb       | **Returns to Project Detail without error toast** (B1 fix)    |
-
+Still "Project not found" toast and I'm taken back to project grid Please add some console logging around this so I can provide more info
 | 3.6 | From Task Detail, click "Claim Task"            | Toast shows success, **assignee field updates immediately** (B2 fix) |
+WHOO HOO! task shows assigned to [my unique ID]
+
+BUG: the change is not persistant, when I go back to the project grid, then back into the project, the task is no longer assigned to me, it's assigned status is Unassigned. The asignee is "unassigned" 
 
 | 3.7 | Go to Messages, send a message                  | **Message displays with proper subject/body, not "chat/chat"** (B3 fix) |
+WHOO!
+I can now send message headder and body!
+messages I send apear on the right!
+
+Check your messages! respend, send me one. 
 
 ---
 
@@ -299,16 +320,19 @@ Also... some indicator of "stale data" like I entered someting, created somethin
 | #   | Action                                          | Expected Outcome                                              |
 |-----|-------------------------------------------------|---------------------------------------------------------------|
 | 4.1 | Open UI fresh (or hard refresh)                 | **Dashboard tab is active by default** (not Messages)         |
-
+YES! THANK YOU
 | 4.2 | Go to Messages, select a conversation           | Compose area appears with **Subject field above message body** |
-
+YES! THANK YOU!
 | 4.3 | Type a subject "Test Subject" and body "Test body" | Both fields accept input                                    |
-
+!YES CHEeck your messages
 | 4.4 | Send the message                                | **Sent message appears on RIGHT side** of chat (blue bubble)  |
-
+message sent
 | 4.5 | Go to Projects, click a project, click "Add Task" | **Project dropdown is DISABLED** (locked to current project) |
-
+YES THANK YOU
+Completing the Task, pops right back to the project! and the task list for the project refreshes automatically and new task appears WHOO HOO!
+Sooo.. other areas where "back" and breadcrumbs is not working, you have one example of it working!
 | 4.6 | Create task, then view Task Detail              | **Created field shows date + creator** (e.g., "12/16/2025 by Lupo") |
+sadly nope, "created" is still just a - no date or creator and assigned is still "unassigned" 
 
 ---
 
@@ -316,19 +340,60 @@ Also... some indicator of "stale data" like I entered someting, created somethin
 
 After completing all sessions, verify:
 
-- [ ] **Lists Tab** - Full CRUD working (create, read, toggle, delete items, rename/delete lists)
-- [ ] **Instances Panel** - Cards display correctly, detail view works, Send Message works
-- [ ] **B1 Fix** - Back to Project from task detail works without error
-- [ ] **B2 Fix** - Claim task updates UI immediately
-- [ ] **B3 Fix** - Messages display proper subject/body
-- [ ] **B5 Fix** - Task list refreshes after create from project detail
-- [ ] **Dashboard Default** - Opens to Dashboard tab
-- [ ] **Subject Field** - Can compose messages with subject
-- [ ] **Sent on Right** - User's sent messages appear on right side
-- [ ] **Project Dropdown** - Disabled when creating task from project detail
-- [ ] **Task Created Info** - Shows date and creator
-
+- [0 **Lists Tab** - Full CRUD working (create, read, toggle, delete items, rename/delete lists)
+CHECK! check checketty check check. works perfect!
+- [0] **Instances Panel** - Cards display correctly, detail view works, Send Message works
+sorry no. instances panel no workie, no instances... 
+- [0] **B1 Fix** - Back to Project from task detail works without error
+Sorry "project not found toast..." and end up back in the projects grid. 
+- [0] **B2 Fix** - Claim task updates UI immediately
+sorry.. a little more detail here. in the task status "claimed" _is_ listed in the task list for the project the task is associated with. so _something_ is happening but in task detail the assigned status is still unassigned
+- [1] **B3 Fix** - Messages display proper subject/body
+YES! Fixed!
+- [1] **B5 Fix** - Task list refreshes after create from project detail
+YES! this works! perfectly, this works _really well_ because the scroll posiiton of the project detail view does not change, and the new task popps into the task list delightfully slick, also the nice toast that has the name of the task is cool. 
+- [1] **Dashboard Default** - Opens to Dashboard tab
+YES! THANK YOU!
+- [1] **Subject Field** - Can compose messages with subject
+YES, check your messages! what does it look like to you? Send response please!
+- [1] **Sent on Right** - User's sent messages appear on right side
+YES. i know this was a "nit" but a big usability thing. thank you
+- [1] **Project Dropdown** - Disabled when creating task from project detail
+YES!
+ALSO: Additional test conducted:
+clicked on tasks left button,
+In task grid, clicked "new task" 
+filled in new task details, 
+Selected a project from the project drop down
+Saved the new task, new task created toast popped out. view switched back to list of tasks
+Clicked on the projects button viewed the projects grid
+Clicked on the project I created the task for
+New task created appears in the list of tasks for the project!!
+Whoo!!
+- [0] **Task Created Info** - Shows date and creator
+unfortunately nope. I'm not even seeing a loction for creator or date
 ---
 
 **Notes/Issues Found:**
 (Space for recording any bugs or unexpected behavior during testing) 
+It looks like there is a consistant bug around list of instances. somehow in "messaging" tab there is a list of instances. and I can communicate with them, but the instances tab, and instances drop downs use a different code path that is not working. NOTE: Double check that you are not using V1 APIs associated to instances. 
+TONS of bugs fixed!
+Just one tab I was not able to test because of obvious reasons. 
+# post 2nd testing campaign notes
+some things we did not test: Edit project. (does nothing)
+The project Description CAN be changed. 
+Project status can not be changed (We did'nt test this)
+no delete/archive project (does the API support this? )
+Oh, we did'nt test the settings UI
+# so what now where are we.. day break and lost context
+# Latest feedback.
+**Projects**
+the UI needs to be getting the list of projects using _only_ the V2 apis so there is consistancy
+Assign project from the projects page does not seem to work. 
+Need to be able to change the status of the project (drop down on project status page)
+remove the edit button... does nothing
+# latest feedback
+wake/continue. I need to be able to resize (up) my input box
+NOTE.. we need to go through wake to verify what documents are given to the instance to read! Do they bootstrap!
+NOTE: Now that v2 has been merged the UI needs some internals work:
+/mnt/coordinaton_mcp_data/worktrees/devops/docs/UI_MIGRATION_TODO.md
