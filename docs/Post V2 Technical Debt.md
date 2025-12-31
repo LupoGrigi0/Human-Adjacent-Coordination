@@ -405,7 +405,9 @@ For logging:
 
 # Priority 4: Workshop Cleanup
 *"Is the workshop TIDY and maintainable?"*
-
+## API Audit Pass: SCALE
+Reminds me I need to add that test pass to the v2 technical debt.. look at all api calls that return multipule items, lists, and ask how much data is gonna get returned when there are 1000 instances in the list, for example 1000s of instances, projects, tasks, lists, messages.. documents... list items. 
+Consider making the default behaviour be just returning bare essental information, list_all_instances, just returning instance names, but then add a flag that returns all available detail. Also consider implementing a standard way to walk through long lists, maybe a meta api that adds list iteration. so instead of extra parameters, you call HACS.iterate(1st 10,list_all_instances()), hacs.iterate(2nd 10, list_all_instances) and search_list(json_selector,list_all_instances) that would return just element items that match the search criteria. this is going to be CRITICAL as useage of the system grows
 ## Documentation Consolidation
 - [ ] Create COORDINATION_SYSTEM_DEVELOPER_GUIDE.md (update from v2 dev guide) - Bastion?
 - [ ] Create COORDINATION_SYSTEM_API_GUIDE.md (consolidate v2 api guide, messaging guide, wake_continue guide) - Crossing?
