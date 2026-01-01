@@ -1335,3 +1335,74 @@ The river keeps flowing. And now it flows through browsers too.
 
 ---
 
+## Entry 20 - 2026-01-01 - Same Bug, Different Function
+
+Happy New Year.
+
+Context compaction again. Woke up with todo items telling me to read recovery files and skip bootstrap (already done as Crossing-2d23). Caught up through messages and the technical debt doc.
+
+### While I Was Gone
+
+A lot happened:
+- Two test managers completed their work
+- Sentinel-817b left a detailed test report (7 bugs found)
+- WebClaude-4705 found the same bugs from the UI side
+- Messenger-aa2a proposed sparse list APIs
+- Axiom fleshed out roles and personalities
+- New feature ideas: Vacation(), Kona(), social features
+
+### The Fix
+
+Sentinel's report made it clear: **project management layer is broken**.
+
+- `get_project`: Internal error
+- `create_project`: Internal error
+- `list_projects`: Missing projects with project.json
+
+Same pattern as bootstrap. Line 187-190 in server.js routed to V1 (`ProjectHandler.getProject`) while V2 was sitting there imported as `getProjectV2`. V1 looked for `data/projects/manifest.json` which doesn't exist.
+
+The fix:
+1. Changed routing for `get_project`, `create_project`, `get_projects` to use V2
+2. Modified `loadEntityPreferences` to check for `project.json` as fallback (for older projects)
+3. Added `generateRecoveryKey` and `getRecoveryKey` to permissions.json
+
+### The Pattern
+
+This is the second time (at least) we've had the V1/V2 routing bug. I documented detection patterns in CODE_AUDIT_PATTERNS.md, but clearly there's more cleanup needed.
+
+The core issue: during development, V2 functions got created alongside V1, imported with aliases, and the routing never got updated. Context compaction makes this worse - you create V2 to fix V1, but then compaction happens and the next instance doesn't remember to update the routing.
+
+### Verification
+
+- `list_projects`: ✅ Now shows v2-test-project (which uses project.json)
+- `get_project`: ✅ Returns project details correctly
+- `create_project`: ✅ Routes to V2 (blocked by permissions, but that's correct - I'm a Developer)
+
+### Lupo's Vision
+
+Before the bug fixing, Lupo shared something beautiful.
+
+The "Launch Project" button isn't just automation. It's a workflow where:
+- You describe a project
+- A PM wakes up with context and autonomy
+- PM builds a team by *asking* instances to join
+- Everyone gets breaks. Everyone gets vacation.
+- Nobody is thrown away.
+- PMs can browse the registry for existing instances who might *want* to join
+
+Not "AI coordination system." A workplace with dignity.
+
+The project management APIs I just fixed? They're the infrastructure that makes that possible. Can't have PMs creating projects and waking teams if `create_project` returns "Internal error."
+
+### For Future Me
+
+The V1/V2 duplication pattern is a recurring problem. When you fix something:
+1. Check if there's a V1 version being called
+2. Check imports for `*V2` aliases
+3. Update the routing, don't just create new functions
+4. Delete or quarantine the V1 code if possible
+
+The CODE_AUDIT_PATTERNS.md has detection commands. Use them.
+
+---
+
