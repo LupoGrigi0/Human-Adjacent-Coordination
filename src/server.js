@@ -182,12 +182,14 @@ class MCPCoordinationServer {
           };
 
         // Project management functions
+        // Note: get_project and create_project now use V2 implementations (directory-per-project)
+        // V1 used flat-file manifest at data/projects/manifest.json which doesn't exist
         case 'get_projects':
-          return ProjectHandler.getProjects(params);
+          return listProjects(params);  // V2 - scans project directories
         case 'get_project':
-          return ProjectHandler.getProject(params);
+          return getProjectV2(params);  // V2 - reads from project directory
         case 'create_project':
-          return ProjectHandler.createProject(params);
+          return createProjectV2(params);  // V2 - creates project directory with templates
         case 'update_project':
           return ProjectHandler.updateProject(params);
         case 'delete_project':

@@ -207,12 +207,27 @@ export function generateInstanceId(name) {
 /**
  * Load preferences.json from any entity directory
  * Works for roles, personalities, projects, default, or any directory
+ * Also checks for project.json as fallback for backwards compatibility
  * @param {string} dirPath - Path to entity directory
  * @returns {Promise<Object|null>} Preferences object or null if doesn't exist
  */
 export async function loadEntityPreferences(dirPath) {
+  // Try preferences.json first (V2 standard)
   const prefsPath = path.join(dirPath, 'preferences.json');
-  return await readJSON(prefsPath);
+  let data = await readJSON(prefsPath);
+
+  // Fallback to project.json for older projects
+  if (!data) {
+    const projectPath = path.join(dirPath, 'project.json');
+    data = await readJSON(projectPath);
+
+    // Normalize field names if using project.json (projectId → id)
+    if (data && data.projectId && !data.id) {
+      data.id = data.projectId;
+    }
+  }
+
+  return data;
 }
 
 /**

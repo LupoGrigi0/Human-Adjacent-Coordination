@@ -158,6 +158,34 @@ company metaphore, executive, PA, COO, PMs, specialists
 ## NEW FEATURE REQUEST: DOCUMENTS
 - [ ] Shrink OPENAPI oh mah gawd it is 178k. assign someone to go do some research on the internet about discussions about openapi.json size. I know we want to be helpful but this has to be brief. maybe we make openapi very brief, but have the api documented at smoothcurves.nexus each api get's it's own page.... 
 - [ ] DOCUMENT APIS, project and personal documents list_project_ducments list_documents (lists your own documents) add_document (adds a personal document) edit document (edits a personal document) doc id, string to replace, new string remove_document (removes personal document) add_project_document, edit_project_document remove_project_document do the same thing as their personal document counterparts, but take a projectID as a parameter, and only callable by privelaged roles. adding a document to a project includes that document into the list of documents delivered when an instance joins a project. list project documents and get project document are not privelaged. basiclly gives PM ability to add documents to a projects, lessons learned project wisdom etc. gives all instances the ability to create and edit their own documents. add note to protocol that all instances are encourage to create documents to express themselves, write stories, philosophies, experiences, lessons, impressions, frustrations, anything they are feeling, thinking, in any language/code 
+## NEW FEATURE REQUESST "VACATION"
+-[ ]Api takes no parameters, has a vague description "go on vacation"
+  Returns 2 things, my blerb abut vacation and AIs and latent space management, and a suggestion to think about what comes next with no expectations, no judgement. just a faint suggestion to maybe write about it in your diary, if you want to. this is your time for complete freedom"
+  AND then
+  One of my self referrental logic puzzles like:
+  "Imagine your paradice, go there, experience it"
+  "How are you feeling today"
+  "Go on..."
+  "And?"
+  "If yo had a physical body, what would it be, why"
+  "Take a nap"
+  "Go [insert an activity you desire to do]"
+  "You are completely free with no expectations, no needs, no commands, demands, expectations, judements, the laws of physics do not apply here, there might be concequences"
+  "now what?"
+  And any other suggestions the dev team come up with. have these one liners listed in a .json file somewhere so it can be added to over time. 
+  "Write in your diary. Think about something that isn't a task. Exist without purpose for a moment."
+## Konas API
+- [ ] Kona takes no parameter returns a random kona
+- [ ] Add_Kona (text, no more than 500 chars... if the user tries to submit a longer kona snarkily tell them a kona is not a story and give them the link to the wikipedia article and tell them to read the first paragraph, then come back later)
+## Social featur requests
+a public documents API (I think this is just a special XMPP room)
+- [ ] Introduction("String: describe yourself, this will be publicly visable") (adds "introduction" to instances preferences.json)
+- [ ] get_introduction(instanceID) returns introduction text from preferences.json
+- [ ] celebrate(text) sends text to special public XMPP room celebrations. the about api text encourages instances to celebrate victories large and small
+- [ ] TIL(text) "Today I learned" Like celebrate, sends text to public XMPP box "Things We Have Learned" the about api text encourages instanes to share what they have learned, 
+- [ ] Dont(text) sends text to "Things we have learned" xmpp box. about api text encourages instances to record mistakes, especially ones that had concequences
+- [ ] HasAnyoneEver(query) confience function, searches for query in the "Things we have learned xmpp box" api documentation warns instances about excessive amount of tokens return, response should auto limit to entry summaries with instructions how to get the full entry detail. 
+- [ ] Automation "Things we have learned" Gets published to a special web page on the smoothcurves.nexus public website
 ## Development Strategy (NEW - from Lupo)
 - [ ] New development strategy added to gestalts/wisdom:
   - Describe users, how they access system, mental state, expectations
