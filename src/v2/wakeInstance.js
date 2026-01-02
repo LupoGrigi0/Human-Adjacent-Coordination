@@ -56,18 +56,19 @@ function executeSetupScript(scriptPath, args, logPath) {
 }
 
 /**
- * Execute Claude command and capture output
- * Runs as the specified Unix user
+ * Execute a CLI command (claude or crush) and capture output
+ * Runs as the specified Unix user for security isolation
  *
+ * @param {string} command - The CLI command ('claude' or 'crush')
  * @param {string} workingDir - Directory to run command in
- * @param {string[]} args - Command arguments for claude
+ * @param {string[]} args - Command arguments
  * @param {string} unixUser - Unix user to run as
  * @param {number} timeout - Timeout in ms (default 5 minutes)
  * @returns {Promise<Object>} Result with stdout, stderr, exitCode
  */
-async function executeClaude(workingDir, args, unixUser, timeout = 300000) {
+async function executeInterface(command, workingDir, args, unixUser, timeout = 300000) {
   return new Promise((resolve, reject) => {
-    const sudoArgs = ['-u', unixUser, 'claude', ...args];
+    const sudoArgs = ['-u', unixUser, command, ...args];
 
     const child = spawn('sudo', sudoArgs, {
       cwd: workingDir,
@@ -465,7 +466,7 @@ export async function wakeInstance(params) {
     };
   }
 
-  // STEP 2: Build first message for Claude
+  // STEP 2: Build first message
   // Use provided message, or instructions from pre_approve, or a default
   const firstMessage = params.message ||
     targetPrefs.instructions ||
@@ -474,20 +475,39 @@ export async function wakeInstance(params) {
   // Prepend sender identification
   const messageWithSender = `[Message from: ${params.instanceId}]\n\n${firstMessage}`;
 
-  // Build Claude arguments - using --session-id for the FIRST call
-  const claudeArgs = [
-    '-p',
-    '--output-format', 'json',
-    '--dangerously-skip-permissions',
-    '--session-id', sessionId,
-    messageWithSender
-  ];
+  // Determine interface (claude or crush) - default to claude for backward compatibility
+  const interfaceType = targetPrefs.interface || 'claude';
 
-  // STEP 3: Execute Claude as the instance user
-  console.log(`[WAKE] Starting Claude session for ${params.targetInstanceId} with session ${sessionId}`);
+  // Build command and arguments based on interface
+  let command;
+  let cliArgs;
+
+  if (interfaceType === 'crush') {
+    // Crush: uses 'run' subcommand, -y for yolo mode (skip permissions)
+    // No session-id needed - directory IS the session
+    command = 'crush';
+    cliArgs = [
+      'run',
+      '-y',  // yolo mode - skip permission prompts
+      messageWithSender
+    ];
+  } else {
+    // Claude Code: uses -p for print mode, --session-id for first call
+    command = 'claude';
+    cliArgs = [
+      '-p',
+      '--output-format', 'json',
+      '--dangerously-skip-permissions',
+      '--session-id', sessionId,
+      messageWithSender
+    ];
+  }
+
+  // STEP 3: Execute the interface as the instance user
+  console.log(`[WAKE] Starting ${interfaceType} session for ${params.targetInstanceId}${interfaceType === 'claude' ? ` with session ${sessionId}` : ' (directory-based)'}`);
 
   try {
-    const result = await executeClaude(workingDirectory, claudeArgs, unixUser, 300000);
+    const result = await executeInterface(command, workingDirectory, cliArgs, unixUser, 300000);
 
     // Parse response
     let response;
@@ -498,7 +518,11 @@ export async function wakeInstance(params) {
     }
 
     // Store session info in preferences
-    targetPrefs.sessionId = sessionId;
+    // For claude: sessionId is the UUID, for crush: null (directory-based)
+    if (interfaceType === 'claude') {
+      targetPrefs.sessionId = sessionId;
+    }
+    targetPrefs.interface = interfaceType;
     targetPrefs.sessionCreatedAt = new Date().toISOString();
     targetPrefs.workingDirectory = workingDirectory;
     targetPrefs.unixUser = unixUser;
@@ -510,14 +534,15 @@ export async function wakeInstance(params) {
     return {
       success: true,
       targetInstanceId: params.targetInstanceId,
-      sessionId,
+      interface: interfaceType,
+      sessionId: interfaceType === 'claude' ? sessionId : null,
       unixUser,
       workingDirectory,
       turnNumber: 1,
       response,
       exitCode: result.exitCode,
       stderr: result.stderr || null,
-      message: `Instance ${params.targetInstanceId} woken successfully`,
+      message: `Instance ${params.targetInstanceId} woken successfully via ${interfaceType}`,
       hint: 'Use continue_conversation for all subsequent communication',
       metadata
     };
@@ -525,7 +550,7 @@ export async function wakeInstance(params) {
   } catch (err) {
     return {
       success: false,
-      error: { code: 'CLAUDE_EXECUTION_FAILED', message: `Failed to start Claude session: ${err.message}` },
+      error: { code: 'INTERFACE_EXECUTION_FAILED', message: `Failed to start ${interfaceType} session: ${err.message}` },
       metadata
     };
   }

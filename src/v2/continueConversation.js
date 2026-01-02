@@ -32,20 +32,21 @@ function instanceIdToUnixUser(instanceId) {
 }
 
 /**
- * Execute claude command and capture output
+ * Execute a CLI command (claude or crush) and capture output
  * Runs as the specified Unix user for security isolation
  *
+ * @param {string} command - The CLI command ('claude' or 'crush')
  * @param {string} workingDir - Directory to run command in
- * @param {string[]} args - Command arguments for claude
+ * @param {string[]} args - Command arguments
  * @param {string} unixUser - Unix user to run as
  * @param {number} timeout - Timeout in ms (default 5 minutes)
  * @returns {Promise<Object>} Result with stdout, stderr, exitCode
  */
-async function executeClaude(workingDir, args, unixUser, timeout = 300000) {
+async function executeInterface(command, workingDir, args, unixUser, timeout = 300000) {
   return new Promise((resolve, reject) => {
     // Run as the instance's Unix user via sudo
     // This provides security isolation between instances
-    const sudoArgs = ['-u', unixUser, 'claude', ...args];
+    const sudoArgs = ['-u', unixUser, command, ...args];
 
     const child = spawn('sudo', sudoArgs, {
       cwd: workingDir,
@@ -377,7 +378,14 @@ export async function continueConversation(params) {
     };
   }
 
-  if (!targetPrefs.sessionId) {
+  // Check if instance was woken
+  // Claude instances need sessionId, Crush instances just need to have been woken (status: 'active')
+  const interfaceType = targetPrefs.interface || 'claude';
+  const wasWoken = interfaceType === 'crush'
+    ? (targetPrefs.status === 'active' || targetPrefs.conversationTurns >= 1)
+    : !!targetPrefs.sessionId;
+
+  if (!wasWoken) {
     return {
       success: false,
       error: {
@@ -410,7 +418,7 @@ export async function continueConversation(params) {
   // This must match the user created by claude-code-setup.sh
   const unixUser = instanceIdToUnixUser(params.targetInstanceId);
 
-  // Build claude command arguments
+  // Build command arguments based on interface
   const options = params.options || {};
   const outputFormat = options.outputFormat || 'json';
   const timeout = options.timeout || 300000;
@@ -418,26 +426,44 @@ export async function continueConversation(params) {
   // Track conversation turn (wake_instance is turn 1, so we start at 2)
   const turnNumber = (targetPrefs.conversationTurns || 1) + 1;
 
-  const claudeArgs = [
-    '-p',  // Print mode (non-interactive)
-    '--output-format', outputFormat,
-    '--dangerously-skip-permissions',
-    '--resume', targetPrefs.sessionId  // ALWAYS use --resume (wake_instance did --session-id)
-  ];
-
-  if (options.includeThinking) {
-    claudeArgs.push('--include-partial-messages');
-  }
-
   // Prepend sender identification so the instance knows who's talking
   const messageWithSender = `[Message from: ${params.instanceId}]\n\n${params.message}`;
 
-  // Add the message as the final argument
-  claudeArgs.push(messageWithSender);
+  // Build command and arguments based on interface
+  // (interfaceType was determined earlier in the session check)
+  let command;
+  let cliArgs;
 
-  // Execute claude as the instance user
+  if (interfaceType === 'crush') {
+    // Crush: uses 'run' subcommand, -y for yolo mode
+    // Directory-based continuation - no resume flag needed
+    command = 'crush';
+    cliArgs = [
+      'run',
+      '-y',  // yolo mode - skip permission prompts
+      messageWithSender
+    ];
+  } else {
+    // Claude Code: uses -p for print mode, --resume for continuation
+    command = 'claude';
+    cliArgs = [
+      '-p',  // Print mode (non-interactive)
+      '--output-format', outputFormat,
+      '--dangerously-skip-permissions',
+      '--resume', targetPrefs.sessionId  // Use --resume (wake_instance did --session-id)
+    ];
+
+    if (options.includeThinking) {
+      cliArgs.push('--include-partial-messages');
+    }
+
+    // Add the message as the final argument
+    cliArgs.push(messageWithSender);
+  }
+
+  // Execute interface as the instance user
   try {
-    const result = await executeClaude(workingDir, claudeArgs, unixUser, timeout);
+    const result = await executeInterface(command, workingDir, cliArgs, unixUser, timeout);
 
     // Parse response based on output format
     let response;
@@ -477,7 +503,8 @@ export async function continueConversation(params) {
     return {
       success: true,
       targetInstanceId: params.targetInstanceId,
-      sessionId: targetPrefs.sessionId,
+      interface: interfaceType,
+      sessionId: interfaceType === 'claude' ? targetPrefs.sessionId : null,
       turnNumber,
       response,
       exitCode: result.exitCode,
@@ -490,7 +517,7 @@ export async function continueConversation(params) {
       success: false,
       error: {
         code: 'EXECUTION_FAILED',
-        message: `Failed to execute claude: ${err.message}`
+        message: `Failed to execute ${interfaceType}: ${err.message}`
       },
       metadata
     };
