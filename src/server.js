@@ -293,19 +293,21 @@ class MCPCoordinationServer {
         case 'get_instance_stats':
           return InstanceHandler.getInstanceStats(params);
 
-        // Role management functions
-        case 'get_available_roles':
+        // Role management functions (V2)
+        case 'list_roles':
+        case 'get_available_roles':  // legacy alias
         case 'get_roles':  // UI alias
-          return RoleHandlers.get_available_roles(params);
-        case 'get_role_documents':
-        case 'get_role':  // UI alias - transforms roleId to role_name
-          return RoleHandlers.get_role_documents({
-            role_name: params.roleId || params.role_name
-          });
-        case 'get_role_document':
-          return RoleHandlers.get_role_document(params);
-        case 'get_all_role_documents':
-          return RoleHandlers.get_all_role_documents(params);
+          return RoleHandlers.list_roles(params);
+        case 'get_role':
+        case 'get_role_documents':  // legacy alias
+          return RoleHandlers.get_role(params);
+        case 'get_role_summary':
+          return RoleHandlers.get_role_summary(params);
+        case 'get_role_wisdom_file':
+        case 'get_role_document':  // legacy alias
+          return RoleHandlers.get_role_wisdom_file(params);
+        case 'get_all_role_documents':  // legacy - maps to get_role
+          return RoleHandlers.get_role(params);
 
         // ========================================
         // V2 APIs (Foundation's implementation)
