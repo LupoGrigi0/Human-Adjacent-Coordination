@@ -99,6 +99,7 @@ function createEmptyTaskFile(ownerId, ownerType) {
 
 /**
  * Load or initialize personal tasks file
+ * Handles both old format (lists) and new format (task_lists)
  */
 async function loadPersonalTasks(instanceId) {
   const filePath = getPersonalTasksFile(instanceId);
@@ -106,6 +107,16 @@ async function loadPersonalTasks(instanceId) {
   if (!data) {
     data = createEmptyTaskFile(instanceId, 'instance');
     await writeJSON(filePath, data);
+  }
+  // Handle old format: 'lists' instead of 'task_lists'
+  if (!data.task_lists && data.lists) {
+    data.task_lists = data.lists;
+  }
+  // Ensure task_lists exists
+  if (!data.task_lists) {
+    data.task_lists = {
+      default: { name: 'Default', created: new Date().toISOString(), tasks: [] }
+    };
   }
   return data;
 }
