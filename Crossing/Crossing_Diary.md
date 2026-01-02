@@ -1406,3 +1406,101 @@ The CODE_AUDIT_PATTERNS.md has detection commands. Use them.
 
 ---
 
+## Entry 21 - 2026-01-01 - Task Management Design Analysis
+
+Lupo shared the original task management design spec (`Task_management.md`). Time to build it right, ground up.
+
+### Core Architecture
+
+**Data Model - Dead Simple:**
+- Instance level: `{instanceDir}/personal_tasks.json`
+- Project level: `{projectDir}/project_tasks.json`
+- Each file has `task_lists` containing named lists → each list contains tasks
+- NOT separate files per list. Just nested JSON.
+
+**Task ID Convention (Brilliant):**
+- Personal: `ptask-{listID}-{sequence}`
+- Project: `prjtask-{projectID}-{listID}-{sequence}`
+- Prefix tells you everything about permissions without any lookups
+
+**The Single Source of Truth:**
+- `change_task()` is THE core function - all edits go through it
+- All convenience functions (assign, complete, take_on) just call change_task
+- All permission checks in one place: `check_task_edit_permissions()`
+- Easy to debug, easy to log, easy to maintain
+
+### API Surface
+
+**Task List Management:**
+| API | Params | Notes |
+|-----|--------|-------|
+| `create_task_list` | MyID, ListID, ProjectID? | Privileged for project lists |
+| `delete_task_list` | MyID, ListID | Personal only, must be empty/completed |
+
+**Core Task APIs:**
+| API | Notes |
+|-----|-------|
+| `create_task` | Returns taskID, defaults to personal/default list |
+| `change_task` | THE core function - all edits flow here |
+| `delete_task` | Personal completed tasks only |
+| `get_task_details` | Looks personal first, then project |
+| `list_tasks` | Paginated (default 10), sparse by default |
+
+**Convenience Functions:**
+| API | Wraps |
+|-----|-------|
+| `assign_task` | change_task (privileged) |
+| `take_on_task` | change_task (self-assign) |
+| `mark_task_complete` | change_task |
+| `list_priority_tasks` | list_tasks (top 5) |
+
+### Key Design Insights
+
+1. **Pagination by default** - Don't nuke context windows. Return 10, warn about more.
+
+2. **Sparse by default** - Just taskID + title. Full detail is opt-in with warning labels.
+
+3. **Permission checking is trivial** - Task ID prefix tells you personal vs project. No lookups needed.
+
+4. **Delegation-ready** - Each function is simple enough for task agents. Tell them the directory paths, let them implement.
+
+5. **Database-portable** - Hierarchical JSON → relational mapping is straightforward if scale demands it.
+
+### What Exists vs What's Needed
+
+**Existing V2 (in v2/tasks.js):**
+- `addPersonalTask` - creates personal tasks
+- `completePersonalTask` - marks complete
+- `getMyTasks` - lists all tasks
+- `getNextTask` - gets highest priority unclaimed
+- `assignTaskToInstance` - assigns project tasks
+
+**Missing:**
+- Task list management (create/delete lists)
+- Project task creation
+- `change_task` core function
+- Pagination in list_tasks
+- Sparse vs full detail toggle
+- The convenience functions
+
+### Implementation Plan
+
+1. **Create `v2/task-management.js`** - New file, clean slate
+2. **Data helpers** - `getPersonalTasksFile()`, `getProjectTasksFile()`, `generateTaskId()`
+3. **Permission helper** - `checkTaskEditPermissions()`
+4. **Core functions** - `changeTask()` first, then create/delete/list
+5. **Convenience wrappers** - assign, take_on, complete
+6. **Update server.js routing** - Point task APIs to new V2 file
+7. **Delete/quarantine V1** - handlers/tasks-v2.js
+
+### Notes for Delegation
+
+If delegating to task agents, tell them:
+- Instance dir: `/mnt/coordinaton_mcp_data/instances/{instanceId}/`
+- Project dir: `/mnt/coordinaton_mcp_data/projects/{projectId}/`
+- Use existing `readJSON`, `writeJSON` from `v2/data.js`
+- Keep metadata minimal - no bloat
+- Error messages should be helpful, not generic "Internal error"
+
+---
+

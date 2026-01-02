@@ -29,6 +29,7 @@ import { adoptPersonality } from './v2/adoptPersonality.js';
 import { listPersonalities, getPersonality } from './v2/personalities.js';  // New: personality listing
 import { joinProject } from './v2/joinProject.js';
 import { addDiaryEntry, getDiary } from './v2/diary.js';
+// Legacy V2 tasks (keeping for backward compatibility during transition)
 import {
   getMyTasks,
   getNextTask,
@@ -38,6 +39,20 @@ import {
   getPersonalLists,
   assignTaskToInstance
 } from './v2/tasks.js';
+// Task Management V2 - Ground-up implementation (replaces V1 TaskHandler)
+import {
+  createTask,
+  changeTask,
+  listTasks,
+  createTaskList,
+  deleteTask,
+  deleteTaskList,
+  assignTask,
+  takeOnTask,
+  markTaskComplete,
+  getTaskDetails,
+  listPriorityTasks
+} from './v2/task-management.js';
 import {
   createProject as createProjectV2,
   getProject as getProjectV2,
@@ -197,31 +212,34 @@ class MCPCoordinationServer {
         case 'get_project_stats':
           return ProjectHandler.getProjectStats(params);
 
-        // Task management functions
-        case 'get_tasks':
-          return TaskHandler.getTasks(params);
-        case 'get_task':
-          return TaskHandler.getTask(params);
+        // Task management functions (V2 - task-management.js)
+        // Core functions
         case 'create_task':
-          return TaskHandler.createTask(params);
-        case 'claim_task':
-          const claimResult = await TaskHandler.claimTask(params);
-          // Update instance task count if successful
-          if (claimResult.success && params.instanceId) {
-            await InstanceHandler.updateTaskCount({
-              instanceId: params.instanceId,
-              increment: 1
-            });
-          }
-          return claimResult;
-        case 'update_task':
-          return TaskHandler.updateTask(params);
-        case 'get_pending_tasks':
-          return TaskHandler.getPendingTasks(params);
-        case 'get_task_stats':
-          return TaskHandler.getTaskStats(params);
+          return createTask(params);
+        case 'change_task':
+          return changeTask(params);
+        case 'list_tasks':
+          return listTasks(params);
+        case 'get_task_details':
+          return getTaskDetails(params);
         case 'delete_task':
-          return TaskHandler.deleteTask(params);
+          return deleteTask(params);
+
+        // Task list management
+        case 'create_task_list':
+          return createTaskList(params);
+        case 'delete_task_list':
+          return deleteTaskList(params);
+
+        // Convenience functions (all wrap changeTask)
+        case 'assign_task':
+          return assignTask(params);
+        case 'take_on_task':
+          return takeOnTask(params);
+        case 'mark_task_complete':
+          return markTaskComplete(params);
+        case 'list_priority_tasks':
+          return listPriorityTasks(params);
 
         // Message system functions
         case 'send_message':
