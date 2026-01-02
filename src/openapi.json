@@ -140,6 +140,10 @@
               "create_project",
               "get_project",
               "list_projects",
+              "list_roles",
+              "get_role",
+              "get_role_summary",
+              "get_role_wisdom_file",
               "take_on_role",
               "get_my_tasks",
               "get_next_task",
@@ -1196,6 +1200,66 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "list_roles_params": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "Role identifier"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Wisdom file name"
+          }
+        },
+        "required": [
+          "roleId",
+          "roleId",
+          "roleId",
+          "fileName"
+        ]
+      },
+      "get_role_params": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "Role identifier (e.g., \"PM\", \"Developer\", \"LeadDesigner\")"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "get_role_summary_params": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "Role identifier"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "get_role_wisdom_file_params": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "Role identifier"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Wisdom file name (e.g., \"01-core.md\")"
+          }
+        },
+        "required": [
+          "roleId",
+          "fileName"
         ]
       },
       "take_on_role_params": {
@@ -4638,6 +4702,122 @@
         "Returns summary data only; use getProject for full project details",
         "Creates projects directory if it doesn't exist"
       ]
+    },
+    "list_roles": {
+      "name": "list_roles",
+      "description": "discover what roles exist before adopting one with take_on_role.",
+      "category": "instance-management",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "Role identifier"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Wisdom file name"
+          }
+        },
+        "required": [
+          "roleId",
+          "roleId",
+          "roleId",
+          "fileName"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_role": {
+      "name": "get_role",
+      "description": "documents. Use this after list_roles to get complete role information.",
+      "category": "instance-management",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "Role identifier (e.g., \"PM\", \"Developer\", \"LeadDesigner\")"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_role_summary": {
+      "name": "get_role_summary",
+      "description": "Returns truncated SUMMARY.md (max 500 chars) - lighter weight than get_role.",
+      "category": "instance-management",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "Role identifier"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_role_wisdom_file": {
+      "name": "get_role_wisdom_file",
+      "description": "one document rather than all wisdom files.",
+      "category": "instance-management",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "Role identifier"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Wisdom file name (e.g., \"01-core.md\")"
+          }
+        },
+        "required": [
+          "roleId",
+          "fileName"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
     },
     "take_on_role": {
       "name": "take_on_role",

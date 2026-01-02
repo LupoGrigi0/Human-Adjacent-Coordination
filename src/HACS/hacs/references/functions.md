@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 49 coordination functions available in the HACS system.
+Complete reference for all 53 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2025-12-30T00:43:50.757Z
+> **Auto-generated:** 2026-01-02T23:32:44.365Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -951,6 +951,44 @@ Sends a message via the XMPP messaging system. Supports multiple addressing mode
   }
 }
 ```
+
+## instance-management Functions
+
+### get_role
+documents. Use this after list_roles to get complete role information. /
+
+**Parameters:**
+- `roleId` (required): Role identifier (e.g., "PM", "Developer", "LeadDesigner")
+
+**Returns:** , Whether the operation succeeded, Role configuration from role.json, Array of wisdom documents with content, SUMMARY.md content if available
+
+### get_role_summary
+Returns truncated SUMMARY.md (max 500 chars) - lighter weight than get_role. /
+
+**Parameters:**
+- `roleId` (required): Role identifier
+
+**Returns:** , Whether the operation succeeded, Role identifier, Brief summary (max 500 chars), Whether adoption requires authorization token
+
+### get_role_wisdom_file
+one document rather than all wisdom files. /
+
+**Parameters:**
+- `roleId` (required): Role identifier
+- `fileName` (required): Wisdom file name (e.g., "01-core.md")
+
+**Returns:** , Whether the operation succeeded, File content, File name
+
+### list_roles
+discover what roles exist before adopting one with take_on_role. /
+
+**Parameters:**
+- `roleId` (required): Role identifier
+- `roleId` (required): Role identifier
+- `roleId` (required): Role identifier
+- `fileName` (required): Wisdom file name
+
+**Returns:** configuration, of role IDs, of wisdom file metadata, content and metadata, , Whether the operation succeeded, Array of role objects with id, description, requiresToken
 
 ## tasks Functions
 

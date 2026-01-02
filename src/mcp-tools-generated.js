@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2025-12-29T22:23:53.149Z                           ║
- * ║  Tool Count: 49                                                         ║
+ * ║  Generated: 2026-01-02T23:32:44.201Z                           ║
+ * ║  Tool Count: 53                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -832,6 +832,59 @@ export const mcpTools = [
     }
   },
   {
+    "name": "get_role",
+    "description": "documents. Use this after list_roles to get complete role information. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "Role identifier (e.g., \"PM\", \"Developer\", \"LeadDesigner\")"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_summary",
+    "description": "Returns truncated SUMMARY.md (max 500 chars) - lighter weight than get_role. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "Role identifier"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_wisdom_file",
+    "description": "one document rather than all wisdom files. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "Role identifier"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Wisdom file name (e.g., \"01-core.md\")"
+        }
+      },
+      "required": [
+        "roleId",
+        "fileName"
+      ]
+    }
+  },
+  {
     "name": "get_ui_state",
     "description": "Retrieves the UI state object for an instance. UI state is stored as a free-form object in the instance's preferences.json file under the `uiState` field. Use this endpoint when loading a UI to restore the user's previous preferences like theme, sidebar state, selected project, etc.",
     "inputSchema": {
@@ -940,6 +993,23 @@ export const mcpTools = [
             "paused"
           ],
           "default": "undefined (returns all projects regardless of status)"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_roles",
+    "description": "discover what roles exist before adopting one with take_on_role. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "Role identifier"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Wisdom file name"
         }
       }
     }
