@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 56 coordination functions available in the HACS system.
+Complete reference for all 57 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-03T03:09:14.183Z
+> **Auto-generated:** 2026-01-03T07:52:44.049Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -218,6 +218,14 @@ The primary entry point for all instances joining the HACS coordination system. 
   }
 }
 ```
+
+### get_tool_help
+verbose help including parameters, return values, examples, and usage guidance. Use this to understand how to use any tool - like Unix man pages. /
+
+**Parameters:**
+- `tool` (required): The tool name to get help for
+
+**Returns:** , Whether help was found, The tool name, Full description, Parameter details with types and sources, Return value documentation, Usage examples, Related tools
 
 ### introspect
 Returns the current state of an instance including its role, active project, pending tasks, XMPP messaging info, and personal task counts. This is the primary "where am I, what should I do" endpoint for woken instances. Use this endpoint after waking up or recovering from context loss to understand your current state and what actions are available to you.

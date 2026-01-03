@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-03T03:09:14.022Z                           ║
- * ║  Tool Count: 56                                                         ║
+ * ║  Generated: 2026-01-03T07:52:43.873Z                           ║
+ * ║  Tool Count: 57                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -909,6 +909,22 @@ export const mcpTools = [
       "required": [
         "roleId",
         "fileName"
+      ]
+    }
+  },
+  {
+    "name": "get_tool_help",
+    "description": "verbose help including parameters, return values, examples, and usage guidance. Use this to understand how to use any tool - like Unix man pages. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "The tool name to get help for"
+        }
+      },
+      "required": [
+        "tool"
       ]
     }
   },

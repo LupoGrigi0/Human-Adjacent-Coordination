@@ -318,6 +318,12 @@ class MCPCoordinationServer {
         case 'add_koan':
           return VacationHandlers.add_koan(params);
 
+        // Documentation API (no auth required) - the "man pages"
+        case 'get_tool_help':
+        case 'help':  // alias
+        case 'man':   // unix nostalgia
+          return VacationHandlers.get_tool_help(params);
+
         // ========================================
         // V2 APIs (Foundation's implementation)
         // ========================================

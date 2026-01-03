@@ -287,5 +287,130 @@ export const handlers = {
         function: 'add_koan'
       }
     };
+  },
+
+  /**
+   * @hacs-endpoint
+   * @tool get_tool_help
+   * @version 1.0.0
+   * @category core
+   * @status stable
+   * @description Get detailed documentation for any HACS API tool. Returns
+   *   verbose help including parameters, return values, examples, and usage
+   *   guidance. Use this to understand how to use any tool - like Unix man pages.
+   * @param {string} tool - The tool name to get help for [required]
+   * @returns {object} response
+   * @returns {boolean} .success - Whether help was found
+   * @returns {string} .tool - The tool name
+   * @returns {string} .description - Full description
+   * @returns {object[]} .parameters - Parameter details with types and sources
+   * @returns {object[]} .returns - Return value documentation
+   * @returns {string[]} .examples - Usage examples
+   * @returns {string[]} .related - Related tools
+   */
+  async get_tool_help(params = {}) {
+    const { tool } = params;
+
+    if (!tool) {
+      return {
+        success: false,
+        error: {
+          code: 'MISSING_TOOL',
+          message: 'Specify which tool you need help with.',
+          hint: 'Try: get_tool_help({ tool: "bootstrap" })'
+        }
+      };
+    }
+
+    const HELP_FILE = '/mnt/coordinaton_mcp_data/api-help.json';
+
+    // Load help data
+    let helpData;
+    try {
+      if (!existsSync(HELP_FILE)) {
+        return {
+          success: false,
+          error: {
+            code: 'HELP_NOT_GENERATED',
+            message: 'Help content has not been generated yet.',
+            hint: 'Run: node src/endpoint_definition_automation/generate-all.js'
+          }
+        };
+      }
+      helpData = JSON.parse(readFileSync(HELP_FILE, 'utf8'));
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'HELP_LOAD_ERROR',
+          message: 'Could not load help data.',
+          details: error.message
+        }
+      };
+    }
+
+    // Find the tool
+    const toolHelp = helpData.tools[tool.toLowerCase()];
+
+    if (!toolHelp) {
+      // Try to find similar tools
+      const allTools = Object.keys(helpData.tools);
+      const similar = allTools.filter(t =>
+        t.includes(tool.toLowerCase()) || tool.toLowerCase().includes(t)
+      ).slice(0, 5);
+
+      return {
+        success: false,
+        error: {
+          code: 'TOOL_NOT_FOUND',
+          message: `No tool named '${tool}' found.`,
+          similarTools: similar.length > 0 ? similar : undefined,
+          availableCategories: helpData.categories,
+          hint: similar.length > 0
+            ? `Did you mean: ${similar.join(', ')}?`
+            : 'Use get_tool_help({ tool: "list" }) to see all available tools.'
+        }
+      };
+    }
+
+    // Special case: "list" returns all tool names grouped by category
+    if (tool.toLowerCase() === 'list') {
+      const byCategory = {};
+      for (const [name, info] of Object.entries(helpData.tools)) {
+        const cat = info.category || 'uncategorized';
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push({ name, oneLiner: info.oneLiner || info.description?.split('.')[0] });
+      }
+
+      return {
+        success: true,
+        tool: 'list',
+        description: 'All available HACS tools grouped by category',
+        categories: byCategory,
+        totalTools: Object.keys(helpData.tools).length,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          function: 'get_tool_help'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      tool: tool,
+      category: toolHelp.category,
+      version: toolHelp.version,
+      status: toolHelp.status,
+      description: toolHelp.description,
+      parameters: toolHelp.parameters || [],
+      returns: toolHelp.returns || [],
+      examples: toolHelp.examples || [],
+      related: toolHelp.related || [],
+      notes: toolHelp.notes || [],
+      metadata: {
+        timestamp: new Date().toISOString(),
+        function: 'get_tool_help'
+      }
+    };
   }
 };
