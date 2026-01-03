@@ -138,6 +138,16 @@ if [ -f "$SHARED_CLAUDE_DIR/settings.json" ]; then
   echo "[$(date -Iseconds)] Copied Claude settings from shared-config" >> "$LOG_FILE"
 fi
 
+# Copy Crush config if present (for instances using Crush interface)
+SHARED_CRUSH_DIR="/mnt/coordinaton_mcp_data/shared-config/crush"
+CRUSH_CONFIG_DIR="$WORKING_DIR/.config/crush"
+if [ -d "$SHARED_CRUSH_DIR" ]; then
+  mkdir -p "$CRUSH_CONFIG_DIR"
+  cp -r "$SHARED_CRUSH_DIR"/* "$CRUSH_CONFIG_DIR/"
+  chown -R "$UNIX_USER:$UNIX_USER" "$WORKING_DIR/.config"
+  echo "[$(date -Iseconds)] Copied Crush config from shared-config" >> "$LOG_FILE"
+fi
+
 echo "[$(date -Iseconds)] Setup completed successfully" >> "$LOG_FILE"
 
 # Output JSON result
