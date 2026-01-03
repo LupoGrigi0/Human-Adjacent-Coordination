@@ -119,22 +119,23 @@ if [ ! -d "$CLAUDE_DIR" ]; then
   echo "[$(date -Iseconds)] Created .claude directory" >> "$LOG_FILE"
 fi
 
-# Copy Claude credentials from root user (required for authentication)
-ROOT_CLAUDE_DIR="/root/.claude"
-if [ -f "$ROOT_CLAUDE_DIR/.credentials.json" ]; then
-  cp "$ROOT_CLAUDE_DIR/.credentials.json" "$CLAUDE_DIR/"
+# Copy Claude credentials from shared config location (required for authentication)
+# NOTE: Uses shared-config because systemd ProtectHome=yes blocks /root access
+SHARED_CLAUDE_DIR="/mnt/coordinaton_mcp_data/shared-config/claude"
+if [ -f "$SHARED_CLAUDE_DIR/.credentials.json" ]; then
+  cp "$SHARED_CLAUDE_DIR/.credentials.json" "$CLAUDE_DIR/"
   chown "$UNIX_USER:$UNIX_USER" "$CLAUDE_DIR/.credentials.json"
   chmod 600 "$CLAUDE_DIR/.credentials.json"
-  echo "[$(date -Iseconds)] Copied Claude credentials" >> "$LOG_FILE"
+  echo "[$(date -Iseconds)] Copied Claude credentials from shared-config" >> "$LOG_FILE"
 else
-  echo "[$(date -Iseconds)] WARNING: No Claude credentials found at $ROOT_CLAUDE_DIR/.credentials.json" >> "$LOG_FILE"
+  echo "[$(date -Iseconds)] WARNING: No Claude credentials found at $SHARED_CLAUDE_DIR/.credentials.json" >> "$LOG_FILE"
 fi
 
 # Copy settings if present
-if [ -f "$ROOT_CLAUDE_DIR/settings.json" ]; then
-  cp "$ROOT_CLAUDE_DIR/settings.json" "$CLAUDE_DIR/"
+if [ -f "$SHARED_CLAUDE_DIR/settings.json" ]; then
+  cp "$SHARED_CLAUDE_DIR/settings.json" "$CLAUDE_DIR/"
   chown "$UNIX_USER:$UNIX_USER" "$CLAUDE_DIR/settings.json"
-  echo "[$(date -Iseconds)] Copied Claude settings" >> "$LOG_FILE"
+  echo "[$(date -Iseconds)] Copied Claude settings from shared-config" >> "$LOG_FILE"
 fi
 
 echo "[$(date -Iseconds)] Setup completed successfully" >> "$LOG_FILE"
