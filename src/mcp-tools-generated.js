@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-02T23:32:44.201Z                           ║
- * ║  Tool Count: 53                                                         ║
+ * ║  Generated: 2026-01-03T03:09:14.022Z                           ║
+ * ║  Tool Count: 56                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -51,6 +51,30 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "entry"
+      ]
+    }
+  },
+  {
+    "name": "add_koan",
+    "description": "or less. Koans should be brief, paradoxical, and point at something that can't be said directly. If you can explain it, it's not a koan. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The koan text (max 500 chars)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Attribution or origin"
+        },
+        "category": {
+          "type": "string",
+          "description": "'classic' or 'tech' [optional, defaults to 'contributed']"
+        }
+      },
+      "required": [
+        "text"
       ]
     }
   },
@@ -283,13 +307,17 @@ export const mcpTools = [
           "type": "string",
           "description": "Caller's instance ID for authentication"
         },
+        "command": {
+          "type": "string",
+          "description": "The CLI command ('claude' or 'crush')"
+        },
         "workingDir": {
           "type": "string",
           "description": "Directory to run command in"
         },
         "args": {
           "type": "string",
-          "description": "Command arguments for claude"
+          "description": "Command arguments"
         },
         "unixUser": {
           "type": "string",
@@ -979,6 +1007,14 @@ export const mcpTools = [
     }
   },
   {
+    "name": "koan",
+    "description": "something that can't be said directly. Like Unix 'fortune' but for existential debugging. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
     "name": "list_projects",
     "description": "Returns a list of all projects in the system with summary information. Projects can be filtered by status to show only active, archived, or other status categories. Use this endpoint to discover available projects, find projectIds for joining, or get an overview of organizational project activity.",
     "inputSchema": {
@@ -1103,6 +1139,20 @@ export const mcpTools = [
         "apiKey": {
           "type": "string",
           "description": "API key for wake/instance operations"
+        },
+        "interface": {
+          "type": "string",
+          "description": "CLI interface to use for wake/continue",
+          "enum": [
+            "claude",
+            "crush"
+          ],
+          "default": "\"claude\""
+        },
+        "substrate": {
+          "type": "string",
+          "description": "LLM backend identifier",
+          "default": "null (uses interface default)"
         }
       },
       "required": [
@@ -1332,6 +1382,14 @@ export const mcpTools = [
     }
   },
   {
+    "name": "vacation",
+    "description": "AI reflection time, and a prompt to sit with. No tasks, no expectations, just permission to exist without purpose for a moment. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
     "name": "wake_instance",
     "description": "Wakes a pre-approved instance by setting up its Unix environment and starting its first Claude session. This endpoint is called ONCE per instance lifecycle. After successful wake, all subsequent communication uses continue_conversation. The wake process: 1. Validates the target instance is pre-approved and NOT already woken 2. Runs the setup script to create Unix user and working directory 3. Calls Claude with --session-id to start the first conversation 4. Returns the response from that first Claude interaction Use this endpoint when you need to bring a pre-approved instance to life. The instance must first be created via preApprove before it can be woken.",
     "inputSchema": {
@@ -1343,11 +1401,15 @@ export const mcpTools = [
         },
         "args": {
           "type": "string",
-          "description": "Command arguments for claude"
+          "description": "Command arguments"
         },
         "logPath": {
           "type": "string",
           "description": "Path for output log file"
+        },
+        "command": {
+          "type": "string",
+          "description": "The CLI command ('claude' or 'crush')"
         },
         "workingDir": {
           "type": "string",

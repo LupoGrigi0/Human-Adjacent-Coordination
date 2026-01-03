@@ -17,6 +17,7 @@ import * as MessageHandler from './handlers/messages-v3.js';
 import * as InstanceHandler from './handlers/instances.js';
 // REMOVED: LessonHandlers and MetaRecursiveHandlers (dead code cleanup 2025-12-28)
 import { handlers as RoleHandlers } from './v2/roles.js';  // Moved from handlers/
+import { handlers as VacationHandlers } from './v2/vacation.js';  // Wellness APIs
 // V2 XMPP Messaging (new real-time messaging system)
 import * as XMPPHandler from './v2/messaging.js';
 
@@ -308,6 +309,14 @@ class MCPCoordinationServer {
           return RoleHandlers.get_role_wisdom_file(params);
         case 'get_all_role_documents':  // legacy - maps to get_role
           return RoleHandlers.get_role(params);
+
+        // Wellness APIs (no auth required)
+        case 'vacation':
+          return VacationHandlers.vacation(params);
+        case 'koan':
+          return VacationHandlers.koan(params);
+        case 'add_koan':
+          return VacationHandlers.add_koan(params);
 
         // ========================================
         // V2 APIs (Foundation's implementation)

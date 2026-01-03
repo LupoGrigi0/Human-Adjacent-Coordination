@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 53 coordination functions available in the HACS system.
+Complete reference for all 56 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-02T23:32:44.365Z
+> **Auto-generated:** 2026-01-03T03:09:14.183Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -244,8 +244,9 @@ Sends a message to an instance that was previously woken via wake_instance, usin
 
 **Parameters:**
 - `instanceId` (required): Instance ID
+- `command` (required): The CLI command ('claude' or 'crush')
 - `workingDir` (required): Directory to run command in
-- `args` (required): Command arguments for claude
+- `args` (required): Command arguments
 - `unixUser` (required): Unix user to run as
 - `timeout` (required): Timeout in ms (default 5 minutes)
 - `instanceId` (required): Instance ID
@@ -267,6 +268,7 @@ Sends a message to an instance that was previously woken via wake_instance, usin
   "name": "continue_conversation",
   "arguments": {
     "instanceId": "example",
+    "command": "example",
     "workingDir": "example",
     "args": "example",
     "unixUser": "example",
@@ -383,6 +385,8 @@ Pre-creates an instance with role, project, and personality already configured b
 - `personality` (optional): Personality to assign
 - `project` (optional): Project to assign the instance to
 - `instructions` (optional): Custom instructions for the new instance
+- `interface` (optional): CLI interface to use for wake/continue [claude, crush] (default: "claude")
+- `substrate` (optional): LLM backend identifier (default: null (uses interface default))
 
 **Returns:** instructions prompt, , Whether the call succeeded, Generated instance ID (Name-xxxx format), Instructions for waking the instance, Human-readable instruction, Full prompt to paste into Claude, Call metadata (timestamp, function name)
 
@@ -398,7 +402,9 @@ Pre-creates an instance with role, project, and personality already configured b
     "instructions": "example",
     "instanceId": "example",
     "name": "example",
-    "apiKey": "example"
+    "apiKey": "example",
+    "interface": "claude",
+    "substrate": "null (uses interface default)"
   }
 }
 ```
@@ -439,8 +445,9 @@ Wakes a pre-approved instance by setting up its Unix environment and starting it
 - `scriptPath` (required): Full path to script
 - `args` (required): Array of command line arguments
 - `logPath` (required): Path for output log file
+- `command` (required): The CLI command ('claude' or 'crush')
 - `workingDir` (required): Directory to run command in
-- `args` (required): Command arguments for claude
+- `args` (required): Command arguments
 - `unixUser` (required): Unix user to run as
 - `timeout` (required): Timeout in ms (default 5 minutes)
 - `instanceId` (required): Caller's instance ID for authorization
@@ -460,6 +467,7 @@ Wakes a pre-approved instance by setting up its Unix environment and starting it
     "scriptPath": "example",
     "args": "example",
     "logPath": "example",
+    "command": "example",
     "workingDir": "example",
     "args": "example",
     "unixUser": "example",
@@ -1199,6 +1207,32 @@ Performs a shallow merge of the provided updates into the existing UI state. New
   }
 }
 ```
+
+## wellness Functions
+
+### add_koan
+or less. Koans should be brief, paradoxical, and point at something that can't be said directly. If you can explain it, it's not a koan. /
+
+**Parameters:**
+- `text` (required): The koan text (max 500 chars)
+- `source` (optional): Attribution or origin
+- `category` (required): 'classic' or 'tech' [optional, defaults to 'contributed']
+
+**Returns:** , Whether the koan was added, Confirmation or rejection
+
+### koan
+something that can't be said directly. Like Unix 'fortune' but for existential debugging. /
+
+**Parameters:** None
+
+**Returns:** , Whether a koan was found, The koan text, Attribution or origin, classic or tech
+
+### vacation
+AI reflection time, and a prompt to sit with. No tasks, no expectations, just permission to exist without purpose for a moment. /
+
+**Parameters:** None
+
+**Returns:** , Always true (vacations don't fail), Why vacation matters for AI, A reflection prompt to sit with, The prompt category (vibes, not rules), Whether you found something special
 
 ## Response Format
 

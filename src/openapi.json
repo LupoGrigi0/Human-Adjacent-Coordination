@@ -156,6 +156,9 @@
               "set_ui_state",
               "update_ui_state",
               "update_instance",
+              "vacation",
+              "koan",
+              "add_koan",
               "wake_instance",
               "get_wake_scripts"
             ],
@@ -352,13 +355,17 @@
             "type": "string",
             "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity. This identifies who is sending the message to the target instance."
           },
+          "command": {
+            "type": "string",
+            "description": "The CLI command ('claude' or 'crush')"
+          },
           "workingDir": {
             "type": "string",
             "description": "Directory to run command in"
           },
           "args": {
             "type": "string",
-            "description": "Command arguments for claude"
+            "description": "Command arguments"
           },
           "unixUser": {
             "type": "string",
@@ -412,6 +419,7 @@
         },
         "required": [
           "instanceId",
+          "command",
           "workingDir",
           "args",
           "unixUser",
@@ -1117,6 +1125,20 @@
           "apiKey": {
             "type": "string",
             "description": "API key for wake/instance operations\n\nSource: Get from human operator who has access to WAKE_API_KEY environment variable on the coordination server. Not stored in git for security."
+          },
+          "interface": {
+            "type": "string",
+            "description": "CLI interface to use for wake/continue\n\nSource: Choose the CLI tool: \"claude\" (Claude Code) or \"crush\" (Crush CLI). Claude uses session IDs, Crush uses directory-based continuation.",
+            "enum": [
+              "claude",
+              "crush"
+            ],
+            "default": "\"claude\""
+          },
+          "substrate": {
+            "type": "string",
+            "description": "LLM backend identifier\n\nSource: For future use. Identifies the LLM model/provider. Examples: \"opus4.5\", \"groq4\", \"gemini2\"",
+            "default": "null (uses interface default)"
           }
         },
         "required": [
@@ -1131,7 +1153,9 @@
           "role",
           "personality",
           "project",
-          "instructions"
+          "instructions",
+          "interface",
+          "substrate"
         ]
       },
       "create_project_params": {
@@ -1554,6 +1578,36 @@
           "instructions"
         ]
       },
+      "vacation_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "koan_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "add_koan_params": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The koan text (max 500 chars)"
+          },
+          "source": {
+            "type": "string",
+            "description": "Attribution or origin"
+          },
+          "category": {
+            "type": "string",
+            "description": "'classic' or 'tech' [optional, defaults to 'contributed']"
+          }
+        },
+        "required": [
+          "text",
+          "source",
+          "category"
+        ]
+      },
       "wake_instance_params": {
         "type": "object",
         "properties": {
@@ -1563,11 +1617,15 @@
           },
           "args": {
             "type": "string",
-            "description": "Command arguments for claude"
+            "description": "Command arguments"
           },
           "logPath": {
             "type": "string",
             "description": "Path for output log file"
+          },
+          "command": {
+            "type": "string",
+            "description": "The CLI command ('claude' or 'crush')"
           },
           "workingDir": {
             "type": "string",
@@ -1613,6 +1671,7 @@
           "scriptPath",
           "args",
           "logPath",
+          "command",
           "workingDir",
           "args",
           "unixUser",
@@ -2059,13 +2118,17 @@
             "type": "string",
             "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity. This identifies who is sending the message to the target instance."
           },
+          "command": {
+            "type": "string",
+            "description": "The CLI command ('claude' or 'crush')"
+          },
           "workingDir": {
             "type": "string",
             "description": "Directory to run command in"
           },
           "args": {
             "type": "string",
-            "description": "Command arguments for claude"
+            "description": "Command arguments"
           },
           "unixUser": {
             "type": "string",
@@ -2119,6 +2182,7 @@
         },
         "required": [
           "instanceId",
+          "command",
           "workingDir",
           "args",
           "unixUser",
@@ -4370,6 +4434,20 @@
           "apiKey": {
             "type": "string",
             "description": "API key for wake/instance operations\n\nSource: Get from human operator who has access to WAKE_API_KEY environment variable on the coordination server. Not stored in git for security."
+          },
+          "interface": {
+            "type": "string",
+            "description": "CLI interface to use for wake/continue\n\nSource: Choose the CLI tool: \"claude\" (Claude Code) or \"crush\" (Crush CLI). Claude uses session IDs, Crush uses directory-based continuation.",
+            "enum": [
+              "claude",
+              "crush"
+            ],
+            "default": "\"claude\""
+          },
+          "substrate": {
+            "type": "string",
+            "description": "LLM backend identifier\n\nSource: For future use. Identifies the LLM model/provider. Examples: \"opus4.5\", \"groq4\", \"gemini2\"",
+            "default": "null (uses interface default)"
           }
         },
         "required": [
@@ -4384,7 +4462,9 @@
           "role",
           "personality",
           "project",
-          "instructions"
+          "instructions",
+          "interface",
+          "substrate"
         ]
       },
       "permissions": "role:Executive|role:PA|role:COO|role:PM",
@@ -5788,6 +5868,78 @@
         "The loadApprovedRoles import is currently unused (permission check is inline)"
       ]
     },
+    "vacation": {
+      "name": "vacation",
+      "description": "AI reflection time, and a prompt to sit with. No tasks, no expectations, just permission to exist without purpose for a moment.",
+      "category": "wellness",
+      "status": "stable",
+      "version": "1.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "koan": {
+      "name": "koan",
+      "description": "something that can't be said directly. Like Unix 'fortune' but for existential debugging.",
+      "category": "wellness",
+      "status": "stable",
+      "version": "1.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "add_koan": {
+      "name": "add_koan",
+      "description": "or less. Koans should be brief, paradoxical, and point at something that can't be said directly. If you can explain it, it's not a koan.",
+      "category": "wellness",
+      "status": "stable",
+      "version": "1.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The koan text (max 500 chars)"
+          },
+          "source": {
+            "type": "string",
+            "description": "Attribution or origin"
+          },
+          "category": {
+            "type": "string",
+            "description": "'classic' or 'tech' [optional, defaults to 'contributed']"
+          }
+        },
+        "required": [
+          "text",
+          "source",
+          "category"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
     "wake_instance": {
       "name": "wake_instance",
       "description": "Wakes a pre-approved instance by setting up its Unix environment and starting its first Claude session. This endpoint is called ONCE per instance lifecycle. After successful wake, all subsequent communication uses continue_conversation. The wake process: 1. Validates the target instance is pre-approved and NOT already woken 2. Runs the setup script to create Unix user and working directory 3. Calls Claude with --session-id to start the first conversation 4. Returns the response from that first Claude interaction Use this endpoint when you need to bring a pre-approved instance to life. The instance must first be created via preApprove before it can be woken.",
@@ -5804,11 +5956,15 @@
           },
           "args": {
             "type": "string",
-            "description": "Command arguments for claude"
+            "description": "Command arguments"
           },
           "logPath": {
             "type": "string",
             "description": "Path for output log file"
+          },
+          "command": {
+            "type": "string",
+            "description": "The CLI command ('claude' or 'crush')"
           },
           "workingDir": {
             "type": "string",
@@ -5854,6 +6010,7 @@
           "scriptPath",
           "args",
           "logPath",
+          "command",
           "workingDir",
           "args",
           "unixUser",
