@@ -483,12 +483,12 @@ export async function wakeInstance(params) {
   let cliArgs;
 
   if (interfaceType === 'crush') {
-    // Crush: uses 'run' subcommand, -y for yolo mode (skip permissions)
+    // Crush: uses 'run' subcommand with --quiet for cleaner output
     // No session-id needed - directory IS the session
     command = 'crush';
     cliArgs = [
       'run',
-      '-y',  // yolo mode - skip permission prompts
+      '--quiet',  // hide spinner for cleaner output
       messageWithSender
     ];
   } else {
