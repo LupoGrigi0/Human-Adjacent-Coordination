@@ -138,14 +138,32 @@ if [ -f "$SHARED_CLAUDE_DIR/settings.json" ]; then
   echo "[$(date -Iseconds)] Copied Claude settings from shared-config" >> "$LOG_FILE"
 fi
 
-# Copy Crush config if present (for instances using Crush interface)
-SHARED_CRUSH_DIR="/mnt/coordinaton_mcp_data/shared-config/crush"
-CRUSH_CONFIG_DIR="$WORKING_DIR/.config/crush"
-if [ -d "$SHARED_CRUSH_DIR" ]; then
-  mkdir -p "$CRUSH_CONFIG_DIR"
-  cp -r "$SHARED_CRUSH_DIR"/* "$CRUSH_CONFIG_DIR/"
+# Copy Crush config from ALL THREE locations (Crush is a mess)
+# 1. ~/.config/crush
+SHARED_CRUSH_CONFIG="/mnt/coordinaton_mcp_data/shared-config/crush"
+if [ -d "$SHARED_CRUSH_CONFIG" ]; then
+  mkdir -p "$WORKING_DIR/.config/crush"
+  cp -r "$SHARED_CRUSH_CONFIG"/* "$WORKING_DIR/.config/crush/"
   chown -R "$UNIX_USER:$UNIX_USER" "$WORKING_DIR/.config"
-  echo "[$(date -Iseconds)] Copied Crush config from shared-config" >> "$LOG_FILE"
+  echo "[$(date -Iseconds)] Copied Crush ~/.config/crush" >> "$LOG_FILE"
+fi
+
+# 2. ~/.local/share/crush (has providers.json - the important one!)
+SHARED_CRUSH_LOCAL="/mnt/coordinaton_mcp_data/shared-config/crush-local-share"
+if [ -d "$SHARED_CRUSH_LOCAL" ]; then
+  mkdir -p "$WORKING_DIR/.local/share/crush"
+  cp -r "$SHARED_CRUSH_LOCAL"/* "$WORKING_DIR/.local/share/crush/"
+  chown -R "$UNIX_USER:$UNIX_USER" "$WORKING_DIR/.local"
+  echo "[$(date -Iseconds)] Copied Crush ~/.local/share/crush (providers)" >> "$LOG_FILE"
+fi
+
+# 3. ~/.crush (has crush.db)
+SHARED_CRUSH_HOME="/mnt/coordinaton_mcp_data/shared-config/crush-home"
+if [ -d "$SHARED_CRUSH_HOME" ]; then
+  mkdir -p "$WORKING_DIR/.crush"
+  cp -r "$SHARED_CRUSH_HOME"/* "$WORKING_DIR/.crush/"
+  chown -R "$UNIX_USER:$UNIX_USER" "$WORKING_DIR/.crush"
+  echo "[$(date -Iseconds)] Copied Crush ~/.crush" >> "$LOG_FILE"
 fi
 
 echo "[$(date -Iseconds)] Setup completed successfully" >> "$LOG_FILE"
