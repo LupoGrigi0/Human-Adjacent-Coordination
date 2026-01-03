@@ -5,6 +5,7 @@
  * Uses ES modules and the api.js isolation layer.
  *
  * @author Canvas (UI Engineer)
+ *  * @contributor Scout-4820 (Browser Extension Instance, Jan 2026)
  */
 
 import api, { setEnvironment, getEnvironment, ApiError } from './api.js';
