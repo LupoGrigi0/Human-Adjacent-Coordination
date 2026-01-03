@@ -166,7 +166,7 @@ export class ApiError extends Error {
  * @param {string} [params.homeDirectory] - Working directory
  */
 export async function bootstrap(params) {
-  return rpcCall('bootstrap_v2', params);
+  return rpcCall('bootstrap', params);
 }
 
 /**
@@ -256,7 +256,7 @@ export async function joinProject(instanceId, project) {
  * @param {string} [instanceId] - Caller's instance ID
  */
 export async function listProjects(instanceId) {
-  return rpcCall('get_projects', { instanceId });
+  return rpcCall('list_projects', { instanceId });
 }
 
 /**
@@ -649,10 +649,12 @@ export async function getConversationLog(params) {
  * @param {string} params.targetInstanceId - Instance to promote
  * @param {string} params.token - Promotion auth token
  * @returns {Promise<{success: boolean, message: string}>}
+ *
+ * NOTE: This API does not exist in the OpenAPI spec - commented out
  */
-export async function promoteInstance(params) {
-  return rpcCall('promote_instance', params);
-}
+// export async function promoteInstance(params) {
+//   return rpcCall('promote_instance', params);
+// }
 
 // ============================================================================
 // CONFIGURATION APIS (Personalities, Roles)
@@ -671,7 +673,7 @@ export async function getPersonalities() {
  * @returns {Promise<{success: boolean, roles: Array<{id: string, name: string, description: string}>}>}
  */
 export async function getRoles() {
-  return rpcCall('get_roles', {});
+  return rpcCall('list_roles', {});
 }
 
 /**
@@ -699,7 +701,7 @@ export async function getPersonalityDetails(personalityId) {
  * @returns {Promise<{success: boolean, instance: object, preferences: object, gestalt: string}>}
  */
 export async function getInstanceDetails(instanceId, targetInstanceId) {
-  return rpcCall('get_instance_details', { instanceId, targetInstanceId });
+  return rpcCall('get_instance_v2', { instanceId, targetInstanceId });
 }
 
 /**
@@ -713,10 +715,12 @@ export async function generateRecoveryKey(instanceId, targetInstanceId) {
 
 /**
  * Get server status
+ *
+ * NOTE: This API does not exist in the OpenAPI spec - commented out
  */
-export async function getServerStatus() {
-  return rpcCall('get_server_status', {});
-}
+// export async function getServerStatus() {
+//   return rpcCall('get_server_status', {});
+// }
 
 // ============================================================================
 // CONVENIENCE EXPORTS
@@ -784,9 +788,9 @@ export const api = {
   wakeInstance,
   continueConversation,
   getConversationLog,
-  promoteInstance,
+  // promoteInstance, // API does not exist in OpenAPI spec
   generateRecoveryKey,
-  getServerStatus,
+  // getServerStatus, // API does not exist in OpenAPI spec
 
   // Configuration
   getPersonalities,
