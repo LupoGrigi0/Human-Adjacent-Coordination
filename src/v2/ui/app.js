@@ -567,6 +567,7 @@ async function loadDashboard() {
     // Tasks count
     if (state.instanceId) {
         try {
+            // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
             const result = await rpcCallDirect('get_tasks', {});
             const tasks = result.tasks || result || [];
             document.getElementById('metric-tasks').textContent = Array.isArray(tasks) ? tasks.length : '-';
@@ -664,6 +665,7 @@ async function showProjectDetail(projectId) {
 
     // Load project tasks
     try {
+        // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
         const result = await rpcCallDirect('get_tasks', { project_id: projectId });
         const tasks = result.tasks || result || [];
         renderProjectDetailTasks(tasks);
@@ -742,6 +744,7 @@ async function loadTasks() {
         let allTasks = [];
 
         // Get all tasks (no filter returns all)
+        // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
         const result = await rpcCallDirect('get_tasks', {});
         if (result.tasks) {
             allTasks = result.tasks;
@@ -827,6 +830,7 @@ async function showTaskDetail(taskId, source = 'tasks') {
     // If not found, try to fetch from API
     if (!task) {
         try {
+            // TODO: 'get_task' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
             const result = await rpcCallDirect('get_task', { id: taskId });
             task = result.task || result;
         } catch (e) {
@@ -1000,6 +1004,7 @@ async function completeCurrentTask() {
     if (!state.currentTaskDetail) return;
 
     try {
+        // TODO: 'update_task' API does not exist - use 'complete_personal_task' or 'assign_task_to_instance' instead
         await rpcCallDirect('update_task', {
             id: state.currentTaskDetail,
             updates: { status: 'completed' }
@@ -1091,6 +1096,7 @@ async function saveProjectDescription() {
     const newDescription = textarea.value.trim();
 
     try {
+        // TODO: 'update_project' API does not exist - update functionality may need to be implemented
         await rpcCallDirect('update_project', {
             id: state.currentProjectDetail,
             updates: { description: newDescription }
@@ -1121,6 +1127,7 @@ async function saveTaskDescription() {
     const newDescription = textarea.value.trim();
 
     try {
+        // TODO: 'update_task' API does not exist - use 'complete_personal_task' or 'assign_task_to_instance' instead
         await rpcCallDirect('update_task', {
             id: state.currentTaskDetail,
             updates: { description: newDescription }
@@ -1207,6 +1214,7 @@ async function assignInstanceToProject(instanceId, name) {
         const newTeam = [...currentTeam, instanceId || name];
 
         // Update via API
+        // TODO: 'update_project' API does not exist - update functionality may need to be implemented
         await rpcCallDirect('update_project', {
             id: state.currentProjectDetail,
             updates: { team: newTeam }
@@ -2364,6 +2372,7 @@ async function createTask() {
         if (projectId) {
             // Project task - use create_task API with required fields
             const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+            // TODO: 'create_task' API does not exist - use 'add_personal_task' instead
             result = await rpcCallDirect('create_task', {
                 id: taskId,
                 title: title,
@@ -2394,6 +2403,7 @@ async function createTask() {
             if (state.currentTab === 'projects' && state.currentProjectDetail && projectId === state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
+                    // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
                     const result = await rpcCallDirect('get_tasks', { project_id: projectId });
                     const tasks = result.tasks || result || [];
                     renderProjectDetailTasks(tasks);
@@ -2412,7 +2422,7 @@ async function createTask() {
 
 // Direct RPC call for APIs that don't go through our wrapper
 async function rpcCallDirect(method, args) {
-    const url = 'https://smoothcurves.nexus/mcp/dev/mcp';
+    const url = 'https://smoothcurves.nexus/mcp';
     const payload = {
         jsonrpc: '2.0',
         id: Date.now(),
