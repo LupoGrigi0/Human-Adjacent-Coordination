@@ -215,6 +215,8 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  * @note Empty diary.md is created for the new instance
  */
 export async function preApprove(params) {
+  console.log('[preApprove] Called with params:', JSON.stringify(params, null, 2));
+
   const metadata = {
     timestamp: new Date().toISOString(),
     function: 'preApprove'
@@ -281,7 +283,9 @@ export async function preApprove(params) {
   }
 
   // Validate caller exists
+  console.log('[preApprove] Reading caller preferences for:', params.instanceId);
   const callerPrefs = await readPreferences(params.instanceId);
+  console.log('[preApprove] Caller prefs:', callerPrefs ? 'found' : 'null');
 
   if (!callerPrefs) {
     return {
@@ -297,6 +301,7 @@ export async function preApprove(params) {
 
   // Check if caller has permission to preApprove
   const callerRole = callerPrefs.role;
+  console.log('[preApprove] Caller role:', callerRole);
 
   if (!callerRole) {
     return {
@@ -310,7 +315,9 @@ export async function preApprove(params) {
     };
   }
 
+  console.log('[preApprove] Checking permission for role:', callerRole);
   const hasPermission = await canRoleCallAPI(callerRole, 'preApprove');
+  console.log('[preApprove] Has permission:', hasPermission);
 
   if (!hasPermission) {
     return {
@@ -326,10 +333,18 @@ export async function preApprove(params) {
 
   // Generate new instance ID
   const newInstanceId = generateInstanceId(params.name);
+  console.log('[preApprove] Generated new instanceId:', newInstanceId);
 
   // Create instance directory
   const instanceDir = getInstanceDir(newInstanceId);
-  await ensureDir(instanceDir);
+  console.log('[preApprove] Instance dir:', instanceDir);
+  try {
+    await ensureDir(instanceDir);
+    console.log('[preApprove] Directory created/verified');
+  } catch (dirErr) {
+    console.error('[preApprove] Directory creation failed:', dirErr);
+    throw dirErr;
+  }
 
   // Build preferences object
   const now = new Date().toISOString();
