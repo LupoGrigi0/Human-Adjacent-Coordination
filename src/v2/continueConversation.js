@@ -379,9 +379,9 @@ export async function continueConversation(params) {
   }
 
   // Check if instance was woken
-  // Claude instances need sessionId, Crush instances just need to have been woken (status: 'active')
+  // Claude instances need sessionId, Crush/Codex instances just need to have been woken (status: 'active')
   const interfaceType = targetPrefs.interface || 'claude';
-  const wasWoken = interfaceType === 'crush'
+  const wasWoken = (interfaceType === 'crush' || interfaceType === 'codex')
     ? (targetPrefs.status === 'active' || targetPrefs.conversationTurns >= 1)
     : !!targetPrefs.sessionId;
 
@@ -441,6 +441,15 @@ export async function continueConversation(params) {
     cliArgs = [
       'run',
       '--quiet',  // hide spinner for cleaner output
+      messageWithSender
+    ];
+  } else if (interfaceType === 'codex') {
+    // Codex: uses 'resume --last' to continue most recent session in directory
+    // Like crush, directory-based continuation
+    command = 'codex';
+    cliArgs = [
+      'resume',
+      '--last',  // automatically resume most recent session
       messageWithSender
     ];
   } else {

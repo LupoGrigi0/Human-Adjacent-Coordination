@@ -491,6 +491,17 @@ export async function wakeInstance(params) {
       '--quiet',  // hide spinner for cleaner output
       messageWithSender
     ];
+  } else if (interfaceType === 'codex') {
+    // Codex: uses 'exec' subcommand with full access sandbox
+    // Like crush, directory-based continuation - no session-id needed
+    // Defaults to OpenAI substrate
+    command = 'codex';
+    cliArgs = [
+      'exec',
+      '--sandbox', 'danger-full-access',
+      '--json',
+      messageWithSender
+    ];
   } else {
     // Claude Code: uses -p for print mode, --session-id for first call
     command = 'claude';

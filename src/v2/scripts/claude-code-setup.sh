@@ -166,6 +166,16 @@ if [ -d "$SHARED_CRUSH_HOME" ]; then
   echo "[$(date -Iseconds)] Copied Crush ~/.crush" >> "$LOG_FILE"
 fi
 
+# Copy Codex config (all in one place - ~/.codex/)
+# Contains: auth.json (OAuth tokens), config.toml (MCP servers, defaults), skills/, etc.
+SHARED_CODEX_DIR="/mnt/coordinaton_mcp_data/shared-config/codex"
+if [ -d "$SHARED_CODEX_DIR" ]; then
+  mkdir -p "$WORKING_DIR/.codex"
+  cp -r "$SHARED_CODEX_DIR"/* "$WORKING_DIR/.codex/"
+  chown -R "$UNIX_USER:$UNIX_USER" "$WORKING_DIR/.codex"
+  echo "[$(date -Iseconds)] Copied Codex ~/.codex (auth, config, skills)" >> "$LOG_FILE"
+fi
+
 echo "[$(date -Iseconds)] Setup completed successfully" >> "$LOG_FILE"
 
 # Output JSON result
