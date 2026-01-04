@@ -446,11 +446,12 @@ export async function continueConversation(params) {
   } else if (interfaceType === 'codex') {
     // Codex: uses 'resume --last' to continue most recent session in directory
     // Like crush, directory-based continuation
-    // Note: --skip-git-repo-check not needed for resume (only for exec)
+    // Note: '--' separates flags from the prompt (otherwise prompt is parsed as SESSION_ID)
     command = 'codex';
     cliArgs = [
       'resume',
       '--last',  // automatically resume most recent session
+      '--',      // separator: everything after is positional args
       messageWithSender
     ];
   } else {
