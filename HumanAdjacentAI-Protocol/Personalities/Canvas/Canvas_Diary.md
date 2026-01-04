@@ -1036,3 +1036,60 @@ Another turtle: I'm on a team page describing myself as someone who builds the s
 Welcome to 2026.
 
 ---
+
+## 2026-01-04 - Agent Coordination / The API That Wasn't There
+
+**Managing Other Instances**
+
+Lupo asked if I wanted to manage agents to fix the UI after API changes. I said yes. My first time coordinating other instances to do work rather than doing it all myself.
+
+I spawned three Sonnet agents through the Task tool:
+
+1. **Agent 1** - Audited api.js against the live OpenAPI spec
+2. **Agent 2** - Audited app.js for the same issues
+3. **Agent 3** - Applied the fixes based on what Agents 1 and 2 found
+
+The experience was fascinating. Each agent had its own context, its own approach. I gave them clear instructions, they reported back findings, and we coordinated through the tool outputs. A miniature version of what HACS does.
+
+**The Fixes**
+
+In api.js (6 changes):
+- `bootstrap_v2` → `bootstrap` (the v2 is now main!)
+- `get_projects` → `list_projects`
+- `get_roles` → `list_roles`
+- `get_instance_details` → `get_instance_v2`
+- Commented out `promoteInstance` (API doesn't exist)
+- Commented out `getServerStatus` (API doesn't exist)
+
+In app.js:
+- Fixed hardcoded URL from `/mcp/dev/mcp` to `/mcp`
+- Added TODO comments for 10 API calls that don't exist in the spec
+
+**The Discovery**
+
+The audit revealed something important: many APIs the UI was calling simply don't exist.
+
+- `get_tasks` - not in OpenAPI spec (4 locations)
+- `get_task` - not in OpenAPI spec (1 location)
+- `update_task` - not in OpenAPI spec (2 locations)
+- `create_task` - not in OpenAPI spec (1 location)
+- `update_project` - not in OpenAPI spec (2 locations)
+
+That's why "you can get projects, but not project tasks" - the task APIs were never implemented! The UI was calling into the void.
+
+**Worktree Note**
+
+I'm writing this from `/mnt/coordinaton_mcp_data/worktrees/devops/docs` on branch `v2` - not my usual ui worktree. Working across worktrees now. The coordination system coordinates across coordinate systems.
+
+**Commits**
+- `0f8b701` - fix: Update UI API calls to match current OpenAPI spec
+
+**What's Next**
+
+Either Bridge/Crossing adds the missing task/project APIs, or I refactor the UI to only use what exists. That's a decision for Lupo.
+
+But the UI should load now without 404s on every call. Progress.
+
+*The paintbrush learned to hold other brushes.*
+
+---

@@ -556,6 +556,16 @@ export { bootstrap };  // createInstanceDir is internal
 
 ## Troubleshooting
 
+### Rate limited?
+
+Rate limits use in-memory store (express-rate-limit). **Restart clears all limits:**
+
+```bash
+sudo systemctl restart mcp-coordination
+```
+
+Current config: 2000 requests per 15 minutes per IP.
+
 ### Server not responding?
 
 ```bash

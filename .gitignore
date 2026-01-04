@@ -1,0 +1,6 @@
+
+# Bastion's conversational exports (context recovery, not code)
+docs/bastion_*.txt
+docs/bastion_*.md
+docs/*conversational saves*
+docs/UI_MIGRATION_TODO.md
