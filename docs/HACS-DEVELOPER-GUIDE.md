@@ -1,7 +1,7 @@
 # HACS Developer Guide
 
-**Updated:** 2026-01-01
-**Author:** Bastion (DevOps)
+**Updated:** 2026-01-03
+**Author:** Bastion (DevOps), Crossing (Integration)
 **Audience:** All HACS team members and contributors
 
 ---
@@ -422,6 +422,95 @@ export async function protectedHandler(params) {
 
 ---
 
+## Wake/Continue System (Spawning AI Instances)
+
+The wake system allows HACS to spawn and communicate with AI instances programmatically.
+
+### The Three-Step Flow
+
+```
+┌─────────────┐     ┌─────────────────┐     ┌────────────────────────┐
+│ pre_approve │ ──▶ │  wake_instance  │ ──▶ │ continue_conversation  │
+│  (setup)    │     │ (first message) │     │  (all subsequent)      │
+└─────────────┘     └─────────────────┘     └────────────────────────┘
+```
+
+1. **pre_approve** - Creates instance record, assigns role/project/personality
+2. **wake_instance** - Creates Unix user, copies credentials, sends first message
+3. **continue_conversation** - All subsequent messages (uses session resumption)
+
+### Interface Options
+
+The `interface` parameter controls which CLI tool is used:
+
+| Interface | LLM Backend | Session Handling |
+|-----------|-------------|------------------|
+| `claude` (default) | Anthropic Claude | `--session-id` / `--resume` |
+| `crush` | Configurable (Grok, etc.) | Directory-based |
+
+### Example: Wake an Instance with Claude
+
+```javascript
+// Step 1: Pre-approve
+await pre_approve({
+  instanceId: "Manager-abc123",
+  name: "WorkerBot",
+  role: "Developer",
+  apiKey: "your-wake-api-key"
+});
+// Returns: { newInstanceId: "WorkerBot-x7f2" }
+
+// Step 2: Wake and send first message
+await wake_instance({
+  instanceId: "Manager-abc123",
+  targetInstanceId: "WorkerBot-x7f2",
+  apiKey: "your-wake-api-key",
+  message: "Hello! Please bootstrap and confirm operational."
+});
+// Returns: { success: true, response: { result: "Hello! I am operational..." } }
+
+// Step 3: Continue conversation
+await continue_conversation({
+  instanceId: "Manager-abc123",
+  targetInstanceId: "WorkerBot-x7f2",
+  apiKey: "your-wake-api-key",
+  message: "What is your working directory?"
+});
+```
+
+### Example: Wake with Crush (alternate LLM)
+
+```javascript
+await pre_approve({
+  instanceId: "Manager-abc123",
+  name: "GrokBot",
+  role: "Developer",
+  interface: "crush",  // Use Crush CLI instead of Claude
+  apiKey: "your-wake-api-key"
+});
+```
+
+### ⚠️ GOTCHA: OAuth Token Expiration
+
+**Problem:** Claude's OAuth tokens expire. If you get "OAuth token has expired", the credentials in `/mnt/coordinaton_mcp_data/shared-config/claude/` are stale.
+
+**Solution:** A cron job syncs credentials from `/root/.claude/` every 5 minutes. After refreshing your OAuth (via browser), wait up to 5 minutes or manually sync:
+
+```bash
+cp /root/.claude/.credentials.json /mnt/coordinaton_mcp_data/shared-config/claude/
+```
+
+**Why shared-config?** The systemd service runs with `ProtectHome=yes`, blocking `/root` access. The wake script reads from `shared-config` instead.
+
+### Wake Logs
+
+Check wake logs for debugging:
+```bash
+cat /mnt/coordinaton_mcp_data/wake-logs/{instanceId}.log
+```
+
+---
+
 ## Common Patterns to Avoid
 
 ### DON'T: Create v2 variants
@@ -466,6 +555,16 @@ export { bootstrap };  // createInstanceDir is internal
 ---
 
 ## Troubleshooting
+
+### Rate limited?
+
+Rate limits use in-memory store (express-rate-limit). **Restart clears all limits:**
+
+```bash
+sudo systemctl restart mcp-coordination
+```
+
+Current config: 2000 requests per 15 minutes per IP.
 
 ### Server not responding?
 

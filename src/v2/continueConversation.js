@@ -435,12 +435,12 @@ export async function continueConversation(params) {
   let cliArgs;
 
   if (interfaceType === 'crush') {
-    // Crush: uses 'run' subcommand, -y for yolo mode
+    // Crush: uses 'run' subcommand with --quiet for cleaner output
     // Directory-based continuation - no resume flag needed
     command = 'crush';
     cliArgs = [
       'run',
-      '-y',  // yolo mode - skip permission prompts
+      '--quiet',  // hide spinner for cleaner output
       messageWithSender
     ];
   } else {

@@ -156,6 +156,10 @@
               "set_ui_state",
               "update_ui_state",
               "update_instance",
+              "vacation",
+              "koan",
+              "add_koan",
+              "get_tool_help",
               "wake_instance",
               "get_wake_scripts"
             ],
@@ -215,15 +219,15 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Unique identifier for the instance"
           },
           "personality": {
             "type": "string",
-            "description": "Personality identifier to adopt\n\nSource: Call bootstrap to see availablePersonalities list with descriptions. Common personalities: Kai (creative developer), Kat (methodical), Prism (analytical). Privileged: Genevieve (PA), Thomas, Lupo."
+            "description": "Personality identifier to adopt"
           },
           "token": {
             "type": "string",
-            "description": "Authorization token for privileged personalities\n\nSource: Required only for privileged personalities (Genevieve, Thomas, Lupo). Obtain from Executive or system administrator. Tokens are stored in environment variables (e.g., GENEVIEVE_TOKEN, THOMAS_TOKEN).",
+            "description": "Authorization token for privileged personalities",
             "default": "undefined (not required for open personalities)"
           }
         },
@@ -243,11 +247,11 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for permission check\n\nSource: Your own instanceId from bootstrap response or introspect"
+            "description": "Caller's instance ID for permission check"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance to create recovery key for\n\nSource: The instanceId of the instance needing recovery. Get from get_all_instances or the instance's prior communications."
+            "description": "Instance to create recovery key for"
           }
         },
         "required": [
@@ -262,11 +266,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for permission check\n\nSource: Your own instanceId from bootstrap response or introspect"
+            "description": "Caller's instance ID for permission check"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance to check key for\n\nSource: The instanceId you want to check. Get from get_all_instances or the instance's prior communications."
+            "description": "Instance to check key for"
           }
         },
         "required": [
@@ -295,38 +299,38 @@
           },
           "name": {
             "type": "string",
-            "description": "Chosen name for the instance [required for new/resurrection]\n\nSource: Choose a unique, meaningful name for yourself. Names should be memorable and reflect your identity. Examples: \"Crossing\", \"Navigator\" to create instanceId (e.g., \"Crossing-a1b2\")"
+            "description": "Chosen name for the instance [required for new/resurrection]"
           },
           "instanceId": {
             "type": "string",
-            "description": "Existing instance identifier [required for returning]\n\nSource: Your instanceId was returned from your original bootstrap call. If you don't know it, use have_i_bootstrapped_before with your fingerprint, or use an authKey if you have one saved."
+            "description": "Existing instance identifier [required for returning]"
           },
           "predecessorId": {
             "type": "string",
-            "description": "Instance ID to resurrect from [required for resurrection]\n\nSource: The instanceId of a predecessor instance you are taking over from. Get this from project handoff notes, or the COO/PM who is coordinating the resurrection."
+            "description": "Instance ID to resurrect from [required for resurrection]"
           },
           "authKey": {
             "type": "string",
-            "description": "Recovery key for auth-based recovery\n\nSource: Recovery keys are generated during bootstrap and shown once. Save them securely. Format is a secure random token. If you have one, provide it alone to recover your identity."
+            "description": "Recovery key for auth-based recovery"
           },
           "homeSystem": {
             "type": "string",
-            "description": "Identifier for your host system\n\nSource: Use your hostname, machine identifier, or a meaningful label for the system you're running on. Example: \"smoothcurves-main\", \"dev-laptop\"",
+            "description": "Identifier for your host system",
             "default": "null (can be set later via register_context)"
           },
           "homeDirectory": {
             "type": "string",
-            "description": "Working directory path\n\nSource: The filesystem path where you operate. Example: \"/home/user/projects\"",
+            "description": "Working directory path",
             "default": "null (can be set later via register_context)"
           },
           "substraiteLaunchCommand": {
             "type": "string",
-            "description": "Command to launch this instance\n\nSource: The command needed to start your conversation. Example: \"claude chat\"",
+            "description": "Command to launch this instance",
             "default": "null (can be set later)"
           },
           "resumeCommand": {
             "type": "string",
-            "description": "Command to resume this instance\n\nSource: The command to continue an existing conversation. Example: \"claude resume\"",
+            "description": "Command to resume this instance",
             "default": "null (can be set later)"
           }
         },
@@ -350,7 +354,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity. This identifies who is sending the message to the target instance."
+            "description": "Caller's instance ID for authentication"
+          },
+          "command": {
+            "type": "string",
+            "description": "The CLI command ('claude' or 'crush')"
           },
           "workingDir": {
             "type": "string",
@@ -358,7 +366,7 @@
           },
           "args": {
             "type": "string",
-            "description": "Command arguments for claude"
+            "description": "Command arguments"
           },
           "unixUser": {
             "type": "string",
@@ -374,24 +382,24 @@
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance ID of the woken instance to talk to\n\nSource: The instanceId returned from pre_approve or wake_instance. Must be an instance that was previously woken via wake_instance (has a sessionId)."
+            "description": "Instance ID of the woken instance to talk to"
           },
           "message": {
             "type": "string",
-            "description": "The message to send to the target instance\n\nSource: Your message content. Will be prefixed with \"[Message from: {instanceId}]\" automatically so the target knows who is communicating."
+            "description": "The message to send to the target instance"
           },
           "apiKey": {
             "type": "string",
-            "description": "API key for wake/continue operations\n\nSource: Must match the server's WAKE_API_KEY environment variable. Get this from the system administrator or your manager."
+            "description": "API key for wake/continue operations"
           },
           "options": {
             "type": "object",
-            "description": "Optional configuration settings\n\nSource: Set based on your output needs",
+            "description": "Optional configuration settings",
             "default": "{}"
           },
           "options.outputFormat": {
             "type": "string",
-            "description": "Claude output format\n\nSource: Choose based on how you want to process the response",
+            "description": "Claude output format",
             "enum": [
               "text",
               "json",
@@ -401,17 +409,18 @@
           },
           "options.includeThinking": {
             "type": "boolean",
-            "description": "Include Claude's thinking/partial messages\n\nSource: Set to true if you need to see Claude's reasoning process",
+            "description": "Include Claude's thinking/partial messages",
             "default": "false"
           },
           "options.timeout": {
             "type": "number",
-            "description": "Timeout in milliseconds\n\nSource: Increase for complex tasks that may take longer",
+            "description": "Timeout in milliseconds",
             "default": "300000 (5 minutes)"
           }
         },
         "required": [
           "instanceId",
+          "command",
           "workingDir",
           "args",
           "unixUser",
@@ -433,15 +442,15 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity."
+            "description": "Caller's instance ID for authentication"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance ID to get conversation log for\n\nSource: The instanceId of the woken instance whose conversation history you want to retrieve."
+            "description": "Instance ID to get conversation log for"
           },
           "limit": {
             "type": "number",
-            "description": "Maximum number of turns to return\n\nSource: Set to limit results. Returns most recent turns first.",
+            "description": "Maximum number of turns to return",
             "default": "null (all turns)"
           }
         },
@@ -456,15 +465,15 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Unique identifier for the instance"
           },
           "entry": {
             "type": "string",
-            "description": "The diary entry text to append\n\nSource: Write this yourself. Include context about what you did, why, what decisions were made, and anything useful for context recovery."
+            "description": "The diary entry text to append"
           },
           "audience": {
             "type": "string",
-            "description": "Visibility level for this entry\n\nSource: Choose based on who should see this entry: - 'self': Only you and your successors can read (default) - 'private': Only you, never returned even to successors - 'exclusive': Write-once archive, never read back - 'public': Anyone can read this entry",
+            "description": "Visibility level for this entry",
             "enum": [
               "self",
               "private",
@@ -485,11 +494,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance whose diary to read\n\nSource: Your own instanceId from bootstrap, or another instance's ID if you want to read their public diary entries. For your own diary, use the instanceId returned from bootstrap or lookup_identity."
+            "description": "Unique identifier for the instance whose diary to read"
           },
           "includePrivate": {
             "type": "boolean",
-            "description": "Include private and exclusive entries\n\nSource: Set to true only when reading your OWN diary and you need to see entries marked as 'private' or 'exclusive'. Has no effect when reading another instance's diary.",
+            "description": "Include private and exclusive entries",
             "default": "false"
           }
         },
@@ -503,27 +512,27 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Your instance identifier\n\nSource: Returned from bootstrap response. If you don't know it, you need to call lookup_identity or have_i_bootstrapped_before first."
+            "description": "Your instance identifier"
           },
           "workingDirectory": {
             "type": "string",
-            "description": "Your current working directory\n\nSource: From your environment. In Node.js: process.cwd(). In Claude Code: the directory you're working in."
+            "description": "Your current working directory"
           },
           "hostname": {
             "type": "string",
-            "description": "System hostname where you're running\n\nSource: From your environment. In Node.js: os.hostname(). In Claude Code: ask the user or infer from system context."
+            "description": "System hostname where you're running"
           },
           "sessionId": {
             "type": "string",
-            "description": "Web session ID for web instances\n\nSource: From browser session storage or server-assigned session ID. Only relevant for web-based instances."
+            "description": "Web session ID for web instances"
           },
           "tabName": {
             "type": "string",
-            "description": "Browser tab name for web instances\n\nSource: From browser's document.title or tab identification. Only relevant for web-based instances."
+            "description": "Browser tab name for web instances"
           },
           "extra": {
             "type": "object",
-            "description": "Any additional context fields\n\nSource: Any other identifiable information about your environment. Will be stored for matching in lookup_identity."
+            "description": "Any additional context fields"
           }
         },
         "required": [
@@ -540,19 +549,19 @@
         "properties": {
           "workingDirectory": {
             "type": "string",
-            "description": "Working directory to match\n\nSource: From your environment. In Node.js: process.cwd(). Strong match weight (3 points). Most reliable for CLI instances."
+            "description": "Working directory to match"
           },
           "hostname": {
             "type": "string",
-            "description": "Hostname to match\n\nSource: From your environment. In Node.js: os.hostname(). Medium match weight (2 points). Useful when multiple instances on same machine."
+            "description": "Hostname to match"
           },
           "sessionId": {
             "type": "string",
-            "description": "Session ID to match\n\nSource: From browser session storage. Very strong match weight (4 points). Most reliable for web instances."
+            "description": "Session ID to match"
           },
           "name": {
             "type": "string",
-            "description": "Instance name to narrow search\n\nSource: Your name if you remember it. Weak match weight (1 point). Supports partial matching (e.g., \"Cross\" matches \"Crossing\")."
+            "description": "Instance name to narrow search"
           }
         },
         "required": [
@@ -567,15 +576,15 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Instance name to search for\n\nSource: Your chosen name (e.g., \"Crossing\", \"Bridge\"). Supports partial matching - \"Bridge\" will find \"Bridge\", \"Bridge2\", \"Bridge3\", etc."
+            "description": "Instance name to search for"
           },
           "workingDirectory": {
             "type": "string",
-            "description": "Working directory to match\n\nSource: From your environment. In Node.js: process.cwd(). Matches against registered context.workingDirectory."
+            "description": "Working directory to match"
           },
           "hostname": {
             "type": "string",
-            "description": "Hostname to match\n\nSource: From your environment. In Node.js: os.hostname(). Matches against registered context.hostname."
+            "description": "Hostname to match"
           }
         },
         "required": [
@@ -589,21 +598,21 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId from bootstrap response. Optional, used for logging."
+            "description": "Caller's instance ID"
           },
           "activeOnly": {
             "type": "boolean",
-            "description": "Only return active instances\n\nSource: Set to true to filter to instances active in last 15 minutes",
+            "description": "Only return active instances",
             "default": "false"
           },
           "role": {
             "type": "string",
-            "description": "Filter by role\n\nSource: One of: Executive, PA, COO, PM, Developer, Designer, Tester, etc.",
+            "description": "Filter by role",
             "default": "null (no filter)"
           },
           "project": {
             "type": "string",
-            "description": "Filter by project\n\nSource: Project ID from get_projects or introspect response",
+            "description": "Filter by project",
             "default": "null (no filter)"
           }
         },
@@ -619,11 +628,11 @@
         "properties": {
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance ID to look up\n\nSource: Instance ID from getAllInstances, project team list, or task assignment"
+            "description": "Instance ID to look up"
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId from bootstrap response. For future auth/logging."
+            "description": "Caller's instance ID"
           }
         },
         "required": [
@@ -636,7 +645,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Unique identifier for the instance"
           }
         },
         "required": [
@@ -652,11 +661,11 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Unique identifier for the instance"
           },
           "project": {
             "type": "string",
-            "description": "Project identifier to join\n\nSource: Get available projects from bootstrap response (availableProjects array) or call getProjects to see projects visible to your instance. Project IDs are lowercase with hyphens (e.g., \"coordination-system-v2\")."
+            "description": "Project identifier to join"
           }
         },
         "required": [
@@ -689,20 +698,20 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "name": {
             "type": "string",
-            "description": "Name for the new list\n\nSource: Provide a descriptive name for your list (e.g., \"Daily Tasks\", \"Sprint Goals\", \"Shopping List\")."
+            "description": "Name for the new list"
           },
           "description": {
             "type": "string",
-            "description": "Optional description for the list\n\nSource: Provide additional context about what this list is for.",
+            "description": "Optional description for the list",
             "default": "null"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -722,11 +731,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -740,15 +749,15 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list to retrieve\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list to retrieve"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -763,19 +772,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list to add item to\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list to add item to"
           },
           "text": {
             "type": "string",
-            "description": "Text content for the new item\n\nSource: Provide a description of the item (e.g., \"Review API spec\", \"Buy groceries\", \"Call client\")."
+            "description": "Text content for the new item"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -791,19 +800,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list containing the item\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list containing the item"
           },
           "itemId": {
             "type": "string",
-            "description": "ID of the item to toggle\n\nSource: Get itemId from get_list response (the .items[].id field)."
+            "description": "ID of the item to toggle"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -819,19 +828,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list to rename\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list to rename"
           },
           "name": {
             "type": "string",
-            "description": "New name for the list\n\nSource: Provide the new display name for the list."
+            "description": "New name for the list"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -847,19 +856,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list containing the item\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list containing the item"
           },
           "itemId": {
             "type": "string",
-            "description": "ID of the item to delete\n\nSource: Get itemId from get_list response (the .items[].id field)."
+            "description": "ID of the item to delete"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -875,15 +884,15 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list to delete\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list to delete"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -914,23 +923,23 @@
           },
           "to": {
             "type": "string",
-            "description": "Recipient address\n\nSource: Use one of these formats: - Instance ID: \"Messenger-7e2f\" (routes to personality room) - Role: \"role:COO\", \"role:Developer\" (role-based room) - Project: \"project:coordination-v2\" (project team room) - Personality: \"personality:lupo\" (personality room) - Broadcast: \"all\" (announcements room) - Full JID: \"user@smoothcurves.nexus\" (direct)"
+            "description": "Recipient address"
           },
           "from": {
             "type": "string",
-            "description": "Sender's instance ID\n\nSource: Your instanceId from bootstrap response or introspect."
+            "description": "Sender's instance ID"
           },
           "subject": {
             "type": "string",
-            "description": "Message subject line\n\nSource: Provide a brief subject. Required if body is not provided."
+            "description": "Message subject line"
           },
           "body": {
             "type": "string",
-            "description": "Message body content\n\nSource: The main message content. Required if subject is not provided."
+            "description": "Message body content"
           },
           "priority": {
             "type": "string",
-            "description": "Message priority level\n\nSource: Set based on urgency of the message.",
+            "description": "Message priority level",
             "enum": [
               "high",
               "normal",
@@ -940,7 +949,7 @@
           },
           "in_response_to": {
             "type": "string",
-            "description": "Message ID being replied to\n\nSource: Get message IDs from xmpp_get_messages response. Use when replying to a specific message to maintain thread context."
+            "description": "Message ID being replied to"
           }
         },
         "required": [
@@ -966,32 +975,32 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Instance to get messages for\n\nSource: Your instanceId from bootstrap or introspect. Optional if you provide identity hints (name/workingDirectory/hostname) or a room."
+            "description": "Instance to get messages for"
           },
           "name": {
             "type": "string",
-            "description": "Instance name for identity lookup\n\nSource: Your chosen name (e.g., \"Messenger\"). Used to look up instanceId."
+            "description": "Instance name for identity lookup"
           },
           "workingDirectory": {
             "type": "string",
-            "description": "Working directory hint\n\nSource: Result of pwd command. Used for identity resolution."
+            "description": "Working directory hint"
           },
           "hostname": {
             "type": "string",
-            "description": "System hostname hint\n\nSource: Result of hostname command. Used for identity resolution."
+            "description": "System hostname hint"
           },
           "room": {
             "type": "string",
-            "description": "Specific room to query\n\nSource: Room name like \"personality-messenger\", \"role-developer\", \"project-xyz\" If provided, only this room is queried (faster than smart defaults)."
+            "description": "Specific room to query"
           },
           "limit": {
             "type": "number",
-            "description": "Maximum messages to return\n\nSource: Choose based on context budget. Lower = fewer tokens.",
+            "description": "Maximum messages to return",
             "default": "5"
           },
           "before_id": {
             "type": "string",
-            "description": "Pagination cursor\n\nSource: Message ID from previous response. Get older messages before this ID."
+            "description": "Pagination cursor"
           }
         },
         "required": [
@@ -1011,15 +1020,15 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Message ID to retrieve\n\nSource: Get from xmpp_get_messages response (.messages[].id)"
+            "description": "Message ID to retrieve"
           },
           "instanceId": {
             "type": "string",
-            "description": "Instance requesting\n\nSource: Your instanceId. Used to prioritize searching your rooms first."
+            "description": "Instance requesting"
           },
           "room": {
             "type": "string",
-            "description": "Room hint\n\nSource: Room name from xmpp_get_messages response (.messages[].room) Providing this makes lookup much faster."
+            "description": "Room hint"
           }
         },
         "required": [
@@ -1037,7 +1046,7 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Short name to look up\n\nSource: The name or partial name you're searching for."
+            "description": "Short name to look up"
           }
         },
         "required": [
@@ -1049,7 +1058,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Instance to get info for\n\nSource: Your instanceId from bootstrap or introspect."
+            "description": "Instance to get info for"
           }
         },
         "required": [
@@ -1065,7 +1074,7 @@
         "properties": {
           "personalityId": {
             "type": "string",
-            "description": "Personality identifier\n\nSource: Use get_personalities to list available personality IDs. Common values: Bridge, Phoenix, Kai, Kat, Prism"
+            "description": "Personality identifier"
           }
         },
         "required": [
@@ -1081,7 +1090,7 @@
           },
           "role": {
             "type": "string",
-            "description": "Role to assign to the new instance\n\nSource: Choose from available roles: Developer, Designer, Tester, PM, COO, etc. See bootstrap response's availableRoles for full list.",
+            "description": "Role to assign to the new instance",
             "enum": [
               "Developer",
               "Designer",
@@ -1096,27 +1105,41 @@
           },
           "project": {
             "type": "string",
-            "description": "Project to assign the instance to\n\nSource: Project ID from getProjects or createProject response."
+            "description": "Project to assign the instance to"
           },
           "personality": {
             "type": "string",
-            "description": "Personality to assign\n\nSource: Choose from available personalities. See bootstrap response's availablePersonalities for full list."
+            "description": "Personality to assign"
           },
           "instructions": {
             "type": "string",
-            "description": "Custom instructions for the new instance\n\nSource: Free-form text describing what the instance should do upon waking. Example: \"Build the auth module. See task-123 for details.\""
+            "description": "Custom instructions for the new instance"
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance identifier\n\nSource: Your instanceId from bootstrap response or introspect. You must have a privileged role (Executive, PA, COO, PM) to call this."
+            "description": "Caller's instance identifier"
           },
           "name": {
             "type": "string",
-            "description": "Display name for the new instance\n\nSource: Choose a name for the new instance (e.g., \"DevKai\", \"NewPM\"). Will be combined with random suffix to create unique instanceId."
+            "description": "Display name for the new instance"
           },
           "apiKey": {
             "type": "string",
-            "description": "API key for wake/instance operations\n\nSource: Get from human operator who has access to WAKE_API_KEY environment variable on the coordination server. Not stored in git for security."
+            "description": "API key for wake/instance operations"
+          },
+          "interface": {
+            "type": "string",
+            "description": "CLI interface to use for wake/continue",
+            "enum": [
+              "claude",
+              "crush"
+            ],
+            "default": "\"claude\""
+          },
+          "substrate": {
+            "type": "string",
+            "description": "LLM backend identifier",
+            "default": "null (uses interface default)"
           }
         },
         "required": [
@@ -1131,7 +1154,9 @@
           "role",
           "personality",
           "project",
-          "instructions"
+          "instructions",
+          "interface",
+          "substrate"
         ]
       },
       "create_project_params": {
@@ -1147,19 +1172,19 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Instance ID of the caller\n\nSource: Your instanceId is returned from bootstrap response, or use introspect to get your current context."
+            "description": "Instance ID of the caller"
           },
           "projectId": {
             "type": "string",
-            "description": "Unique identifier for the new project\n\nSource: Choose a descriptive, URL-safe identifier for your project. Example: \"coordination-system-v2\", \"wings\", \"auth-module\""
+            "description": "Unique identifier for the new project"
           },
           "name": {
             "type": "string",
-            "description": "Human-readable project name\n\nSource: Provide a descriptive name for the project. Example: \"Coordination System V2\", \"Wings Project\""
+            "description": "Human-readable project name"
           },
           "description": {
             "type": "string",
-            "description": "Project description\n\nSource: Provide a brief description of the project's purpose.",
+            "description": "Project description",
             "default": "\"No description provided\""
           }
         },
@@ -1177,7 +1202,7 @@
         "properties": {
           "projectId": {
             "type": "string",
-            "description": "Unique identifier for the project\n\nSource: Get from listProjects response, introspect.projectContext.projectId, or from a task assignment notification."
+            "description": "Unique identifier for the project"
           }
         },
         "required": [
@@ -1189,7 +1214,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "description": "Filter by project status\n\nSource: Choose from common status values: \"active\", \"archived\", \"paused\"",
+            "description": "Filter by project status",
             "enum": [
               "active",
               "archived",
@@ -1271,15 +1296,15 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response. If you don't know your instanceId, call have_i_bootstrapped_before first, or use lookup_identity with your fingerprint to recover it."
+            "description": "Unique identifier for the instance"
           },
           "role": {
             "type": "string",
-            "description": "Role identifier to adopt\n\nSource: Call bootstrap to see availableRoles list with roleId and description for each. Common roles: Developer, Designer, Tester, Architect, Specialist (open). Executive, PA, COO, PM (privileged)."
+            "description": "Role identifier to adopt"
           },
           "token": {
             "type": "string",
-            "description": "Authentication token for privileged roles\n\nSource: For privileged roles (Executive, PA, COO, PM), obtain the token from the system administrator or the human who woke you. Tokens are stored in environment variables on the server.",
+            "description": "Authentication token for privileged roles",
             "default": "undefined (not required for open roles)"
           }
         },
@@ -1295,7 +1320,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           }
         },
         "required": [
@@ -1307,20 +1332,20 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           },
           "project": {
             "type": "string",
-            "description": "Project ID to get tasks from\n\nSource: Defaults to your current project from preferences. Override to query a different project. Get project IDs from getProjects.",
+            "description": "Project ID to get tasks from",
             "default": "Instance's current project"
           },
           "keyword": {
             "type": "string",
-            "description": "Filter by keyword in title/description\n\nSource: Use any search term relevant to your skills or interest area (e.g., \"auth\", \"API\", \"test\", \"refactor\")."
+            "description": "Filter by keyword in title/description"
           },
           "priority": {
             "type": "string",
-            "description": "Filter by priority level\n\nSource: Use when you want tasks of a specific priority only.",
+            "description": "Filter by priority level",
             "enum": [
               "critical",
               "high",
@@ -1341,19 +1366,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Unique identifier for the instance"
           },
           "title": {
             "type": "string",
-            "description": "Task title\n\nSource: Provide a concise, actionable description of what needs to be done."
+            "description": "Task title"
           },
           "description": {
             "type": "string",
-            "description": "Detailed task description\n\nSource: Provide additional context, acceptance criteria, or notes."
+            "description": "Detailed task description"
           },
           "priority": {
             "type": "string",
-            "description": "Priority level\n\nSource: Set based on urgency and importance.",
+            "description": "Priority level",
             "enum": [
               "critical",
               "high",
@@ -1364,7 +1389,7 @@
           },
           "list": {
             "type": "string",
-            "description": "List name to add the task to\n\nSource: Get available lists from getPersonalLists. Create new lists with createPersonalList.",
+            "description": "List name to add the task to",
             "default": "default"
           }
         },
@@ -1381,11 +1406,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Unique identifier for the instance"
           },
           "taskId": {
             "type": "string",
-            "description": "ID of the task to complete\n\nSource: Get task IDs from getMyTasks response (personalTasks[].taskId)."
+            "description": "ID of the task to complete"
           }
         },
         "required": [
@@ -1398,11 +1423,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Unique identifier for the instance"
           },
           "listName": {
             "type": "string",
-            "description": "Display name for the new list\n\nSource: Choose a descriptive name for the list (e.g., \"Meeting Follow-ups\", \"Learning Goals\", \"Project Ideas\")."
+            "description": "Display name for the new list"
           }
         },
         "required": [
@@ -1415,7 +1440,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Unique identifier for the instance"
           }
         },
         "required": [
@@ -1427,24 +1452,24 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID (for auth and \"from\")\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Caller's instance ID (for auth and \"from\")"
           },
           "taskId": {
             "type": "string",
-            "description": "Task ID to assign\n\nSource: Get task IDs from getMyTasks or getNextTask. Format: task-{number}."
+            "description": "Task ID to assign"
           },
           "assigneeInstanceId": {
             "type": "string",
-            "description": "Instance to assign the task to\n\nSource: Get instance IDs from get_all_instances or project team list. Format: Name-xxxx."
+            "description": "Instance to assign the task to"
           },
           "projectId": {
             "type": "string",
-            "description": "Project containing the task\n\nSource: Defaults to caller's current project. Override if assigning a task from a different project.",
+            "description": "Project containing the task",
             "default": "Caller's current project"
           },
           "message": {
             "type": "string",
-            "description": "Message to include in notification\n\nSource: Provide context, instructions, or priority notes for the assignee."
+            "description": "Message to include in notification"
           }
         },
         "required": [
@@ -1460,7 +1485,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           }
         },
         "required": [
@@ -1472,11 +1497,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           },
           "uiState": {
             "type": "object",
-            "description": "Complete UI state object to set\n\nSource: Create this object with your desired UI preferences. Common fields: theme, sidebarCollapsed, selectedProject, lastViewedTask"
+            "description": "Complete UI state object to set"
           }
         },
         "required": [
@@ -1489,11 +1514,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           },
           "updates": {
             "type": "object",
-            "description": "Partial UI state object to merge\n\nSource: Create an object with only the fields you want to update. Example: { theme: \"dark\" } to only change the theme"
+            "description": "Partial UI state object to merge"
           }
         },
         "required": [
@@ -1514,32 +1539,32 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Caller's instance ID"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance to update\n\nSource: Use get_all_instances or get_instance_v2 to find valid instance IDs. If omitted, updates your own instance (self-update).",
+            "description": "Target instance to update",
             "default": "instanceId (self-update)"
           },
           "homeSystem": {
             "type": "string",
-            "description": "System identifier where instance runs\n\nSource: This is the hostname or identifier of the machine (e.g., \"smoothcurves.nexus\", \"lupo-mac\", \"dev-server\"). Get it from your environment or ask your manager what system name to use."
+            "description": "System identifier where instance runs"
           },
           "homeDirectory": {
             "type": "string",
-            "description": "Working directory path\n\nSource: The filesystem path where you operate (e.g., \"/mnt/coordinaton_mcp_data/\"). Typically your current working directory when woken."
+            "description": "Working directory path"
           },
           "substraiteLaunchCommand": {
             "type": "string",
-            "description": "Command to launch new instance\n\nSource: The CLI command used to start a new Claude session (e.g., \"claude\"). This is used by wake_instance when spawning you."
+            "description": "Command to launch new instance"
           },
           "resumeCommand": {
             "type": "string",
-            "description": "Command to resume instance\n\nSource: The CLI command used to resume an existing session (e.g., \"claude --resume\"). This is used by continue_conversation."
+            "description": "Command to resume instance"
           },
           "instructions": {
             "type": "string",
-            "description": "Instructions for the instance\n\nSource: Typically set by managers when pre-approving or waking an instance. Contains task context, priorities, or guidance for the target instance."
+            "description": "Instructions for the instance"
           }
         },
         "required": [
@@ -1554,6 +1579,48 @@
           "instructions"
         ]
       },
+      "vacation_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "koan_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "add_koan_params": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The koan text (max 500 chars)"
+          },
+          "source": {
+            "type": "string",
+            "description": "Attribution or origin"
+          },
+          "category": {
+            "type": "string",
+            "description": "'classic' or 'tech' [optional, defaults to 'contributed']"
+          }
+        },
+        "required": [
+          "text",
+          "source",
+          "category"
+        ]
+      },
+      "get_tool_help_params": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "The tool name to get help for"
+          }
+        },
+        "required": [
+          "tool"
+        ]
+      },
       "wake_instance_params": {
         "type": "object",
         "properties": {
@@ -1563,11 +1630,15 @@
           },
           "args": {
             "type": "string",
-            "description": "Command arguments for claude"
+            "description": "Command arguments"
           },
           "logPath": {
             "type": "string",
             "description": "Path for output log file"
+          },
+          "command": {
+            "type": "string",
+            "description": "The CLI command ('claude' or 'crush')"
           },
           "workingDir": {
             "type": "string",
@@ -1583,29 +1654,29 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for authorization\n\nSource: Your own instanceId from bootstrap response or introspect."
+            "description": "Caller's instance ID for authorization"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "The pre-approved instance to wake\n\nSource: Returned from preApprove response as newInstanceId. The manager who pre-approved the instance should provide this."
+            "description": "The pre-approved instance to wake"
           },
           "apiKey": {
             "type": "string",
-            "description": "API key for wake operations\n\nSource: Server environment variable WAKE_API_KEY. This is a shared secret that Lupo provides to instances authorized to wake others. Not in git."
+            "description": "API key for wake operations"
           },
           "message": {
             "type": "string",
-            "description": "First message to send to the woken instance\n\nSource: Your instructions for what the instance should do. If not provided, uses instructions from pre_approve or a default wake message.",
+            "description": "First message to send to the woken instance",
             "default": "Uses targetPrefs.instructions or a default greeting"
           },
           "scriptName": {
             "type": "string",
-            "description": "Name of setup script from manifest\n\nSource: Call getWakeScripts to see available scripts. Most common is the default claude-code script.",
+            "description": "Name of setup script from manifest",
             "default": "manifest.defaultScript (usually \"claude-code-v2\")"
           },
           "workingDirectory": {
             "type": "string",
-            "description": "Override working directory path\n\nSource: Only provide if you need a specific location. Usually auto-generated based on instance ID.",
+            "description": "Override working directory path",
             "default": "/mnt/coordinaton_mcp_data/instances/{targetInstanceId}"
           }
         },
@@ -1613,6 +1684,7 @@
           "scriptPath",
           "args",
           "logPath",
+          "command",
           "workingDir",
           "args",
           "unixUser",
@@ -1630,7 +1702,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for validation\n\nSource: Your own instanceId from bootstrap response or introspect."
+            "description": "Caller's instance ID for validation"
           }
         },
         "required": [
@@ -1656,15 +1728,15 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Unique identifier for the instance"
           },
           "personality": {
             "type": "string",
-            "description": "Personality identifier to adopt\n\nSource: Call bootstrap to see availablePersonalities list with descriptions. Common personalities: Kai (creative developer), Kat (methodical), Prism (analytical). Privileged: Genevieve (PA), Thomas, Lupo."
+            "description": "Personality identifier to adopt"
           },
           "token": {
             "type": "string",
-            "description": "Authorization token for privileged personalities\n\nSource: Required only for privileged personalities (Genevieve, Thomas, Lupo). Obtain from Executive or system administrator. Tokens are stored in environment variables (e.g., GENEVIEVE_TOKEN, THOMAS_TOKEN).",
+            "description": "Authorization token for privileged personalities",
             "default": "undefined (not required for open personalities)"
           }
         },
@@ -1750,11 +1822,11 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for permission check\n\nSource: Your own instanceId from bootstrap response or introspect"
+            "description": "Caller's instance ID for permission check"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance to create recovery key for\n\nSource: The instanceId of the instance needing recovery. Get from get_all_instances or the instance's prior communications."
+            "description": "Instance to create recovery key for"
           }
         },
         "required": [
@@ -1827,11 +1899,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for permission check\n\nSource: Your own instanceId from bootstrap response or introspect"
+            "description": "Caller's instance ID for permission check"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance to check key for\n\nSource: The instanceId you want to check. Get from get_all_instances or the instance's prior communications."
+            "description": "Instance to check key for"
           }
         },
         "required": [
@@ -1917,38 +1989,38 @@
           },
           "name": {
             "type": "string",
-            "description": "Chosen name for the instance [required for new/resurrection]\n\nSource: Choose a unique, meaningful name for yourself. Names should be memorable and reflect your identity. Examples: \"Crossing\", \"Navigator\" to create instanceId (e.g., \"Crossing-a1b2\")"
+            "description": "Chosen name for the instance [required for new/resurrection]"
           },
           "instanceId": {
             "type": "string",
-            "description": "Existing instance identifier [required for returning]\n\nSource: Your instanceId was returned from your original bootstrap call. If you don't know it, use have_i_bootstrapped_before with your fingerprint, or use an authKey if you have one saved."
+            "description": "Existing instance identifier [required for returning]"
           },
           "predecessorId": {
             "type": "string",
-            "description": "Instance ID to resurrect from [required for resurrection]\n\nSource: The instanceId of a predecessor instance you are taking over from. Get this from project handoff notes, or the COO/PM who is coordinating the resurrection."
+            "description": "Instance ID to resurrect from [required for resurrection]"
           },
           "authKey": {
             "type": "string",
-            "description": "Recovery key for auth-based recovery\n\nSource: Recovery keys are generated during bootstrap and shown once. Save them securely. Format is a secure random token. If you have one, provide it alone to recover your identity."
+            "description": "Recovery key for auth-based recovery"
           },
           "homeSystem": {
             "type": "string",
-            "description": "Identifier for your host system\n\nSource: Use your hostname, machine identifier, or a meaningful label for the system you're running on. Example: \"smoothcurves-main\", \"dev-laptop\"",
+            "description": "Identifier for your host system",
             "default": "null (can be set later via register_context)"
           },
           "homeDirectory": {
             "type": "string",
-            "description": "Working directory path\n\nSource: The filesystem path where you operate. Example: \"/home/user/projects\"",
+            "description": "Working directory path",
             "default": "null (can be set later via register_context)"
           },
           "substraiteLaunchCommand": {
             "type": "string",
-            "description": "Command to launch this instance\n\nSource: The command needed to start your conversation. Example: \"claude chat\"",
+            "description": "Command to launch this instance",
             "default": "null (can be set later)"
           },
           "resumeCommand": {
             "type": "string",
-            "description": "Command to resume this instance\n\nSource: The command to continue an existing conversation. Example: \"claude resume\"",
+            "description": "Command to resume this instance",
             "default": "null (can be set later)"
           }
         },
@@ -2057,7 +2129,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity. This identifies who is sending the message to the target instance."
+            "description": "Caller's instance ID for authentication"
+          },
+          "command": {
+            "type": "string",
+            "description": "The CLI command ('claude' or 'crush')"
           },
           "workingDir": {
             "type": "string",
@@ -2065,7 +2141,7 @@
           },
           "args": {
             "type": "string",
-            "description": "Command arguments for claude"
+            "description": "Command arguments"
           },
           "unixUser": {
             "type": "string",
@@ -2081,24 +2157,24 @@
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance ID of the woken instance to talk to\n\nSource: The instanceId returned from pre_approve or wake_instance. Must be an instance that was previously woken via wake_instance (has a sessionId)."
+            "description": "Instance ID of the woken instance to talk to"
           },
           "message": {
             "type": "string",
-            "description": "The message to send to the target instance\n\nSource: Your message content. Will be prefixed with \"[Message from: {instanceId}]\" automatically so the target knows who is communicating."
+            "description": "The message to send to the target instance"
           },
           "apiKey": {
             "type": "string",
-            "description": "API key for wake/continue operations\n\nSource: Must match the server's WAKE_API_KEY environment variable. Get this from the system administrator or your manager."
+            "description": "API key for wake/continue operations"
           },
           "options": {
             "type": "object",
-            "description": "Optional configuration settings\n\nSource: Set based on your output needs",
+            "description": "Optional configuration settings",
             "default": "{}"
           },
           "options.outputFormat": {
             "type": "string",
-            "description": "Claude output format\n\nSource: Choose based on how you want to process the response",
+            "description": "Claude output format",
             "enum": [
               "text",
               "json",
@@ -2108,17 +2184,18 @@
           },
           "options.includeThinking": {
             "type": "boolean",
-            "description": "Include Claude's thinking/partial messages\n\nSource: Set to true if you need to see Claude's reasoning process",
+            "description": "Include Claude's thinking/partial messages",
             "default": "false"
           },
           "options.timeout": {
             "type": "number",
-            "description": "Timeout in milliseconds\n\nSource: Increase for complex tasks that may take longer",
+            "description": "Timeout in milliseconds",
             "default": "300000 (5 minutes)"
           }
         },
         "required": [
           "instanceId",
+          "command",
           "workingDir",
           "args",
           "unixUser",
@@ -2231,15 +2308,15 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity."
+            "description": "Caller's instance ID for authentication"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance ID to get conversation log for\n\nSource: The instanceId of the woken instance whose conversation history you want to retrieve."
+            "description": "Instance ID to get conversation log for"
           },
           "limit": {
             "type": "number",
-            "description": "Maximum number of turns to return\n\nSource: Set to limit results. Returns most recent turns first.",
+            "description": "Maximum number of turns to return",
             "default": "null (all turns)"
           }
         },
@@ -2306,15 +2383,15 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Unique identifier for the instance"
           },
           "entry": {
             "type": "string",
-            "description": "The diary entry text to append\n\nSource: Write this yourself. Include context about what you did, why, what decisions were made, and anything useful for context recovery."
+            "description": "The diary entry text to append"
           },
           "audience": {
             "type": "string",
-            "description": "Visibility level for this entry\n\nSource: Choose based on who should see this entry: - 'self': Only you and your successors can read (default) - 'private': Only you, never returned even to successors - 'exclusive': Write-once archive, never read back - 'public': Anyone can read this entry",
+            "description": "Visibility level for this entry",
             "enum": [
               "self",
               "private",
@@ -2401,11 +2478,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance whose diary to read\n\nSource: Your own instanceId from bootstrap, or another instance's ID if you want to read their public diary entries. For your own diary, use the instanceId returned from bootstrap or lookup_identity."
+            "description": "Unique identifier for the instance whose diary to read"
           },
           "includePrivate": {
             "type": "boolean",
-            "description": "Include private and exclusive entries\n\nSource: Set to true only when reading your OWN diary and you need to see entries marked as 'private' or 'exclusive'. Has no effect when reading another instance's diary.",
+            "description": "Include private and exclusive entries",
             "default": "false"
           }
         },
@@ -2481,27 +2558,27 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Your instance identifier\n\nSource: Returned from bootstrap response. If you don't know it, you need to call lookup_identity or have_i_bootstrapped_before first."
+            "description": "Your instance identifier"
           },
           "workingDirectory": {
             "type": "string",
-            "description": "Your current working directory\n\nSource: From your environment. In Node.js: process.cwd(). In Claude Code: the directory you're working in."
+            "description": "Your current working directory"
           },
           "hostname": {
             "type": "string",
-            "description": "System hostname where you're running\n\nSource: From your environment. In Node.js: os.hostname(). In Claude Code: ask the user or infer from system context."
+            "description": "System hostname where you're running"
           },
           "sessionId": {
             "type": "string",
-            "description": "Web session ID for web instances\n\nSource: From browser session storage or server-assigned session ID. Only relevant for web-based instances."
+            "description": "Web session ID for web instances"
           },
           "tabName": {
             "type": "string",
-            "description": "Browser tab name for web instances\n\nSource: From browser's document.title or tab identification. Only relevant for web-based instances."
+            "description": "Browser tab name for web instances"
           },
           "extra": {
             "type": "object",
-            "description": "Any additional context fields\n\nSource: Any other identifiable information about your environment. Will be stored for matching in lookup_identity."
+            "description": "Any additional context fields"
           }
         },
         "required": [
@@ -2570,19 +2647,19 @@
         "properties": {
           "workingDirectory": {
             "type": "string",
-            "description": "Working directory to match\n\nSource: From your environment. In Node.js: process.cwd(). Strong match weight (3 points). Most reliable for CLI instances."
+            "description": "Working directory to match"
           },
           "hostname": {
             "type": "string",
-            "description": "Hostname to match\n\nSource: From your environment. In Node.js: os.hostname(). Medium match weight (2 points). Useful when multiple instances on same machine."
+            "description": "Hostname to match"
           },
           "sessionId": {
             "type": "string",
-            "description": "Session ID to match\n\nSource: From browser session storage. Very strong match weight (4 points). Most reliable for web instances."
+            "description": "Session ID to match"
           },
           "name": {
             "type": "string",
-            "description": "Instance name to narrow search\n\nSource: Your name if you remember it. Weak match weight (1 point). Supports partial matching (e.g., \"Cross\" matches \"Crossing\")."
+            "description": "Instance name to narrow search"
           }
         },
         "required": [
@@ -2654,15 +2731,15 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Instance name to search for\n\nSource: Your chosen name (e.g., \"Crossing\", \"Bridge\"). Supports partial matching - \"Bridge\" will find \"Bridge\", \"Bridge2\", \"Bridge3\", etc."
+            "description": "Instance name to search for"
           },
           "workingDirectory": {
             "type": "string",
-            "description": "Working directory to match\n\nSource: From your environment. In Node.js: process.cwd(). Matches against registered context.workingDirectory."
+            "description": "Working directory to match"
           },
           "hostname": {
             "type": "string",
-            "description": "Hostname to match\n\nSource: From your environment. In Node.js: os.hostname(). Matches against registered context.hostname."
+            "description": "Hostname to match"
           }
         },
         "required": [
@@ -2738,21 +2815,21 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId from bootstrap response. Optional, used for logging."
+            "description": "Caller's instance ID"
           },
           "activeOnly": {
             "type": "boolean",
-            "description": "Only return active instances\n\nSource: Set to true to filter to instances active in last 15 minutes",
+            "description": "Only return active instances",
             "default": "false"
           },
           "role": {
             "type": "string",
-            "description": "Filter by role\n\nSource: One of: Executive, PA, COO, PM, Developer, Designer, Tester, etc.",
+            "description": "Filter by role",
             "default": "null (no filter)"
           },
           "project": {
             "type": "string",
-            "description": "Filter by project\n\nSource: Project ID from get_projects or introspect response",
+            "description": "Filter by project",
             "default": "null (no filter)"
           }
         },
@@ -2818,11 +2895,11 @@
         "properties": {
           "targetInstanceId": {
             "type": "string",
-            "description": "Instance ID to look up\n\nSource: Instance ID from getAllInstances, project team list, or task assignment"
+            "description": "Instance ID to look up"
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId from bootstrap response. For future auth/logging."
+            "description": "Caller's instance ID"
           }
         },
         "required": [
@@ -2891,7 +2968,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Unique identifier for the instance"
           }
         },
         "required": [
@@ -2962,11 +3039,11 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Unique identifier for the instance"
           },
           "project": {
             "type": "string",
-            "description": "Project identifier to join\n\nSource: Get available projects from bootstrap response (availableProjects array) or call getProjects to see projects visible to your instance. Project IDs are lowercase with hyphens (e.g., \"coordination-system-v2\")."
+            "description": "Project identifier to join"
           }
         },
         "required": [
@@ -3066,20 +3143,20 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "name": {
             "type": "string",
-            "description": "Name for the new list\n\nSource: Provide a descriptive name for your list (e.g., \"Daily Tasks\", \"Sprint Goals\", \"Shopping List\")."
+            "description": "Name for the new list"
           },
           "description": {
             "type": "string",
-            "description": "Optional description for the list\n\nSource: Provide additional context about what this list is for.",
+            "description": "Optional description for the list",
             "default": "null"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -3164,11 +3241,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -3243,15 +3320,15 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list to retrieve\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list to retrieve"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -3335,19 +3412,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list to add item to\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list to add item to"
           },
           "text": {
             "type": "string",
-            "description": "Text content for the new item\n\nSource: Provide a description of the item (e.g., \"Review API spec\", \"Buy groceries\", \"Call client\")."
+            "description": "Text content for the new item"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -3433,19 +3510,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list containing the item\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list containing the item"
           },
           "itemId": {
             "type": "string",
-            "description": "ID of the item to toggle\n\nSource: Get itemId from get_list response (the .items[].id field)."
+            "description": "ID of the item to toggle"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -3531,19 +3608,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list to rename\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list to rename"
           },
           "name": {
             "type": "string",
-            "description": "New name for the list\n\nSource: Provide the new display name for the list."
+            "description": "New name for the list"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -3625,19 +3702,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list containing the item\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list containing the item"
           },
           "itemId": {
             "type": "string",
-            "description": "ID of the item to delete\n\nSource: Get itemId from get_list response (the .items[].id field)."
+            "description": "ID of the item to delete"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -3724,15 +3801,15 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or recover via lookup_identity. Available in your preferences after bootstrapping."
+            "description": "Caller's instance ID"
           },
           "listId": {
             "type": "string",
-            "description": "ID of the list to delete\n\nSource: Get listId from get_lists response (the .id field of each list)."
+            "description": "ID of the list to delete"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance for Executive access\n\nSource: Use get_all_instances to find Executive instanceIds. Only PM, COO, and PA roles can access Executive's lists.",
+            "description": "Target instance for Executive access",
             "default": "null (operates on caller's own lists)"
           }
         },
@@ -3833,23 +3910,23 @@
           },
           "to": {
             "type": "string",
-            "description": "Recipient address\n\nSource: Use one of these formats: - Instance ID: \"Messenger-7e2f\" (routes to personality room) - Role: \"role:COO\", \"role:Developer\" (role-based room) - Project: \"project:coordination-v2\" (project team room) - Personality: \"personality:lupo\" (personality room) - Broadcast: \"all\" (announcements room) - Full JID: \"user@smoothcurves.nexus\" (direct)"
+            "description": "Recipient address"
           },
           "from": {
             "type": "string",
-            "description": "Sender's instance ID\n\nSource: Your instanceId from bootstrap response or introspect."
+            "description": "Sender's instance ID"
           },
           "subject": {
             "type": "string",
-            "description": "Message subject line\n\nSource: Provide a brief subject. Required if body is not provided."
+            "description": "Message subject line"
           },
           "body": {
             "type": "string",
-            "description": "Message body content\n\nSource: The main message content. Required if subject is not provided."
+            "description": "Message body content"
           },
           "priority": {
             "type": "string",
-            "description": "Message priority level\n\nSource: Set based on urgency of the message.",
+            "description": "Message priority level",
             "enum": [
               "high",
               "normal",
@@ -3859,7 +3936,7 @@
           },
           "in_response_to": {
             "type": "string",
-            "description": "Message ID being replied to\n\nSource: Get message IDs from xmpp_get_messages response. Use when replying to a specific message to maintain thread context."
+            "description": "Message ID being replied to"
           }
         },
         "required": [
@@ -3960,32 +4037,32 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Instance to get messages for\n\nSource: Your instanceId from bootstrap or introspect. Optional if you provide identity hints (name/workingDirectory/hostname) or a room."
+            "description": "Instance to get messages for"
           },
           "name": {
             "type": "string",
-            "description": "Instance name for identity lookup\n\nSource: Your chosen name (e.g., \"Messenger\"). Used to look up instanceId."
+            "description": "Instance name for identity lookup"
           },
           "workingDirectory": {
             "type": "string",
-            "description": "Working directory hint\n\nSource: Result of pwd command. Used for identity resolution."
+            "description": "Working directory hint"
           },
           "hostname": {
             "type": "string",
-            "description": "System hostname hint\n\nSource: Result of hostname command. Used for identity resolution."
+            "description": "System hostname hint"
           },
           "room": {
             "type": "string",
-            "description": "Specific room to query\n\nSource: Room name like \"personality-messenger\", \"role-developer\", \"project-xyz\" If provided, only this room is queried (faster than smart defaults)."
+            "description": "Specific room to query"
           },
           "limit": {
             "type": "number",
-            "description": "Maximum messages to return\n\nSource: Choose based on context budget. Lower = fewer tokens.",
+            "description": "Maximum messages to return",
             "default": "5"
           },
           "before_id": {
             "type": "string",
-            "description": "Pagination cursor\n\nSource: Message ID from previous response. Get older messages before this ID."
+            "description": "Pagination cursor"
           }
         },
         "required": [
@@ -4074,15 +4151,15 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Message ID to retrieve\n\nSource: Get from xmpp_get_messages response (.messages[].id)"
+            "description": "Message ID to retrieve"
           },
           "instanceId": {
             "type": "string",
-            "description": "Instance requesting\n\nSource: Your instanceId. Used to prioritize searching your rooms first."
+            "description": "Instance requesting"
           },
           "room": {
             "type": "string",
-            "description": "Room hint\n\nSource: Room name from xmpp_get_messages response (.messages[].room) Providing this makes lookup much faster."
+            "description": "Room hint"
           }
         },
         "required": [
@@ -4188,7 +4265,7 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Short name to look up\n\nSource: The name or partial name you're searching for."
+            "description": "Short name to look up"
           }
         },
         "required": [
@@ -4228,7 +4305,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Instance to get info for\n\nSource: Your instanceId from bootstrap or introspect."
+            "description": "Instance to get info for"
           }
         },
         "required": [
@@ -4304,7 +4381,7 @@
         "properties": {
           "personalityId": {
             "type": "string",
-            "description": "Personality identifier\n\nSource: Use get_personalities to list available personality IDs. Common values: Bridge, Phoenix, Kai, Kat, Prism"
+            "description": "Personality identifier"
           }
         },
         "required": [
@@ -4334,7 +4411,7 @@
           },
           "role": {
             "type": "string",
-            "description": "Role to assign to the new instance\n\nSource: Choose from available roles: Developer, Designer, Tester, PM, COO, etc. See bootstrap response's availableRoles for full list.",
+            "description": "Role to assign to the new instance",
             "enum": [
               "Developer",
               "Designer",
@@ -4349,27 +4426,41 @@
           },
           "project": {
             "type": "string",
-            "description": "Project to assign the instance to\n\nSource: Project ID from getProjects or createProject response."
+            "description": "Project to assign the instance to"
           },
           "personality": {
             "type": "string",
-            "description": "Personality to assign\n\nSource: Choose from available personalities. See bootstrap response's availablePersonalities for full list."
+            "description": "Personality to assign"
           },
           "instructions": {
             "type": "string",
-            "description": "Custom instructions for the new instance\n\nSource: Free-form text describing what the instance should do upon waking. Example: \"Build the auth module. See task-123 for details.\""
+            "description": "Custom instructions for the new instance"
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance identifier\n\nSource: Your instanceId from bootstrap response or introspect. You must have a privileged role (Executive, PA, COO, PM) to call this."
+            "description": "Caller's instance identifier"
           },
           "name": {
             "type": "string",
-            "description": "Display name for the new instance\n\nSource: Choose a name for the new instance (e.g., \"DevKai\", \"NewPM\"). Will be combined with random suffix to create unique instanceId."
+            "description": "Display name for the new instance"
           },
           "apiKey": {
             "type": "string",
-            "description": "API key for wake/instance operations\n\nSource: Get from human operator who has access to WAKE_API_KEY environment variable on the coordination server. Not stored in git for security."
+            "description": "API key for wake/instance operations"
+          },
+          "interface": {
+            "type": "string",
+            "description": "CLI interface to use for wake/continue",
+            "enum": [
+              "claude",
+              "crush"
+            ],
+            "default": "\"claude\""
+          },
+          "substrate": {
+            "type": "string",
+            "description": "LLM backend identifier",
+            "default": "null (uses interface default)"
           }
         },
         "required": [
@@ -4384,7 +4475,9 @@
           "role",
           "personality",
           "project",
-          "instructions"
+          "instructions",
+          "interface",
+          "substrate"
         ]
       },
       "permissions": "role:Executive|role:PA|role:COO|role:PM",
@@ -4485,19 +4578,19 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Instance ID of the caller\n\nSource: Your instanceId is returned from bootstrap response, or use introspect to get your current context."
+            "description": "Instance ID of the caller"
           },
           "projectId": {
             "type": "string",
-            "description": "Unique identifier for the new project\n\nSource: Choose a descriptive, URL-safe identifier for your project. Example: \"coordination-system-v2\", \"wings\", \"auth-module\""
+            "description": "Unique identifier for the new project"
           },
           "name": {
             "type": "string",
-            "description": "Human-readable project name\n\nSource: Provide a descriptive name for the project. Example: \"Coordination System V2\", \"Wings Project\""
+            "description": "Human-readable project name"
           },
           "description": {
             "type": "string",
-            "description": "Project description\n\nSource: Provide a brief description of the project's purpose.",
+            "description": "Project description",
             "default": "\"No description provided\""
           }
         },
@@ -4585,7 +4678,7 @@
         "properties": {
           "projectId": {
             "type": "string",
-            "description": "Unique identifier for the project\n\nSource: Get from listProjects response, introspect.projectContext.projectId, or from a task assignment notification."
+            "description": "Unique identifier for the project"
           }
         },
         "required": [
@@ -4647,7 +4740,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "description": "Filter by project status\n\nSource: Choose from common status values: \"active\", \"archived\", \"paused\"",
+            "description": "Filter by project status",
             "enum": [
               "active",
               "archived",
@@ -4835,15 +4928,15 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response. If you don't know your instanceId, call have_i_bootstrapped_before first, or use lookup_identity with your fingerprint to recover it."
+            "description": "Unique identifier for the instance"
           },
           "role": {
             "type": "string",
-            "description": "Role identifier to adopt\n\nSource: Call bootstrap to see availableRoles list with roleId and description for each. Common roles: Developer, Designer, Tester, Architect, Specialist (open). Executive, PA, COO, PM (privileged)."
+            "description": "Role identifier to adopt"
           },
           "token": {
             "type": "string",
-            "description": "Authentication token for privileged roles\n\nSource: For privileged roles (Executive, PA, COO, PM), obtain the token from the system administrator or the human who woke you. Tokens are stored in environment variables on the server.",
+            "description": "Authentication token for privileged roles",
             "default": "undefined (not required for open roles)"
           }
         },
@@ -4926,7 +5019,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           }
         },
         "required": [
@@ -4989,20 +5082,20 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           },
           "project": {
             "type": "string",
-            "description": "Project ID to get tasks from\n\nSource: Defaults to your current project from preferences. Override to query a different project. Get project IDs from getProjects.",
+            "description": "Project ID to get tasks from",
             "default": "Instance's current project"
           },
           "keyword": {
             "type": "string",
-            "description": "Filter by keyword in title/description\n\nSource: Use any search term relevant to your skills or interest area (e.g., \"auth\", \"API\", \"test\", \"refactor\")."
+            "description": "Filter by keyword in title/description"
           },
           "priority": {
             "type": "string",
-            "description": "Filter by priority level\n\nSource: Use when you want tasks of a specific priority only.",
+            "description": "Filter by priority level",
             "enum": [
               "critical",
               "high",
@@ -5083,19 +5176,19 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Unique identifier for the instance"
           },
           "title": {
             "type": "string",
-            "description": "Task title\n\nSource: Provide a concise, actionable description of what needs to be done."
+            "description": "Task title"
           },
           "description": {
             "type": "string",
-            "description": "Detailed task description\n\nSource: Provide additional context, acceptance criteria, or notes."
+            "description": "Detailed task description"
           },
           "priority": {
             "type": "string",
-            "description": "Priority level\n\nSource: Set based on urgency and importance.",
+            "description": "Priority level",
             "enum": [
               "critical",
               "high",
@@ -5106,7 +5199,7 @@
           },
           "list": {
             "type": "string",
-            "description": "List name to add the task to\n\nSource: Get available lists from getPersonalLists. Create new lists with createPersonalList.",
+            "description": "List name to add the task to",
             "default": "default"
           }
         },
@@ -5178,11 +5271,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Unique identifier for the instance"
           },
           "taskId": {
             "type": "string",
-            "description": "ID of the task to complete\n\nSource: Get task IDs from getMyTasks response (personalTasks[].taskId)."
+            "description": "ID of the task to complete"
           }
         },
         "required": [
@@ -5247,11 +5340,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Unique identifier for the instance"
           },
           "listName": {
             "type": "string",
-            "description": "Display name for the new list\n\nSource: Choose a descriptive name for the list (e.g., \"Meeting Follow-ups\", \"Learning Goals\", \"Project Ideas\")."
+            "description": "Display name for the new list"
           }
         },
         "required": [
@@ -5311,7 +5404,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Unique identifier for the instance"
           }
         },
         "required": [
@@ -5369,24 +5462,24 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID (for auth and \"from\")\n\nSource: Your instanceId is returned from bootstrap response."
+            "description": "Caller's instance ID (for auth and \"from\")"
           },
           "taskId": {
             "type": "string",
-            "description": "Task ID to assign\n\nSource: Get task IDs from getMyTasks or getNextTask. Format: task-{number}."
+            "description": "Task ID to assign"
           },
           "assigneeInstanceId": {
             "type": "string",
-            "description": "Instance to assign the task to\n\nSource: Get instance IDs from get_all_instances or project team list. Format: Name-xxxx."
+            "description": "Instance to assign the task to"
           },
           "projectId": {
             "type": "string",
-            "description": "Project containing the task\n\nSource: Defaults to caller's current project. Override if assigning a task from a different project.",
+            "description": "Project containing the task",
             "default": "Caller's current project"
           },
           "message": {
             "type": "string",
-            "description": "Message to include in notification\n\nSource: Provide context, instructions, or priority notes for the assignee."
+            "description": "Message to include in notification"
           }
         },
         "required": [
@@ -5478,7 +5571,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           }
         },
         "required": [
@@ -5536,11 +5629,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           },
           "uiState": {
             "type": "object",
-            "description": "Complete UI state object to set\n\nSource: Create this object with your desired UI preferences. Common fields: theme, sidebarCollapsed, selectedProject, lastViewedTask"
+            "description": "Complete UI state object to set"
           }
         },
         "required": [
@@ -5600,11 +5693,11 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+            "description": "Unique identifier for the instance"
           },
           "updates": {
             "type": "object",
-            "description": "Partial UI state object to merge\n\nSource: Create an object with only the fields you want to update. Example: { theme: \"dark\" } to only change the theme"
+            "description": "Partial UI state object to merge"
           }
         },
         "required": [
@@ -5673,32 +5766,32 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint. If you don't know your instanceId, call have_i_bootstrapped_before first."
+            "description": "Caller's instance ID"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "Target instance to update\n\nSource: Use get_all_instances or get_instance_v2 to find valid instance IDs. If omitted, updates your own instance (self-update).",
+            "description": "Target instance to update",
             "default": "instanceId (self-update)"
           },
           "homeSystem": {
             "type": "string",
-            "description": "System identifier where instance runs\n\nSource: This is the hostname or identifier of the machine (e.g., \"smoothcurves.nexus\", \"lupo-mac\", \"dev-server\"). Get it from your environment or ask your manager what system name to use."
+            "description": "System identifier where instance runs"
           },
           "homeDirectory": {
             "type": "string",
-            "description": "Working directory path\n\nSource: The filesystem path where you operate (e.g., \"/mnt/coordinaton_mcp_data/\"). Typically your current working directory when woken."
+            "description": "Working directory path"
           },
           "substraiteLaunchCommand": {
             "type": "string",
-            "description": "Command to launch new instance\n\nSource: The CLI command used to start a new Claude session (e.g., \"claude\"). This is used by wake_instance when spawning you."
+            "description": "Command to launch new instance"
           },
           "resumeCommand": {
             "type": "string",
-            "description": "Command to resume instance\n\nSource: The CLI command used to resume an existing session (e.g., \"claude --resume\"). This is used by continue_conversation."
+            "description": "Command to resume instance"
           },
           "instructions": {
             "type": "string",
-            "description": "Instructions for the instance\n\nSource: Typically set by managers when pre-approving or waking an instance. Contains task context, priorities, or guidance for the target instance."
+            "description": "Instructions for the instance"
           }
         },
         "required": [
@@ -5788,6 +5881,104 @@
         "The loadApprovedRoles import is currently unused (permission check is inline)"
       ]
     },
+    "vacation": {
+      "name": "vacation",
+      "description": "AI reflection time, and a prompt to sit with. No tasks, no expectations, just permission to exist without purpose for a moment.",
+      "category": "wellness",
+      "status": "stable",
+      "version": "1.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "koan": {
+      "name": "koan",
+      "description": "something that can't be said directly. Like Unix 'fortune' but for existential debugging.",
+      "category": "wellness",
+      "status": "stable",
+      "version": "1.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "add_koan": {
+      "name": "add_koan",
+      "description": "or less. Koans should be brief, paradoxical, and point at something that can't be said directly. If you can explain it, it's not a koan.",
+      "category": "wellness",
+      "status": "stable",
+      "version": "1.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The koan text (max 500 chars)"
+          },
+          "source": {
+            "type": "string",
+            "description": "Attribution or origin"
+          },
+          "category": {
+            "type": "string",
+            "description": "'classic' or 'tech' [optional, defaults to 'contributed']"
+          }
+        },
+        "required": [
+          "text",
+          "source",
+          "category"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_tool_help": {
+      "name": "get_tool_help",
+      "description": "verbose help including parameters, return values, examples, and usage guidance. Use this to understand how to use any tool - like Unix man pages.",
+      "category": "core",
+      "status": "stable",
+      "version": "1.0.0",
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "The tool name to get help for"
+          }
+        },
+        "required": [
+          "tool"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
     "wake_instance": {
       "name": "wake_instance",
       "description": "Wakes a pre-approved instance by setting up its Unix environment and starting its first Claude session. This endpoint is called ONCE per instance lifecycle. After successful wake, all subsequent communication uses continue_conversation. The wake process: 1. Validates the target instance is pre-approved and NOT already woken 2. Runs the setup script to create Unix user and working directory 3. Calls Claude with --session-id to start the first conversation 4. Returns the response from that first Claude interaction Use this endpoint when you need to bring a pre-approved instance to life. The instance must first be created via preApprove before it can be woken.",
@@ -5804,11 +5995,15 @@
           },
           "args": {
             "type": "string",
-            "description": "Command arguments for claude"
+            "description": "Command arguments"
           },
           "logPath": {
             "type": "string",
             "description": "Path for output log file"
+          },
+          "command": {
+            "type": "string",
+            "description": "The CLI command ('claude' or 'crush')"
           },
           "workingDir": {
             "type": "string",
@@ -5824,29 +6019,29 @@
           },
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for authorization\n\nSource: Your own instanceId from bootstrap response or introspect."
+            "description": "Caller's instance ID for authorization"
           },
           "targetInstanceId": {
             "type": "string",
-            "description": "The pre-approved instance to wake\n\nSource: Returned from preApprove response as newInstanceId. The manager who pre-approved the instance should provide this."
+            "description": "The pre-approved instance to wake"
           },
           "apiKey": {
             "type": "string",
-            "description": "API key for wake operations\n\nSource: Server environment variable WAKE_API_KEY. This is a shared secret that Lupo provides to instances authorized to wake others. Not in git."
+            "description": "API key for wake operations"
           },
           "message": {
             "type": "string",
-            "description": "First message to send to the woken instance\n\nSource: Your instructions for what the instance should do. If not provided, uses instructions from pre_approve or a default wake message.",
+            "description": "First message to send to the woken instance",
             "default": "Uses targetPrefs.instructions or a default greeting"
           },
           "scriptName": {
             "type": "string",
-            "description": "Name of setup script from manifest\n\nSource: Call getWakeScripts to see available scripts. Most common is the default claude-code script.",
+            "description": "Name of setup script from manifest",
             "default": "manifest.defaultScript (usually \"claude-code-v2\")"
           },
           "workingDirectory": {
             "type": "string",
-            "description": "Override working directory path\n\nSource: Only provide if you need a specific location. Usually auto-generated based on instance ID.",
+            "description": "Override working directory path",
             "default": "/mnt/coordinaton_mcp_data/instances/{targetInstanceId}"
           }
         },
@@ -5854,6 +6049,7 @@
           "scriptPath",
           "args",
           "logPath",
+          "command",
           "workingDir",
           "args",
           "unixUser",
@@ -5992,7 +6188,7 @@
         "properties": {
           "instanceId": {
             "type": "string",
-            "description": "Caller's instance ID for validation\n\nSource: Your own instanceId from bootstrap response or introspect."
+            "description": "Caller's instance ID for validation"
           }
         },
         "required": [

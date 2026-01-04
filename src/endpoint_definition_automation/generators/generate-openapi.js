@@ -22,6 +22,12 @@ const __dirname = dirname(__filename);
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
+
+// TERSE_MODE: Strip verbose "Source:" helper text from parameter descriptions
+// This dramatically reduces openapi.json size (~254KB -> ~80KB)
+// Full documentation is available via get_tool_help(toolName) API
+const TERSE_MODE = true;
+
 const CONFIG = {
   // Directories to scan - from shared config (single source of truth)
   scanDirs: SHARED_CONFIG.scanDirs,
@@ -338,7 +344,8 @@ function paramsToSchema(params) {
       description: param.description
     };
 
-    if (param.source) {
+    // In TERSE_MODE, skip verbose Source: helper text (available via get_tool_help API)
+    if (param.source && !TERSE_MODE) {
       prop.description += `\n\nSource: ${param.source}`;
     }
 

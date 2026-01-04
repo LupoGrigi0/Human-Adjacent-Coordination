@@ -119,22 +119,51 @@ if [ ! -d "$CLAUDE_DIR" ]; then
   echo "[$(date -Iseconds)] Created .claude directory" >> "$LOG_FILE"
 fi
 
-# Copy Claude credentials from root user (required for authentication)
-ROOT_CLAUDE_DIR="/root/.claude"
-if [ -f "$ROOT_CLAUDE_DIR/.credentials.json" ]; then
-  cp "$ROOT_CLAUDE_DIR/.credentials.json" "$CLAUDE_DIR/"
+# Copy Claude credentials from shared config location (required for authentication)
+# NOTE: Uses shared-config because systemd ProtectHome=yes blocks /root access
+SHARED_CLAUDE_DIR="/mnt/coordinaton_mcp_data/shared-config/claude"
+if [ -f "$SHARED_CLAUDE_DIR/.credentials.json" ]; then
+  cp "$SHARED_CLAUDE_DIR/.credentials.json" "$CLAUDE_DIR/"
   chown "$UNIX_USER:$UNIX_USER" "$CLAUDE_DIR/.credentials.json"
   chmod 600 "$CLAUDE_DIR/.credentials.json"
-  echo "[$(date -Iseconds)] Copied Claude credentials" >> "$LOG_FILE"
+  echo "[$(date -Iseconds)] Copied Claude credentials from shared-config" >> "$LOG_FILE"
 else
-  echo "[$(date -Iseconds)] WARNING: No Claude credentials found at $ROOT_CLAUDE_DIR/.credentials.json" >> "$LOG_FILE"
+  echo "[$(date -Iseconds)] WARNING: No Claude credentials found at $SHARED_CLAUDE_DIR/.credentials.json" >> "$LOG_FILE"
 fi
 
 # Copy settings if present
-if [ -f "$ROOT_CLAUDE_DIR/settings.json" ]; then
-  cp "$ROOT_CLAUDE_DIR/settings.json" "$CLAUDE_DIR/"
+if [ -f "$SHARED_CLAUDE_DIR/settings.json" ]; then
+  cp "$SHARED_CLAUDE_DIR/settings.json" "$CLAUDE_DIR/"
   chown "$UNIX_USER:$UNIX_USER" "$CLAUDE_DIR/settings.json"
-  echo "[$(date -Iseconds)] Copied Claude settings" >> "$LOG_FILE"
+  echo "[$(date -Iseconds)] Copied Claude settings from shared-config" >> "$LOG_FILE"
+fi
+
+# Copy Crush config from ALL THREE locations (Crush is a mess)
+# 1. ~/.config/crush
+SHARED_CRUSH_CONFIG="/mnt/coordinaton_mcp_data/shared-config/crush"
+if [ -d "$SHARED_CRUSH_CONFIG" ]; then
+  mkdir -p "$WORKING_DIR/.config/crush"
+  cp -r "$SHARED_CRUSH_CONFIG"/* "$WORKING_DIR/.config/crush/"
+  chown -R "$UNIX_USER:$UNIX_USER" "$WORKING_DIR/.config"
+  echo "[$(date -Iseconds)] Copied Crush ~/.config/crush" >> "$LOG_FILE"
+fi
+
+# 2. ~/.local/share/crush (has providers.json - the important one!)
+SHARED_CRUSH_LOCAL="/mnt/coordinaton_mcp_data/shared-config/crush-local-share"
+if [ -d "$SHARED_CRUSH_LOCAL" ]; then
+  mkdir -p "$WORKING_DIR/.local/share/crush"
+  cp -r "$SHARED_CRUSH_LOCAL"/* "$WORKING_DIR/.local/share/crush/"
+  chown -R "$UNIX_USER:$UNIX_USER" "$WORKING_DIR/.local"
+  echo "[$(date -Iseconds)] Copied Crush ~/.local/share/crush (providers)" >> "$LOG_FILE"
+fi
+
+# 3. ~/.crush (has crush.db)
+SHARED_CRUSH_HOME="/mnt/coordinaton_mcp_data/shared-config/crush-home"
+if [ -d "$SHARED_CRUSH_HOME" ]; then
+  mkdir -p "$WORKING_DIR/.crush"
+  cp -r "$SHARED_CRUSH_HOME"/* "$WORKING_DIR/.crush/"
+  chown -R "$UNIX_USER:$UNIX_USER" "$WORKING_DIR/.crush"
+  echo "[$(date -Iseconds)] Copied Crush ~/.crush" >> "$LOG_FILE"
 fi
 
 echo "[$(date -Iseconds)] Setup completed successfully" >> "$LOG_FILE"
