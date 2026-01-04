@@ -499,6 +499,7 @@ export async function wakeInstance(params) {
     cliArgs = [
       'exec',
       '--sandbox', 'danger-full-access',
+      '--skip-git-repo-check',  // instance dirs aren't git repos
       '--json',
       messageWithSender
     ];
