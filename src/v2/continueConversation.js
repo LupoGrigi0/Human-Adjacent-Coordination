@@ -446,11 +446,11 @@ export async function continueConversation(params) {
   } else if (interfaceType === 'codex') {
     // Codex: uses 'resume --last' to continue most recent session in directory
     // Like crush, directory-based continuation
+    // Note: --skip-git-repo-check not needed for resume (only for exec)
     command = 'codex';
     cliArgs = [
       'resume',
       '--last',  // automatically resume most recent session
-      '--skip-git-repo-check',  // instance dirs aren't git repos
       messageWithSender
     ];
   } else {
