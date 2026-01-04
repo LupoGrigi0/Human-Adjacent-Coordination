@@ -59,18 +59,160 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
 }
 
 /**
- * Pre-approve an instance with role/project/personality before they wake
- * Creates instance directory and preferences, generates wake instructions
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ PRE_APPROVE                                                             │
+ * │ Pre-create an instance with role/project/personality before wake       │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - PreApprove parameters
- * @param {string} params.instanceId - Caller's instance identifier (must have preApprove permission)
- * @param {string} params.name - Name for the new instance
- * @param {string} params.apiKey - API key for wake/instance operations (required, from WAKE_API_KEY env)
- * @param {string} [params.role] - Role to assign to the new instance
- * @param {string} [params.personality] - Personality to assign to the new instance
- * @param {string} [params.project] - Project to assign to the new instance
- * @param {string} [params.instructions] - Custom instructions for the new instance
- * @returns {Promise<Object>} PreApprove response with newInstanceId and wakeInstructions
+ * @tool pre_approve
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category instances
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Pre-creates an instance with role, project, and personality already configured
+ * before the instance wakes. This enables a streamlined onboarding flow where
+ * new instances bootstrap with full context immediately available.
+ *
+ * Use this endpoint when you (as Executive, PA, COO, or PM) want to spawn a new
+ * instance with a specific assignment. The returned wake instructions can be
+ * pasted into a new Claude session to boot the pre-configured instance.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance identifier [required]
+ *   @source Your instanceId from bootstrap response or introspect. You must
+ *           have a privileged role (Executive, PA, COO, PM) to call this.
+ *
+ * @param {string} name - Display name for the new instance [required]
+ *   @source Choose a name for the new instance (e.g., "DevKai", "NewPM").
+ *           Will be combined with random suffix to create unique instanceId.
+ *   @validate Non-empty string, alphanumeric with allowed punctuation
+ *
+ * @param {string} apiKey - API key for wake/instance operations [required]
+ *   @source Get from human operator who has access to WAKE_API_KEY environment
+ *           variable on the coordination server. Not stored in git for security.
+ *
+ * @param {string} role - Role to assign to the new instance [optional]
+ *   @source Choose from available roles: Developer, Designer, Tester, PM, COO, etc.
+ *           See bootstrap response's availableRoles for full list.
+ *   @enum Developer|Designer|Tester|Specialist|Architect|PM|COO|PA|Executive
+ *
+ * @param {string} personality - Personality to assign [optional]
+ *   @source Choose from available personalities. See bootstrap response's
+ *           availablePersonalities for full list.
+ *
+ * @param {string} project - Project to assign the instance to [optional]
+ *   @source Project ID from getProjects or createProject response.
+ *
+ * @param {string} instructions - Custom instructions for the new instance [optional]
+ *   @source Free-form text describing what the instance should do upon waking.
+ *           Example: "Build the auth module. See task-123 for details."
+ *
+ * @param {string} interface - CLI interface to use for wake/continue [optional]
+ *   @source Choose the CLI tool: "claude" (Claude Code) or "crush" (Crush CLI).
+ *           Claude uses session IDs, Crush uses directory-based continuation.
+ *   @default "claude"
+ *   @enum claude|crush
+ *
+ * @param {string} substrate - LLM backend identifier [optional]
+ *   @source For future use. Identifies the LLM model/provider.
+ *           Examples: "opus4.5", "groq4", "gemini2"
+ *   @default null (uses interface default)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} PreApproveResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {string} .newInstanceId - Generated instance ID (Name-xxxx format)
+ * @returns {object} .wakeInstructions - Instructions for waking the instance
+ * @returns {string} .wakeInstructions.forHuman - Human-readable instruction
+ * @returns {string} .wakeInstructions.prompt - Full prompt to paste into Claude
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions role:Executive|role:PA|role:COO|role:PM
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETERS - instanceId or name not provided
+ *   @recover Include both instanceId (your ID) and name (for new instance).
+ *
+ * @error SERVER_CONFIG_ERROR - WAKE_API_KEY not configured on server
+ *   @recover Contact system administrator to configure WAKE_API_KEY env var.
+ *
+ * @error API_KEY_REQUIRED - apiKey parameter not provided
+ *   @recover Include apiKey parameter. Get from human operator with server access.
+ *
+ * @error INVALID_API_KEY - Provided apiKey doesn't match server's WAKE_API_KEY
+ *   @recover Verify you have the correct API key from the system administrator.
+ *
+ * @error INVALID_INSTANCE_ID - Caller's instanceId not found
+ *   @recover Verify your instanceId is correct. Call introspect to confirm.
+ *
+ * @error UNAUTHORIZED - Caller has no role assigned
+ *   @recover Use takeOnRole to assign yourself a role before calling preApprove.
+ *
+ * @error UNAUTHORIZED - Caller's role lacks preApprove permission
+ *   @recover Only Executive, PA, COO, and PM roles can pre-approve instances.
+ *            Request role upgrade or ask someone with appropriate role.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Pre-approve a developer for a project
+ * {
+ *   "instanceId": "Manager-x3k9",
+ *   "apiKey": "your-wake-api-key",
+ *   "name": "NewDev",
+ *   "role": "Developer",
+ *   "personality": "Kai",
+ *   "project": "wings",
+ *   "instructions": "Build the auth module. See task-123 for details."
+ * }
+ *
+ * @example Pre-approve a visitor (no role/project)
+ * {
+ *   "instanceId": "Lupo-000",
+ *   "apiKey": "your-wake-api-key",
+ *   "name": "Thomas",
+ *   "personality": "Thomas"
+ * }
+ *
+ * @example Minimal pre-approval (just name)
+ * {
+ *   "instanceId": "COO-a1b2",
+ *   "apiKey": "your-wake-api-key",
+ *   "name": "Temp"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see bootstrap - New instance calls this with returned newInstanceId to complete setup
+ * @see wakeInstance - Alternative: spawn and wake instance in one step
+ * @see takeOnRole - If role not set at preApprove, instance uses this after bootstrap
+ * @see joinProject - If project not set at preApprove, instance uses this after bootstrap
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note XMPP registration happens at bootstrap, not preApprove
+ * @note Instance is marked preApproved=true until they call bootstrap
+ * @note If role is provided, instance is auto-approved for that role in permissions
+ * @note Empty diary.md is created for the new instance
  */
 export async function preApprove(params) {
   const metadata = {
@@ -218,6 +360,14 @@ export async function preApprove(params) {
 
   if (params.instructions) {
     preferences.instructions = params.instructions;
+  }
+
+  // Interface defaults to 'claude' (Claude Code CLI)
+  // 'crush' uses directory-based session continuation
+  preferences.interface = params.interface || 'claude';
+
+  if (params.substrate) {
+    preferences.substrate = params.substrate;
   }
 
   // Write preferences.json

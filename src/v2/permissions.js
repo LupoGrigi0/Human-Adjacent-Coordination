@@ -1,6 +1,34 @@
 /**
- * Permissions and authorization module for V2 coordination system
- * Handles role-based access control, token validation, and instance approvals
+ * @hacs-endpoint
+ * @template-version 1.1.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ PERMISSIONS MODULE                                                      │
+ * │ Role-based access control and token validation                          │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool permissions_module
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category system
+ * @status stable
+ * @visibility internal
+ *
+ * @description
+ * Internal permissions and authorization module for V2 coordination system.
+ * Handles role-based access control, token validation, and instance approvals.
+ *
+ * Key functions:
+ * - canRoleCallAPI: Check if role can call specific API
+ * - validateRoleToken: Validate privileged role tokens
+ * - validatePersonalityToken: Validate privileged personality tokens
+ * - approveInstanceForRole: Pre-approve instance for a role
+ *
+ * Privileged roles (require env tokens): Executive, PA, COO, PM
+ * Privileged personalities (require env tokens): Genevieve, Thomas, Lupo
+ *
+ * @note Tokens stored in environment variables (not in git)
+ * @note Default permissions loaded from DEFAULT_PERMISSIONS if file missing
+ * @see data.js - Used for reading/writing JSON files
  */
 
 import path from 'path';

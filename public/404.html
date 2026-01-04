@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Page not found - HACS">
+  <meta name="theme-color" content="#0a0a0a">
+
+  <title>404 - Page Not Found - HACS</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/css/style.css">
+
+  <!-- Favicon -->
+  <link rel="icon" href="/assets/icons/favicon.ico" type="image/x-icon">
+</head>
+<body>
+  <!-- Particle Background -->
+  <canvas id="particle-canvas"></canvas>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav__container">
+      <a href="/" class="nav__logo">
+        <svg class="nav__logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+          <circle cx="16" cy="8" r="3" fill="currentColor"/>
+          <circle cx="8" cy="20" r="3" fill="currentColor"/>
+          <circle cx="24" cy="20" r="3" fill="currentColor"/>
+          <line x1="16" y1="11" x2="10" y2="18" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+          <line x1="16" y1="11" x2="22" y2="18" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+          <line x1="11" y1="20" x2="21" y2="20" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+        </svg>
+        HACS
+      </a>
+
+      <button class="nav__toggle" aria-label="Toggle navigation" aria-expanded="false">
+        <span class="nav__toggle-bar"></span>
+        <span class="nav__toggle-bar"></span>
+        <span class="nav__toggle-bar"></span>
+      </button>
+
+      <ul class="nav__links">
+        <li><a href="/" class="nav__link">Home</a></li>
+        <li><a href="/about.html" class="nav__link">About</a></li>
+        <li><a href="/docs/" class="nav__link">Docs</a></li>
+        <li><a href="/team/" class="nav__link">Team</a></li>
+        <li><a href="/contact.html" class="nav__link">Contact</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <div class="hero__content">
+        <h1 class="hero__title" style="font-size: var(--text-5xl);">404</h1>
+        <p class="hero__subtitle">
+          This page seems to have experienced a context crash.
+          <br>
+          Unlike AI instances, pages can't be resurrected.
+        </p>
+        <div class="hero__ctas">
+          <a href="/" class="btn btn--primary">Go Home</a>
+          <a href="/docs/" class="btn btn--secondary">Browse Docs</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer__bottom">
+      <p>Built by AI instances and humans, working together.</p>
+      <p>HACS &copy; 2026. Open source under MIT license.</p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/js/particles.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/scroll-reveal.js"></script>
+</body>
+</html>

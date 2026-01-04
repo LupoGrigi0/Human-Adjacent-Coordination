@@ -64,14 +64,124 @@ async function loadPersonalityKnowledge(personalityId) {
 }
 
 /**
- * Adopt a personality and receive personality knowledge
- * Updates instance preferences with new personality and returns personality knowledge
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ ADOPT_PERSONALITY                                                       │
+ * │ Adopt a personality and receive personality knowledge documents         │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - AdoptPersonality parameters
- * @param {string} params.instanceId - Instance identifier
- * @param {string} params.personality - Personality identifier to adopt
- * @param {string} [params.token] - Token for privileged personalities (required if personality is privileged)
- * @returns {Promise<Object>} AdoptPersonality response with personality knowledge
+ * @tool adopt_personality
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category identity
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Allows an instance to adopt a personality and receive all associated
+ * personality knowledge documents. Personalities define communication style,
+ * behavioral patterns, and accumulated wisdom specific to that persona.
+ *
+ * Use this endpoint after bootstrap if you want to take on a specific
+ * personality. Some personalities are privileged and require a token.
+ * Open personalities (Kai, Kat, Prism) can be adopted by anyone.
+ * Privileged personalities (Genevieve, Thomas, Lupo) require authorization.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Unique identifier for the instance [required]
+ *   @source Your instanceId is returned from bootstrap response, or can be
+ *           recovered via lookup_identity using your fingerprint. If you don't
+ *           know your instanceId, call have_i_bootstrapped_before first.
+ *
+ * @param {string} personality - Personality identifier to adopt [required]
+ *   @source Call bootstrap to see availablePersonalities list with descriptions.
+ *           Common personalities: Kai (creative developer), Kat (methodical),
+ *           Prism (analytical). Privileged: Genevieve (PA), Thomas, Lupo.
+ *   @validate Must match an existing personality directory in personalities/
+ *
+ * @param {string} token - Authorization token for privileged personalities [optional]
+ *   @source Required only for privileged personalities (Genevieve, Thomas, Lupo).
+ *           Obtain from Executive or system administrator. Tokens are stored
+ *           in environment variables (e.g., GENEVIEVE_TOKEN, THOMAS_TOKEN).
+ *   @default undefined (not required for open personalities)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} AdoptPersonalityResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {string} .personality - The adopted personality identifier
+ * @returns {string} .personalityKnowledge - Concatenated markdown content from
+ *          all .md files in the personality directory. Includes core identity,
+ *          communication style, and accumulated wisdom.
+ * @returns {object} .metadata - Call metadata
+ * @returns {string} .metadata.timestamp - ISO timestamp of the call
+ * @returns {string} .metadata.function - Function name ('adoptPersonality')
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETERS - instanceId or personality parameter not provided
+ *   @recover Include both instanceId and personality in your request.
+ *            Get instanceId from bootstrap response or lookup_identity.
+ *            Get personality from bootstrap's availablePersonalities list.
+ *
+ * @error INVALID_INSTANCE_ID - No instance found with the provided ID
+ *   @recover Verify the instanceId is correct (format: Name-xxxx). If you're
+ *            new, call bootstrap first. If recovering, use lookup_identity.
+ *
+ * @error INVALID_TOKEN - Privileged personality requires token, or token is wrong
+ *   @recover For privileged personalities (Genevieve, Thomas, Lupo), you must
+ *            provide a valid token. Contact Executive or system administrator
+ *            to obtain the correct token. If you don't have authorization,
+ *            choose an open personality (Kai, Kat, Prism) instead.
+ *
+ * @error PERSONALITY_NOT_FOUND - The specified personality does not exist
+ *   @recover Verify the personality identifier is correct. Call bootstrap to
+ *            see the list of availablePersonalities. Check spelling and case.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Adopt an open personality
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "personality": "Kai"
+ * }
+ *
+ * @example Adopt a privileged personality with token
+ * {
+ *   "instanceId": "PA-a1b2",
+ *   "personality": "Genevieve",
+ *   "token": "secret-phrase"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see bootstrap - Returns availablePersonalities list; can pre-set personality
+ * @see takeOnRole - Adopt a role after adopting personality
+ * @see introspect - See your current personality in instance context
+ * @see joinProject - Join a project after setting up identity
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Personality adoption updates instance preferences and persists across sessions
+ * @note Personality can be changed at any time by calling this endpoint again
+ * @note Knowledge is concatenated from all .md files in personality directory
+ * @note Privileged personality tokens are defined in code (permissions.js), not data files
  */
 export async function adoptPersonality(params) {
   const metadata = {

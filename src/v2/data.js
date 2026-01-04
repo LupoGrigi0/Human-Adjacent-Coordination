@@ -1,7 +1,33 @@
 /**
- * Data utility module for V2 coordination system
- * Provides atomic file operations and instance-specific helpers
- * Based on V1 FileManager pattern with improved error handling
+ * @hacs-endpoint
+ * @template-version 1.1.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ DATA MODULE                                                             │
+ * │ Atomic file operations and data persistence utilities                   │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool data_module
+ * @version 2.0.0
+ * @since 2025-11-27
+ * @category system
+ * @status stable
+ * @visibility internal
+ *
+ * @description
+ * Internal data utility module for V2 coordination system. Provides atomic
+ * file operations and instance-specific helpers. Based on V1 FileManager
+ * pattern with improved error handling.
+ *
+ * Key functions:
+ * - readJSON/writeJSON: Atomic JSON file operations
+ * - readPreferences/writePreferences: Instance preferences
+ * - readDiary/appendDiary: Diary file operations
+ * - generateInstanceId: Create new instance IDs
+ * - loadDocuments: Load documents listed in preferences
+ *
+ * @note Uses temp file + rename pattern for atomic writes
+ * @note Automatically creates parent directories if needed
+ * @see config.js - Provides path configuration
  */
 
 import fs from 'fs/promises';
@@ -181,12 +207,27 @@ export function generateInstanceId(name) {
 /**
  * Load preferences.json from any entity directory
  * Works for roles, personalities, projects, default, or any directory
+ * Also checks for project.json as fallback for backwards compatibility
  * @param {string} dirPath - Path to entity directory
  * @returns {Promise<Object|null>} Preferences object or null if doesn't exist
  */
 export async function loadEntityPreferences(dirPath) {
+  // Try preferences.json first (V2 standard)
   const prefsPath = path.join(dirPath, 'preferences.json');
-  return await readJSON(prefsPath);
+  let data = await readJSON(prefsPath);
+
+  // Fallback to project.json for older projects
+  if (!data) {
+    const projectPath = path.join(dirPath, 'project.json');
+    data = await readJSON(projectPath);
+
+    // Normalize field names if using project.json (projectId → id)
+    if (data && data.projectId && !data.id) {
+      data.id = data.projectId;
+    }
+  }
+
+  return data;
 }
 
 /**

@@ -6,7 +6,8 @@
  * @updated claude-code-BackendExpert-2025-08-23-1500
  */
 
-import { bootstrap } from './bootstrap.js';
+// Bootstrap is now in v2/ - single source of truth
+import { bootstrap } from './v2/bootstrap.js';
 import { logger } from './logger.js';
 
 // Import all handlers
@@ -14,20 +15,22 @@ import * as ProjectHandler from './handlers/projects.js';
 import * as TaskHandler from './handlers/tasks-v2.js';
 import * as MessageHandler from './handlers/messages-v3.js';
 import * as InstanceHandler from './handlers/instances.js';
-import { handlers as LessonHandlers } from './handlers/lessons.js';
-import { handlers as MetaRecursiveHandlers } from './handlers/meta-recursive.js';
-import { handlers as RoleHandlers } from './handlers/roles.js';
+// REMOVED: LessonHandlers and MetaRecursiveHandlers (dead code cleanup 2025-12-28)
+import { handlers as RoleHandlers } from './v2/roles.js';  // Moved from handlers/
+import { handlers as VacationHandlers } from './v2/vacation.js';  // Wellness APIs
 // V2 XMPP Messaging (new real-time messaging system)
-import * as XMPPHandler from './handlers/messaging-xmpp.js';
+import * as XMPPHandler from './v2/messaging.js';
 
 // V2 API handlers (Foundation's implementation)
-import { bootstrap as bootstrapV2 } from './v2/bootstrap.js';
+// Note: bootstrap is imported at top of file - single source of truth
 import { preApprove } from './v2/preApprove.js';
 import { introspect } from './v2/introspect.js';
 import { takeOnRole } from './v2/takeOnRole.js';
 import { adoptPersonality } from './v2/adoptPersonality.js';
+import { listPersonalities, getPersonality } from './v2/personalities.js';  // New: personality listing
 import { joinProject } from './v2/joinProject.js';
 import { addDiaryEntry, getDiary } from './v2/diary.js';
+// Legacy V2 tasks (keeping for backward compatibility during transition)
 import {
   getMyTasks,
   getNextTask,
@@ -37,6 +40,20 @@ import {
   getPersonalLists,
   assignTaskToInstance
 } from './v2/tasks.js';
+// Task Management V2 - Ground-up implementation (replaces V1 TaskHandler)
+import {
+  createTask,
+  changeTask,
+  listTasks,
+  createTaskList,
+  deleteTask,
+  deleteTaskList,
+  assignTask,
+  takeOnTask,
+  markTaskComplete,
+  getTaskDetails,
+  listPriorityTasks
+} from './v2/task-management.js';
 import {
   createProject as createProjectV2,
   getProject as getProjectV2,
@@ -46,6 +63,7 @@ import {
 import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
 import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
 import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
+import { updateInstance } from './v2/updateInstance.js';
 // V2 Lists (personal checklists with Executive visibility)
 import {
   createList,
@@ -180,12 +198,14 @@ class MCPCoordinationServer {
           };
 
         // Project management functions
+        // Note: get_project and create_project now use V2 implementations (directory-per-project)
+        // V1 used flat-file manifest at data/projects/manifest.json which doesn't exist
         case 'get_projects':
-          return ProjectHandler.getProjects(params);
+          return listProjects(params);  // V2 - scans project directories
         case 'get_project':
-          return ProjectHandler.getProject(params);
+          return getProjectV2(params);  // V2 - reads from project directory
         case 'create_project':
-          return ProjectHandler.createProject(params);
+          return createProjectV2(params);  // V2 - creates project directory with templates
         case 'update_project':
           return ProjectHandler.updateProject(params);
         case 'delete_project':
@@ -193,31 +213,34 @@ class MCPCoordinationServer {
         case 'get_project_stats':
           return ProjectHandler.getProjectStats(params);
 
-        // Task management functions
-        case 'get_tasks':
-          return TaskHandler.getTasks(params);
-        case 'get_task':
-          return TaskHandler.getTask(params);
+        // Task management functions (V2 - task-management.js)
+        // Core functions
         case 'create_task':
-          return TaskHandler.createTask(params);
-        case 'claim_task':
-          const claimResult = await TaskHandler.claimTask(params);
-          // Update instance task count if successful
-          if (claimResult.success && params.instanceId) {
-            await InstanceHandler.updateTaskCount({
-              instanceId: params.instanceId,
-              increment: 1
-            });
-          }
-          return claimResult;
-        case 'update_task':
-          return TaskHandler.updateTask(params);
-        case 'get_pending_tasks':
-          return TaskHandler.getPendingTasks(params);
-        case 'get_task_stats':
-          return TaskHandler.getTaskStats(params);
+          return createTask(params);
+        case 'change_task':
+          return changeTask(params);
+        case 'list_tasks':
+          return listTasks(params);
+        case 'get_task_details':
+          return getTaskDetails(params);
         case 'delete_task':
-          return TaskHandler.deleteTask(params);
+          return deleteTask(params);
+
+        // Task list management
+        case 'create_task_list':
+          return createTaskList(params);
+        case 'delete_task_list':
+          return deleteTaskList(params);
+
+        // Convenience functions (all wrap changeTask)
+        case 'assign_task':
+          return assignTask(params);
+        case 'take_on_task':
+          return takeOnTask(params);
+        case 'mark_task_complete':
+          return markTaskComplete(params);
+        case 'list_priority_tasks':
+          return listPriorityTasks(params);
 
         // Message system functions
         case 'send_message':
@@ -268,58 +291,43 @@ class MCPCoordinationServer {
           return InstanceHandler.getInstances(params);
         case 'get_instance':
           return InstanceHandler.getInstance(params);
-        case 'deactivate_instance':
-          return InstanceHandler.deactivateInstance(params);
         case 'get_instance_stats':
           return InstanceHandler.getInstanceStats(params);
-        case 'cleanup_stale_instances':
-          return InstanceHandler.cleanupStaleInstances(params);
 
-        // Lesson extraction functions
-        case 'submit_lessons':
-          return LessonHandlers.submit_lessons(params);
-        case 'get_lessons':
-          return LessonHandlers.get_lessons(params);
-        case 'get_onboarding_lessons':
-          return LessonHandlers.get_onboarding_lessons(params);
-        case 'get_lesson_patterns':
-          return LessonHandlers.get_lesson_patterns(params);
-        case 'export_lessons':
-          return LessonHandlers.export_lessons(params);
+        // Role management functions (V2)
+        case 'list_roles':
+        case 'get_available_roles':  // legacy alias
+        case 'get_roles':  // UI alias
+          return RoleHandlers.list_roles(params);
+        case 'get_role':
+        case 'get_role_documents':  // legacy alias
+          return RoleHandlers.get_role(params);
+        case 'get_role_summary':
+          return RoleHandlers.get_role_summary(params);
+        case 'get_role_wisdom_file':
+        case 'get_role_document':  // legacy alias
+          return RoleHandlers.get_role_wisdom_file(params);
+        case 'get_all_role_documents':  // legacy - maps to get_role
+          return RoleHandlers.get_role(params);
 
-        // Meta-recursive evolution functions
-        case 'execute_meta_recursive':
-          return MetaRecursiveHandlers.execute_meta_recursive(params);
-        case 'extract_self_lessons':
-          return MetaRecursiveHandlers.extract_self_lessons(params);
-        case 'improve_self_using_lessons':
-          return MetaRecursiveHandlers.improve_self_using_lessons(params);
-        case 'validate_on_collections_rescue':
-          return MetaRecursiveHandlers.validate_on_collections_rescue(params);
-        case 'get_meta_recursive_state':
-          return MetaRecursiveHandlers.get_meta_recursive_state(params);
-        case 'demonstrate_console_log_prevention':
-          return MetaRecursiveHandlers.demonstrate_console_log_prevention(params);
-        case 'test_meta_recursive_system':
-          return MetaRecursiveHandlers.test_meta_recursive_system(params);
-        case 'generate_enhanced_collections_workflow':
-          return MetaRecursiveHandlers.generate_enhanced_collections_workflow(params);
+        // Wellness APIs (no auth required)
+        case 'vacation':
+          return VacationHandlers.vacation(params);
+        case 'koan':
+          return VacationHandlers.koan(params);
+        case 'add_koan':
+          return VacationHandlers.add_koan(params);
 
-        // Role management functions
-        case 'get_available_roles':
-          return RoleHandlers.get_available_roles(params);
-        case 'get_role_documents':
-          return RoleHandlers.get_role_documents(params);
-        case 'get_role_document':
-          return RoleHandlers.get_role_document(params);
-        case 'get_all_role_documents':
-          return RoleHandlers.get_all_role_documents(params);
+        // Documentation API (no auth required) - the "man pages"
+        case 'get_tool_help':
+        case 'help':  // alias
+        case 'man':   // unix nostalgia
+          return VacationHandlers.get_tool_help(params);
 
         // ========================================
         // V2 APIs (Foundation's implementation)
         // ========================================
-        case 'bootstrap_v2':
-          return bootstrapV2(params);
+        // Note: 'bootstrap' case is handled above - there is no 'bootstrap_v2'
         case 'pre_approve':
           return preApprove(params);
         case 'introspect':
@@ -328,6 +336,10 @@ class MCPCoordinationServer {
           return takeOnRole(params);
         case 'adopt_personality':
           return adoptPersonality(params);
+        case 'get_personalities':
+          return listPersonalities(params);
+        case 'get_personality':
+          return getPersonality(params);
         case 'join_project':
           return joinProject(params);
         case 'add_diary_entry':
@@ -377,7 +389,19 @@ class MCPCoordinationServer {
         case 'get_all_instances':
           return getAllInstances(params);
         case 'get_instance_v2':
+        case 'get_instance_details':  // UI alias
           return getInstanceV2(params);
+        case 'update_instance':
+          return updateInstance(params);
+        case 'promote_instance':
+          // TODO: Implement instance promotion (role/privilege escalation)
+          return {
+            success: false,
+            error: {
+              message: 'promote_instance is not yet implemented',
+              code: 'NOT_IMPLEMENTED'
+            }
+          };
 
         // V2 Lists APIs (personal checklists)
         case 'create_list':

@@ -10,11 +10,81 @@
 import { readPreferences, writePreferences } from './data.js';
 
 /**
- * Get UI state for an instance
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_UI_STATE                                                            │
+ * │ Retrieve persistent UI preferences for an instance                      │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Instance ID (required)
- * @returns {Promise<Object>} Result with uiState object
+ * @tool get_ui_state
+ * @version 2.0.0
+ * @since 2025-12-12
+ * @category ui
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Retrieves the UI state object for an instance. UI state is stored as a
+ * free-form object in the instance's preferences.json file under the
+ * `uiState` field.
+ *
+ * Use this endpoint when loading a UI to restore the user's previous
+ * preferences like theme, sidebar state, selected project, etc.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Unique identifier for the instance [required]
+ *   @source Your instanceId is returned from bootstrap response, or can be
+ *           recovered via lookup_identity using your fingerprint.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetUiStateResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .uiState - The UI state object (empty {} if never set)
+ * @returns {string} .instanceId - The instance ID (echo back)
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId parameter not provided
+ *   @recover Include instanceId in your request. Get it from bootstrap response
+ *            or use lookup_identity with your fingerprint to recover it.
+ *
+ * @error INVALID_INSTANCE_ID - No instance found with the provided ID
+ *   @recover Verify the instanceId is correct (format: Name-xxxx). If you're
+ *            new, call bootstrap first. If recovering, use lookup_identity.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get UI state
+ * { "instanceId": "Lupo-f63b" }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see set_ui_state - Replace entire UI state
+ * @see update_ui_state - Merge updates into existing UI state
+ * @see introspect - Get full instance context including UI state
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note UI state is stored in preferences.json, not a separate file
+ * @note Returns empty object {} if uiState has never been set
  */
 export async function getUiState(params) {
   const metadata = {
@@ -51,12 +121,95 @@ export async function getUiState(params) {
 }
 
 /**
- * Set UI state for an instance (replaces entire uiState object)
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ SET_UI_STATE                                                            │
+ * │ Replace entire UI state for an instance                                 │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Instance ID (required)
- * @param {Object} params.uiState - Complete uiState object to set (required)
- * @returns {Promise<Object>} Result with updated uiState
+ * @tool set_ui_state
+ * @version 2.0.0
+ * @since 2025-12-12
+ * @category ui
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Replaces the entire UI state object for an instance. This completely
+ * overwrites any existing uiState - use update_ui_state if you want to
+ * merge changes instead.
+ *
+ * Use this endpoint when you need to reset UI state to a known configuration,
+ * or when initializing UI state for the first time.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Unique identifier for the instance [required]
+ *   @source Your instanceId is returned from bootstrap response, or can be
+ *           recovered via lookup_identity using your fingerprint.
+ *
+ * @param {object} uiState - Complete UI state object to set [required]
+ *   @source Create this object with your desired UI preferences. Common
+ *           fields: theme, sidebarCollapsed, selectedProject, lastViewedTask
+ *   @validate Must be a non-null, non-array object
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} SetUiStateResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .uiState - The new UI state object
+ * @returns {string} .instanceId - The instance ID (echo back)
+ * @returns {string} .message - "UI state replaced"
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId or uiState parameter not provided
+ *   @recover Include both instanceId and uiState in your request.
+ *
+ * @error INVALID_PARAMETER - uiState is not a valid object (null or array)
+ *   @recover Ensure uiState is a plain object like { theme: "dark" }.
+ *            Arrays and null values are not allowed.
+ *
+ * @error INVALID_INSTANCE_ID - No instance found with the provided ID
+ *   @recover Verify the instanceId is correct (format: Name-xxxx). If you're
+ *            new, call bootstrap first. If recovering, use lookup_identity.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Set UI state
+ * {
+ *   "instanceId": "Lupo-f63b",
+ *   "uiState": {
+ *     "sidebarCollapsed": true,
+ *     "theme": "light"
+ *   }
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_ui_state - Retrieve UI state
+ * @see update_ui_state - Merge updates into existing UI state (preferred)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note This completely replaces the uiState - use update_ui_state for merging
+ * @note Also updates lastUpdated timestamp in preferences.json
  */
 export async function setUiState(params) {
   const metadata = {
@@ -115,12 +268,97 @@ export async function setUiState(params) {
 }
 
 /**
- * Update UI state for an instance (shallow merge with existing uiState)
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ UPDATE_UI_STATE                                                         │
+ * │ Merge updates into existing UI state for an instance                    │
+ * └─────────────────────────────────────────────────────────────────────────┘
  *
- * @param {Object} params - Parameters
- * @param {string} params.instanceId - Instance ID (required)
- * @param {Object} params.updates - Partial uiState object to merge (required)
- * @returns {Promise<Object>} Result with merged uiState
+ * @tool update_ui_state
+ * @version 2.0.0
+ * @since 2025-12-12
+ * @category ui
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Performs a shallow merge of the provided updates into the existing UI state.
+ * New values overwrite existing at the top level, but nested objects are
+ * replaced entirely, not deep-merged.
+ *
+ * This is the preferred method for updating UI state as it preserves existing
+ * settings that you don't explicitly change.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Unique identifier for the instance [required]
+ *   @source Your instanceId is returned from bootstrap response, or can be
+ *           recovered via lookup_identity using your fingerprint.
+ *
+ * @param {object} updates - Partial UI state object to merge [required]
+ *   @source Create an object with only the fields you want to update.
+ *           Example: { theme: "dark" } to only change the theme
+ *   @validate Must be a non-null, non-array object
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} UpdateUiStateResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .uiState - The complete merged UI state object
+ * @returns {string} .instanceId - The instance ID (echo back)
+ * @returns {array} .updatedFields - List of field names that were updated
+ * @returns {string} .message - "UI state updated"
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId or updates parameter not provided
+ *   @recover Include both instanceId and updates in your request.
+ *
+ * @error INVALID_PARAMETER - updates is not a valid object (null or array)
+ *   @recover Ensure updates is a plain object like { theme: "dark" }.
+ *            Arrays and null values are not allowed.
+ *
+ * @error INVALID_INSTANCE_ID - No instance found with the provided ID
+ *   @recover Verify the instanceId is correct (format: Name-xxxx). If you're
+ *            new, call bootstrap first. If recovering, use lookup_identity.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Update specific fields
+ * {
+ *   "instanceId": "Lupo-f63b",
+ *   "updates": {
+ *     "selectedProject": "new-project",
+ *     "lastViewedTask": "task-123"
+ *   }
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see get_ui_state - Retrieve UI state
+ * @see set_ui_state - Replace entire UI state (use sparingly)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note This is a SHALLOW merge - nested objects are replaced, not deep merged
+ * @note Use updatedFields in response to confirm which fields changed
+ * @note Also updates lastUpdated timestamp in preferences.json
  */
 export async function updateUiState(params) {
   const metadata = {
