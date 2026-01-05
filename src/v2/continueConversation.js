@@ -451,7 +451,6 @@ export async function continueConversation(params) {
       'exec',
       'resume',
       '--last',  // automatically resume most recent session
-      '--json',
       messageWithSender
     ];
   } else {
