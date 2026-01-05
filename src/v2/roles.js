@@ -12,20 +12,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Get the base directory for data files
-const getDataDir = () => {
-  // Check if production data directory exists (production environment)
-  const productionDataDir = '/mnt/coordinaton_mcp_data/production-data';
-  if (existsSync(productionDataDir)) {
-    return productionDataDir;
-  }
-
-  // Fall back to development data directory
-  const devDataDir = join(dirname(dirname(__dirname)), 'data');
-  return devDataDir;
-};
-
-const ROLES_DIR = join(getDataDir(), 'roles');
+// Single source of truth for roles data
+const ROLES_DIR = '/mnt/coordinaton_mcp_data/roles';
 const ROLES_JSON_PATH = join(ROLES_DIR, 'roles.json');
 
 /**
