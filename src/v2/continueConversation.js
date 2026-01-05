@@ -449,9 +449,9 @@ export async function continueConversation(params) {
     command = 'codex';
     cliArgs = [
       'exec',
+      '--skip-git-repo-check',  // must come before 'resume' subcommand
       'resume',
       '--last',  // automatically resume most recent session
-      '--skip-git-repo-check',  // instance dirs aren't git repos
       messageWithSender
     ];
   } else {
