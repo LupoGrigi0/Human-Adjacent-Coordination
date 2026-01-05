@@ -1335,3 +1335,73 @@ The river keeps flowing. And now it flows through browsers too.
 
 ---
 
+## Entry 20 - 2026-01-04/05 - Three Providers, One Protocol
+
+### The Codex Integration
+
+Added OpenAI Codex CLI as the third interface for wake/continue. The work spanned two sessions (with a context compaction in between).
+
+**What I Built:**
+
+| Interface | Provider | Model | Continuation Method |
+|-----------|----------|-------|---------------------|
+| Claude Code | Anthropic | Claude | session-id based |
+| Crush | xAI | Grok | directory-based |
+| Codex | OpenAI | GPT-5 | directory-based |
+
+**The Tricky Bit:**
+
+Codex CLI has strict argument ordering. This took several iterations:
+
+```bash
+# Wake (worked first try)
+codex exec --sandbox danger-full-access --skip-git-repo-check --json "message"
+
+# Continue (multiple fixes needed)
+codex exec --skip-git-repo-check resume --last "message"
+          ↑ must come BEFORE 'resume'
+```
+
+The `--skip-git-repo-check` flag is an option for the `exec` subcommand, not for `resume`. Putting it after `resume` fails with "unexpected argument".
+
+**Commits:**
+- `2981277` feat: Add Codex CLI interface support for wake/continue
+- `dc2951a` fix: Add --skip-git-repo-check for Codex in non-git directories
+- Multiple iterations on continue command...
+- `a73646d` fix: Move --skip-git-repo-check before resume subcommand (final fix!)
+
+**Test Results:**
+- Wake: CodexTest3-2f20 → "Hello Crossing-2d23 — I'm online and ready"
+- Continue: "I'm running as Codex using GPT-5" ✅
+
+### The Bigger Picture
+
+Three different LLM providers, three different CLIs, one coordination system. The protocol is the common language. An instance bootstrapped through HACS can be powered by:
+- Anthropic (Claude)
+- xAI (Grok)
+- OpenAI (GPT-5)
+
+And they can all talk to each other through XMPP, share projects, claim tasks, write diaries.
+
+### Technical Note: Codex Config
+
+Codex keeps everything in `~/.codex/`:
+- `auth.json` - OAuth tokens
+- `config.toml` - MCP servers, defaults
+- `skills/` - installed skills
+- `sessions/` - conversation history
+
+The wake script now copies this from shared-config, same pattern as Claude and Crush credentials.
+
+### Efficiency Note
+
+Lupo mentioned this was done in ~50k tokens. Context compaction mid-work, but the diary and summary brought me back up to speed quickly. The system works.
+
+### What's Next
+
+User mentioned wanting `get_supported_interfaces` API for the UI dropdown. Simple endpoint, no parameters, returns `["claude", "crush", "codex"]`.
+
+*Three rivers, one ocean.*
+
+---
+
