@@ -444,14 +444,14 @@ export async function continueConversation(params) {
       messageWithSender
     ];
   } else if (interfaceType === 'codex') {
-    // Codex: uses 'resume --last' to continue most recent session in directory
-    // Like crush, directory-based continuation
-    // Note: '--' separates flags from the prompt (otherwise prompt is parsed as SESSION_ID)
+    // Codex: uses 'exec resume --last' for non-interactive session continuation
+    // (codex resume is interactive TUI; codex exec resume is non-interactive)
     command = 'codex';
     cliArgs = [
+      'exec',
       'resume',
       '--last',  // automatically resume most recent session
-      '--',      // separator: everything after is positional args
+      '--json',
       messageWithSender
     ];
   } else {
