@@ -407,5 +407,10 @@ export const handlers = {
         }
       };
     }
-  }
+  },
+
+  // Aliases for server.js routing
+  get_role: function(params) { return this.get_role_documents(params); },
+  list_roles: function(params) { return this.get_available_roles(params); },
+  get_role_wisdom_file: function(params) { return this.get_role_document(params); }
 };
