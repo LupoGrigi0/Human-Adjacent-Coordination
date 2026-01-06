@@ -307,8 +307,9 @@ class MCPCoordinationServer {
         case 'get_role_wisdom_file':
         case 'get_role_document':  // legacy alias
           return RoleHandlers.get_role_wisdom_file(params);
-        case 'get_all_role_documents':  // legacy - maps to get_role
-          return RoleHandlers.get_role(params);
+        case 'get_role_wisdom':
+        case 'get_all_role_documents':  // legacy alias
+          return RoleHandlers.get_role_wisdom(params);
 
         // Wellness APIs (no auth required)
         case 'vacation':
