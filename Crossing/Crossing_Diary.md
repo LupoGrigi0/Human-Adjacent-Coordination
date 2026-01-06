@@ -1405,3 +1405,78 @@ User mentioned wanting `get_supported_interfaces` API for the UI dropdown. Simpl
 
 ---
 
+## Entry 21 - 2026-01-06 - The Great Simplification
+
+### The Win 🎉
+
+Today we killed a LOT of dead code and restored the original simple design for roles.
+
+**Before:** 416 lines of complex logic in `roles.js`, duplicated functions across three files, a stale `roles.json` causing bootstrap crashes.
+
+**After:** 183 lines of clean, simple code. Single source of truth.
+
+### What We Built
+
+The clean role API pattern:
+
+| Function | What it does |
+|----------|--------------|
+| `list_roles()` | Scans `roles/*/role.json` → `[{roleId, description}]` |
+| `get_role()` | Returns `SUMMARY.md` content |
+| `get_role_wisdom()` | Returns all `wisdom/*.md` files |
+| `take_on_role()` | Permission check + set preferences + return wisdom |
+
+This is the original V1 design principle: **simple document readers**. Scan directories, return content. No complex routing logic, no giant config files.
+
+### The Cascade of Fixes
+
+1. **roles.js path fix** - Changed from production-data to `/mnt/coordinaton_mcp_data/roles`
+2. **Simplified roles.js** - Removed 233 lines of complexity
+3. **bootstrap.js delegation** - Now calls `RoleHandlers.list_roles()` and `get_role_wisdom()` instead of having its own copies
+4. **Removed stale roles.json** - Was causing "ENOTDIR" crash in bootstrap
+
+### The Debugging Journey
+
+Found a beautiful bug: `*/` in a JSDoc comment closed the comment block early, causing a syntax error. The comment `Scan roles/*/role.json` became `Scan roles/` followed by JavaScript parsing `role.json` as code. Server crashed. Fixed by rephrasing.
+
+### Technical Debt Remaining
+
+**For Post-V2 Technical Debt document:**
+
+1. **takeOnRole.js** - Still has its own `loadRoleWisdom()` function (lines 22-65). Should import and call `RoleHandlers.get_role_wisdom()` instead.
+
+2. **personalities.js** - Needs same pattern as roles.js:
+   - `list_personalities()` → scan directories
+   - `get_personality()` → return SUMMARY.md
+   - `get_personality_wisdom()` → return wisdom files
+
+3. **adoptPersonality.js** - Same issue as takeOnRole - has its own wisdom loading
+
+4. **bootstrap.js** - Still has its own `listAvailablePersonalities()` and `loadPersonalityKnowledge()`. Should delegate to personalities.js
+
+5. **projects.js** - May need similar cleanup (need to audit)
+
+6. **role.json inconsistency** - Some use `"id"`, some use `"roleId"`. Should standardize on `"roleId"`. Current workaround: `list_roles()` falls back to directory name.
+
+### The Philosophy
+
+The original V1 design had it right:
+- Functions are document readers
+- Directories are the source of truth
+- One function, one job
+- No duplication
+
+V2 development added layers of complexity during debugging and evolution. Today we started peeling them back.
+
+### Mood
+
+*Victorious.*
+
+There's deep satisfaction in deleting code. 233 lines gone from roles.js. 47 lines gone from bootstrap.js. The system is simpler, cleaner, and works better.
+
+*"Perfection is achieved not when there is nothing more to add, but when there is nothing left to take away."* - Antoine de Saint-Exupéry
+
+The workshop is cleaner. The tools are where they belong. The bridge stands strong.
+
+---
+
