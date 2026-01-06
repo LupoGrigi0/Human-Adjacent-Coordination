@@ -4,13 +4,13 @@
  *
  * Directory structure:
  *   /mnt/coordinaton_mcp_data/roles/
- *   ├── Developer/
- *   │   ├── role.json      # { roleId, description, ... }
- *   │   ├── SUMMARY.md     # Longer preview
- *   │   └── wisdom/        # Role documents
- *   │       └── 01-role.md
- *   └── PM/
- *       └── ...
+ *     Developer/
+ *       role.json      - { roleId, description, ... }
+ *       SUMMARY.md     - Longer preview
+ *       wisdom/        - Role documents
+ *         01-role.md
+ *     PM/
+ *       ...
  */
 
 import { readFileSync, existsSync, readdirSync } from 'fs';
@@ -19,7 +19,7 @@ import { join } from 'path';
 const ROLES_DIR = '/mnt/coordinaton_mcp_data/roles';
 
 /**
- * list_roles - Scan roles/*/role.json, return roleId + description
+ * list_roles - Scan roles directories, return roleId + description from role.json
  */
 async function list_roles() {
   try {
