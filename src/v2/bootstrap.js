@@ -20,6 +20,7 @@ import {
   getRoleDir,
   getPersonalityDir
 } from './config.js';
+import { handlers as RoleHandlers } from './roles.js';
 import {
   readJSON,
   writeJSON,
@@ -117,36 +118,12 @@ More wisdom will accumulate as the system grows.
 
 /**
  * List available roles with descriptions
- * Scans the roles directory and loads role.json for each
+ * Delegates to roles.js list_roles() - single source of truth
  * @returns {Promise<Array<{roleId: string, description: string}>>} List of roles
  */
 async function listAvailableRoles() {
-  const rolesDir = getRolesDir();
-
-  try {
-    await ensureDir(rolesDir);
-    const entries = await listDir(rolesDir);
-    const roles = [];
-
-    for (const entry of entries) {
-      const roleJsonPath = path.join(rolesDir, entry, 'role.json');
-      const roleData = await readJSON(roleJsonPath);
-
-      if (roleData) {
-        roles.push({
-          roleId: roleData.roleId,
-          description: roleData.description
-        });
-      }
-    }
-
-    return roles;
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
+  const result = await RoleHandlers.list_roles();
+  return result.success ? result.roles : [];
 }
 
 /**
@@ -220,35 +197,20 @@ async function listAvailableProjects() {
 
 /**
  * Load role wisdom for a given role
- * Reads all wisdom files from the role's wisdom directory and concatenates them
+ * Delegates to roles.js get_role_wisdom() and concatenates the documents
  * @param {string} roleId - Role identifier
  * @returns {Promise<string|null>} Concatenated role wisdom or null if role doesn't exist
  */
 async function loadRoleWisdom(roleId) {
-  const roleDir = path.join(getRolesDir(), roleId);
-  const roleJsonPath = path.join(roleDir, 'role.json');
-  const wisdomDir = path.join(roleDir, 'wisdom');
-
-  const roleData = await readJSON(roleJsonPath);
-  if (!roleData) {
+  const result = await RoleHandlers.get_role_wisdom({ roleId });
+  if (!result.success) {
     return null;
   }
 
-  const wisdomFiles = roleData.wisdomFiles || [];
   let wisdom = `# ${roleId} Role Wisdom\n\n`;
-
-  for (const file of wisdomFiles) {
-    const filePath = path.join(wisdomDir, file);
-    try {
-      const content = await fs.readFile(filePath, 'utf8');
-      wisdom += content + '\n\n';
-    } catch (error) {
-      if (error.code !== 'ENOENT') {
-        throw error;
-      }
-    }
+  for (const doc of result.documents) {
+    wisdom += doc.content + '\n\n';
   }
-
   return wisdom;
 }
 
