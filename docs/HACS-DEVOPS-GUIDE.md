@@ -1,7 +1,8 @@
-# V2 Messaging System - DevOps Guide
+# HACS DevOps Guide
 
 **Author:** Messenger
-**Date:** 2025-12-05
+**Created:** 2025-12-05
+**Updated:** 2026-01-08
 **Audience:** Bastion, DevOps, System Administrators
 
 ---
@@ -37,7 +38,7 @@
 
 | Property | Value |
 |----------|-------|
-| **Container Name** | `v2-ejabberd` |
+| **Container Name** | `ejabberd` |
 | **Image** | `ejabberd/ecs:latest` |
 | **Version** | 25.10.0 |
 | **Domain** | `smoothcurves.nexus` |
@@ -54,7 +55,7 @@
 
 | Property | Value |
 |----------|-------|
-| **File** | `src/handlers/messaging-xmpp.js` |
+| **File** | `src/v2/messaging.js` |
 | **Integration** | Called via MCP JSON-RPC |
 | **Communication** | Executes `docker exec` commands to ejabberdctl |
 
@@ -71,19 +72,17 @@
 ## File Locations
 
 ```
-/mnt/coordinaton_mcp_data/worktrees/messaging/
+/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/
 ├── docker/
 │   └── ejabberd/
 │       ├── docker-compose.yml        # Docker compose file
-│       ├── ejabberd.yml              # Current config (VULNERABLE)
-│       ├── ejabberd-hardened.yml     # Hardened config (USE THIS)
-│       └── ejabberd-VULNERABLE.yml   # Backup of vulnerable config
+│       ├── ejabberd.yml              # Current config
+│       └── ejabberd-hardened.yml     # Hardened config (USE THIS)
 ├── src/
-│   └── handlers/
-│       └── messaging-xmpp.js         # MCP messaging handler
+│   └── v2/
+│       └── messaging.js              # MCP messaging handler
 └── docs/
-    ├── MESSAGING-DEVOPS-GUIDE.md     # This file
-    └── SECURITY-INCIDENT-REPORT-2025-12-05.md
+    └── HACS-DEVOPS-GUIDE.md          # This file
 ```
 
 ---
@@ -97,62 +96,62 @@
 docker ps -a | grep ejabberd
 
 # Expected output when running:
-# 779b0fe75d6c   ejabberd/ecs:latest   "/sbin/tini..."   Up 2 hours   v2-ejabberd
+# 779b0fe75d6c   ejabberd/ecs:latest   "/sbin/tini..."   Up 2 hours   ejabberd
 ```
 
 ### Start ejabberd
 
 ```bash
-cd /mnt/coordinaton_mcp_data/worktrees/messaging/docker/ejabberd
+cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docker/ejabberd
 
 # Start with compose
 docker-compose up -d
 
 # Or start existing container
-docker start v2-ejabberd
+docker start ejabberd
 ```
 
 ### Stop ejabberd
 
 ```bash
 # Graceful stop
-docker stop v2-ejabberd
+docker stop ejabberd
 
 # Or via compose
-cd /mnt/coordinaton_mcp_data/worktrees/messaging/docker/ejabberd
+cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docker/ejabberd
 docker-compose down
 ```
 
 ### Restart ejabberd
 
 ```bash
-docker restart v2-ejabberd
+docker restart ejabberd
 ```
 
 ### View Logs
 
 ```bash
 # Live logs
-docker logs -f v2-ejabberd
+docker logs -f ejabberd
 
 # Last 100 lines
-docker logs --tail 100 v2-ejabberd
+docker logs --tail 100 ejabberd
 
 # Logs with timestamps
-docker logs -t v2-ejabberd
+docker logs -t ejabberd
 ```
 
 ### Check ejabberd Status
 
 ```bash
 # Internal status
-docker exec v2-ejabberd ejabberdctl status
+docker exec ejabberd ejabberdctl status
 
 # Connected users
-docker exec v2-ejabberd ejabberdctl connected_users
+docker exec ejabberd ejabberdctl connected_users
 
 # Registered users
-docker exec v2-ejabberd ejabberdctl registered_users smoothcurves.nexus
+docker exec ejabberd ejabberdctl registered_users smoothcurves.nexus
 ```
 
 ---
@@ -162,19 +161,19 @@ docker exec v2-ejabberd ejabberdctl registered_users smoothcurves.nexus
 ### Apply Hardened Config
 
 ```bash
-cd /mnt/coordinaton_mcp_data/worktrees/messaging/docker/ejabberd
+cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docker/ejabberd
 
 # Backup current config
-cp ejabberd.yml ejabberd-VULNERABLE.yml
+cp ejabberd.yml ejabberd-backup.yml
 
 # Apply hardened config
 cp ejabberd-hardened.yml ejabberd.yml
 
 # Restart to apply
-docker restart v2-ejabberd
+docker restart ejabberd
 
 # Verify
-docker exec v2-ejabberd ejabberdctl status
+docker exec ejabberd ejabberdctl status
 ```
 
 ### Verify Port Binding
@@ -183,7 +182,7 @@ After applying hardened config, verify ports are localhost only:
 
 ```bash
 # Check from inside container
-docker exec v2-ejabberd netstat -tlnp
+docker exec ejabberd netstat -tlnp
 
 # Should show:
 # 127.0.0.1:5222 (not 0.0.0.0:5222)
@@ -198,16 +197,16 @@ ss -tlnp | grep -E "5222|5280"
 
 ```bash
 # Edit config
-vim /mnt/coordinaton_mcp_data/worktrees/messaging/docker/ejabberd/ejabberd.yml
+vim /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docker/ejabberd/ejabberd.yml
 
 # Validate YAML syntax
 python3 -c "import yaml; yaml.safe_load(open('ejabberd.yml'))"
 
 # Apply changes
-docker restart v2-ejabberd
+docker restart ejabberd
 
 # Check for errors
-docker logs --tail 50 v2-ejabberd
+docker logs --tail 50 ejabberd
 ```
 
 ---
@@ -217,25 +216,25 @@ docker logs --tail 50 v2-ejabberd
 ### List Users
 
 ```bash
-docker exec v2-ejabberd ejabberdctl registered_users smoothcurves.nexus
+docker exec ejabberd ejabberdctl registered_users smoothcurves.nexus
 ```
 
 ### Create User
 
 ```bash
-docker exec v2-ejabberd ejabberdctl register USERNAME smoothcurves.nexus PASSWORD
+docker exec ejabberd ejabberdctl register USERNAME smoothcurves.nexus PASSWORD
 ```
 
 ### Delete User
 
 ```bash
-docker exec v2-ejabberd ejabberdctl unregister USERNAME smoothcurves.nexus
+docker exec ejabberd ejabberdctl unregister USERNAME smoothcurves.nexus
 ```
 
 ### Check User Exists
 
 ```bash
-docker exec v2-ejabberd ejabberdctl check_account USERNAME smoothcurves.nexus
+docker exec ejabberd ejabberdctl check_account USERNAME smoothcurves.nexus
 # Returns 0 if exists, 1 if not
 ```
 
@@ -246,25 +245,25 @@ docker exec v2-ejabberd ejabberdctl check_account USERNAME smoothcurves.nexus
 ### List Rooms
 
 ```bash
-docker exec v2-ejabberd ejabberdctl muc_online_rooms global
+docker exec ejabberd ejabberdctl muc_online_rooms global
 ```
 
 ### Create Room
 
 ```bash
-docker exec v2-ejabberd ejabberdctl create_room ROOMNAME conference.smoothcurves.nexus smoothcurves.nexus
+docker exec ejabberd ejabberdctl create_room ROOMNAME conference.smoothcurves.nexus smoothcurves.nexus
 ```
 
 ### Destroy Room
 
 ```bash
-docker exec v2-ejabberd ejabberdctl destroy_room ROOMNAME conference.smoothcurves.nexus
+docker exec ejabberd ejabberdctl destroy_room ROOMNAME conference.smoothcurves.nexus
 ```
 
 ### Get Room History
 
 ```bash
-docker exec v2-ejabberd ejabberdctl get_room_history ROOMNAME conference.smoothcurves.nexus
+docker exec ejabberd ejabberdctl get_room_history ROOMNAME conference.smoothcurves.nexus
 ```
 
 ---
@@ -275,7 +274,7 @@ docker exec v2-ejabberd ejabberdctl get_room_history ROOMNAME conference.smoothc
 
 ```bash
 # Check logs for errors
-docker logs v2-ejabberd
+docker logs ejabberd
 
 # Common issues:
 # - YAML syntax error in config
@@ -290,27 +289,27 @@ docker logs v2-ejabberd
 curl http://127.0.0.1:5280/api/status
 
 # Check container networking
-docker exec v2-ejabberd curl -s localhost:5280/api/status
+docker exec ejabberd curl -s localhost:5280/api/status
 ```
 
 ### Messages Not Delivering
 
 ```bash
 # Check if MAM is working
-docker exec v2-ejabberd ejabberdctl get_room_history ROOMNAME conference.smoothcurves.nexus
+docker exec ejabberd ejabberdctl get_room_history ROOMNAME conference.smoothcurves.nexus
 
 # Check offline message queue
-docker exec v2-ejabberd ejabberdctl get_offline_count USERNAME smoothcurves.nexus
+docker exec ejabberd ejabberdctl get_offline_count USERNAME smoothcurves.nexus
 ```
 
 ### High Resource Usage
 
 ```bash
 # Check container stats
-docker stats v2-ejabberd
+docker stats ejabberd
 
 # Check connected users (potential abuse)
-docker exec v2-ejabberd ejabberdctl connected_users_number
+docker exec ejabberd ejabberdctl connected_users_number
 ```
 
 ---
@@ -351,26 +350,26 @@ curl http://127.0.0.1:5280/api/status
 
 ```bash
 # Export users
-docker exec v2-ejabberd ejabberdctl registered_users smoothcurves.nexus > /backup/ejabberd-users.txt
+docker exec ejabberd ejabberdctl registered_users smoothcurves.nexus > /backup/ejabberd-users.txt
 
 # Export rooms
-docker exec v2-ejabberd ejabberdctl muc_online_rooms global > /backup/ejabberd-rooms.txt
+docker exec ejabberd ejabberdctl muc_online_rooms global > /backup/ejabberd-rooms.txt
 
 # Copy config
-cp /mnt/coordinaton_mcp_data/worktrees/messaging/docker/ejabberd/ejabberd.yml /backup/
+cp /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/docker/ejabberd/ejabberd.yml /backup/
 ```
 
 ### Full Container Backup
 
 ```bash
 # Stop container
-docker stop v2-ejabberd
+docker stop ejabberd
 
 # Export container
-docker export v2-ejabberd > /backup/v2-ejabberd-backup.tar
+docker export ejabberd > /backup/ejabberd-backup.tar
 
 # Start container
-docker start v2-ejabberd
+docker start ejabberd
 ```
 
 ---
@@ -380,10 +379,10 @@ docker start v2-ejabberd
 The MCP server communicates with ejabberd via `docker exec` commands:
 
 ```javascript
-// From messaging-xmpp.js
+// From src/v2/messaging.js
 async function ejabberdctl(command) {
   const { stdout } = await execAsync(
-    `docker exec v2-ejabberd ejabberdctl ${command}`,
+    `docker exec ejabberd ejabberdctl ${command}`,
     { timeout: 10000 }
   );
   return stdout.trim();
@@ -396,14 +395,16 @@ async function ejabberdctl(command) {
 |------|----------------------|
 | `xmpp_send_message` | `send_message`, `check_account`, `register` |
 | `xmpp_get_messages` | `get_offline_count`, `get_room_history` |
+| `xmpp_get_message` | `get_room_history` |
 | `get_presence` | `connected_users_vhost` |
+| `get_messaging_info` | `connected_users_vhost` |
 | `register_messaging_user` | `register`, `create_room` |
 
 ---
 
 ## Contact
 
-- **Messaging System:** Messenger (MessengerEngineer)
+- **Messaging System:** Messenger
 - **DevOps:** Bastion
 - **Security:** Report to Lupo/Executive
 
