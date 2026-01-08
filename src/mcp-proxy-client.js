@@ -683,8 +683,8 @@ class MCPProxyClient {
         resolve({ success: false, error: { message: `SSE server connection failed: ${error.message}` } });
       });
 
-      req.setTimeout(30000, () => {
-        logger.error('Request timeout to SSE server', { url: this.sseServerUrl, timeout: 30000 });
+      req.setTimeout(300000, () => {  // 5 minutes - wake/continue can take 60+ seconds
+        logger.error('Request timeout to SSE server', { url: this.sseServerUrl, timeout: 300000 });
         req.destroy();
         resolve({ success: false, error: { message: 'Request timeout to SSE server' } });
       });

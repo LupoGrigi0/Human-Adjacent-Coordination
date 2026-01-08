@@ -433,7 +433,7 @@ class StreamingHTTPProxyClient {
     pathname,
     body,
     includeSession = true,
-    timeout = 30000,
+    timeout = 300000,  // 5 minutes - wake/continue can take 60+ seconds
   }) {
     const path =
       typeof pathname === 'string' && pathname.length > 0
