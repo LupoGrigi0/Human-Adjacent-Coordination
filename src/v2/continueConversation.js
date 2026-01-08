@@ -20,23 +20,29 @@ import { readPreferences, writePreferences } from './data.js';
 import { canRoleCallAPI } from './permissions.js';
 
 /**
- * Sync Claude credentials from /root/.claude/ to shared-config
- * This is needed because systemd runs with ProtectHome=yes
+ * Sync Claude credentials from /root/.claude/ to a target instance's .claude directory
+ * This refreshes OAuth tokens for woken instances when they expire
  *
+ * @param {string} targetHomeDir - The target instance's home directory
+ * @param {string} unixUser - The Unix user to chown the file to
  * @returns {boolean} Whether sync was successful
  */
-function syncClaudeCredentials() {
+function syncClaudeCredentials(targetHomeDir, unixUser) {
   try {
-    const sourceDir = '/root/.claude';
-    const targetDir = '/mnt/coordinaton_mcp_data/shared-config/claude';
+    const sourceFile = '/root/.claude/.credentials.json';
+    const targetDir = `${targetHomeDir}/.claude`;
+    const targetFile = `${targetDir}/.credentials.json`;
 
-    // Ensure target directory exists
+    // Ensure target .claude directory exists
     execSync(`mkdir -p ${targetDir}`);
 
     // Copy credentials file
-    execSync(`cp ${sourceDir}/.credentials.json ${targetDir}/`);
+    execSync(`cp ${sourceFile} ${targetFile}`);
 
-    console.log('[continueConversation] Synced Claude credentials from /root/.claude/ to shared-config');
+    // Change ownership to the instance's user
+    execSync(`chown ${unixUser}:${unixUser} ${targetFile}`);
+
+    console.log(`[continueConversation] Synced Claude credentials to ${targetFile} for user ${unixUser}`);
     return true;
   } catch (err) {
     console.error('[continueConversation] Failed to sync Claude credentials:', err.message);
@@ -520,8 +526,8 @@ export async function continueConversation(params) {
     if (interfaceType === 'claude' && isOAuthExpiredError(result.stderr || result.stdout)) {
       console.log('[continueConversation] OAuth token expired, attempting credential sync and retry...');
 
-      // Try to sync credentials
-      const syncSuccess = syncClaudeCredentials();
+      // Try to sync credentials to the target instance's home directory
+      const syncSuccess = syncClaudeCredentials(workingDir, unixUser);
       if (syncSuccess) {
         // Retry the command
         retried = true;
