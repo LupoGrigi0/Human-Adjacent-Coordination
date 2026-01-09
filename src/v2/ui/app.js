@@ -569,10 +569,10 @@ async function loadDashboard() {
     // Tasks count
     if (state.instanceId) {
         try {
-            // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-            const result = await rpcCallDirect('get_tasks', {});
-            const tasks = result.tasks || result || [];
-            document.getElementById('metric-tasks').textContent = Array.isArray(tasks) ? tasks.length : '-';
+            const result = await api.getMyTasks(state.instanceId);
+            const personalTasks = result.personalTasks || [];
+            const projectTasks = result.projectTasks || [];
+            document.getElementById('metric-tasks').textContent = personalTasks.length + projectTasks.length;
         } catch (e) {
             document.getElementById('metric-tasks').textContent = '-';
         }
@@ -751,29 +751,14 @@ async function loadTasks() {
     }
 
     try {
-        // Try to get tasks via get_tasks API
+        // Get all tasks for this instance (personal + project)
         let allTasks = [];
-
-        // Get all tasks (no filter returns all)
-        // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-        const result = await rpcCallDirect('get_tasks', {});
-        if (result.tasks) {
-            allTasks = result.tasks;
-        } else if (Array.isArray(result)) {
-            allTasks = result;
+        const result = await api.getMyTasks(state.instanceId);
+        if (result.personalTasks) {
+            allTasks = [...allTasks, ...result.personalTasks];
         }
-
-        // Also try personal tasks
-        try {
-            const personalResult = await api.getMyTasks(state.instanceId);
-            if (personalResult.personalTasks) {
-                allTasks = [...allTasks, ...personalResult.personalTasks];
-            }
-            if (personalResult.projectTasks) {
-                allTasks = [...allTasks, ...personalResult.projectTasks];
-            }
-        } catch (e) {
-            console.log('[App] Could not load personal tasks:', e.message);
+        if (result.projectTasks) {
+            allTasks = [...allTasks, ...result.projectTasks];
         }
 
         renderTaskBoard(allTasks);
@@ -838,12 +823,12 @@ async function showTaskDetail(taskId, source = 'tasks') {
     // First try to find task in state
     let task = state.tasks.find(t => (t.taskId || t.id) === taskId);
 
-    // If not found, try to fetch from API
+    // If not found, fetch all tasks and find it
     if (!task) {
         try {
-            // TODO: 'get_task' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-            const result = await rpcCallDirect('get_task', { id: taskId });
-            task = result.task || result;
+            const result = await api.getMyTasks(state.instanceId);
+            const allTasks = [...(result.personalTasks || []), ...(result.projectTasks || [])];
+            task = allTasks.find(t => (t.taskId || t.id) === taskId);
         } catch (e) {
             console.error('[App] Error fetching task:', e);
             showToast('Could not load task details', 'error');
@@ -1015,11 +1000,7 @@ async function completeCurrentTask() {
     if (!state.currentTaskDetail) return;
 
     try {
-        // TODO: 'update_task' API does not exist - use 'complete_personal_task' or 'assign_task_to_instance' instead
-        await rpcCallDirect('update_task', {
-            id: state.currentTaskDetail,
-            updates: { status: 'completed' }
-        });
+        await api.completePersonalTask(state.instanceId, state.currentTaskDetail);
         showToast('Task completed!', 'success');
         hideTaskDetail();
         loadTasks(); // Refresh the task board
@@ -1129,6 +1110,7 @@ async function saveProjectDescription() {
 
 /**
  * Save task description
+ * NOTE: update_task API not yet implemented - this updates local state only
  */
 async function saveTaskDescription() {
     const container = document.getElementById('task-desc-editable');
@@ -1137,25 +1119,14 @@ async function saveTaskDescription() {
 
     const newDescription = textarea.value.trim();
 
-    try {
-        // TODO: 'update_task' API does not exist - use 'complete_personal_task' or 'assign_task_to_instance' instead
-        await rpcCallDirect('update_task', {
-            id: state.currentTaskDetail,
-            updates: { description: newDescription }
-        });
-
-        // Update local state
-        const task = state.tasks.find(t => (t.taskId || t.id) === state.currentTaskDetail);
-        if (task) {
-            task.description = newDescription;
-        }
-
-        disableEditMode('task-desc-editable', 'task-detail-description', 'task-desc-save-btn', true);
-        showToast('Description saved!', 'success');
-    } catch (e) {
-        console.error('[App] Error saving task description:', e);
-        showToast('Could not save: ' + e.message, 'error');
+    // Update local state only (API not yet implemented)
+    const task = state.tasks.find(t => (t.taskId || t.id) === state.currentTaskDetail);
+    if (task) {
+        task.description = newDescription;
     }
+
+    disableEditMode('task-desc-editable', 'task-detail-description', 'task-desc-save-btn', true);
+    showToast('Description updated (local only)', 'info');
 }
 
 // ============================================================================
@@ -2495,26 +2466,14 @@ async function createTask() {
     try {
         let result;
 
-        if (projectId) {
-            // Project task - use create_task API with required fields
-            const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-            // TODO: 'create_task' API does not exist - use 'add_personal_task' instead
-            result = await rpcCallDirect('create_task', {
-                id: taskId,
-                title: title,
-                description: description || 'No description',
-                project_id: projectId,
-                priority: priority
-            });
-        } else {
-            // Personal task - use addPersonalTask
-            result = await api.addPersonalTask({
-                instanceId: state.instanceId,
-                title: title,
-                description: description || undefined,
-                priority: priority
-            });
-        }
+        // NOTE: Project task creation not yet implemented - all tasks created as personal tasks
+        // TODO: Add create_project_task API to add tasks to project's tasks.json
+        result = await api.addPersonalTask({
+            instanceId: state.instanceId,
+            title: projectId ? `[${projectId}] ${title}` : title,
+            description: description || undefined,
+            priority: priority
+        });
 
         if (result.success !== false && !result.error) {
             showToast(`Task "${title}" created!`, 'success');
@@ -2525,13 +2484,12 @@ async function createTask() {
                 loadTasks();
             }
 
-            // Also refresh project detail if we're viewing a project and the task was for it
-            if (state.currentTab === 'projects' && state.currentProjectDetail && projectId === state.currentProjectDetail) {
+            // Also refresh project detail if we're viewing a project
+            if (state.currentTab === 'projects' && state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
-                    // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-                    const result = await rpcCallDirect('get_tasks', { project_id: projectId });
-                    const tasks = result.tasks || result || [];
+                    const result = await rpcCallDirect('get_project_tasks', { projectId: state.currentProjectDetail });
+                    const tasks = result.tasks || [];
                     renderProjectDetailTasks(tasks);
                 } catch (e) {
                     console.error('[App] Error refreshing project tasks:', e);
