@@ -290,7 +290,7 @@ export async function joinProject(params) {
 
   // Validate project exists
   const projectDir = getProjectDir(params.project);
-  const projectJsonPath = path.join(projectDir, 'project.json');
+  const projectJsonPath = path.join(projectDir, 'preferences.json');
   const projectData = await readJSON(projectJsonPath);
 
   if (!projectData) {
@@ -332,7 +332,7 @@ export async function joinProject(params) {
 
   // Build project object
   const project = {
-    projectId: projectData.projectId,
+    projectId: projectData.projectId || projectData.id,
     name: projectData.name,
     status: projectData.status,
     pm: projectData.pm,
