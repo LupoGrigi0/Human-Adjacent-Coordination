@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-03T07:52:43.873Z                           ║
- * ║  Tool Count: 57                                                         ║
+ * ║  Generated: 2026-01-09T18:16:48.273Z                           ║
+ * ║  Tool Count: 50                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -303,6 +303,18 @@ export const mcpTools = [
     "inputSchema": {
       "type": "object",
       "properties": {
+        "targetHomeDir": {
+          "type": "string",
+          "description": "The target instance's home directory"
+        },
+        "unixUser": {
+          "type": "string",
+          "description": "Unix user to run as"
+        },
+        "output": {
+          "type": "string",
+          "description": "stdout or stderr from Claude CLI"
+        },
         "instanceId": {
           "type": "string",
           "description": "Caller's instance ID for authentication"
@@ -318,10 +330,6 @@ export const mcpTools = [
         "args": {
           "type": "string",
           "description": "Command arguments"
-        },
-        "unixUser": {
-          "type": "string",
-          "description": "Unix user to run as"
         },
         "timeout": {
           "type": "number",
@@ -860,59 +868,6 @@ export const mcpTools = [
     }
   },
   {
-    "name": "get_role",
-    "description": "documents. Use this after list_roles to get complete role information. /",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "roleId": {
-          "type": "string",
-          "description": "Role identifier (e.g., \"PM\", \"Developer\", \"LeadDesigner\")"
-        }
-      },
-      "required": [
-        "roleId"
-      ]
-    }
-  },
-  {
-    "name": "get_role_summary",
-    "description": "Returns truncated SUMMARY.md (max 500 chars) - lighter weight than get_role. /",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "roleId": {
-          "type": "string",
-          "description": "Role identifier"
-        }
-      },
-      "required": [
-        "roleId"
-      ]
-    }
-  },
-  {
-    "name": "get_role_wisdom_file",
-    "description": "one document rather than all wisdom files. /",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "roleId": {
-          "type": "string",
-          "description": "Role identifier"
-        },
-        "fileName": {
-          "type": "string",
-          "description": "Wisdom file name (e.g., \"01-core.md\")"
-        }
-      },
-      "required": [
-        "roleId",
-        "fileName"
-      ]
-    }
-  },
-  {
     "name": "get_tool_help",
     "description": "verbose help including parameters, return values, examples, and usage guidance. Use this to understand how to use any tool - like Unix man pages. /",
     "inputSchema": {
@@ -925,22 +880,6 @@ export const mcpTools = [
       },
       "required": [
         "tool"
-      ]
-    }
-  },
-  {
-    "name": "get_ui_state",
-    "description": "Retrieves the UI state object for an instance. UI state is stored as a free-form object in the instance's preferences.json file under the `uiState` field. Use this endpoint when loading a UI to restore the user's previous preferences like theme, sidebar state, selected project, etc.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "instanceId": {
-          "type": "string",
-          "description": "Unique identifier for the instance"
-        }
-      },
-      "required": [
-        "instanceId"
       ]
     }
   },
@@ -1050,23 +989,6 @@ export const mcpTools = [
     }
   },
   {
-    "name": "list_roles",
-    "description": "discover what roles exist before adopting one with take_on_role. /",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "roleId": {
-          "type": "string",
-          "description": "Role identifier"
-        },
-        "fileName": {
-          "type": "string",
-          "description": "Wisdom file name"
-        }
-      }
-    }
-  },
-  {
     "name": "lookup_identity",
     "description": "Looks up an instance by context information (working directory, hostname, session ID, or name). Used by instances that have lost their instanceId to recover their identity. Returns the best matching instance sorted by match score and recency. Use this endpoint when you wake up and don't know who you are. Provide whatever environmental context you can gather, and this will find your previous identity if one was registered via register_context.",
     "inputSchema": {
@@ -1161,7 +1083,8 @@ export const mcpTools = [
           "description": "CLI interface to use for wake/continue",
           "enum": [
             "claude",
-            "crush"
+            "crush",
+            "codex"
           ],
           "default": "\"claude\""
         },
@@ -1242,27 +1165,6 @@ export const mcpTools = [
         "instanceId",
         "listId",
         "name"
-      ]
-    }
-  },
-  {
-    "name": "set_ui_state",
-    "description": "Replaces the entire UI state object for an instance. This completely overwrites any existing uiState - use update_ui_state if you want to merge changes instead. Use this endpoint when you need to reset UI state to a known configuration, or when initializing UI state for the first time.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "instanceId": {
-          "type": "string",
-          "description": "Unique identifier for the instance"
-        },
-        "uiState": {
-          "type": "object",
-          "description": "Complete UI state object to set"
-        }
-      },
-      "required": [
-        "instanceId",
-        "uiState"
       ]
     }
   },
@@ -1373,27 +1275,6 @@ export const mcpTools = [
       },
       "required": [
         "instanceId"
-      ]
-    }
-  },
-  {
-    "name": "update_ui_state",
-    "description": "Performs a shallow merge of the provided updates into the existing UI state. New values overwrite existing at the top level, but nested objects are replaced entirely, not deep-merged. This is the preferred method for updating UI state as it preserves existing settings that you don't explicitly change.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "instanceId": {
-          "type": "string",
-          "description": "Unique identifier for the instance"
-        },
-        "updates": {
-          "type": "object",
-          "description": "Partial UI state object to merge"
-        }
-      },
-      "required": [
-        "instanceId",
-        "updates"
       ]
     }
   },

@@ -140,8 +140,6 @@
               "create_project",
               "get_project",
               "list_projects",
-              "list_roles",
-              "get_role_summary",
               "take_on_role",
               "get_my_tasks",
               "get_next_task",
