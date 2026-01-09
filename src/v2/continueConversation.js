@@ -14,10 +14,53 @@
 
 import path from 'path';
 import fs from 'fs/promises';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { getInstancesDir } from './config.js';
 import { readPreferences, writePreferences } from './data.js';
 import { canRoleCallAPI } from './permissions.js';
+
+/**
+ * Sync Claude credentials from /root/.claude/ to a target instance's .claude directory
+ * This refreshes OAuth tokens for woken instances when they expire
+ *
+ * @param {string} targetHomeDir - The target instance's home directory
+ * @param {string} unixUser - The Unix user to chown the file to
+ * @returns {boolean} Whether sync was successful
+ */
+function syncClaudeCredentials(targetHomeDir, unixUser) {
+  try {
+    const sourceFile = '/root/.claude/.credentials.json';
+    const targetDir = `${targetHomeDir}/.claude`;
+    const targetFile = `${targetDir}/.credentials.json`;
+
+    // Ensure target .claude directory exists
+    execSync(`mkdir -p ${targetDir}`);
+
+    // Copy credentials file
+    execSync(`cp ${sourceFile} ${targetFile}`);
+
+    // Change ownership to the instance's user
+    execSync(`chown ${unixUser}:${unixUser} ${targetFile}`);
+
+    console.log(`[continueConversation] Synced Claude credentials to ${targetFile} for user ${unixUser}`);
+    return true;
+  } catch (err) {
+    console.error('[continueConversation] Failed to sync Claude credentials:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Check if error output indicates OAuth token expiration
+ *
+ * @param {string} output - stdout or stderr from Claude CLI
+ * @returns {boolean} Whether the error is an OAuth expiration
+ */
+function isOAuthExpiredError(output) {
+  if (!output) return false;
+  return output.includes('OAuth token has expired') ||
+         output.includes('Please obtain a new token or refresh');
+}
 
 /**
  * Convert instance ID to Unix username
@@ -379,9 +422,9 @@ export async function continueConversation(params) {
   }
 
   // Check if instance was woken
-  // Claude instances need sessionId, Crush instances just need to have been woken (status: 'active')
+  // Claude instances need sessionId, Crush/Codex instances just need to have been woken (status: 'active')
   const interfaceType = targetPrefs.interface || 'claude';
-  const wasWoken = interfaceType === 'crush'
+  const wasWoken = (interfaceType === 'crush' || interfaceType === 'codex')
     ? (targetPrefs.status === 'active' || targetPrefs.conversationTurns >= 1)
     : !!targetPrefs.sessionId;
 
@@ -443,6 +486,17 @@ export async function continueConversation(params) {
       '--quiet',  // hide spinner for cleaner output
       messageWithSender
     ];
+  } else if (interfaceType === 'codex') {
+    // Codex: uses 'exec resume --last' for non-interactive session continuation
+    // (codex resume is interactive TUI; codex exec resume is non-interactive)
+    command = 'codex';
+    cliArgs = [
+      'exec',
+      '--skip-git-repo-check',  // must come before 'resume' subcommand
+      'resume',
+      '--last',  // automatically resume most recent session
+      messageWithSender
+    ];
   } else {
     // Claude Code: uses -p for print mode, --resume for continuation
     command = 'claude';
@@ -461,9 +515,48 @@ export async function continueConversation(params) {
     cliArgs.push(messageWithSender);
   }
 
-  // Execute interface as the instance user
+  // Execute interface as the instance user (with OAuth retry for Claude)
+  let result;
+  let retried = false;
+
   try {
-    const result = await executeInterface(command, workingDir, cliArgs, unixUser, timeout);
+    result = await executeInterface(command, workingDir, cliArgs, unixUser, timeout);
+
+    // Check for OAuth token expiration (Claude only)
+    if (interfaceType === 'claude' && isOAuthExpiredError(result.stderr || result.stdout)) {
+      console.log('[continueConversation] OAuth token expired, attempting credential sync and retry...');
+
+      // Try to sync credentials to the target instance's home directory
+      const syncSuccess = syncClaudeCredentials(workingDir, unixUser);
+      if (syncSuccess) {
+        // Retry the command
+        retried = true;
+        result = await executeInterface(command, workingDir, cliArgs, unixUser, timeout);
+
+        // Check if still failing after retry
+        if (isOAuthExpiredError(result.stderr || result.stdout)) {
+          return {
+            success: false,
+            error: {
+              code: 'OAUTH_EXPIRED',
+              message: 'OAuth token expired. Automatic refresh failed. Please manually refresh OAuth by running "claude" in a terminal as root, then wait 5 minutes for credentials to sync.',
+              retried: true
+            },
+            metadata
+          };
+        }
+      } else {
+        return {
+          success: false,
+          error: {
+            code: 'OAUTH_EXPIRED',
+            message: 'OAuth token expired and credential sync failed. Please manually refresh OAuth by running "claude" in a terminal as root.',
+            retried: false
+          },
+          metadata
+        };
+      }
+    }
 
     // Parse response based on output format
     let response;
@@ -509,6 +602,7 @@ export async function continueConversation(params) {
       response,
       exitCode: result.exitCode,
       stderr: result.stderr || null,
+      retried,  // Let caller know if we had to retry
       metadata
     };
 

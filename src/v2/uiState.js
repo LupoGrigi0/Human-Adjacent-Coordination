@@ -22,6 +22,7 @@ import { readPreferences, writePreferences } from './data.js';
  * @since 2025-12-12
  * @category ui
  * @status stable
+ * @visibility internal
  *
  * ───────────────────────────────────────────────────────────────────────────
  * DESCRIPTION
@@ -133,6 +134,7 @@ export async function getUiState(params) {
  * @since 2025-12-12
  * @category ui
  * @status stable
+ * @visibility internal
  *
  * ───────────────────────────────────────────────────────────────────────────
  * DESCRIPTION
@@ -280,6 +282,7 @@ export async function setUiState(params) {
  * @since 2025-12-12
  * @category ui
  * @status stable
+ * @visibility internal
  *
  * ───────────────────────────────────────────────────────────────────────────
  * DESCRIPTION

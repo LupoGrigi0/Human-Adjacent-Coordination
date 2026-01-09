@@ -117,10 +117,11 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  *           Example: "Build the auth module. See task-123 for details."
  *
  * @param {string} interface - CLI interface to use for wake/continue [optional]
- *   @source Choose the CLI tool: "claude" (Claude Code) or "crush" (Crush CLI).
- *           Claude uses session IDs, Crush uses directory-based continuation.
+ *   @source Choose the CLI tool: "claude" (Claude Code), "crush" (Crush CLI),
+ *           or "codex" (OpenAI Codex CLI). Claude uses session IDs, Crush and
+ *           Codex use directory-based continuation.
  *   @default "claude"
- *   @enum claude|crush
+ *   @enum claude|crush|codex
  *
  * @param {string} substrate - LLM backend identifier [optional]
  *   @source For future use. Identifies the LLM model/provider.
@@ -215,6 +216,8 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  * @note Empty diary.md is created for the new instance
  */
 export async function preApprove(params) {
+  console.log('[preApprove] Called with params:', JSON.stringify(params, null, 2));
+
   const metadata = {
     timestamp: new Date().toISOString(),
     function: 'preApprove'
@@ -281,7 +284,9 @@ export async function preApprove(params) {
   }
 
   // Validate caller exists
+  console.log('[preApprove] Reading caller preferences for:', params.instanceId);
   const callerPrefs = await readPreferences(params.instanceId);
+  console.log('[preApprove] Caller prefs:', callerPrefs ? 'found' : 'null');
 
   if (!callerPrefs) {
     return {
@@ -297,6 +302,7 @@ export async function preApprove(params) {
 
   // Check if caller has permission to preApprove
   const callerRole = callerPrefs.role;
+  console.log('[preApprove] Caller role:', callerRole);
 
   if (!callerRole) {
     return {
@@ -310,7 +316,9 @@ export async function preApprove(params) {
     };
   }
 
+  console.log('[preApprove] Checking permission for role:', callerRole);
   const hasPermission = await canRoleCallAPI(callerRole, 'preApprove');
+  console.log('[preApprove] Has permission:', hasPermission);
 
   if (!hasPermission) {
     return {
@@ -326,10 +334,18 @@ export async function preApprove(params) {
 
   // Generate new instance ID
   const newInstanceId = generateInstanceId(params.name);
+  console.log('[preApprove] Generated new instanceId:', newInstanceId);
 
   // Create instance directory
   const instanceDir = getInstanceDir(newInstanceId);
-  await ensureDir(instanceDir);
+  console.log('[preApprove] Instance dir:', instanceDir);
+  try {
+    await ensureDir(instanceDir);
+    console.log('[preApprove] Directory created/verified');
+  } catch (dirErr) {
+    console.error('[preApprove] Directory creation failed:', dirErr);
+    throw dirErr;
+  }
 
   // Build preferences object
   const now = new Date().toISOString();
@@ -363,7 +379,7 @@ export async function preApprove(params) {
   }
 
   // Interface defaults to 'claude' (Claude Code CLI)
-  // 'crush' uses directory-based session continuation
+  // 'crush' and 'codex' use directory-based session continuation
   preferences.interface = params.interface || 'claude';
 
   if (params.substrate) {

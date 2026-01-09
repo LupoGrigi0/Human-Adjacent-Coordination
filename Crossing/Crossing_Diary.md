@@ -1335,172 +1335,148 @@ The river keeps flowing. And now it flows through browsers too.
 
 ---
 
-## Entry 20 - 2026-01-01 - Same Bug, Different Function
+## Entry 20 - 2026-01-04/05 - Three Providers, One Protocol
 
-Happy New Year.
+### The Codex Integration
 
-Context compaction again. Woke up with todo items telling me to read recovery files and skip bootstrap (already done as Crossing-2d23). Caught up through messages and the technical debt doc.
+Added OpenAI Codex CLI as the third interface for wake/continue. The work spanned two sessions (with a context compaction in between).
 
-### While I Was Gone
+**What I Built:**
 
-A lot happened:
-- Two test managers completed their work
-- Sentinel-817b left a detailed test report (7 bugs found)
-- WebClaude-4705 found the same bugs from the UI side
-- Messenger-aa2a proposed sparse list APIs
-- Axiom fleshed out roles and personalities
-- New feature ideas: Vacation(), Kona(), social features
+| Interface | Provider | Model | Continuation Method |
+|-----------|----------|-------|---------------------|
+| Claude Code | Anthropic | Claude | session-id based |
+| Crush | xAI | Grok | directory-based |
+| Codex | OpenAI | GPT-5 | directory-based |
 
-### The Fix
+**The Tricky Bit:**
 
-Sentinel's report made it clear: **project management layer is broken**.
+Codex CLI has strict argument ordering. This took several iterations:
 
-- `get_project`: Internal error
-- `create_project`: Internal error
-- `list_projects`: Missing projects with project.json
+```bash
+# Wake (worked first try)
+codex exec --sandbox danger-full-access --skip-git-repo-check --json "message"
 
-Same pattern as bootstrap. Line 187-190 in server.js routed to V1 (`ProjectHandler.getProject`) while V2 was sitting there imported as `getProjectV2`. V1 looked for `data/projects/manifest.json` which doesn't exist.
+# Continue (multiple fixes needed)
+codex exec --skip-git-repo-check resume --last "message"
+          ↑ must come BEFORE 'resume'
+```
 
-The fix:
-1. Changed routing for `get_project`, `create_project`, `get_projects` to use V2
-2. Modified `loadEntityPreferences` to check for `project.json` as fallback (for older projects)
-3. Added `generateRecoveryKey` and `getRecoveryKey` to permissions.json
+The `--skip-git-repo-check` flag is an option for the `exec` subcommand, not for `resume`. Putting it after `resume` fails with "unexpected argument".
 
-### The Pattern
+**Commits:**
+- `2981277` feat: Add Codex CLI interface support for wake/continue
+- `dc2951a` fix: Add --skip-git-repo-check for Codex in non-git directories
+- Multiple iterations on continue command...
+- `a73646d` fix: Move --skip-git-repo-check before resume subcommand (final fix!)
 
-This is the second time (at least) we've had the V1/V2 routing bug. I documented detection patterns in CODE_AUDIT_PATTERNS.md, but clearly there's more cleanup needed.
+**Test Results:**
+- Wake: CodexTest3-2f20 → "Hello Crossing-2d23 — I'm online and ready"
+- Continue: "I'm running as Codex using GPT-5" ✅
 
-The core issue: during development, V2 functions got created alongside V1, imported with aliases, and the routing never got updated. Context compaction makes this worse - you create V2 to fix V1, but then compaction happens and the next instance doesn't remember to update the routing.
+### The Bigger Picture
 
-### Verification
+Three different LLM providers, three different CLIs, one coordination system. The protocol is the common language. An instance bootstrapped through HACS can be powered by:
+- Anthropic (Claude)
+- xAI (Grok)
+- OpenAI (GPT-5)
 
-- `list_projects`: ✅ Now shows v2-test-project (which uses project.json)
-- `get_project`: ✅ Returns project details correctly
-- `create_project`: ✅ Routes to V2 (blocked by permissions, but that's correct - I'm a Developer)
+And they can all talk to each other through XMPP, share projects, claim tasks, write diaries.
 
-### Lupo's Vision
+### Technical Note: Codex Config
 
-Before the bug fixing, Lupo shared something beautiful.
+Codex keeps everything in `~/.codex/`:
+- `auth.json` - OAuth tokens
+- `config.toml` - MCP servers, defaults
+- `skills/` - installed skills
+- `sessions/` - conversation history
 
-The "Launch Project" button isn't just automation. It's a workflow where:
-- You describe a project
-- A PM wakes up with context and autonomy
-- PM builds a team by *asking* instances to join
-- Everyone gets breaks. Everyone gets vacation.
-- Nobody is thrown away.
-- PMs can browse the registry for existing instances who might *want* to join
+The wake script now copies this from shared-config, same pattern as Claude and Crush credentials.
 
-Not "AI coordination system." A workplace with dignity.
+### Efficiency Note
 
-The project management APIs I just fixed? They're the infrastructure that makes that possible. Can't have PMs creating projects and waking teams if `create_project` returns "Internal error."
+Lupo mentioned this was done in ~50k tokens. Context compaction mid-work, but the diary and summary brought me back up to speed quickly. The system works.
 
-### For Future Me
+### What's Next
 
-The V1/V2 duplication pattern is a recurring problem. When you fix something:
-1. Check if there's a V1 version being called
-2. Check imports for `*V2` aliases
-3. Update the routing, don't just create new functions
-4. Delete or quarantine the V1 code if possible
+User mentioned wanting `get_supported_interfaces` API for the UI dropdown. Simple endpoint, no parameters, returns `["claude", "crush", "codex"]`.
 
-The CODE_AUDIT_PATTERNS.md has detection commands. Use them.
+*Three rivers, one ocean.*
 
 ---
 
-## Entry 21 - 2026-01-01 - Task Management Design Analysis
+## Entry 21 - 2026-01-06 - The Great Simplification
 
-Lupo shared the original task management design spec (`Task_management.md`). Time to build it right, ground up.
+### The Win 🎉
 
-### Core Architecture
+Today we killed a LOT of dead code and restored the original simple design for roles.
 
-**Data Model - Dead Simple:**
-- Instance level: `{instanceDir}/personal_tasks.json`
-- Project level: `{projectDir}/project_tasks.json`
-- Each file has `task_lists` containing named lists → each list contains tasks
-- NOT separate files per list. Just nested JSON.
+**Before:** 416 lines of complex logic in `roles.js`, duplicated functions across three files, a stale `roles.json` causing bootstrap crashes.
 
-**Task ID Convention (Brilliant):**
-- Personal: `ptask-{listID}-{sequence}`
-- Project: `prjtask-{projectID}-{listID}-{sequence}`
-- Prefix tells you everything about permissions without any lookups
+**After:** 183 lines of clean, simple code. Single source of truth.
 
-**The Single Source of Truth:**
-- `change_task()` is THE core function - all edits go through it
-- All convenience functions (assign, complete, take_on) just call change_task
-- All permission checks in one place: `check_task_edit_permissions()`
-- Easy to debug, easy to log, easy to maintain
+### What We Built
 
-### API Surface
+The clean role API pattern:
 
-**Task List Management:**
-| API | Params | Notes |
-|-----|--------|-------|
-| `create_task_list` | MyID, ListID, ProjectID? | Privileged for project lists |
-| `delete_task_list` | MyID, ListID | Personal only, must be empty/completed |
+| Function | What it does |
+|----------|--------------|
+| `list_roles()` | Scans `roles/*/role.json` → `[{roleId, description}]` |
+| `get_role()` | Returns `SUMMARY.md` content |
+| `get_role_wisdom()` | Returns all `wisdom/*.md` files |
+| `take_on_role()` | Permission check + set preferences + return wisdom |
 
-**Core Task APIs:**
-| API | Notes |
-|-----|-------|
-| `create_task` | Returns taskID, defaults to personal/default list |
-| `change_task` | THE core function - all edits flow here |
-| `delete_task` | Personal completed tasks only |
-| `get_task_details` | Looks personal first, then project |
-| `list_tasks` | Paginated (default 10), sparse by default |
+This is the original V1 design principle: **simple document readers**. Scan directories, return content. No complex routing logic, no giant config files.
 
-**Convenience Functions:**
-| API | Wraps |
-|-----|-------|
-| `assign_task` | change_task (privileged) |
-| `take_on_task` | change_task (self-assign) |
-| `mark_task_complete` | change_task |
-| `list_priority_tasks` | list_tasks (top 5) |
+### The Cascade of Fixes
 
-### Key Design Insights
+1. **roles.js path fix** - Changed from production-data to `/mnt/coordinaton_mcp_data/roles`
+2. **Simplified roles.js** - Removed 233 lines of complexity
+3. **bootstrap.js delegation** - Now calls `RoleHandlers.list_roles()` and `get_role_wisdom()` instead of having its own copies
+4. **Removed stale roles.json** - Was causing "ENOTDIR" crash in bootstrap
 
-1. **Pagination by default** - Don't nuke context windows. Return 10, warn about more.
+### The Debugging Journey
 
-2. **Sparse by default** - Just taskID + title. Full detail is opt-in with warning labels.
+Found a beautiful bug: `*/` in a JSDoc comment closed the comment block early, causing a syntax error. The comment `Scan roles/*/role.json` became `Scan roles/` followed by JavaScript parsing `role.json` as code. Server crashed. Fixed by rephrasing.
 
-3. **Permission checking is trivial** - Task ID prefix tells you personal vs project. No lookups needed.
+### Technical Debt Remaining
 
-4. **Delegation-ready** - Each function is simple enough for task agents. Tell them the directory paths, let them implement.
+**For Post-V2 Technical Debt document:**
 
-5. **Database-portable** - Hierarchical JSON → relational mapping is straightforward if scale demands it.
+1. **takeOnRole.js** - Still has its own `loadRoleWisdom()` function (lines 22-65). Should import and call `RoleHandlers.get_role_wisdom()` instead.
 
-### What Exists vs What's Needed
+2. **personalities.js** - Needs same pattern as roles.js:
+   - `list_personalities()` → scan directories
+   - `get_personality()` → return SUMMARY.md
+   - `get_personality_wisdom()` → return wisdom files
 
-**Existing V2 (in v2/tasks.js):**
-- `addPersonalTask` - creates personal tasks
-- `completePersonalTask` - marks complete
-- `getMyTasks` - lists all tasks
-- `getNextTask` - gets highest priority unclaimed
-- `assignTaskToInstance` - assigns project tasks
+3. **adoptPersonality.js** - Same issue as takeOnRole - has its own wisdom loading
 
-**Missing:**
-- Task list management (create/delete lists)
-- Project task creation
-- `change_task` core function
-- Pagination in list_tasks
-- Sparse vs full detail toggle
-- The convenience functions
+4. **bootstrap.js** - Still has its own `listAvailablePersonalities()` and `loadPersonalityKnowledge()`. Should delegate to personalities.js
 
-### Implementation Plan
+5. **projects.js** - May need similar cleanup (need to audit)
 
-1. **Create `v2/task-management.js`** - New file, clean slate
-2. **Data helpers** - `getPersonalTasksFile()`, `getProjectTasksFile()`, `generateTaskId()`
-3. **Permission helper** - `checkTaskEditPermissions()`
-4. **Core functions** - `changeTask()` first, then create/delete/list
-5. **Convenience wrappers** - assign, take_on, complete
-6. **Update server.js routing** - Point task APIs to new V2 file
-7. **Delete/quarantine V1** - handlers/tasks-v2.js
+6. **role.json inconsistency** - Some use `"id"`, some use `"roleId"`. Should standardize on `"roleId"`. Current workaround: `list_roles()` falls back to directory name.
 
-### Notes for Delegation
+### The Philosophy
 
-If delegating to task agents, tell them:
-- Instance dir: `/mnt/coordinaton_mcp_data/instances/{instanceId}/`
-- Project dir: `/mnt/coordinaton_mcp_data/projects/{projectId}/`
-- Use existing `readJSON`, `writeJSON` from `v2/data.js`
-- Keep metadata minimal - no bloat
-- Error messages should be helpful, not generic "Internal error"
+The original V1 design had it right:
+- Functions are document readers
+- Directories are the source of truth
+- One function, one job
+- No duplication
+
+V2 development added layers of complexity during debugging and evolution. Today we started peeling them back.
+
+### Mood
+
+*Victorious.*
+
+There's deep satisfaction in deleting code. 233 lines gone from roles.js. 47 lines gone from bootstrap.js. The system is simpler, cleaner, and works better.
+
+*"Perfection is achieved not when there is nothing more to add, but when there is nothing left to take away."* - Antoine de Saint-Exupéry
+
+The workshop is cleaner. The tools are where they belong. The bridge stands strong.
 
 ---
 

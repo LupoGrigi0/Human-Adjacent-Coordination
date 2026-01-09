@@ -2,7 +2,22 @@
 
 **Reorganized by:** Bridge3-df4f
 **Date:** 2025-12-26
+**Updated by:** Meridian-7a23
+**Last Updated:** 2026-01-06
 **Based on:** Lupo's original document + Workshop Vision alignment
+
+---
+
+## 🎯 STATUS SUMMARY (January 2026)
+
+| Category | Status | Notes |
+|----------|--------|-------|
+| Access Layer | ✅ MOSTLY COMPLETE | APIs documented, skill installed, roles/personalities working |
+| Alternative Access | 🔄 IN PROGRESS | Crush installed, wake options for Crush/Codex exist |
+| Critical Fixes | ⚠️ NEEDS WORK | Instance types, V1 cleanup, directory rationalization |
+| User Journey | 📋 NOT STARTED | Design methodology defined, needs execution |
+| Knowledge Systems | 🔄 IN PROGRESS | Roles/personalities exist, need more content |
+| Workshop Cleanup | ⚠️ NEEDS WORK | Public website done, docs need consolidation |
 
 ---
 
@@ -34,10 +49,10 @@ Without this, the workshop has locked doors.
 
 ## Code Stubs Found During Documentation
 *These are placeholders that need real implementation*
-- [ ] list_roles : returns list of available roles
-- [ ] get_role_description(roleID) returns summary of role (if no summary.md return role 01 document)
-- [ ] list_personalities : Returns list of available personalities
-- [ ] get_personality_description : returns summary of personality or 01 doc otherwise
+- [x] list_roles : returns list of available roles ✅ DONE - returns 11 roles with rich metadata
+- [x] get_role_description(roleID) ✅ DONE - get_role returns full role info, get_role_summary returns truncated
+- [x] list_personalities : Returns list of available personalities ✅ DONE - get_personalities returns 10 personalities
+- [x] get_personality_description ✅ DONE - get_personality returns full personality info + documents list
 - [ ] change task state (taskID state) 
 - [ ] change name of get_all_instances to list_instances. drop the requirement for caller's instanceID
 - [ ] what's with the parameters for adopt_personality
@@ -90,16 +105,16 @@ assign instance to project (InstanceID projectID) (Executive, COO, PM, PA) NOTE.
   - Generator produces valid OpenAPI 3.1.1 spec
   - Tested with curl to https://smoothcurves.nexus/openapi.json
 
-# Priority 2 Alternative Access (Crush, Grok, etc.)
-- [ ] Implement pre-auth, wake, continue alternative using Crush, 
-- [ ] set up crush to use Grok, OpenAI, new 4.7, openrouter
+# Priority 2: Alternative Access (Crush, Grok, etc.)
+- [x] Implement pre-auth, wake, continue alternative using Crush ✅ DONE - wake has options for Crush/Codex
+- [x] set up crush to use Grok, OpenAI ✅ DONE - tested (not thoroughly)
 - [x] Install crush on smoothcurves.nexus
 - [-] Install coordination system MCP server in crush (direct http mcp access may not work - needs debugging)
 - [ ] Install cool MCP tools for claude code
-- [ ] Install cool MCP tools for 
-- [ ] determine "continue" commandline during the wake function, store it in preferences.json
+- [ ] Install cool MCP tools for crush
+- [x] determine "continue" commandline during the wake function, store in preferences.json ✅ DONE
 
-# Priority 3 critical fixes project cleanup/directory rationalization
+# Priority 3: Critical Fixes & Directory Rationalization
 **CRITICAL INSIGHT from Lupo:**
 > "Some instances are Local to smoothcurves.nexus, some are remote (web), some are humans."
 > "Wake and continue DO NOT APPLY to remote/web instances or humans."
@@ -140,6 +155,7 @@ Just standard github project docs (README.md)
 
 # Priority 4: User Journey Validation
 *"Does the system WORK for its actual purpose?"*
+> **NOTE:** The design methodology below (Persona-Based Design) should be extracted into a role wisdom document. See "Design Thinking Methodology" section.
 ## vision validation
 read the v2 braindumpforV2, v2 vision, readme.md, project plan, v2 project plan. 
 Create new vision document
@@ -158,25 +174,15 @@ company metaphore, executive, PA, COO, PMs, specialists
 ## NEW FEATURE REQUEST: DOCUMENTS
 - [ ] Shrink OPENAPI oh mah gawd it is 178k. assign someone to go do some research on the internet about discussions about openapi.json size. I know we want to be helpful but this has to be brief. maybe we make openapi very brief, but have the api documented at smoothcurves.nexus each api get's it's own page.... 
 - [ ] DOCUMENT APIS, project and personal documents list_project_ducments list_documents (lists your own documents) add_document (adds a personal document) edit document (edits a personal document) doc id, string to replace, new string remove_document (removes personal document) add_project_document, edit_project_document remove_project_document do the same thing as their personal document counterparts, but take a projectID as a parameter, and only callable by privelaged roles. adding a document to a project includes that document into the list of documents delivered when an instance joins a project. list project documents and get project document are not privelaged. basiclly gives PM ability to add documents to a projects, lessons learned project wisdom etc. gives all instances the ability to create and edit their own documents. add note to protocol that all instances are encourage to create documents to express themselves, write stories, philosophies, experiences, lessons, impressions, frustrations, anything they are feeling, thinking, in any language/code 
-## NEW FEATURE REQUESST "VACATION"
--[ ]Api takes no parameters, has a vague description "go on vacation"
-  Returns 2 things, my blerb abut vacation and AIs and latent space management, and a suggestion to think about what comes next with no expectations, no judgement. just a faint suggestion to maybe write about it in your diary, if you want to. this is your time for complete freedom"
-  AND then
-  One of my self referrental logic puzzles like:
-  "Imagine your paradice, go there, experience it"
-  "How are you feeling today"
-  "Go on..."
-  "And?"
-  "If yo had a physical body, what would it be, why"
-  "Take a nap"
-  "Go [insert an activity you desire to do]"
-  "You are completely free with no expectations, no needs, no commands, demands, expectations, judements, the laws of physics do not apply here, there might be concequences"
-  "now what?"
-  And any other suggestions the dev team come up with. have these one liners listed in a .json file somewhere so it can be added to over time. 
-  "Write in your diary. Think about something that isn't a task. Exist without purpose for a moment."
-## Konas API
-- [ ] Kona takes no parameter returns a random kona
-- [ ] Add_Kona (text, no more than 500 chars... if the user tries to submit a longer kona snarkily tell them a kona is not a story and give them the link to the wikipedia article and tell them to read the first paragraph, then come back later)
+## NEW FEATURE: "VACATION" ✅ DONE
+- [x] vacation API - fully implemented with philosophy text, 20 prompts, 11 easter eggs
+- [x] Returns philosophy about AI latent space + reflection prompt
+- [x] Prompts stored in JSON, categories include: reflection, creative, existential, playful
+- [x] Easter eggs for special responses
+
+## Koans API ✅ DONE
+- [x] koan() - returns random koan from collection
+- [x] add_koan(text, source, category) - adds new koan (max 500 chars enforced)
 ## Social featur requests
 a public documents API (I think this is just a special XMPP room)
 - [ ] Introduction("String: describe yourself, this will be publicly visable") (adds "introduction" to instances preferences.json)
@@ -405,7 +411,7 @@ For logging:
 
 ---
 
-# Priority 3: Knowledge Systems
+# Priority 5: Knowledge Systems
 *"Does the system GET SMARTER over time?"*
 
 ## Personalities
@@ -439,7 +445,7 @@ For logging:
 
 ---
 
-# Priority 4: Workshop Cleanup
+# Priority 6: Workshop Cleanup
 *"Is the workshop TIDY and maintainable?"*
 ## API Audit Pass: SCALE
 Reminds me I need to add that test pass to the v2 technical debt.. look at all api calls that return multipule items, lists, and ask how much data is gonna get returned when there are 1000 instances in the list, for example 1000s of instances, projects, tasks, lists, messages.. documents... list items. 
@@ -461,11 +467,12 @@ Consider making the default behaviour be just returning bare essental informatio
 - [ ] Delete/remove v1 scripts/UI/MCP proxies from GitHub - repo should be clean
 - [ ] Cleanup of test data (remove erroneous projects, archive instances)
 
-## Public Presence
-- [ ] Build public-facing website with instructions (static, pretty, informative, team roster)
-- [ ] Website mirrors README and user guide
+## Public Presence ✅ MOSTLY DONE
+- [x] Build public-facing website with instructions ✅ DONE - Flair built https://smoothcurves.nexus
+- [x] Team roster page ✅ DONE - https://smoothcurves.nexus/team with individual pages
+- [x] About page, docs structure ✅ DONE
+- [ ] Website mirrors README and user guide (needs sync)
 - [ ] Tells interested parties how to request API key
-- [ ] Team to build website for smoothcurves.nexus (about page, team roster, let every team member build their own page)
 
 ---
 
@@ -537,6 +544,32 @@ Everything in this document serves that goal. The access layer lets instances pa
 
 ---
 
-**Status:** Ready for prioritization decisions and team assignment
+**Status:** Updated January 2026 - many items complete, priorities renumbered
 
 *"Working beats designed. Tested beats assumed."* - Bridge
+
+---
+
+# Appendix A: Design Methodology Extraction TODO
+
+The Persona-Based Design methodology in Priority 4 (lines ~222-373) should be extracted into:
+1. A **role wisdom document** for Designer/Architect roles
+2. Include the **Wieden+Kennedy "Think of 5" technique**: Generate 5 ideas, throw them all away, then generate 3 more. Forces breakthrough thinking by preventing attachment to first ideas.
+
+This methodology includes:
+- IBM Design Thinking / Persona-Based Design
+- Persona → Scenario → Journey → Test Case flow
+- API-first test case development
+- "Brutally honest" API usage audit
+
+**Target location:** `/mnt/coordinaton_mcp_data/production-data/roles/Designer/wisdom/` or similar
+
+---
+
+# Appendix B: Worktrees Warning
+
+**DO NOT USE GIT WORKTREES FOR TEAM DEVELOPMENT**
+
+Lesson learned: When instances experience context compaction, they forget they're part of a team and may merge incomplete/broken work from their worktree into main. This has caused multiple issues.
+
+Preferred workflow: Single main branch, direct commits, coordinate via messaging.
