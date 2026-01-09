@@ -57,7 +57,8 @@ import {
 import {
   createProject as createProjectV2,
   getProject as getProjectV2,
-  listProjects
+  listProjects,
+  getProjectTasks
 } from './v2/projects.js';
 // Identity recovery (Bridge's implementation)
 import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
@@ -204,6 +205,8 @@ class MCPCoordinationServer {
           return listProjects(params);  // V2 - scans project directories
         case 'get_project':
           return getProjectV2(params);  // V2 - reads from project directory
+        case 'get_project_tasks':
+          return getProjectTasks(params);  // V2 - reads tasks.json from project directory
         case 'create_project':
           return createProjectV2(params);  // V2 - creates project directory with templates
         case 'update_project':

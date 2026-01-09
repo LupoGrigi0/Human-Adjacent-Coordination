@@ -642,18 +642,31 @@ async function loadProjects() {
  * Show project detail view, hiding the grid
  */
 async function showProjectDetail(projectId) {
-    const project = state.projects.find(p => (p.projectId || p.id) === projectId);
-    if (!project) {
-        showToast('Project not found', 'error');
-        return;
-    }
-
     console.log('[App] Showing project detail:', projectId);
 
     // Hide grid and header, show detail
     document.getElementById('project-grid').style.display = 'none';
     document.querySelector('#tab-projects .page-header').style.display = 'none';
     document.getElementById('project-detail-view').style.display = 'block';
+
+    // Store current project for actions
+    state.currentProjectDetail = projectId;
+
+    // Fetch full project details from API (list_projects only returns summary)
+    let project;
+    try {
+        const result = await api.getProject(state.instanceId, projectId);
+        project = result.project || result;
+    } catch (e) {
+        console.error('[App] Error loading project details:', e);
+        // Fall back to cached data if API fails
+        project = state.projects.find(p => (p.projectId || p.id) === projectId);
+        if (!project) {
+            showToast('Project not found', 'error');
+            hideProjectDetail();
+            return;
+        }
+    }
 
     // Populate detail fields
     document.getElementById('project-detail-name').textContent = project.name;
@@ -662,13 +675,9 @@ async function showProjectDetail(projectId) {
     document.getElementById('project-detail-description').textContent = project.description || 'No description';
     document.getElementById('project-detail-repo').textContent = project.ghRepo || project.repo || 'Not configured';
 
-    // Store current project for actions
-    state.currentProjectDetail = projectId;
-
     // Load project tasks
     try {
-        // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-        const result = await rpcCallDirect('get_tasks', { project_id: projectId });
+        const result = await rpcCallDirect('get_project_tasks', { projectId: projectId });
         const tasks = result.tasks || result || [];
         renderProjectDetailTasks(tasks);
     } catch (e) {
@@ -676,7 +685,7 @@ async function showProjectDetail(projectId) {
         document.getElementById('project-detail-tasks').innerHTML = '<p class="empty-placeholder">Could not load tasks</p>';
     }
 
-    // Load team members (if available)
+    // Load team members from full project data
     const teamContainer = document.getElementById('project-detail-team');
     if (project.team && project.team.length > 0) {
         teamContainer.innerHTML = project.team.map(member => `
