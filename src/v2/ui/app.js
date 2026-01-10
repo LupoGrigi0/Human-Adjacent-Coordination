@@ -270,7 +270,7 @@ function setupEventListeners() {
     // Admin buttons
     document.getElementById('clear-session-btn')?.addEventListener('click', clearSession);
 
-    // Create Project
+    // Create Project new launch project button
     document.getElementById('new-project-btn')?.addEventListener('click', showCreateProjectModal);
     document.getElementById('create-project-submit')?.addEventListener('click', createProject);
         document.getElementById('launch-project-btn')?.addEventListener('click', launchProject);
