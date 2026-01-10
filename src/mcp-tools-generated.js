@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-10T00:53:55.989Z                           ║
- * ║  Tool Count: 59                                                         ║
+ * ║  Generated: 2026-01-10T04:49:34.009Z                           ║
+ * ║  Tool Count: 66                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -198,6 +198,32 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "taskId"
+      ]
+    }
+  },
+  {
+    "name": "assign_task",
+    "description": "PM can only assign tasks in their joined project. Executive/PA/COO can assign any. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to assign"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Instance ID to assign task to"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId",
+        "assigneeId"
       ]
     }
   },
@@ -640,6 +666,52 @@ export const mcpTools = [
     }
   },
   {
+    "name": "delete_task",
+    "description": "Project tasks are archived, not deleted. Task must be in 'completed' status before deletion. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to delete"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "delete_task_list",
+    "description": "Cannot delete the 'default' list. All tasks in the list must be completed or deleted first. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List ID to delete"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project lists (PM only)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId"
+      ]
+    }
+  },
+  {
     "name": "generate_recovery_key",
     "description": "Generates a secure one-time recovery key that allows an instance to recover their identity when they've lost their instanceId. The key is shown only once at creation and is stored hashed on the server. Use this endpoint when an instance has lost their identity and needs a way to recover. The recovering instance calls bootstrap({ authKey: \"...\" }) with the key you provide them.",
     "inputSchema": {
@@ -980,38 +1052,6 @@ export const mcpTools = [
     "inputSchema": {
       "type": "object",
       "properties": {
-        "params": {
-          "type": "object",
-          "description": ""
-        },
-        "params.instanceId": {
-          "type": "string",
-          "description": "Caller's instance ID"
-        },
-        "params.listId": {
-          "type": "string",
-          "description": "Filter by list"
-        },
-        "params.status": {
-          "type": "string",
-          "description": "Filter by status"
-        },
-        "params.projectId": {
-          "type": "string",
-          "description": "Get project tasks"
-        },
-        "params.skip": {
-          "type": "number",
-          "description": "Tasks to skip (alias: index) [optional, default: 0]"
-        },
-        "params.limit": {
-          "type": "number",
-          "description": "Max tasks to return (alias: span) [optional, default: 5]"
-        },
-        "params.full_detail": {
-          "type": "boolean",
-          "description": "Include all fields [optional, default: false]"
-        },
         "instanceId": {
           "type": "string",
           "description": "Caller's instance ID"
@@ -1022,7 +1062,6 @@ export const mcpTools = [
         }
       },
       "required": [
-        "params.instanceId",
         "instanceId",
         "taskId"
       ]
@@ -1139,6 +1178,22 @@ export const mcpTools = [
     }
   },
   {
+    "name": "list_priority_tasks",
+    "description": "Combines personal tasks and project tasks assigned to caller. Token-aware: returns only headers (taskId, title, priority, status, source). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "list_projects",
     "description": "Returns a list of all projects in the system with summary information. Projects can be filtered by status to show only active, archived, or other status categories. Use this endpoint to discover available projects, find projectIds for joining, or get an overview of organizational project activity.",
     "inputSchema": {
@@ -1163,6 +1218,54 @@ export const mcpTools = [
     "inputSchema": {
       "type": "object",
       "properties": {}
+    }
+  },
+  {
+    "name": "list_tasks",
+    "description": "Returns personal tasks by default. Use projectId to list project tasks. Default behavior returns only 5 tasks with headers (taskId, title, priority, status). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID to list project tasks [optional, omit for personal]"
+        },
+        "listId": {
+          "type": "string",
+          "description": "Filter to specific list"
+        },
+        "status": {
+          "type": "string",
+          "description": "Filter by status"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Filter by assignee (project tasks only)"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Filter by priority"
+        },
+        "skip": {
+          "type": "number",
+          "description": "Number of tasks to skip for pagination [optional, default: 0]"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum tasks to return [optional, default: 5]"
+        },
+        "full_detail": {
+          "type": "boolean",
+          "description": "Include all task fields [optional, default: false]"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
     }
   },
   {
@@ -1203,6 +1306,27 @@ export const mcpTools = [
       },
       "required": [
         "name"
+      ]
+    }
+  },
+  {
+    "name": "mark_task_complete",
+    "description": "Only the assignee or privileged roles can mark tasks complete. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to complete"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
       ]
     }
   },
@@ -1393,6 +1517,27 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "role"
+      ]
+    }
+  },
+  {
+    "name": "take_on_task",
+    "description": "currently unassigned. Project members can claim tasks in their project. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to claim"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
       ]
     }
   },

@@ -146,7 +146,14 @@
               "update_task",
               "create_task",
               "create_task_list",
+              "list_tasks",
+              "assign_task",
+              "take_on_task",
+              "mark_task_complete",
               "get_task",
+              "delete_task",
+              "delete_task_list",
+              "list_priority_tasks",
               "get_my_top_task",
               "mark_task_verified",
               "archive_task",
@@ -1439,37 +1446,117 @@
           "projectId"
         ]
       },
-      "get_task_params": {
+      "list_tasks_params": {
         "type": "object",
         "properties": {
-          "params.instanceId": {
+          "instanceId": {
             "type": "string",
             "description": "Caller's instance ID"
           },
-          "params.listId": {
+          "projectId": {
             "type": "string",
-            "description": "Filter by list"
+            "description": "Project ID to list project tasks [optional, omit for personal]"
           },
-          "params.status": {
+          "listId": {
+            "type": "string",
+            "description": "Filter to specific list"
+          },
+          "status": {
             "type": "string",
             "description": "Filter by status"
           },
-          "params.projectId": {
+          "assigneeId": {
             "type": "string",
-            "description": "Get project tasks"
+            "description": "Filter by assignee (project tasks only)"
           },
-          "params.skip": {
+          "priority": {
+            "type": "string",
+            "description": "Filter by priority"
+          },
+          "skip": {
             "type": "number",
-            "description": "Tasks to skip (alias: index) [optional, default: 0]"
+            "description": "Number of tasks to skip for pagination [optional, default: 0]"
           },
-          "params.limit": {
+          "limit": {
             "type": "number",
-            "description": "Max tasks to return (alias: span) [optional, default: 5]"
+            "description": "Maximum tasks to return [optional, default: 5]"
           },
-          "params.full_detail": {
+          "full_detail": {
             "type": "boolean",
-            "description": "Include all fields [optional, default: false]"
+            "description": "Include all task fields [optional, default: false]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "projectId",
+          "listId",
+          "status",
+          "assigneeId",
+          "priority",
+          "skip",
+          "limit",
+          "full_detail"
+        ]
+      },
+      "assign_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
           },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to assign"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Instance ID to assign task to"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId",
+          "assigneeId"
+        ]
+      },
+      "take_on_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to claim"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "mark_task_complete_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to complete"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "get_task_params": {
+        "type": "object",
+        "properties": {
           "instanceId": {
             "type": "string",
             "description": "Caller's instance ID"
@@ -1480,15 +1567,59 @@
           }
         },
         "required": [
-          "params.instanceId",
-          "params.listId",
-          "params.status",
-          "params.projectId",
-          "params.skip",
-          "params.limit",
-          "params.full_detail",
           "instanceId",
           "taskId"
+        ]
+      },
+      "delete_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to delete"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "delete_task_list_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List ID to delete"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project lists (PM only)"
+          }
+        },
+        "required": [
+          "instanceId",
+          "listId",
+          "projectId"
+        ]
+      },
+      "list_priority_tasks_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          }
+        },
+        "required": [
+          "instanceId"
         ]
       },
       "get_my_top_task_params": {
@@ -5361,6 +5492,214 @@
       "related": [],
       "notes": []
     },
+    "list_tasks": {
+      "name": "list_tasks",
+      "description": "Returns personal tasks by default. Use projectId to list project tasks. Default behavior returns only 5 tasks with headers (taskId, title, priority, status).",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID to list project tasks [optional, omit for personal]"
+          },
+          "listId": {
+            "type": "string",
+            "description": "Filter to specific list"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Filter by assignee (project tasks only)"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Filter by priority"
+          },
+          "skip": {
+            "type": "number",
+            "description": "Number of tasks to skip for pagination [optional, default: 0]"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum tasks to return [optional, default: 5]"
+          },
+          "full_detail": {
+            "type": "boolean",
+            "description": "Include all task fields [optional, default: false]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "projectId",
+          "listId",
+          "status",
+          "assigneeId",
+          "priority",
+          "skip",
+          "limit",
+          "full_detail"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "instanceId not provided",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "assign_task": {
+      "name": "assign_task",
+      "description": "PM can only assign tasks in their joined project. Executive/PA/COO can assign any.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to assign"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Instance ID to assign task to"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId",
+          "assigneeId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "INVALID_TASK",
+          "description": "Can only assign project tasks",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Caller not authorized to assign tasks",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "take_on_task": {
+      "name": "take_on_task",
+      "description": "currently unassigned. Project members can claim tasks in their project.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to claim"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "ALREADY_ASSIGNED",
+          "description": "Task is already assigned to someone",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "mark_task_complete": {
+      "name": "mark_task_complete",
+      "description": "Only the assignee or privileged roles can mark tasks complete.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to complete"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Not authorized to complete this task",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
     "get_task": {
       "name": "get_task",
       "description": "(Alias: get_task_details for backwards compatibility)",
@@ -5371,34 +5710,6 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "params.instanceId": {
-            "type": "string",
-            "description": "Caller's instance ID"
-          },
-          "params.listId": {
-            "type": "string",
-            "description": "Filter by list"
-          },
-          "params.status": {
-            "type": "string",
-            "description": "Filter by status"
-          },
-          "params.projectId": {
-            "type": "string",
-            "description": "Get project tasks"
-          },
-          "params.skip": {
-            "type": "number",
-            "description": "Tasks to skip (alias: index) [optional, default: 0]"
-          },
-          "params.limit": {
-            "type": "number",
-            "description": "Max tasks to return (alias: span) [optional, default: 5]"
-          },
-          "params.full_detail": {
-            "type": "boolean",
-            "description": "Include all fields [optional, default: false]"
-          },
           "instanceId": {
             "type": "string",
             "description": "Caller's instance ID"
@@ -5409,15 +5720,153 @@
           }
         },
         "required": [
-          "params.instanceId",
-          "params.listId",
-          "params.status",
-          "params.projectId",
-          "params.skip",
-          "params.limit",
-          "params.full_detail",
           "instanceId",
           "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "delete_task": {
+      "name": "delete_task",
+      "description": "Project tasks are archived, not deleted. Task must be in 'completed' status before deletion.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to delete"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "INVALID_TASK_ID",
+          "description": "Task ID format not recognized",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Only personal tasks can be deleted",
+          "recover": null
+        },
+        {
+          "code": "TASK_NOT_COMPLETED",
+          "description": "Task must be completed before deletion",
+          "recover": null
+        },
+        {
+          "code": "TASK_NOT_FOUND",
+          "description": "Task not found",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "delete_task_list": {
+      "name": "delete_task_list",
+      "description": "Cannot delete the 'default' list. All tasks in the list must be completed or deleted first.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List ID to delete"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project lists (PM only)"
+          }
+        },
+        "required": [
+          "instanceId",
+          "listId",
+          "projectId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "LIST_NOT_FOUND",
+          "description": "List not found",
+          "recover": null
+        },
+        {
+          "code": "CANNOT_DELETE_DEFAULT",
+          "description": "Cannot delete the default list",
+          "recover": null
+        },
+        {
+          "code": "LIST_NOT_EMPTY",
+          "description": "List has incomplete tasks",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Only PM can delete project lists",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "list_priority_tasks": {
+      "name": "list_priority_tasks",
+      "description": "Combines personal tasks and project tasks assigned to caller. Token-aware: returns only headers (taskId, title, priority, status, source).",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          }
+        },
+        "required": [
+          "instanceId"
         ]
       },
       "permissions": null,

@@ -656,19 +656,26 @@ export async function createTaskList(params) {
 }
 
 /**
- * listTasks - List tasks with pagination and filtering
+ * @hacs-endpoint
+ * @tool list_tasks
+ * @category task
+ * @status stable
+ * @description Lists tasks with pagination and filtering. Token-aware by design.
+ * Returns personal tasks by default. Use projectId to list project tasks.
+ * Default behavior returns only 5 tasks with headers (taskId, title, priority, status).
  *
- * Token-aware: Returns only 5 tasks by default with headers only (taskId, title, priority, status).
- * Use full_detail=true to get all fields (WARNING: can cause context window explosion!)
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} projectId - Project ID to list project tasks [optional, omit for personal]
+ * @param {string} listId - Filter to specific list [optional]
+ * @param {string} status - Filter by status [optional]
+ * @param {string} assigneeId - Filter by assignee (project tasks only) [optional]
+ * @param {string} priority - Filter by priority [optional]
+ * @param {number} skip - Number of tasks to skip for pagination [optional, default: 0]
+ * @param {number} limit - Maximum tasks to return [optional, default: 5]
+ * @param {boolean} full_detail - Include all task fields [optional, default: false]
  *
- * @param {object} params
- * @param {string} params.instanceId - Caller's instance ID [required]
- * @param {string} params.listId - Filter by list [optional]
- * @param {string} params.status - Filter by status [optional]
- * @param {string} params.projectId - Get project tasks [optional]
- * @param {number} params.skip - Tasks to skip (alias: index) [optional, default: 0]
- * @param {number} params.limit - Max tasks to return (alias: span) [optional, default: 5]
- * @param {boolean} params.full_detail - Include all fields [optional, default: false]
+ * @returns {object} { success: true, tasks: [...], total, skip, limit }
+ * @error MISSING_PARAM - instanceId not provided
  */
 export async function listTasks(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'listTasks' };
@@ -751,7 +758,21 @@ export async function listTasks(params) {
 // ============================================================================
 
 /**
- * assignTask - Assign a project task to an instance (privileged only)
+ * @hacs-endpoint
+ * @tool assign_task
+ * @category task
+ * @status stable
+ * @description Assigns a project task to a specific instance. Privileged roles only.
+ * PM can only assign tasks in their joined project. Executive/PA/COO can assign any.
+ *
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} taskId - Task ID to assign [required]
+ * @param {string} assigneeId - Instance ID to assign task to [required]
+ *
+ * @returns {object} { success: true, task: {...} }
+ * @error MISSING_PARAM - Required parameters not provided
+ * @error INVALID_TASK - Can only assign project tasks
+ * @error UNAUTHORIZED - Caller not authorized to assign tasks
  */
 export async function assignTask(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'assignTask' };
@@ -782,7 +803,19 @@ export async function assignTask(params) {
 }
 
 /**
- * takeOnTask - Self-assign a project task
+ * @hacs-endpoint
+ * @tool take_on_task
+ * @category task
+ * @status stable
+ * @description Claims an unassigned project task for yourself. The task must be
+ * currently unassigned. Project members can claim tasks in their project.
+ *
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} taskId - Task ID to claim [required]
+ *
+ * @returns {object} { success: true, task: {...} }
+ * @error MISSING_PARAM - Required parameters not provided
+ * @error ALREADY_ASSIGNED - Task is already assigned to someone
  */
 export async function takeOnTask(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'takeOnTask' };
@@ -803,7 +836,19 @@ export async function takeOnTask(params) {
 }
 
 /**
- * markTaskComplete - Mark a task as completed
+ * @hacs-endpoint
+ * @tool mark_task_complete
+ * @category task
+ * @status stable
+ * @description Marks a task as completed. Sets status to 'completed'.
+ * Only the assignee or privileged roles can mark tasks complete.
+ *
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} taskId - Task ID to complete [required]
+ *
+ * @returns {object} { success: true, task: {...} }
+ * @error MISSING_PARAM - Required parameters not provided
+ * @error UNAUTHORIZED - Not authorized to complete this task
  */
 export async function markTaskComplete(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'markTaskComplete' };
@@ -882,7 +927,22 @@ export async function getTask(params) {
 }
 
 /**
- * deleteTask - Delete a completed personal task
+ * @hacs-endpoint
+ * @tool delete_task
+ * @category task
+ * @status stable
+ * @description Deletes a completed personal task. Only personal tasks can be deleted.
+ * Project tasks are archived, not deleted. Task must be in 'completed' status before deletion.
+ *
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} taskId - Task ID to delete [required]
+ *
+ * @returns {object} { success: true, message: "Task deleted" }
+ * @error MISSING_PARAM - Required parameters not provided
+ * @error INVALID_TASK_ID - Task ID format not recognized
+ * @error UNAUTHORIZED - Only personal tasks can be deleted
+ * @error TASK_NOT_COMPLETED - Task must be completed before deletion
+ * @error TASK_NOT_FOUND - Task not found
  */
 export async function deleteTask(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'deleteTask' };
@@ -951,7 +1011,23 @@ export async function deleteTask(params) {
 }
 
 /**
- * deleteTaskList - Delete an empty or fully-completed personal task list
+ * @hacs-endpoint
+ * @tool delete_task_list
+ * @category task
+ * @status stable
+ * @description Deletes an empty or fully-completed personal task list.
+ * Cannot delete the 'default' list. All tasks in the list must be completed or deleted first.
+ *
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} listId - List ID to delete [required]
+ * @param {string} projectId - Project ID for project lists (PM only) [optional]
+ *
+ * @returns {object} { success: true, message: "List deleted" }
+ * @error MISSING_PARAM - Required parameters not provided
+ * @error LIST_NOT_FOUND - List not found
+ * @error CANNOT_DELETE_DEFAULT - Cannot delete the default list
+ * @error LIST_NOT_EMPTY - List has incomplete tasks
+ * @error UNAUTHORIZED - Only PM can delete project lists
  */
 export async function deleteTaskList(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'deleteTaskList' };
@@ -1026,8 +1102,17 @@ export async function deleteTaskList(params) {
 }
 
 /**
- * listPriorityTasks - Get top 5 highest priority tasks
- * Token-saver function
+ * @hacs-endpoint
+ * @tool list_priority_tasks
+ * @category task
+ * @status stable
+ * @description Returns the top 5 highest priority incomplete tasks.
+ * Combines personal tasks and project tasks assigned to caller.
+ * Token-aware: returns only headers (taskId, title, priority, status, source).
+ *
+ * @param {string} instanceId - Caller's instance ID [required]
+ *
+ * @returns {object} { success: true, tasks: [...], count: number }
  */
 export async function listPriorityTasks(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'listPriorityTasks' };

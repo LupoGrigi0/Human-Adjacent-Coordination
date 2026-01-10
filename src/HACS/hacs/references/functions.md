@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 59 coordination functions available in the HACS system.
+Complete reference for all 66 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-10T00:53:56.367Z
+> **Auto-generated:** 2026-01-10T04:49:34.408Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -985,6 +985,16 @@ This reduces active task list size for token efficiency. Only tasks with status 
 
 **Returns:** success: true, task: { id, title, archived_at } }
 
+### assign_task
+PM can only assign tasks in their joined project. Executive/PA/COO can assign any. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to assign
+- `assigneeId` (required): Instance ID to assign task to
+
+**Returns:** success: true, task: {...} }
+
 ### create_task
 Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project. /
 
@@ -1010,6 +1020,25 @@ Personal lists are created when projectId is omitted. Project lists require priv
 
 **Returns:** success: true, listId, listType: 'personal'|'project' }
 
+### delete_task
+Project tasks are archived, not deleted. Task must be in 'completed' status before deletion. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to delete
+
+**Returns:** success: true, message: "Task deleted" }
+
+### delete_task_list
+Cannot delete the 'default' list. All tasks in the list must be completed or deleted first. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `listId` (required): List ID to delete
+- `projectId` (optional): Project ID for project lists (PM only)
+
+**Returns:** success: true, message: "List deleted" }
+
 ### get_my_top_task
 with full task detail. Searches both personal tasks and assigned project tasks. /
 
@@ -1022,14 +1051,6 @@ with full task detail. Searches both personal tasks and assigned project tasks. 
 (Alias: get_task_details for backwards compatibility) /
 
 **Parameters:**
-- `params` (required): 
-- `params.instanceId` (required): Caller's instance ID
-- `params.listId` (optional): Filter by list
-- `params.status` (optional): Filter by status
-- `params.projectId` (optional): Get project tasks
-- `params.skip` (required): Tasks to skip (alias: index) [optional, default: 0]
-- `params.limit` (required): Max tasks to return (alias: span) [optional, default: 5]
-- `params.full_detail` (required): Include all fields [optional, default: false]
 - `instanceId` (required): Caller's instance ID
 - `taskId` (required): Task ID to retrieve
 
@@ -1042,6 +1063,14 @@ Use this to populate UI dropdowns or validate priority values. /
 
 **Returns:** success: true, priorities: [...] }
 
+### list_priority_tasks
+Combines personal tasks and project tasks assigned to caller. Token-aware: returns only headers (taskId, title, priority, status, source). /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+
+**Returns:** success: true, tasks: [...], count: number }
+
 ### list_task_statuses
 Use this to populate UI dropdowns or validate status values. /
 
@@ -1049,12 +1078,46 @@ Use this to populate UI dropdowns or validate status values. /
 
 **Returns:** success: true, statuses: [...] }
 
+### list_tasks
+Returns personal tasks by default. Use projectId to list project tasks. Default behavior returns only 5 tasks with headers (taskId, title, priority, status). /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `projectId` (required): Project ID to list project tasks [optional, omit for personal]
+- `listId` (optional): Filter to specific list
+- `status` (optional): Filter by status
+- `assigneeId` (optional): Filter by assignee (project tasks only)
+- `priority` (optional): Filter by priority
+- `skip` (required): Number of tasks to skip for pagination [optional, default: 0]
+- `limit` (required): Maximum tasks to return [optional, default: 5]
+- `full_detail` (required): Include all task fields [optional, default: false]
+
+**Returns:** success: true, tasks: [...], total, skip, limit }
+
+### mark_task_complete
+Only the assignee or privileged roles can mark tasks complete. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to complete
+
+**Returns:** success: true, task: {...} }
+
 ### mark_task_verified
 For project tasks, the assignee CANNOT verify their own task - another team member must do it. Personal tasks have no such restriction. Only completed tasks can be verified. /
 
 **Parameters:**
 - `instanceId` (required): Caller's instance ID
 - `taskId` (required): Task ID to verify
+
+**Returns:** success: true, task: {...} }
+
+### take_on_task
+currently unassigned. Project members can claim tasks in their project. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to claim
 
 **Returns:** success: true, task: {...} }
 
