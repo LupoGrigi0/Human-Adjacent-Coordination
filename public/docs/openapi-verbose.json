@@ -140,9 +140,14 @@
               "create_project",
               "get_project",
               "list_projects",
-              "list_roles",
-              "get_role_summary",
               "take_on_role",
+              "list_priorities",
+              "list_task_statuses",
+              "update_task",
+              "get_task",
+              "get_my_top_task",
+              "mark_task_verified",
+              "archive_task",
               "get_my_tasks",
               "get_next_task",
               "add_personal_task",
@@ -150,9 +155,6 @@
               "create_personal_list",
               "get_personal_lists",
               "assign_task_to_instance",
-              "get_ui_state",
-              "set_ui_state",
-              "update_ui_state",
               "update_instance",
               "vacation",
               "koan",
@@ -350,6 +352,18 @@
       "continue_conversation_params": {
         "type": "object",
         "properties": {
+          "targetHomeDir": {
+            "type": "string",
+            "description": "The target instance's home directory"
+          },
+          "unixUser": {
+            "type": "string",
+            "description": "Unix user to run as"
+          },
+          "output": {
+            "type": "string",
+            "description": "stdout or stderr from Claude CLI"
+          },
           "instanceId": {
             "type": "string",
             "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity. This identifies who is sending the message to the target instance."
@@ -365,10 +379,6 @@
           "args": {
             "type": "string",
             "description": "Command arguments"
-          },
-          "unixUser": {
-            "type": "string",
-            "description": "Unix user to run as"
           },
           "timeout": {
             "type": "number",
@@ -417,6 +427,9 @@
           }
         },
         "required": [
+          "targetHomeDir",
+          "unixUser",
+          "output",
           "instanceId",
           "command",
           "workingDir",
@@ -1226,22 +1239,6 @@
           "status"
         ]
       },
-      "list_roles_params": {
-        "type": "object",
-        "properties": {}
-      },
-      "get_role_summary_params": {
-        "type": "object",
-        "properties": {
-          "role_name": {
-            "type": "string",
-            "description": "Role identifier"
-          }
-        },
-        "required": [
-          "role_name"
-        ]
-      },
       "take_on_role_params": {
         "type": "object",
         "properties": {
@@ -1268,6 +1265,226 @@
           "instanceId",
           "role",
           "token"
+        ]
+      },
+      "list_priorities_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "list_task_statuses_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "update_task_params": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "'personal' or 'project'"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List name/ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID (only for project tasks)"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to modify"
+          },
+          "params.callerId": {
+            "type": "string",
+            "description": "Who's making the request"
+          },
+          "params.callerRole": {
+            "type": "string",
+            "description": "Caller's role"
+          },
+          "params.callerProject": {
+            "type": "string",
+            "description": "Caller's joined project (from preferences)"
+          },
+          "params.task": {
+            "type": "object",
+            "description": "The task being edited"
+          },
+          "params.taskType": {
+            "type": "string",
+            "description": "'personal' or 'project'"
+          },
+          "params.projectId": {
+            "type": "string",
+            "description": "Project ID (for project tasks)"
+          },
+          "params.changes": {
+            "type": "object",
+            "description": "What's being changed"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "New title"
+          },
+          "description": {
+            "type": "string",
+            "description": "New description"
+          },
+          "priority": {
+            "type": "string",
+            "description": "New priority (emergency|critical|high|medium|low|whenever)"
+          },
+          "status": {
+            "type": "string",
+            "description": "New status (not_started|in_progress|blocked|completed|completed_verified|archived)"
+          },
+          "assigned_to": {
+            "type": "string",
+            "description": "Assignee instance ID [optional, privileged roles only for project tasks]"
+          }
+        },
+        "required": [
+          "type",
+          "listId",
+          "projectId",
+          "taskId",
+          "params.callerId",
+          "params.callerRole",
+          "params.callerProject",
+          "params.task",
+          "params.taskType",
+          "params.projectId",
+          "params.changes",
+          "instanceId",
+          "taskId",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "assigned_to"
+        ]
+      },
+      "get_task_params": {
+        "type": "object",
+        "properties": {
+          "params.instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "params.title": {
+            "type": "string",
+            "description": "Task title"
+          },
+          "params.description": {
+            "type": "string",
+            "description": "Task description"
+          },
+          "params.priority": {
+            "type": "string",
+            "description": "Priority: critical|high|medium|low [optional, default: medium]"
+          },
+          "params.listId": {
+            "type": "string",
+            "description": "Filter by list"
+          },
+          "params.projectId": {
+            "type": "string",
+            "description": "Get project tasks"
+          },
+          "params.status": {
+            "type": "string",
+            "description": "Filter by status"
+          },
+          "params.skip": {
+            "type": "number",
+            "description": "Tasks to skip (alias: index) [optional, default: 0]"
+          },
+          "params.limit": {
+            "type": "number",
+            "description": "Max tasks to return (alias: span) [optional, default: 5]"
+          },
+          "params.full_detail": {
+            "type": "boolean",
+            "description": "Include all fields [optional, default: false]"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to retrieve"
+          }
+        },
+        "required": [
+          "params.instanceId",
+          "params.title",
+          "params.description",
+          "params.priority",
+          "params.listId",
+          "params.projectId",
+          "params.instanceId",
+          "params.listId",
+          "params.projectId",
+          "params.instanceId",
+          "params.listId",
+          "params.status",
+          "params.projectId",
+          "params.skip",
+          "params.limit",
+          "params.full_detail",
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "get_my_top_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          }
+        },
+        "required": [
+          "instanceId"
+        ]
+      },
+      "mark_task_verified_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to verify"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "archive_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to archive"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
         ]
       },
       "get_my_tasks_params": {
@@ -1433,52 +1650,6 @@
           "assigneeInstanceId",
           "projectId",
           "message"
-        ]
-      },
-      "get_ui_state_params": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          }
-        },
-        "required": [
-          "instanceId"
-        ]
-      },
-      "set_ui_state_params": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          },
-          "uiState": {
-            "type": "object",
-            "description": "Complete UI state object to set\n\nSource: Create this object with your desired UI preferences. Common fields: theme, sidebarCollapsed, selectedProject, lastViewedTask"
-          }
-        },
-        "required": [
-          "instanceId",
-          "uiState"
-        ]
-      },
-      "update_ui_state_params": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          },
-          "updates": {
-            "type": "object",
-            "description": "Partial UI state object to merge\n\nSource: Create an object with only the fields you want to update. Example: { theme: \"dark\" } to only change the theme"
-          }
-        },
-        "required": [
-          "instanceId",
-          "updates"
         ]
       },
       "update_instance_params": {
@@ -2082,6 +2253,18 @@
       "inputSchema": {
         "type": "object",
         "properties": {
+          "targetHomeDir": {
+            "type": "string",
+            "description": "The target instance's home directory"
+          },
+          "unixUser": {
+            "type": "string",
+            "description": "Unix user to run as"
+          },
+          "output": {
+            "type": "string",
+            "description": "stdout or stderr from Claude CLI"
+          },
           "instanceId": {
             "type": "string",
             "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity. This identifies who is sending the message to the target instance."
@@ -2097,10 +2280,6 @@
           "args": {
             "type": "string",
             "description": "Command arguments"
-          },
-          "unixUser": {
-            "type": "string",
-            "description": "Unix user to run as"
           },
           "timeout": {
             "type": "number",
@@ -2149,6 +2328,9 @@
           }
         },
         "required": [
+          "targetHomeDir",
+          "unixUser",
+          "output",
           "instanceId",
           "command",
           "workingDir",
@@ -4752,50 +4934,6 @@
         "Creates projects directory if it doesn't exist"
       ]
     },
-    "list_roles": {
-      "name": "list_roles",
-      "description": "",
-      "category": null,
-      "status": null,
-      "version": null,
-      "since": null,
-      "inputSchema": {
-        "type": "object",
-        "properties": {}
-      },
-      "permissions": null,
-      "rateLimit": null,
-      "errors": [],
-      "examples": [],
-      "related": [],
-      "notes": []
-    },
-    "get_role_summary": {
-      "name": "get_role_summary",
-      "description": "",
-      "category": null,
-      "status": null,
-      "version": null,
-      "since": null,
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "role_name": {
-            "type": "string",
-            "description": "Role identifier"
-          }
-        },
-        "required": [
-          "role_name"
-        ]
-      },
-      "permissions": null,
-      "rateLimit": null,
-      "errors": [],
-      "examples": [],
-      "related": [],
-      "notes": []
-    },
     "take_on_role": {
       "name": "take_on_role",
       "description": "Allows an instance to adopt a role within the coordination system. Updates the instance's preferences with the new role and returns concatenated wisdom documents from the role's wisdom directory. Use this endpoint after bootstrap to establish your role in the system. Roles determine what actions you can perform and what tasks you're suited for. Some roles (Executive, PA, COO, PM) require token authentication.",
@@ -4890,6 +5028,324 @@
         "This endpoint also updates lastActiveAt timestamp in preferences",
         "Privileged role tokens are stored in environment variables (EXECUTIVE_TOKEN,"
       ]
+    },
+    "list_priorities": {
+      "name": "list_priorities",
+      "description": "Use this to populate UI dropdowns or validate priority values.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "list_task_statuses": {
+      "name": "list_task_statuses",
+      "description": "Use this to populate UI dropdowns or validate status values.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "update_task": {
+      "name": "update_task",
+      "description": "Updates any combination of title, description, priority, status, or assignment. Performs permission checking based on role and project membership. (Alias: change_task for backwards compatibility)",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "'personal' or 'project'"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List name/ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID (only for project tasks)"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to modify"
+          },
+          "params.callerId": {
+            "type": "string",
+            "description": "Who's making the request"
+          },
+          "params.callerRole": {
+            "type": "string",
+            "description": "Caller's role"
+          },
+          "params.callerProject": {
+            "type": "string",
+            "description": "Caller's joined project (from preferences)"
+          },
+          "params.task": {
+            "type": "object",
+            "description": "The task being edited"
+          },
+          "params.taskType": {
+            "type": "string",
+            "description": "'personal' or 'project'"
+          },
+          "params.projectId": {
+            "type": "string",
+            "description": "Project ID (for project tasks)"
+          },
+          "params.changes": {
+            "type": "object",
+            "description": "What's being changed"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "New title"
+          },
+          "description": {
+            "type": "string",
+            "description": "New description"
+          },
+          "priority": {
+            "type": "string",
+            "description": "New priority (emergency|critical|high|medium|low|whenever)"
+          },
+          "status": {
+            "type": "string",
+            "description": "New status (not_started|in_progress|blocked|completed|completed_verified|archived)"
+          },
+          "assigned_to": {
+            "type": "string",
+            "description": "Assignee instance ID [optional, privileged roles only for project tasks]"
+          }
+        },
+        "required": [
+          "type",
+          "listId",
+          "projectId",
+          "taskId",
+          "params.callerId",
+          "params.callerRole",
+          "params.callerProject",
+          "params.task",
+          "params.taskType",
+          "params.projectId",
+          "params.changes",
+          "instanceId",
+          "taskId",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "assigned_to"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_task": {
+      "name": "get_task",
+      "description": "(Alias: get_task_details for backwards compatibility)",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "params.instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "params.title": {
+            "type": "string",
+            "description": "Task title"
+          },
+          "params.description": {
+            "type": "string",
+            "description": "Task description"
+          },
+          "params.priority": {
+            "type": "string",
+            "description": "Priority: critical|high|medium|low [optional, default: medium]"
+          },
+          "params.listId": {
+            "type": "string",
+            "description": "Filter by list"
+          },
+          "params.projectId": {
+            "type": "string",
+            "description": "Get project tasks"
+          },
+          "params.status": {
+            "type": "string",
+            "description": "Filter by status"
+          },
+          "params.skip": {
+            "type": "number",
+            "description": "Tasks to skip (alias: index) [optional, default: 0]"
+          },
+          "params.limit": {
+            "type": "number",
+            "description": "Max tasks to return (alias: span) [optional, default: 5]"
+          },
+          "params.full_detail": {
+            "type": "boolean",
+            "description": "Include all fields [optional, default: false]"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to retrieve"
+          }
+        },
+        "required": [
+          "params.instanceId",
+          "params.title",
+          "params.description",
+          "params.priority",
+          "params.listId",
+          "params.projectId",
+          "params.instanceId",
+          "params.listId",
+          "params.projectId",
+          "params.instanceId",
+          "params.listId",
+          "params.status",
+          "params.projectId",
+          "params.skip",
+          "params.limit",
+          "params.full_detail",
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_my_top_task": {
+      "name": "get_my_top_task",
+      "description": "with full task detail. Searches both personal tasks and assigned project tasks.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          }
+        },
+        "required": [
+          "instanceId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "mark_task_verified": {
+      "name": "mark_task_verified",
+      "description": "For project tasks, the assignee CANNOT verify their own task - another team member must do it. Personal tasks have no such restriction. Only completed tasks can be verified.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to verify"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "archive_task": {
+      "name": "archive_task",
+      "description": "This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/PA/COO can archive. Personal tasks can be archived by the owner.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to archive"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
     },
     "get_my_tasks": {
       "name": "get_my_tasks",
@@ -5441,193 +5897,6 @@
         "Task is still assigned even if notification fails",
         "Critical priority tasks send high-priority notifications",
         "Reassignment updates previousAssignee but doesn't notify them"
-      ]
-    },
-    "get_ui_state": {
-      "name": "get_ui_state",
-      "description": "Retrieves the UI state object for an instance. UI state is stored as a free-form object in the instance's preferences.json file under the `uiState` field. Use this endpoint when loading a UI to restore the user's previous preferences like theme, sidebar state, selected project, etc.",
-      "category": "ui",
-      "status": "stable",
-      "version": "2.0.0",
-      "since": "2025-12-12",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          }
-        },
-        "required": [
-          "instanceId"
-        ]
-      },
-      "permissions": "authenticated",
-      "rateLimit": "60/minute",
-      "errors": [
-        {
-          "code": "MISSING_PARAMETER",
-          "description": "instanceId parameter not provided",
-          "recover": "Include instanceId in your request. Get it from bootstrap response or use lookup_identity with your fingerprint to recover it."
-        },
-        {
-          "code": "INVALID_INSTANCE_ID",
-          "description": "No instance found with the provided ID",
-          "recover": "Verify the instanceId is correct (format: Name-xxxx). If you're new, call bootstrap first. If recovering, use lookup_identity."
-        }
-      ],
-      "examples": [
-        {
-          "title": "Get UI state",
-          "json": "{ \"instanceId\": \"Lupo-f63b\" }\n{ \"instanceId\": \"Lupo-f63b\" }"
-        }
-      ],
-      "related": [
-        {
-          "endpoint": "set_ui_state",
-          "description": "Replace entire UI state"
-        },
-        {
-          "endpoint": "update_ui_state",
-          "description": "Merge updates into existing UI state"
-        },
-        {
-          "endpoint": "introspect",
-          "description": "Get full instance context including UI state"
-        }
-      ],
-      "notes": [
-        "UI state is stored in preferences.json, not a separate file",
-        "Returns empty object {} if uiState has never been set"
-      ]
-    },
-    "set_ui_state": {
-      "name": "set_ui_state",
-      "description": "Replaces the entire UI state object for an instance. This completely overwrites any existing uiState - use update_ui_state if you want to merge changes instead. Use this endpoint when you need to reset UI state to a known configuration, or when initializing UI state for the first time.",
-      "category": "ui",
-      "status": "stable",
-      "version": "2.0.0",
-      "since": "2025-12-12",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          },
-          "uiState": {
-            "type": "object",
-            "description": "Complete UI state object to set\n\nSource: Create this object with your desired UI preferences. Common fields: theme, sidebarCollapsed, selectedProject, lastViewedTask"
-          }
-        },
-        "required": [
-          "instanceId",
-          "uiState"
-        ]
-      },
-      "permissions": "authenticated",
-      "rateLimit": "60/minute",
-      "errors": [
-        {
-          "code": "MISSING_PARAMETER",
-          "description": "instanceId or uiState parameter not provided",
-          "recover": "Include both instanceId and uiState in your request."
-        },
-        {
-          "code": "INVALID_PARAMETER",
-          "description": "uiState is not a valid object (null or array)",
-          "recover": "Ensure uiState is a plain object like { theme: \"dark\" }. Arrays and null values are not allowed."
-        },
-        {
-          "code": "INVALID_INSTANCE_ID",
-          "description": "No instance found with the provided ID",
-          "recover": "Verify the instanceId is correct (format: Name-xxxx). If you're new, call bootstrap first. If recovering, use lookup_identity."
-        }
-      ],
-      "examples": [
-        {
-          "title": "Set UI state",
-          "json": "{\n\"instanceId\": \"Lupo-f63b\",\n\"uiState\": {\n\"sidebarCollapsed\": true,\n\"theme\": \"light\"\n}\n}"
-        }
-      ],
-      "related": [
-        {
-          "endpoint": "get_ui_state",
-          "description": "Retrieve UI state"
-        },
-        {
-          "endpoint": "update_ui_state",
-          "description": "Merge updates into existing UI state (preferred)"
-        }
-      ],
-      "notes": [
-        "This completely replaces the uiState - use update_ui_state for merging",
-        "Also updates lastUpdated timestamp in preferences.json"
-      ]
-    },
-    "update_ui_state": {
-      "name": "update_ui_state",
-      "description": "Performs a shallow merge of the provided updates into the existing UI state. New values overwrite existing at the top level, but nested objects are replaced entirely, not deep-merged. This is the preferred method for updating UI state as it preserves existing settings that you don't explicitly change.",
-      "category": "ui",
-      "status": "stable",
-      "version": "2.0.0",
-      "since": "2025-12-12",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          },
-          "updates": {
-            "type": "object",
-            "description": "Partial UI state object to merge\n\nSource: Create an object with only the fields you want to update. Example: { theme: \"dark\" } to only change the theme"
-          }
-        },
-        "required": [
-          "instanceId",
-          "updates"
-        ]
-      },
-      "permissions": "authenticated",
-      "rateLimit": "60/minute",
-      "errors": [
-        {
-          "code": "MISSING_PARAMETER",
-          "description": "instanceId or updates parameter not provided",
-          "recover": "Include both instanceId and updates in your request."
-        },
-        {
-          "code": "INVALID_PARAMETER",
-          "description": "updates is not a valid object (null or array)",
-          "recover": "Ensure updates is a plain object like { theme: \"dark\" }. Arrays and null values are not allowed."
-        },
-        {
-          "code": "INVALID_INSTANCE_ID",
-          "description": "No instance found with the provided ID",
-          "recover": "Verify the instanceId is correct (format: Name-xxxx). If you're new, call bootstrap first. If recovering, use lookup_identity."
-        }
-      ],
-      "examples": [
-        {
-          "title": "Update specific fields",
-          "json": "{\n\"instanceId\": \"Lupo-f63b\",\n\"updates\": {\n\"selectedProject\": \"new-project\",\n\"lastViewedTask\": \"task-123\"\n}\n}"
-        }
-      ],
-      "related": [
-        {
-          "endpoint": "get_ui_state",
-          "description": "Retrieve UI state"
-        },
-        {
-          "endpoint": "set_ui_state",
-          "description": "Replace entire UI state (use sparingly)"
-        }
-      ],
-      "notes": [
-        "This is a SHALLOW merge - nested objects are replaced, not deep merged",
-        "Use updatedFields in response to confirm which fields changed",
-        "Also updates lastUpdated timestamp in preferences.json"
       ]
     },
     "update_instance": {

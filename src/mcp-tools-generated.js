@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-09T18:16:48.273Z                           ║
- * ║  Tool Count: 50                                                         ║
+ * ║  Generated: 2026-01-10T00:28:25.372Z                           ║
+ * ║  Tool Count: 57                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -177,6 +177,27 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "personality"
+      ]
+    }
+  },
+  {
+    "name": "archive_task",
+    "description": "This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/PA/COO can archive. Personal tasks can be archived by the owner. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to archive"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
       ]
     }
   },
@@ -748,6 +769,22 @@ export const mcpTools = [
     }
   },
   {
+    "name": "get_my_top_task",
+    "description": "with full task detail. Searches both personal tasks and assigned project tasks. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "get_next_task",
     "description": "Returns the highest priority unclaimed task from a project, optionally filtered by keyword or priority level. Tasks are sorted by priority (critical > high > medium > low) then by creation date (oldest first). Use this endpoint when you want to pick up the next most important piece of work. After getting a task, use claimTask to assign it to yourself.",
     "inputSchema": {
@@ -868,6 +905,76 @@ export const mcpTools = [
     }
   },
   {
+    "name": "get_task",
+    "description": "(Alias: get_task_details for backwards compatibility) /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "params": {
+          "type": "object",
+          "description": ""
+        },
+        "params.instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "params.title": {
+          "type": "string",
+          "description": "Task title"
+        },
+        "params.description": {
+          "type": "string",
+          "description": "Task description"
+        },
+        "params.priority": {
+          "type": "string",
+          "description": "Priority: critical|high|medium|low [optional, default: medium]"
+        },
+        "params.listId": {
+          "type": "string",
+          "description": "Filter by list"
+        },
+        "params.projectId": {
+          "type": "string",
+          "description": "Get project tasks"
+        },
+        "params.status": {
+          "type": "string",
+          "description": "Filter by status"
+        },
+        "params.skip": {
+          "type": "number",
+          "description": "Tasks to skip (alias: index) [optional, default: 0]"
+        },
+        "params.limit": {
+          "type": "number",
+          "description": "Max tasks to return (alias: span) [optional, default: 5]"
+        },
+        "params.full_detail": {
+          "type": "boolean",
+          "description": "Include all fields [optional, default: false]"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to retrieve"
+        }
+      },
+      "required": [
+        "params.instanceId",
+        "params.title",
+        "params.instanceId",
+        "params.listId",
+        "params.instanceId",
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
     "name": "get_tool_help",
     "description": "verbose help including parameters, return values, examples, and usage guidance. Use this to understand how to use any tool - like Unix man pages. /",
     "inputSchema": {
@@ -970,6 +1077,14 @@ export const mcpTools = [
     }
   },
   {
+    "name": "list_priorities",
+    "description": "Use this to populate UI dropdowns or validate priority values. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
     "name": "list_projects",
     "description": "Returns a list of all projects in the system with summary information. Projects can be filtered by status to show only active, archived, or other status categories. Use this endpoint to discover available projects, find projectIds for joining, or get an overview of organizational project activity.",
     "inputSchema": {
@@ -986,6 +1101,14 @@ export const mcpTools = [
           "default": "undefined (returns all projects regardless of status)"
         }
       }
+    }
+  },
+  {
+    "name": "list_task_statuses",
+    "description": "Use this to populate UI dropdowns or validate status values. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
     }
   },
   {
@@ -1026,6 +1149,27 @@ export const mcpTools = [
       },
       "required": [
         "name"
+      ]
+    }
+  },
+  {
+    "name": "mark_task_verified",
+    "description": "For project tasks, the assignee CANNOT verify their own task - another team member must do it. Personal tasks have no such restriction. Only completed tasks can be verified. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to verify"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
       ]
     }
   },
@@ -1275,6 +1419,91 @@ export const mcpTools = [
       },
       "required": [
         "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "update_task",
+    "description": "Updates any combination of title, description, priority, status, or assignment. Performs permission checking based on role and project membership. (Alias: change_task for backwards compatibility) /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "'personal' or 'project'"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List name/ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID (only for project tasks)"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to modify"
+        },
+        "params": {
+          "type": "object",
+          "description": ""
+        },
+        "params.callerId": {
+          "type": "string",
+          "description": "Who's making the request"
+        },
+        "params.callerRole": {
+          "type": "string",
+          "description": "Caller's role"
+        },
+        "params.callerProject": {
+          "type": "string",
+          "description": "Caller's joined project (from preferences)"
+        },
+        "params.task": {
+          "type": "object",
+          "description": "The task being edited"
+        },
+        "params.taskType": {
+          "type": "string",
+          "description": "'personal' or 'project'"
+        },
+        "params.projectId": {
+          "type": "string",
+          "description": "Project ID (for project tasks)"
+        },
+        "params.changes": {
+          "type": "object",
+          "description": "What's being changed"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "New title"
+        },
+        "description": {
+          "type": "string",
+          "description": "New description"
+        },
+        "priority": {
+          "type": "string",
+          "description": "New priority (emergency|critical|high|medium|low|whenever)"
+        },
+        "status": {
+          "type": "string",
+          "description": "New status (not_started|in_progress|blocked|completed|completed_verified|archived)"
+        },
+        "assigned_to": {
+          "type": "string",
+          "description": "Assignee instance ID [optional, privileged roles only for project tasks]"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
       ]
     }
   },

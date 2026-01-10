@@ -7,8 +7,9 @@
  * - Hierarchical: task_lists → named lists → tasks
  * - Task IDs encode type: ptask-{list}-{seq} or prjtask-{project}-{list}-{seq}
  *
- * Core principle: changeTask() is THE single source of truth for all edits.
- * All convenience functions wrap changeTask().
+ * Core principle: updateTask() is THE single source of truth for all edits.
+ * All convenience functions wrap updateTask().
+ * (changeTask is kept as backwards-compatible alias)
  *
  * @module task-management
  * @author Crossing
@@ -17,9 +18,75 @@
 
 import path from 'path';
 import crypto from 'crypto';
-import { getInstanceDir, getProjectDir } from './config.js';
+import { getInstanceDir, getProjectDir, getGlobalPreferencesPath } from './config.js';
 import { readJSON, writeJSON, ensureDir, readPreferences } from './data.js';
 import { isPrivilegedRole } from './permissions.js';
+
+// ============================================================================
+// GLOBAL ENUM READERS
+// ============================================================================
+
+/**
+ * Load global preferences (cached for performance)
+ */
+let globalPrefsCache = null;
+let globalPrefsCacheTime = 0;
+const CACHE_TTL_MS = 60000; // 1 minute cache
+
+async function loadGlobalPreferences() {
+  const now = Date.now();
+  if (globalPrefsCache && (now - globalPrefsCacheTime) < CACHE_TTL_MS) {
+    return globalPrefsCache;
+  }
+
+  const prefs = await readJSON(getGlobalPreferencesPath());
+  if (prefs) {
+    globalPrefsCache = prefs;
+    globalPrefsCacheTime = now;
+  }
+  return prefs || {
+    task_priorities: ['emergency', 'critical', 'high', 'medium', 'low', 'whenever'],
+    task_statuses: ['not_started', 'in_progress', 'blocked', 'completed', 'completed_verified', 'archived']
+  };
+}
+
+/**
+ * @hacs-endpoint
+ * @tool list_priorities
+ * @category task
+ * @description Returns the list of available task priority levels from global config.
+ * Use this to populate UI dropdowns or validate priority values.
+ * @returns {object} { success: true, priorities: [...] }
+ */
+export async function listPriorities() {
+  const metadata = { timestamp: new Date().toISOString(), function: 'listPriorities' };
+  const prefs = await loadGlobalPreferences();
+
+  return {
+    success: true,
+    priorities: prefs.task_priorities,
+    metadata
+  };
+}
+
+/**
+ * @hacs-endpoint
+ * @tool list_task_statuses
+ * @category task
+ * @description Returns the list of available task status values from global config.
+ * Use this to populate UI dropdowns or validate status values.
+ * @returns {object} { success: true, statuses: [...] }
+ */
+export async function listTaskStatuses() {
+  const metadata = { timestamp: new Date().toISOString(), function: 'listTaskStatuses' };
+  const prefs = await loadGlobalPreferences();
+
+  return {
+    success: true,
+    statuses: prefs.task_statuses,
+    metadata
+  };
+}
 
 // ============================================================================
 // DATA HELPERS
@@ -154,18 +221,20 @@ function findTaskInFile(taskData, taskId) {
 
 /**
  * Check if caller can edit a task
- * Central permission checking - called by changeTask()
+ * Central permission checking - called by updateTask()
  *
  * Rules:
  * - Personal tasks: only owner can edit
  * - Project tasks:
- *   - Privileged roles can edit any task in any project
+ *   - Executive, PA, COO can edit any task in any project
+ *   - PM can only edit tasks in their joined project
  *   - Project members can edit their own assigned tasks
  *   - Assigning to someone else requires privileged role
  *
  * @param {object} params
  * @param {string} params.callerId - Who's making the request
  * @param {string} params.callerRole - Caller's role
+ * @param {string} params.callerProject - Caller's joined project (from preferences)
  * @param {object} params.task - The task being edited
  * @param {string} params.taskType - 'personal' or 'project'
  * @param {string} params.projectId - Project ID (for project tasks)
@@ -173,9 +242,10 @@ function findTaskInFile(taskData, taskId) {
  * @returns {object} { allowed: boolean, reason?: string }
  */
 async function checkTaskEditPermissions(params) {
-  const { callerId, callerRole, task, taskType, projectId, changes } = params;
+  const { callerId, callerRole, callerProject, task, taskType, projectId, changes } = params;
 
-  const isPrivileged = isPrivilegedRole(callerRole);
+  const isHighPrivilege = ['Executive', 'PA', 'COO'].includes(callerRole);
+  const isPM = callerRole === 'PM';
 
   // Personal tasks: only owner can edit
   if (taskType === 'personal') {
@@ -185,9 +255,21 @@ async function checkTaskEditPermissions(params) {
 
   // Project tasks
   if (taskType === 'project') {
-    // Privileged can do anything
-    if (isPrivileged) {
+    // Executive, PA, COO can do anything in any project
+    if (isHighPrivilege) {
       return { allowed: true };
+    }
+
+    // PM can only manage their own project
+    if (isPM) {
+      if (callerProject === projectId) {
+        return { allowed: true };
+      } else {
+        return {
+          allowed: false,
+          reason: `PM can only manage tasks in their joined project (${callerProject || 'none'}), not ${projectId}`
+        };
+      }
     }
 
     // Check if caller is a project member
@@ -244,19 +326,24 @@ async function checkTaskEditPermissions(params) {
 // ============================================================================
 
 /**
- * changeTask - THE core function. All task edits go through here.
- *
- * @param {object} params
- * @param {string} params.instanceId - Caller's instance ID [required]
- * @param {string} params.taskId - Task to modify [required]
- * @param {string} params.title - New title [optional]
- * @param {string} params.description - New description [optional]
- * @param {string} params.priority - New priority [optional]
- * @param {string} params.status - New status [optional]
- * @param {string} params.assigned_to - Assignee instance ID [optional]
+ * @hacs-endpoint
+ * @tool update_task
+ * @category task
+ * @description THE core function for updating tasks. All task edits go through here.
+ * Updates any combination of title, description, priority, status, or assignment.
+ * Performs permission checking based on role and project membership.
+ * (Alias: change_task for backwards compatibility)
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} taskId - Task ID to modify [required]
+ * @param {string} title - New title [optional]
+ * @param {string} description - New description [optional]
+ * @param {string} priority - New priority (emergency|critical|high|medium|low|whenever) [optional]
+ * @param {string} status - New status (not_started|in_progress|blocked|completed|completed_verified|archived) [optional]
+ * @param {string} assigned_to - Assignee instance ID [optional, privileged roles only for project tasks]
+ * @returns {object} { success: true, task: {...}, message: 'Task updated successfully' }
  */
-export async function changeTask(params) {
-  const metadata = { timestamp: new Date().toISOString(), function: 'changeTask' };
+export async function updateTask(params) {
+  const metadata = { timestamp: new Date().toISOString(), function: 'updateTask' };
 
   // Validate required params
   if (!params.instanceId) {
@@ -276,12 +363,13 @@ export async function changeTask(params) {
     };
   }
 
-  // Get caller's role
+  // Get caller's role and project
   const callerPrefs = await readPreferences(params.instanceId);
   if (!callerPrefs) {
     return { success: false, error: { code: 'INVALID_CALLER', message: 'Caller instance not found' }, metadata };
   }
   const callerRole = callerPrefs.role || 'none';
+  const callerProject = callerPrefs.project || null;
 
   // Load the appropriate task file
   let taskData, filePath;
@@ -317,6 +405,7 @@ export async function changeTask(params) {
   const permCheck = await checkTaskEditPermissions({
     callerId: params.instanceId,
     callerRole,
+    callerProject,
     task,
     taskType: parsed.type,
     projectId: parsed.projectId,
@@ -544,15 +633,16 @@ export async function createTaskList(params) {
 /**
  * listTasks - List tasks with pagination and filtering
  *
- * WARNING: Setting full_detail=true with high span can cause context window explosion!
+ * Token-aware: Returns only 5 tasks by default with headers only (taskId, title, priority, status).
+ * Use full_detail=true to get all fields (WARNING: can cause context window explosion!)
  *
  * @param {object} params
  * @param {string} params.instanceId - Caller's instance ID [required]
  * @param {string} params.listId - Filter by list [optional]
  * @param {string} params.status - Filter by status [optional]
  * @param {string} params.projectId - Get project tasks [optional]
- * @param {number} params.index - Starting index [optional, default: 0]
- * @param {number} params.span - Number to return [optional, default: 10]
+ * @param {number} params.skip - Tasks to skip (alias: index) [optional, default: 0]
+ * @param {number} params.limit - Max tasks to return (alias: span) [optional, default: 5]
  * @param {boolean} params.full_detail - Include all fields [optional, default: false]
  */
 export async function listTasks(params) {
@@ -562,8 +652,9 @@ export async function listTasks(params) {
     return { success: false, error: { code: 'MISSING_PARAM', message: 'instanceId is required' }, metadata };
   }
 
-  const index = params.index || 0;
-  const span = params.span || 10;
+  // Accept both old and new param names for backwards compatibility
+  const skip = params.skip ?? params.index ?? 0;
+  const limit = params.limit ?? params.span ?? 5;
   const fullDetail = params.full_detail || false;
 
   let allTasks = [];
@@ -594,10 +685,10 @@ export async function listTasks(params) {
   }
 
   const total = allTasks.length;
-  const hasMore = total > (index + span);
+  const hasMore = total > (skip + limit);
 
   // Paginate
-  const paginated = allTasks.slice(index, index + span);
+  const paginated = allTasks.slice(skip, skip + limit);
 
   // Format output
   const tasks = paginated.map(t => {
@@ -613,25 +704,25 @@ export async function listTasks(params) {
     tasks,
     total,
     returned: tasks.length,
-    index,
-    span,
+    skip,
+    limit,
     hasMore,
     metadata
   };
 
   if (hasMore) {
-    response.hint = `${total - index - span} more tasks. Call with index=${index + span} to get next batch.`;
+    response.hint = `${total - skip - limit} more tasks. Call with skip=${skip + limit} to get next batch.`;
   }
 
-  if (fullDetail && span > 20) {
-    response.warning = 'CAUTION: full_detail with high span can cause context window explosion!';
+  if (fullDetail && limit > 20) {
+    response.warning = 'CAUTION: full_detail with high limit can cause context window explosion!';
   }
 
   return response;
 }
 
 // ============================================================================
-// CONVENIENCE WRAPPERS (all call changeTask or other core functions)
+// CONVENIENCE WRAPPERS (all call updateTask or other core functions)
 // ============================================================================
 
 /**
@@ -658,7 +749,7 @@ export async function assignTask(params) {
     };
   }
 
-  return changeTask({
+  return updateTask({
     instanceId: params.instanceId,
     taskId: params.taskId,
     assigned_to: params.assigneeId
@@ -679,7 +770,7 @@ export async function takeOnTask(params) {
     };
   }
 
-  return changeTask({
+  return updateTask({
     instanceId: params.instanceId,
     taskId: params.taskId,
     assigned_to: params.instanceId  // Self-assign
@@ -700,7 +791,7 @@ export async function markTaskComplete(params) {
     };
   }
 
-  return changeTask({
+  return updateTask({
     instanceId: params.instanceId,
     taskId: params.taskId,
     status: 'completed'
@@ -708,10 +799,17 @@ export async function markTaskComplete(params) {
 }
 
 /**
- * getTaskDetails - Get full details of a single task
+ * @hacs-endpoint
+ * @tool get_task
+ * @category task
+ * @description Get full details of a single task by ID.
+ * (Alias: get_task_details for backwards compatibility)
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} taskId - Task ID to retrieve [required]
+ * @returns {object} { success: true, task: {...} }
  */
-export async function getTaskDetails(params) {
-  const metadata = { timestamp: new Date().toISOString(), function: 'getTaskDetails' };
+export async function getTask(params) {
+  const metadata = { timestamp: new Date().toISOString(), function: 'getTask' };
 
   if (!params.instanceId || !params.taskId) {
     return {
@@ -960,3 +1058,350 @@ export async function listPriorityTasks(params) {
     metadata
   };
 }
+
+/**
+ * @hacs-endpoint
+ * @tool get_my_top_task
+ * @category task
+ * @description Returns the single highest-priority non-complete task for the instance,
+ * with full task detail. Searches both personal tasks and assigned project tasks.
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @returns {object} { success: true, task: {...} } or { success: true, task: null }
+ */
+export async function getMyTopTask(params) {
+  const metadata = { timestamp: new Date().toISOString(), function: 'getMyTopTask' };
+
+  if (!params.instanceId) {
+    return { success: false, error: { code: 'MISSING_PARAM', message: 'instanceId is required' }, metadata };
+  }
+
+  // Get caller's project to include project tasks
+  const callerPrefs = await readPreferences(params.instanceId);
+  const projectId = callerPrefs?.project;
+
+  let allTasks = [];
+
+  // Personal tasks
+  const personalData = await loadPersonalTasks(params.instanceId);
+  for (const [listId, list] of Object.entries(personalData.task_lists || {})) {
+    for (const task of list.tasks || []) {
+      if (task.status !== 'completed' && task.status !== 'completed_verified' && task.status !== 'archived') {
+        allTasks.push({ ...task, list: listId, source: 'personal' });
+      }
+    }
+  }
+
+  // Project tasks assigned to caller
+  if (projectId) {
+    const projectData = await loadProjectTasks(projectId);
+    for (const [listId, list] of Object.entries(projectData.task_lists || {})) {
+      for (const task of list.tasks || []) {
+        if (task.assigned_to === params.instanceId &&
+            task.status !== 'completed' && task.status !== 'completed_verified' && task.status !== 'archived') {
+          allTasks.push({ ...task, list: listId, source: 'project', projectId });
+        }
+      }
+    }
+  }
+
+  if (allTasks.length === 0) {
+    return {
+      success: true,
+      task: null,
+      message: 'No pending tasks',
+      metadata
+    };
+  }
+
+  // Sort by priority (use global prefs order)
+  const prefs = await loadGlobalPreferences();
+  const priorityOrder = {};
+  prefs.task_priorities.forEach((p, i) => { priorityOrder[p] = i; });
+
+  allTasks.sort((a, b) => (priorityOrder[a.priority] ?? 999) - (priorityOrder[b.priority] ?? 999));
+
+  const topTask = allTasks[0];
+
+  return {
+    success: true,
+    task: topTask,
+    message: `Top task: ${topTask.title}`,
+    metadata
+  };
+}
+
+/**
+ * @hacs-endpoint
+ * @tool mark_task_verified
+ * @category task
+ * @description Marks a completed task as verified (status: completed_verified).
+ * For project tasks, the assignee CANNOT verify their own task - another team member must do it.
+ * Personal tasks have no such restriction. Only completed tasks can be verified.
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} taskId - Task ID to verify [required]
+ * @returns {object} { success: true, task: {...} }
+ */
+export async function markTaskVerified(params) {
+  const metadata = { timestamp: new Date().toISOString(), function: 'markTaskVerified' };
+
+  if (!params.instanceId || !params.taskId) {
+    return {
+      success: false,
+      error: { code: 'MISSING_PARAM', message: 'instanceId and taskId are required' },
+      metadata
+    };
+  }
+
+  // Parse task ID
+  const parsed = parseTaskId(params.taskId);
+  if (!parsed) {
+    return {
+      success: false,
+      error: { code: 'INVALID_TASK_ID', message: 'Task ID format not recognized' },
+      metadata
+    };
+  }
+
+  // Load task file
+  let taskData, filePath;
+  if (parsed.type === 'personal') {
+    taskData = await loadPersonalTasks(params.instanceId);
+    filePath = getPersonalTasksFile(params.instanceId);
+  } else {
+    taskData = await loadProjectTasks(parsed.projectId);
+    filePath = getProjectTasksFile(parsed.projectId);
+  }
+
+  // Find the task
+  const found = findTaskInFile(taskData, params.taskId);
+  if (!found) {
+    return {
+      success: false,
+      error: { code: 'TASK_NOT_FOUND', message: `Task ${params.taskId} not found` },
+      metadata
+    };
+  }
+
+  const { task, listId } = found;
+
+  // Check task is completed
+  if (task.status !== 'completed') {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_STATUS',
+        message: `Task must be 'completed' before it can be verified. Current status: ${task.status}`
+      },
+      metadata
+    };
+  }
+
+  // For project tasks: assignee cannot verify their own task
+  if (parsed.type === 'project') {
+    if (task.assigned_to === params.instanceId) {
+      return {
+        success: false,
+        error: {
+          code: 'SELF_VERIFICATION_NOT_ALLOWED',
+          message: 'You cannot verify your own task. Ask another project member to verify it.'
+        },
+        metadata
+      };
+    }
+
+    // Verify caller is a project member
+    const projectPrefs = await readJSON(path.join(getProjectDir(parsed.projectId), 'project.json')) ||
+                         await readJSON(path.join(getProjectDir(parsed.projectId), 'preferences.json'));
+    if (projectPrefs) {
+      const team = projectPrefs.team || [];
+      if (!team.includes(params.instanceId)) {
+        // Check if caller is privileged
+        const callerPrefs = await readPreferences(params.instanceId);
+        const callerRole = callerPrefs?.role || 'none';
+        if (!isPrivilegedRole(callerRole)) {
+          return {
+            success: false,
+            error: { code: 'UNAUTHORIZED', message: 'You must be a project member to verify project tasks' },
+            metadata
+          };
+        }
+      }
+    }
+  }
+
+  // Update status to completed_verified
+  task.status = 'completed_verified';
+  task.verified_by = params.instanceId;
+  task.verified_at = new Date().toISOString();
+  task.updated = new Date().toISOString();
+  taskData.last_updated = new Date().toISOString();
+
+  await writeJSON(filePath, taskData);
+
+  return {
+    success: true,
+    task: {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      verified_by: task.verified_by,
+      verified_at: task.verified_at
+    },
+    message: 'Task verified successfully',
+    metadata
+  };
+}
+
+/**
+ * @hacs-endpoint
+ * @tool archive_task
+ * @category task
+ * @description Archives a completed_verified task by moving it to TASK_ARCHIVE.json.
+ * This reduces active task list size for token efficiency.
+ * Only tasks with status 'completed_verified' can be archived.
+ * For project tasks: only PM of that project, or Executive/PA/COO can archive.
+ * Personal tasks can be archived by the owner.
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} taskId - Task ID to archive [required]
+ * @returns {object} { success: true, task: { id, title, archived_at } }
+ */
+export async function archiveTask(params) {
+  const metadata = { timestamp: new Date().toISOString(), function: 'archiveTask' };
+
+  if (!params.instanceId || !params.taskId) {
+    return {
+      success: false,
+      error: { code: 'MISSING_PARAM', message: 'instanceId and taskId are required' },
+      metadata
+    };
+  }
+
+  // Parse task ID
+  const parsed = parseTaskId(params.taskId);
+  if (!parsed) {
+    return {
+      success: false,
+      error: { code: 'INVALID_TASK_ID', message: 'Task ID format not recognized' },
+      metadata
+    };
+  }
+
+  // Get caller info
+  const callerPrefs = await readPreferences(params.instanceId);
+  if (!callerPrefs) {
+    return { success: false, error: { code: 'INVALID_CALLER', message: 'Caller instance not found' }, metadata };
+  }
+  const callerRole = callerPrefs.role || 'none';
+
+  // Load task file
+  let taskData, filePath, archivePath;
+  if (parsed.type === 'personal') {
+    taskData = await loadPersonalTasks(params.instanceId);
+    filePath = getPersonalTasksFile(params.instanceId);
+    archivePath = path.join(getInstanceDir(params.instanceId), 'TASK_ARCHIVE.json');
+  } else {
+    taskData = await loadProjectTasks(parsed.projectId);
+    filePath = getProjectTasksFile(parsed.projectId);
+    archivePath = path.join(getProjectDir(parsed.projectId), 'TASK_ARCHIVE.json');
+
+    // Check permissions for project tasks
+    const projectPrefs = await readJSON(path.join(getProjectDir(parsed.projectId), 'project.json')) ||
+                         await readJSON(path.join(getProjectDir(parsed.projectId), 'preferences.json'));
+
+    // Only PM of this project, or Executive/PA/COO can archive
+    const isPM = callerRole === 'PM';
+    const isHighPrivilege = ['Executive', 'PA', 'COO'].includes(callerRole);
+    const isProjectPM = isPM && callerPrefs.project === parsed.projectId;
+
+    if (!isProjectPM && !isHighPrivilege) {
+      return {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Only the project PM or Executive/PA/COO can archive project tasks'
+        },
+        metadata
+      };
+    }
+  }
+
+  // Find the task
+  let foundTask = null;
+  let foundListId = null;
+  let foundIndex = -1;
+
+  for (const [listId, list] of Object.entries(taskData.task_lists || {})) {
+    const idx = (list.tasks || []).findIndex(t => t.id === params.taskId);
+    if (idx !== -1) {
+      foundTask = list.tasks[idx];
+      foundListId = listId;
+      foundIndex = idx;
+      break;
+    }
+  }
+
+  if (!foundTask) {
+    return {
+      success: false,
+      error: { code: 'TASK_NOT_FOUND', message: `Task ${params.taskId} not found` },
+      metadata
+    };
+  }
+
+  // Check task status
+  if (foundTask.status !== 'completed_verified') {
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_STATUS',
+        message: `Task must be 'completed_verified' before archiving. Current status: ${foundTask.status}. Use markTaskVerified first.`
+      },
+      metadata
+    };
+  }
+
+  // Load or create archive file
+  let archive = await readJSON(archivePath) || {
+    schema_version: '1.0',
+    archived_tasks: []
+  };
+
+  // Add to archive with metadata
+  const archivedTask = {
+    ...foundTask,
+    status: 'archived',
+    archived_at: new Date().toISOString(),
+    archived_by: params.instanceId,
+    archived_from_list: foundListId
+  };
+  archive.archived_tasks.push(archivedTask);
+
+  // Remove from active task list
+  taskData.task_lists[foundListId].tasks.splice(foundIndex, 1);
+  taskData.last_updated = new Date().toISOString();
+
+  // Save both files
+  await writeJSON(archivePath, archive);
+  await writeJSON(filePath, taskData);
+
+  return {
+    success: true,
+    task: {
+      id: archivedTask.id,
+      title: archivedTask.title,
+      archived_at: archivedTask.archived_at
+    },
+    message: `Task archived to ${parsed.type === 'personal' ? 'personal' : 'project'} TASK_ARCHIVE.json`,
+    metadata
+  };
+}
+
+// ============================================================================
+// BACKWARDS-COMPATIBLE ALIASES
+// ============================================================================
+
+// changeTask is now updateTask
+export const changeTask = updateTask;
+
+// getTaskDetails is now getTask
+export const getTaskDetails = getTask;

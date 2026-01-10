@@ -44,6 +44,7 @@ import {
 import {
   createTask,
   changeTask,
+  updateTask,
   listTasks,
   createTaskList,
   deleteTask,
@@ -52,7 +53,13 @@ import {
   takeOnTask,
   markTaskComplete,
   getTaskDetails,
-  listPriorityTasks
+  getTask,
+  listPriorityTasks,
+  listPriorities,
+  listTaskStatuses,
+  markTaskVerified,
+  archiveTask,
+  getMyTopTask
 } from './v2/task-management.js';
 import {
   createProject as createProjectV2,
@@ -235,13 +242,31 @@ class MCPCoordinationServer {
         case 'delete_task_list':
           return deleteTaskList(params);
 
-        // Convenience functions (all wrap changeTask)
+        // Aliases for consistency (snake_case API names)
+        case 'update_task':
+          return updateTask(params);
+        case 'get_task':
+          return getTask(params);
+
+        // Enum readers
+        case 'list_priorities':
+          return listPriorities();
+        case 'list_task_statuses':
+          return listTaskStatuses();
+
+        // Convenience functions (all wrap updateTask)
         case 'assign_task':
           return assignTask(params);
         case 'take_on_task':
           return takeOnTask(params);
         case 'mark_task_complete':
           return markTaskComplete(params);
+        case 'mark_task_verified':
+          return markTaskVerified(params);
+        case 'archive_task':
+          return archiveTask(params);
+        case 'get_my_top_task':
+          return getMyTopTask(params);
         case 'list_priority_tasks':
           return listPriorityTasks(params);
 
