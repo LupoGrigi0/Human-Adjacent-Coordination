@@ -29,7 +29,9 @@ import { canRoleCallAPI } from './permissions.js';
  */
 function syncClaudeCredentials(targetHomeDir, unixUser) {
   try {
-    const sourceFile = '/root/.claude/.credentials.json';
+    // Use shared-config as source - the server can't access /root due to ProtectHome=yes
+    // The cron job syncs /root/.claude/ to shared-config every 5 minutes
+    const sourceFile = '/mnt/coordinaton_mcp_data/shared-config/claude/.credentials.json';
     const targetDir = `${targetHomeDir}/.claude`;
     const targetFile = `${targetDir}/.credentials.json`;
 
