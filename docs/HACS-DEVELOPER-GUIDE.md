@@ -447,6 +447,9 @@ The `interface` parameter controls which CLI tool is used:
 |-----------|-------------|------------------|
 | `claude` (default) | Anthropic Claude | `--session-id` / `--resume` |
 | `crush` | Configurable (Grok, etc.) | Directory-based |
+| `codex` | OpenAI GPT-4.1 | Directory-based |
+
+The `interface` parameter is set in `pre_approve()`. Once set, `wake_instance()` and `continue_conversation()` use the same interface automatically.
 
 ### Example: Wake an Instance with Claude
 
@@ -478,7 +481,7 @@ await continue_conversation({
 });
 ```
 
-### Example: Wake with Crush (alternate LLM)
+### Example: Wake with Crush (Grok)
 
 ```javascript
 await pre_approve({
@@ -486,6 +489,18 @@ await pre_approve({
   name: "GrokBot",
   role: "Developer",
   interface: "crush",  // Use Crush CLI instead of Claude
+  apiKey: "your-wake-api-key"
+});
+```
+
+### Example: Wake with Codex (OpenAI)
+
+```javascript
+await pre_approve({
+  instanceId: "Manager-abc123",
+  name: "CodexBot",
+  role: "Developer",
+  interface: "codex",  // Use OpenAI Codex CLI
   apiKey: "your-wake-api-key"
 });
 ```
