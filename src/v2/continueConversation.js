@@ -523,7 +523,8 @@ export async function continueConversation(params) {
     result = await executeInterface(command, workingDir, cliArgs, unixUser, timeout);
 
     // Check for OAuth token expiration (Claude only)
-    if (interfaceType === 'claude' && isOAuthExpiredError(result.stderr || result.stdout)) {
+    // Must check both stderr AND stdout - error can appear in either
+    if (interfaceType === 'claude' && (isOAuthExpiredError(result.stderr) || isOAuthExpiredError(result.stdout))) {
       console.log('[continueConversation] OAuth token expired, attempting credential sync and retry...');
 
       // Try to sync credentials to the target instance's home directory
@@ -534,7 +535,7 @@ export async function continueConversation(params) {
         result = await executeInterface(command, workingDir, cliArgs, unixUser, timeout);
 
         // Check if still failing after retry
-        if (isOAuthExpiredError(result.stderr || result.stdout)) {
+        if (isOAuthExpiredError(result.stderr) || isOAuthExpiredError(result.stdout)) {
           return {
             success: false,
             error: {
