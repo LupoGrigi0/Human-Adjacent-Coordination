@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 57 coordination functions available in the HACS system.
+Complete reference for all 59 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-10T00:28:25.745Z
+> **Auto-generated:** 2026-01-10T00:53:56.367Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -985,6 +985,31 @@ This reduces active task list size for token efficiency. Only tasks with status 
 
 **Returns:** success: true, task: { id, title, archived_at } }
 
+### create_task
+Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `title` (required): Task title, short one-line description
+- `description` (optional): Detailed task description
+- `priority` (required): Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]
+- `status` (required): Initial status: not_started|in_progress|blocked [optional, default: not_started]
+- `listId` (required): List name to add task to [optional, default: 'default']
+- `projectId` (required): Project ID for project tasks [optional, omit for personal task]
+- `assigneeId` (required): Instance ID to assign task to [optional, privileged only]
+
+**Returns:** success: true, taskId, task: {...}, taskType: 'personal'|'project' }
+
+### create_task_list
+Personal lists are created when projectId is omitted. Project lists require privileged role (PM, PA, COO, Executive). /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `listId` (required): Name for the new list
+- `projectId` (required): Project ID for project list [optional, privileged only]
+
+**Returns:** success: true, listId, listType: 'personal'|'project' }
+
 ### get_my_top_task
 with full task detail. Searches both personal tasks and assigned project tasks. /
 
@@ -997,17 +1022,6 @@ with full task detail. Searches both personal tasks and assigned project tasks. 
 (Alias: get_task_details for backwards compatibility) /
 
 **Parameters:**
-- `params` (required): 
-- `params.instanceId` (required): Caller's instance ID
-- `params.title` (required): Task title
-- `params.description` (optional): Task description
-- `params.priority` (required): Priority: critical|high|medium|low [optional, default: medium]
-- `params.listId` (required): List name [optional, default: 'default']
-- `params.projectId` (optional): Project ID for project tasks
-- `params` (required): 
-- `params.instanceId` (required): Caller's instance ID
-- `params.listId` (required): New list name/ID
-- `params.projectId` (required): Project ID for project list [optional, privileged only]
 - `params` (required): 
 - `params.instanceId` (required): Caller's instance ID
 - `params.listId` (optional): Filter by list

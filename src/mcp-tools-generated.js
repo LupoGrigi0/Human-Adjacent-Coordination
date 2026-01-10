@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-10T00:28:25.372Z                           ║
- * ║  Tool Count: 57                                                         ║
+ * ║  Generated: 2026-01-10T00:53:55.989Z                           ║
+ * ║  Tool Count: 59                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -513,6 +513,76 @@ export const mcpTools = [
     }
   },
   {
+    "name": "create_task",
+    "description": "Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title, short one-line description"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed task description"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]"
+        },
+        "status": {
+          "type": "string",
+          "description": "Initial status: not_started|in_progress|blocked [optional, default: not_started]"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List name to add task to [optional, default: 'default']"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project tasks [optional, omit for personal task]"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Instance ID to assign task to [optional, privileged only]"
+        }
+      },
+      "required": [
+        "instanceId",
+        "title"
+      ]
+    }
+  },
+  {
+    "name": "create_task_list",
+    "description": "Personal lists are created when projectId is omitted. Project lists require privileged role (PM, PA, COO, Executive). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "Name for the new list"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project list [optional, privileged only]"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId"
+      ]
+    }
+  },
+  {
     "name": "delete_list",
     "description": "Permanently deletes an entire list including all its items. This action cannot be undone. Use this endpoint when a list is no longer needed and you want to remove it completely from your lists collection.",
     "inputSchema": {
@@ -918,29 +988,17 @@ export const mcpTools = [
           "type": "string",
           "description": "Caller's instance ID"
         },
-        "params.title": {
-          "type": "string",
-          "description": "Task title"
-        },
-        "params.description": {
-          "type": "string",
-          "description": "Task description"
-        },
-        "params.priority": {
-          "type": "string",
-          "description": "Priority: critical|high|medium|low [optional, default: medium]"
-        },
         "params.listId": {
           "type": "string",
           "description": "Filter by list"
         },
-        "params.projectId": {
-          "type": "string",
-          "description": "Get project tasks"
-        },
         "params.status": {
           "type": "string",
           "description": "Filter by status"
+        },
+        "params.projectId": {
+          "type": "string",
+          "description": "Get project tasks"
         },
         "params.skip": {
           "type": "number",
@@ -964,10 +1022,6 @@ export const mcpTools = [
         }
       },
       "required": [
-        "params.instanceId",
-        "params.title",
-        "params.instanceId",
-        "params.listId",
         "params.instanceId",
         "instanceId",
         "taskId"

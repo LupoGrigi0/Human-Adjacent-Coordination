@@ -443,15 +443,29 @@ export async function updateTask(params) {
 }
 
 /**
- * createTask - Create a new task
+ * @hacs-endpoint
+ * @tool create_task
+ * @category task
+ * @status stable
+ * @description Creates a new task, either personal or on a project.
+ * Personal tasks are created when projectId is omitted.
+ * Project tasks require caller to be a member of the project (or have privileged role).
+ * PM can only create tasks on their joined project. Executive/PA/COO can create on any project.
  *
- * @param {object} params
- * @param {string} params.instanceId - Caller's instance ID [required]
- * @param {string} params.title - Task title [required]
- * @param {string} params.description - Task description [optional]
- * @param {string} params.priority - Priority: critical|high|medium|low [optional, default: medium]
- * @param {string} params.listId - List name [optional, default: 'default']
- * @param {string} params.projectId - Project ID for project tasks [optional]
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} title - Task title, short one-line description [required]
+ * @param {string} description - Detailed task description [optional]
+ * @param {string} priority - Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]
+ * @param {string} status - Initial status: not_started|in_progress|blocked [optional, default: not_started]
+ * @param {string} listId - List name to add task to [optional, default: 'default']
+ * @param {string} projectId - Project ID for project tasks [optional, omit for personal task]
+ * @param {string} assigneeId - Instance ID to assign task to [optional, privileged only]
+ *
+ * @returns {object} { success: true, taskId, task: {...}, taskType: 'personal'|'project' }
+ * @error MISSING_PARAM - instanceId or title not provided
+ * @error INVALID_CALLER - Caller instance not found
+ * @error INVALID_PROJECT - Project not found
+ * @error UNAUTHORIZED - Caller not authorized to create task on this project
  */
 export async function createTask(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'createTask' };
@@ -560,12 +574,23 @@ export async function createTask(params) {
 }
 
 /**
- * createTaskList - Create a new named task list
+ * @hacs-endpoint
+ * @tool create_task_list
+ * @category task
+ * @status stable
+ * @description Creates a new named task list for personal or project tasks.
+ * Personal lists are created when projectId is omitted.
+ * Project lists require privileged role (PM, PA, COO, Executive).
  *
- * @param {object} params
- * @param {string} params.instanceId - Caller's instance ID [required]
- * @param {string} params.listId - New list name/ID [required]
- * @param {string} params.projectId - Project ID for project list [optional, privileged only]
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} listId - Name for the new list [required]
+ * @param {string} projectId - Project ID for project list [optional, privileged only]
+ *
+ * @returns {object} { success: true, listId, listType: 'personal'|'project' }
+ * @error MISSING_PARAM - instanceId or listId not provided
+ * @error INVALID_CALLER - Caller instance not found
+ * @error LIST_EXISTS - List with this name already exists
+ * @error UNAUTHORIZED - Caller not authorized to create project lists
  */
 export async function createTaskList(params) {
   const metadata = { timestamp: new Date().toISOString(), function: 'createTaskList' };

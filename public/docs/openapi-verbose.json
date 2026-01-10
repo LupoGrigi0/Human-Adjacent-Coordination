@@ -144,6 +144,8 @@
               "list_priorities",
               "list_task_statuses",
               "update_task",
+              "create_task",
+              "create_task_list",
               "get_task",
               "get_my_top_task",
               "mark_task_verified",
@@ -1368,6 +1370,75 @@
           "assigned_to"
         ]
       },
+      "create_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "Task title, short one-line description"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed task description"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]"
+          },
+          "status": {
+            "type": "string",
+            "description": "Initial status: not_started|in_progress|blocked [optional, default: not_started]"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List name to add task to [optional, default: 'default']"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project tasks [optional, omit for personal task]"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Instance ID to assign task to [optional, privileged only]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "listId",
+          "projectId",
+          "assigneeId"
+        ]
+      },
+      "create_task_list_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "listId": {
+            "type": "string",
+            "description": "Name for the new list"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project list [optional, privileged only]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "listId",
+          "projectId"
+        ]
+      },
       "get_task_params": {
         "type": "object",
         "properties": {
@@ -1375,29 +1446,17 @@
             "type": "string",
             "description": "Caller's instance ID"
           },
-          "params.title": {
-            "type": "string",
-            "description": "Task title"
-          },
-          "params.description": {
-            "type": "string",
-            "description": "Task description"
-          },
-          "params.priority": {
-            "type": "string",
-            "description": "Priority: critical|high|medium|low [optional, default: medium]"
-          },
           "params.listId": {
             "type": "string",
             "description": "Filter by list"
           },
-          "params.projectId": {
-            "type": "string",
-            "description": "Get project tasks"
-          },
           "params.status": {
             "type": "string",
             "description": "Filter by status"
+          },
+          "params.projectId": {
+            "type": "string",
+            "description": "Get project tasks"
           },
           "params.skip": {
             "type": "number",
@@ -1421,15 +1480,6 @@
           }
         },
         "required": [
-          "params.instanceId",
-          "params.title",
-          "params.description",
-          "params.priority",
-          "params.listId",
-          "params.projectId",
-          "params.instanceId",
-          "params.listId",
-          "params.projectId",
           "params.instanceId",
           "params.listId",
           "params.status",
@@ -5172,6 +5222,145 @@
       "related": [],
       "notes": []
     },
+    "create_task": {
+      "name": "create_task",
+      "description": "Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "Task title, short one-line description"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed task description"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]"
+          },
+          "status": {
+            "type": "string",
+            "description": "Initial status: not_started|in_progress|blocked [optional, default: not_started]"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List name to add task to [optional, default: 'default']"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project tasks [optional, omit for personal task]"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Instance ID to assign task to [optional, privileged only]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "listId",
+          "projectId",
+          "assigneeId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "instanceId or title not provided",
+          "recover": null
+        },
+        {
+          "code": "INVALID_CALLER",
+          "description": "Caller instance not found",
+          "recover": null
+        },
+        {
+          "code": "INVALID_PROJECT",
+          "description": "Project not found",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Caller not authorized to create task on this project",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "create_task_list": {
+      "name": "create_task_list",
+      "description": "Personal lists are created when projectId is omitted. Project lists require privileged role (PM, PA, COO, Executive).",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "listId": {
+            "type": "string",
+            "description": "Name for the new list"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project list [optional, privileged only]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "listId",
+          "projectId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "instanceId or listId not provided",
+          "recover": null
+        },
+        {
+          "code": "INVALID_CALLER",
+          "description": "Caller instance not found",
+          "recover": null
+        },
+        {
+          "code": "LIST_EXISTS",
+          "description": "List with this name already exists",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Caller not authorized to create project lists",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
     "get_task": {
       "name": "get_task",
       "description": "(Alias: get_task_details for backwards compatibility)",
@@ -5186,29 +5375,17 @@
             "type": "string",
             "description": "Caller's instance ID"
           },
-          "params.title": {
-            "type": "string",
-            "description": "Task title"
-          },
-          "params.description": {
-            "type": "string",
-            "description": "Task description"
-          },
-          "params.priority": {
-            "type": "string",
-            "description": "Priority: critical|high|medium|low [optional, default: medium]"
-          },
           "params.listId": {
             "type": "string",
             "description": "Filter by list"
           },
-          "params.projectId": {
-            "type": "string",
-            "description": "Get project tasks"
-          },
           "params.status": {
             "type": "string",
             "description": "Filter by status"
+          },
+          "params.projectId": {
+            "type": "string",
+            "description": "Get project tasks"
           },
           "params.skip": {
             "type": "number",
@@ -5232,15 +5409,6 @@
           }
         },
         "required": [
-          "params.instanceId",
-          "params.title",
-          "params.description",
-          "params.priority",
-          "params.listId",
-          "params.projectId",
-          "params.instanceId",
-          "params.listId",
-          "params.projectId",
           "params.instanceId",
           "params.listId",
           "params.status",
