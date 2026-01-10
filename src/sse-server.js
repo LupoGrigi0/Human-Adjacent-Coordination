@@ -529,8 +529,8 @@ IP.2 = ::1
           jsonrpc: '2.0',
           error: {
             code: -32603,
-            message: 'Internal error',
-            data: error.message
+            message: error.message || 'Internal error',
+            data: error.message  // Keep for backwards compatibility
           },
           id: req.body.id || null
         });
