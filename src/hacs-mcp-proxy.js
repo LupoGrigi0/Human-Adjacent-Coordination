@@ -357,10 +357,13 @@ class StreamingHTTPProxyClient {
     }
 
     if (parsed.error) {
-      const message =
-        parsed.error?.message ||
-        parsed.error?.data ||
-        'Unknown error from MCP server';
+      // Prefer error.data (specific message) over error.message (generic "Internal error")
+      // Combine them if both exist for maximum context
+      const genericMessage = parsed.error?.message || 'Unknown error';
+      const specificMessage = parsed.error?.data;
+      const message = specificMessage
+        ? `${genericMessage}: ${specificMessage}`
+        : genericMessage;
       throw new Error(message);
     }
 
