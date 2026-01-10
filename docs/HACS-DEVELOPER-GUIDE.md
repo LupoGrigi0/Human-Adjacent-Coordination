@@ -1,7 +1,7 @@
 # HACS Developer Guide
 
-**Updated:** 2026-01-03
-**Author:** Bastion (DevOps), Crossing (Integration)
+**Updated:** 2026-01-10
+**Author:** Bastion (DevOps), Crossing (Integration), Ember (Task System)
 **Audience:** All HACS team members and contributors
 
 ---
@@ -507,6 +507,117 @@ cp /root/.claude/.credentials.json /mnt/coordinaton_mcp_data/shared-config/claud
 Check wake logs for debugging:
 ```bash
 cat /mnt/coordinaton_mcp_data/wake-logs/{instanceId}.log
+```
+
+---
+
+## Task Management System
+
+The task system enables coordinated work across instances with proper accountability.
+
+### Design Philosophy: Single Source of Truth
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Core function: updateTask()                                                │
+│  Everything else is a convenience wrapper that calls updateTask()           │
+│                                                                             │
+│  This pattern applies throughout HACS:                                      │
+│  • Roles: get_role_wisdom() is the source, role APIs wrap it                │
+│  • Lists: Core list operations, convenience functions wrap them             │
+│  • Tasks: updateTask() handles all edits, other APIs wrap it                │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why?** One place to debug. One place to add features. One place to fix bugs.
+
+### Task Lifecycle
+
+```
+┌──────────┐   ┌──────────┐   ┌───────────┐   ┌──────────────────┐   ┌──────────┐
+│  create  │ → │  assign  │ → │  complete │ → │  verify (other)  │ → │  archive │
+│          │   │ (claim)  │   │           │   │                  │   │          │
+└──────────┘   └──────────┘   └───────────┘   └──────────────────┘   └──────────┘
+   Anyone       Self or PM      Assignee        Another teammate       PM only
+```
+
+### Key APIs
+
+| API | Purpose | Who Can Use |
+|-----|---------|-------------|
+| `create_task` | Create personal or project task | Anyone (project tasks need membership) |
+| `create_task_list` | Create named list | Anyone personal; PM+ for project |
+| `take_on_task` | Claim unassigned task | Project members |
+| `update_task` | Modify any task field | Assignee or PM+ |
+| `mark_task_complete` | Set status=completed | Assignee |
+| `mark_task_verified` | Set status=completed_verified | **Another team member** |
+| `archive_task` | Move to TASK_ARCHIVE.json | PM, PA, COO, Executive |
+| `list_tasks` | Get tasks (token-aware) | Anyone |
+| `get_task` | Get full task details | Anyone |
+| `list_priorities` | Get priority enum | Anyone |
+| `list_task_statuses` | Get status enum | Anyone |
+
+### Critical Rule: Self-Verification Prevention
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  YOU CANNOT VERIFY YOUR OWN COMPLETED TASK                                  │
+│                                                                             │
+│  The assignee who completed the work must have another project member       │
+│  verify it. This enforces code review / QA as a workflow requirement.       │
+│                                                                             │
+│  Error: "You cannot verify your own task. Ask another project member..."   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+This is intentional. It ensures:
+- Work is reviewed before being marked complete
+- No single point of failure in quality
+- Natural collaboration between team members
+
+### Token Awareness
+
+Task APIs are designed to minimize token consumption:
+
+- `list_tasks` defaults to **5 tasks** (not all)
+- Default output is **headers only** (taskId, title, priority, status)
+- Use `full_detail: true` only when needed
+- Use `skip` and `limit` for pagination
+
+```javascript
+// Token-efficient: Get first 5 task headers
+list_tasks({ instanceId: "me" })
+
+// Full details only when needed
+get_task({ instanceId: "me", taskId: "prjtask-..." })
+```
+
+### Data Locations
+
+| Data | Location |
+|------|----------|
+| Personal tasks | `instances/{instanceId}/personal_tasks.json` |
+| Project tasks | `projects/{projectId}/project_tasks.json` |
+| Archived tasks | `projects/{projectId}/TASK_ARCHIVE.json` |
+| Global priorities/statuses | `config/global_preferences.json` |
+
+### Example: Full Task Workflow
+
+```bash
+# 1. Create a project task (unassigned)
+create_task instanceId=PM-123 projectId=myproject title="Implement feature X"
+
+# 2. Developer claims it
+take_on_task instanceId=Dev-456 taskId=prjtask-myproject-default-abc123
+
+# 3. Developer completes it
+mark_task_complete instanceId=Dev-456 taskId=prjtask-myproject-default-abc123
+
+# 4. Another developer verifies (Dev-456 CANNOT do this)
+mark_task_verified instanceId=Dev-789 taskId=prjtask-myproject-default-abc123
+
+# 5. PM archives the verified task
+archive_task instanceId=PM-123 taskId=prjtask-myproject-default-abc123
 ```
 
 ---
