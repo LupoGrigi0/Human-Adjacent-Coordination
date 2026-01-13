@@ -655,7 +655,7 @@ async function showProjectDetail(projectId) {
     // Fetch full project details from API (list_projects only returns summary)
     let project;
     try {
-        const result = await api.getProject(state.instanceId, projectId);
+        const result = await api.getProject(projectId);
         project = result.project || result;
     } catch (e) {
         console.error('[App] Error loading project details:', e);
@@ -677,8 +677,8 @@ async function showProjectDetail(projectId) {
 
     // Load project tasks
     try {
-        const result = await rpcCallDirect('get_project_tasks', { projectId: projectId });
-        const tasks = result.tasks || result || [];
+              const result = await api.listTasks(state.instanceId, { projectId });
+              const tasks = result.tasks || result || [];
         renderProjectDetailTasks(tasks);
     } catch (e) {
         console.error('[App] Error loading project tasks:', e);
@@ -2488,8 +2488,8 @@ async function createTask() {
             if (state.currentTab === 'projects' && state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
-                    const result = await rpcCallDirect('get_project_tasks', { projectId: state.currentProjectDetail });
-                    const tasks = result.tasks || [];
+                                const result = await api.listTasks(state.instanceId, { projectId: state.currentProjectDetail });
+                                const tasks = result.tasks || [];
                     renderProjectDetailTasks(tasks);
                 } catch (e) {
                     console.error('[App] Error refreshing project tasks:', e);
@@ -3872,7 +3872,7 @@ async function loadProjectDetailsModal(projectId) {
     const view = document.getElementById('project-details-view-modal');
 
     try {
-        const result = await api.getProject(state.instanceId, projectId);
+        const result = await api.getProject(projectId);
         const project = result.project || result.data?.project || result;
 
         document.getElementById('entity-project-id').textContent = project.id || project.projectId || projectId;
