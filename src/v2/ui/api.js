@@ -252,21 +252,20 @@ export async function joinProject(instanceId, project) {
 // ============================================================================
 
 /**
- * List all projects (V2 - returns current projects)
- * @param {string} [instanceId] - Caller's instance ID
- */
-export async function listProjects(instanceId) {
-  return rpcCall('list_projects', { instanceId });
-}
+ *  * List all projects (V2 - returns current projects)
+ *  * @param {string} [status] - Optional filter by project status
+  */
+  export async function listProjects(status) {
+    return rpcCall('list_projects', status ? { status } : {});
+    }
 
 /**
- * Get full project details (V2)
- * @param {string} instanceId - Caller's instance ID
- * @param {string} projectId - Project to retrieve
- */
-export async function getProject(instanceId, projectId) {
-  return rpcCall('get_project', { instanceId, projectId });
-}
+ *  * Get full project details (V2)
+  * @param {string} projectId - Project to retrieve
+   */
+  export async function getProject(projectId) {
+    return rpcCall('get_project', { projectId });
+    }
 
 /**
  * Create a new project (V2 - requires Executive/PA/COO)
@@ -292,6 +291,21 @@ export async function createProject(params) {
 export async function getMyTasks(instanceId) {
   return rpcCall('get_my_tasks', { instanceId });
 }
+
+/**
+ *  * List tasks with pagination and filtering
+ *  * @param {string} instanceId - Caller's instance ID
+ *  * @param {object} [options] - Optional filter/pagination options
+ *  * @param {string} [options.projectId] - Get project tasks (omit for personal)
+ *  * @param {string} [options.status] - Filter by status
+ *  * @param {string} [options.assigneeId] - Filter by assignee (project tasks only)
+ *  * @param {number} [options.skip] - Pagination offset (default: 0)
+ *  * @param {number} [options.limit] - Max results (default: 5)
+ *  * @param {boolean} [options.full_detail] - Include all fields (default: false)
+ *  */
+ export async function listTasks(instanceId, options = {}) {
+    return rpcCall('list_tasks', { instanceId, ...options });
+    }
 
 /**
  * Get highest priority available task
@@ -750,6 +764,7 @@ export const api = {
 
   // Tasks
   getMyTasks,
+    listTasks,
   getNextTask,
   addPersonalTask,
   completePersonalTask,
