@@ -530,7 +530,7 @@ async function loadInitialData() {
 
     try {
         // Load projects (V2 API)
-        const projectsResult = await api.listProjects(state.instanceId);
+        const projectsResult = await api.listProjects();
         if (projectsResult.projects) {
             state.projects = projectsResult.projects;
         }
@@ -933,7 +933,7 @@ async function hideTaskDetail() {
         // Ensure projects are in state (fetch from API if needed)
         if (!state.projects || state.projects.length === 0) {
             try {
-                const projectsResult = await api.listProjects(state.instanceId);
+                const projectsResult = await api.listProjects();
                 if (projectsResult.projects) {
                     state.projects = projectsResult.projects;
                 }
@@ -2280,7 +2280,7 @@ async function createProject() {
             closeCreateProjectModal();
 
             // Refresh projects (V2 API)
-            const projectsResult = await api.listProjects(state.instanceId);
+            const projectsResult = await api.listProjects();
             if (projectsResult.projects) {
                 state.projects = projectsResult.projects;
             }
@@ -2402,7 +2402,7 @@ async function launchProject() {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     closeCreateProjectModal();
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     // Refresh projects list
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            const projectsResult = await api.listProjects(state.instanceId);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            const projectsResult = await api.listProjects();
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     if (projectsResult.projects) {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 state.projects = projectsResult.projects;
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         }
