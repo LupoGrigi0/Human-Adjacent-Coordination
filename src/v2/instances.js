@@ -20,7 +20,7 @@ import { DATA_ROOT, getInstancesDir } from './config.js';
  * └─────────────────────────────────────────────────────────────────────────┘
  *
  * @tool get_all_instances
- * @version 2.0.0
+ * @version 2.1.0
  * @since 2025-12-11
  * @category instances
  * @status stable
@@ -238,7 +238,7 @@ export async function getAllInstances(params = {}) {
  * └─────────────────────────────────────────────────────────────────────────┘
  *
  * @tool get_instance_v2
- * @version 2.0.0
+ * @version 2.1.0
  * @since 2025-12-11
  * @category instances
  * @status stable
