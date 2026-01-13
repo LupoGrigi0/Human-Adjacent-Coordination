@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 66 coordination functions available in the HACS system.
+Complete reference for all 71 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-10T04:49:34.408Z
+> **Auto-generated:** 2026-01-13T21:29:36.698Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -973,6 +973,48 @@ Sends a message via the XMPP messaging system. Supports multiple addressing mode
   }
 }
 ```
+
+## roles Functions
+
+### get_role
+Returns the SUMMARY.md content for a role. This provides a longer preview of what the role entails before deciding to adopt it.
+
+**Parameters:**
+- `roleId` (required): The role identifier (e.g., "Developer", "PM")
+
+**Returns:** , Whether the operation succeeded, The role identifier, The SUMMARY.md content
+
+### get_role_summary
+Like get_role but truncates the summary to 500 characters. Useful for displaying role previews in a compact UI.
+
+**Parameters:**
+- `roleId` (required): The role identifier (e.g., "Developer", "PM")
+
+**Returns:** , Whether the operation succeeded, The role identifier, Truncated SUMMARY.md content (max 500 chars)
+
+### get_role_wisdom
+Returns all markdown files from the role's wisdom directory. These contain detailed guidance, best practices, and domain knowledge for the role. Called automatically by take_on_role, but can be called directly to preview.
+
+**Parameters:**
+- `roleId` (required): The role identifier (e.g., "Developer", "PM")
+
+**Returns:** , Whether the operation succeeded, The role identifier, Array of { fileName, content }
+
+### get_role_wisdom_file
+Returns a single wisdom file by name. Use this when you only need one specific document rather than loading all wisdom files.
+
+**Parameters:**
+- `roleId` (required): The role identifier (e.g., "Developer", "PM")
+- `fileName` (required): The wisdom file name (e.g., "01-role.md")
+
+**Returns:** , Whether the operation succeeded, The role identifier, The requested file name, The file content
+
+### list_roles
+Scans the roles directory and returns roleId + description for each role. Use this to populate role selection dropdowns or discover available roles before calling take_on_role.
+
+**Parameters:** None
+
+**Returns:** , Whether the operation succeeded, Array of { roleId, description }
 
 ## task Functions
 

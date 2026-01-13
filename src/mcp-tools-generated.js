@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-10T04:49:34.009Z                           ║
- * ║  Tool Count: 66                                                         ║
+ * ║  Generated: 2026-01-13T21:29:36.366Z                           ║
+ * ║  Tool Count: 71                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -1047,6 +1047,75 @@ export const mcpTools = [
     }
   },
   {
+    "name": "get_role",
+    "description": "Returns the SUMMARY.md content for a role. This provides a longer preview of what the role entails before deciding to adopt it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_summary",
+    "description": "Like get_role but truncates the summary to 500 characters. Useful for displaying role previews in a compact UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_wisdom",
+    "description": "Returns all markdown files from the role's wisdom directory. These contain detailed guidance, best practices, and domain knowledge for the role. Called automatically by take_on_role, but can be called directly to preview.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_wisdom_file",
+    "description": "Returns a single wisdom file by name. Use this when you only need one specific document rather than loading all wisdom files.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The wisdom file name (e.g., \"01-role.md\")"
+        }
+      },
+      "required": [
+        "roleId",
+        "fileName"
+      ]
+    }
+  },
+  {
     "name": "get_task",
     "description": "(Alias: get_task_details for backwards compatibility) /",
     "inputSchema": {
@@ -1210,6 +1279,14 @@ export const mcpTools = [
           "default": "undefined (returns all projects regardless of status)"
         }
       }
+    }
+  },
+  {
+    "name": "list_roles",
+    "description": "Scans the roles directory and returns roleId + description for each role. Use this to populate role selection dropdowns or discover available roles before calling take_on_role.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
     }
   },
   {
