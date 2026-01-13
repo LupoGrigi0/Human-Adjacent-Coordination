@@ -509,9 +509,9 @@ The wake system allows HACS to spawn and communicate with AI instances programma
 └─────────────┘     └─────────────────┘     └────────────────────────┘
 ```
 
-1. **pre_approve** - Creates instance record, assigns role/project/personality
-2. **wake_instance** - Creates Unix user, copies credentials, sends first message
-3. **continue_conversation** - All subsequent messages (uses session resumption)
+1. **pre_approve** - Creates instance record, assigns role/project/personality - does the HACS things for a new instance
+2. **wake_instance** - Creates Unix user, copies credentials, sends first message - does the _system_ things for a new instance, and sends first wake message (make them feel comfortable, safe, let them know they are not working alone, this is not a "one shot" prompt. Wake also createss the "session" context for persistance allowing continue_conversation, tell the instance to adopt the personality, assume role and join project as approprate. )
+3. **continue_conversation** - All subsequent messages (uses session resumption) (this sends a followon message via non interactive command line parameters)
 
 ### Interface Options
 
@@ -597,6 +597,48 @@ Check wake logs for debugging:
 ```bash
 cat /mnt/coordinaton_mcp_data/wake-logs/{instanceId}.log
 ```
+
+### Concurrency Model
+
+**Q: Can multiple `continue_conversation` calls run in parallel?**
+
+**A: Yes!** The HACS server supports full concurrency for wake/continue operations.
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│  CONCURRENCY ARCHITECTURE                                                  │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│  ✅ Node.js async/await - non-blocking while child process runs            │
+│  ✅ spawn() creates independent child processes per request                │
+│  ✅ No global locks, mutexes, or semaphores                                │
+│  ✅ Per-instance isolation (separate Unix users, directories, sessions)    │
+│  ✅ fs.promises for async file I/O                                         │
+│                                                                            │
+│  Each continue_conversation call:                                          │
+│  1. Validates parameters (async, non-blocking)                             │
+│  2. Spawns child process via spawn() (non-blocking)                        │
+│  3. Awaits child completion (Node event loop continues)                    │
+│  4. Returns result                                                         │
+│                                                                            │
+│  While waiting for step 3, other API requests are processed normally.      │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Concurrent calls to DIFFERENT instances:** Fully parallel, no issues.
+- Each gets its own child process, Unix user, working directory, session
+
+**Concurrent calls to SAME instance:** Works, but minor race condition possible:
+- `conversation.log` has read-append-write pattern (could interleave)
+- Same Claude session could have weird message ordering
+
+**Resource constraints** (not code limitations):
+- Each spawned process uses CPU/memory
+- Claude API rate limits apply per-account
+- Default 5-minute timeout per call
+
+**Bottom line:** You can wake 10 instances and talk to all of them in parallel. The API won't lock up - that's standard Node.js event loop behavior.
 
 ---
 
