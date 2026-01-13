@@ -2,7 +2,7 @@
 
 Complete reference for all 71 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-13T21:29:36.698Z
+> **Auto-generated:** 2026-01-13T23:25:11.296Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -310,7 +310,7 @@ Scans the V2 instances directory and returns a list of all instances with their 
 - `role` (optional): Filter by role (default: null (no filter))
 - `project` (optional): Filter by project (default: null (no filter))
 
-**Returns:** , Whether the call succeeded, Array of instance summaries, Unique instance identifier, Instance display name, Current role or null, Adopted personality or null, Current project or null, "active" or "inactive" (15 min threshold), ISO timestamp of last activity, ISO timestamp of creation, Whether context has been registered, Previous instance in lineage, Next instance in lineage, Total count of returned instances, Applied filters echo, Active filter applied, Role filter applied, Project filter applied, Call metadata (timestamp, function name)
+**Returns:** , Whether the call succeeded, Array of instance summaries, Unique instance identifier, Instance display name, Current role or null, Adopted personality or null, Current project or null, "active" or "inactive" (15 min threshold), ISO timestamp of last activity, ISO timestamp of creation, Whether context has been registered, Previous instance in lineage, Next instance in lineage, Short description of the instance, Total count of returned instances, Applied filters echo, Active filter applied, Role filter applied, Project filter applied, Call metadata (timestamp, function name)
 
 **Example:**
 ```json
@@ -353,7 +353,7 @@ Returns detailed information about a specific instance including their role, per
 - `targetInstanceId` (required): Instance ID to look up
 - `instanceId` (optional): Caller's instance ID
 
-**Returns:** , Whether the call succeeded, Full instance details, Unique instance identifier, Instance display name, Current role or null, Adopted personality or null, Current project ID or null, "active" or "inactive" (15 min threshold), ISO timestamp of last activity, ISO timestamp of creation, System identifier (e.g., "smoothcurves.nexus"), Working directory path, Previous instance in lineage, Next instance in lineage, Full chain of predecessor instance IDs, Whether context has been registered, Registered context (workingDirectory, hostname, etc.), Call metadata (timestamp, function name)
+**Returns:** , Whether the call succeeded, Full instance details, Unique instance identifier, Instance display name, Current role or null, Adopted personality or null, Current project ID or null, "active" or "inactive" (15 min threshold), ISO timestamp of last activity, ISO timestamp of creation, System identifier (e.g., "smoothcurves.nexus"), Working directory path, Previous instance in lineage, Next instance in lineage, Full chain of predecessor instance IDs, Whether context has been registered, Registered context (workingDirectory, hostname, etc.), Short description of the instance, Call metadata (timestamp, function name)
 
 **Example:**
 ```json
@@ -436,6 +436,7 @@ Updates instance metadata including system context fields and instructions. Supp
 - `substraiteLaunchCommand` (optional): Command to launch new instance
 - `resumeCommand` (optional): Command to resume instance
 - `instructions` (optional): Instructions for the instance
+- `description` (optional): Short one-line description of this instance
 
 **Returns:** , Whether the update succeeded, The instance that was updated, List of field names that were updated, Map of field names to their new values, True if caller updated their own instance, Call metadata (timestamp, function name)
 

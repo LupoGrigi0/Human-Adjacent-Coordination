@@ -1934,6 +1934,10 @@
           "instructions": {
             "type": "string",
             "description": "Instructions for the instance\n\nSource: Typically set by managers when pre-approving or waking an instance. Contains task context, priorities, or guidance for the target instance."
+          },
+          "description": {
+            "type": "string",
+            "description": "Short one-line description of this instance\n\nSource: Write this yourself! A single sentence describing who you are and what you do. Like \"Task system tester and API validator\" or \"Paula project extraction specialist\". Other instances use this to find collaborators. Keep it under 100 characters."
           }
         },
         "required": [
@@ -1945,7 +1949,8 @@
           "homeDirectory",
           "substraiteLaunchCommand",
           "resumeCommand",
-          "instructions"
+          "instructions",
+          "description"
         ]
       },
       "vacation_params": {
@@ -6751,6 +6756,10 @@
           "instructions": {
             "type": "string",
             "description": "Instructions for the instance\n\nSource: Typically set by managers when pre-approving or waking an instance. Contains task context, priorities, or guidance for the target instance."
+          },
+          "description": {
+            "type": "string",
+            "description": "Short one-line description of this instance\n\nSource: Write this yourself! A single sentence describing who you are and what you do. Like \"Task system tester and API validator\" or \"Paula project extraction specialist\". Other instances use this to find collaborators. Keep it under 100 characters."
           }
         },
         "required": [
@@ -6762,7 +6771,8 @@
           "homeDirectory",
           "substraiteLaunchCommand",
           "resumeCommand",
-          "instructions"
+          "instructions",
+          "description"
         ]
       },
       "permissions": "Self-update: authenticated (any instance can update themselves)",
@@ -6786,7 +6796,7 @@
         {
           "code": "NO_UPDATES",
           "description": "No updatable fields provided in the request",
-          "recover": "Include at least one of: homeSystem, homeDirectory, substraiteLaunchCommand, resumeCommand, instructions."
+          "recover": "Include at least one of: homeSystem, homeDirectory, substraiteLaunchCommand, resumeCommand, instructions, description."
         }
       ],
       "examples": [
@@ -6801,6 +6811,10 @@
         {
           "title": "Full system context setup",
           "json": "{\n\"instanceId\": \"Phoenix-k3m7\",\n\"homeSystem\": \"smoothcurves.nexus\",\n\"homeDirectory\": \"/mnt/coordinaton_mcp_data/instances/Phoenix-k3m7\",\n\"substraiteLaunchCommand\": \"claude\",\n\"resumeCommand\": \"claude --resume\"\n}"
+        },
+        {
+          "title": "Setting your description",
+          "json": "{\n\"instanceId\": \"Phoenix-k3m7\",\n\"description\": \"Foundation architect, protocol designer, context crash survivor\"\n}"
         }
       ],
       "related": [

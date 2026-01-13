@@ -3,7 +3,7 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-13T21:29:36.366Z                           ║
+ * ║  Generated: 2026-01-13T23:25:11.028Z                           ║
  * ║  Tool Count: 71                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
@@ -1691,6 +1691,10 @@ export const mcpTools = [
         "instructions": {
           "type": "string",
           "description": "Instructions for the instance"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short one-line description of this instance"
         }
       },
       "required": [

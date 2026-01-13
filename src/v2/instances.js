@@ -72,6 +72,7 @@ import { DATA_ROOT, getInstancesDir } from './config.js';
  * @returns {boolean} .instances[].hasContext - Whether context has been registered
  * @returns {string|null} .instances[].predecessorId - Previous instance in lineage
  * @returns {string|null} .instances[].successorId - Next instance in lineage
+ * @returns {string} .instances[].description - Short description of the instance
  * @returns {number} .total - Total count of returned instances
  * @returns {object} .filters - Applied filters echo
  * @returns {boolean} .filters.activeOnly - Active filter applied
@@ -184,7 +185,9 @@ export async function getAllInstances(params = {}) {
           hasContext: !!(prefs.context && Object.keys(prefs.context).length > 0),
           // Include lineage info
           predecessorId: prefs.predecessorId || null,
-          successorId: prefs.successorId || null
+          successorId: prefs.successorId || null,
+          // Description with friendly fallback
+          description: prefs.description || 'No description yet. Try /vacation then write one!'
         });
       } catch (err) {
         // Skip directories without valid preferences.json
@@ -283,6 +286,7 @@ export async function getAllInstances(params = {}) {
  * @returns {array} .instance.lineage - Full chain of predecessor instance IDs
  * @returns {boolean} .instance.hasContext - Whether context has been registered
  * @returns {object|null} .instance.context - Registered context (workingDirectory, hostname, etc.)
+ * @returns {string} .instance.description - Short description of the instance
  * @returns {object} .metadata - Call metadata (timestamp, function name)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -382,7 +386,8 @@ export async function getInstance(params = {}) {
         successorId: prefs.successorId || null,
         lineage: prefs.lineage || [],
         hasContext: !!(prefs.context && Object.keys(prefs.context).length > 0),
-        context: prefs.context || null
+        context: prefs.context || null,
+        description: prefs.description || 'No description yet. Try /vacation then write one!'
       },
       metadata
     };
