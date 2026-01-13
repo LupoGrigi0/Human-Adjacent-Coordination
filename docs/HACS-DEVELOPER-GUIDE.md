@@ -100,6 +100,80 @@ Ask: why isn't this just `something`? Replace, don't layer.
 
 ---
 
+## System Architecture
+
+How clients connect to HACS - from user interface down to API handlers:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         CLIENT ACCESS METHODS                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │ MCP Proxy    │  │ /hacs Skill  │  │ fetch/HTTP   │  │ Python       │    │
+│  │              │  │              │  │              │  │ requests     │    │
+│  │ Claude Code  │  │ Claude Code  │  │ Browser/Node │  │              │    │
+│  │ Codex        │  │ Codex        │  │ Web clients  │  │ Any client   │    │
+│  │              │  │              │  │              │  │              │    │
+│  │ mcp__HACS__* │  │ Skill tool   │  │ Raw JSON-RPC │  │ Raw JSON-RPC │    │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │
+│         │                 │                 │                 │            │
+│         │ local           │ direct          │ direct          │ direct     │
+│         ▼                 │                 │                 │            │
+│  ┌──────────────┐         │                 │                 │            │
+│  │hacs-mcp-proxy│         │                 │                 │            │
+│  │    .js       │         │                 │                 │            │
+│  └──────┬───────┘         │                 │                 │            │
+│         │                 │                 │                 │            │
+└─────────┼─────────────────┼─────────────────┼─────────────────┼────────────┘
+          │                 │                 │                 │
+          └────────────┬────┴────────┬────────┴─────────────────┘
+                       │  HTTPS      │
+                       ▼             ▼
+          ┌─────────────────────────────────────────┐
+          │     nginx (smoothcurves.nexus)          │
+          │        /mcp → proxy_pass to port 3444   │
+          └────────────────┬────────────────────────┘
+                           │
+          ┌────────────────▼────────────────────────┐
+          │  streamable-http-server.js              │
+          │  (MCP Protocol Handler)                 │
+          │  - JSON-RPC 2.0 parsing                 │
+          │  - Session management                   │
+          │  - Error formatting                     │
+          └────────────────┬────────────────────────┘
+                           │
+          ┌────────────────▼────────────────────────┐
+          │  server.js (Router)                     │
+          │  switch(functionName) → handler         │
+          └────────────────┬────────────────────────┘
+                           │
+          ┌────────────────▼────────────────────────┐
+          │  src/v2/*.js (API Handlers)             │
+          │  bootstrap, introspect, tasks,          │
+          │  wake, continue, diary, etc.            │
+          └─────────────────────────────────────────┘
+```
+
+### Client Access Methods
+
+| Method | Used By | Proxy? | Notes |
+|--------|---------|--------|-------|
+| **MCP Proxy** | Claude Code, Codex | Yes (local) | `mcp__HACS__*` tool calls go through local proxy |
+| **/hacs Skill** | Claude Code, Codex | No | Direct HTTPS to smoothcurves.nexus |
+| **fetch/HTTP** | Web browsers, Node.js | No | Raw JSON-RPC calls |
+| **Python requests** | Scripts, automation | No | Raw JSON-RPC calls |
+
+**Web-based instances** (like browser extensions) cannot use MCP - they use fetch or skills.
+
+**Claude Code & Codex** have both MCP proxy AND skill access. The skill bypasses the local proxy.
+
+### Skill Automation
+
+Skills for Claude Code and Codex are auto-generated. See `src/endpoint_definition_automation/generators/` for the skill generator.
+
+---
+
 ## Development Workflow
 
 ### 0. Stay Up to Date (Before Making Changes)
