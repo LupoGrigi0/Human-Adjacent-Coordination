@@ -159,3 +159,21 @@ export function getWakeLogsDir() {
 export function getWakeJobsDir() {
   return path.join(DATA_ROOT, 'wake-jobs/');
 }
+
+/**
+ * Get the config directory path
+ * Contains global configuration files like global_preferences.json
+ * @returns {string} Path to config directory
+ */
+export function getConfigDir() {
+  return path.join(DATA_ROOT, 'config/');
+}
+
+/**
+ * Get the global preferences file path
+ * Contains system-wide enums for task priorities, statuses, etc.
+ * @returns {string} Path to global_preferences.json
+ */
+export function getGlobalPreferencesPath() {
+  return path.join(DATA_ROOT, 'config/global_preferences.json');
+}

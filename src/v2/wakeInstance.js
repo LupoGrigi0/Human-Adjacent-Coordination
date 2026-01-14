@@ -518,6 +518,20 @@ export async function wakeInstance(params) {
   // STEP 3: Execute the interface as the instance user
   console.log(`[WAKE] Starting ${interfaceType} session for ${params.targetInstanceId}${interfaceType === 'claude' ? ` with session ${sessionId}` : ' (directory-based)'}`);
 
+  // Pre-set session fields BEFORE executeInterface so continue_conversation works even on timeout
+  // This is critical for Codex/Crush where directory-based sessions may complete even if we timeout waiting
+  if (interfaceType === 'claude') {
+    targetPrefs.sessionId = sessionId;
+  }
+  targetPrefs.interface = interfaceType;
+  targetPrefs.workingDirectory = workingDirectory;
+  targetPrefs.unixUser = unixUser;
+  targetPrefs.status = 'active';
+  targetPrefs.lastActiveAt = new Date().toISOString();
+  targetPrefs.conversationTurns = 1;
+  await writePreferences(params.targetInstanceId, targetPrefs);
+  console.log(`[WAKE] Pre-set session fields for ${params.targetInstanceId} (status: active)`);
+
   try {
     const result = await executeInterface(command, workingDirectory, cliArgs, unixUser, 300000);
 
