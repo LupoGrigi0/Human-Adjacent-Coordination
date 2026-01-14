@@ -491,10 +491,13 @@ export async function continueConversation(params) {
   } else if (interfaceType === 'codex') {
     // Codex: uses 'exec resume --last' for non-interactive session continuation
     // (codex resume is interactive TUI; codex exec resume is non-interactive)
+    // MUST include --sandbox danger-full-access or DNS/network calls are blocked
     command = 'codex';
     cliArgs = [
       'exec',
-      '--skip-git-repo-check',  // must come before 'resume' subcommand
+      '--sandbox', 'danger-full-access',  // required for network access (HACS calls)
+      '--skip-git-repo-check',  // instance dirs aren't git repos
+      '--json',  // structured output
       'resume',
       '--last',  // automatically resume most recent session
       messageWithSender
