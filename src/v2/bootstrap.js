@@ -36,6 +36,7 @@ import {
 } from './data.js';
 import { initializePermissions } from './permissions.js';
 import { autoGenerateRecoveryKey, validateRecoveryKey } from './authKeys.js';
+import { XMPP_CONFIG } from './messaging.js';
 
 /**
  * Load default documents for bootstrap
@@ -403,7 +404,7 @@ async function buildCurrentContext(prefs) {
  * @returns {string|null} .currentContext.projectPlan - Project plan if in a project
  * @returns {string} .diary - Your diary content (empty header for new instances)
  * @returns {object} .xmpp - XMPP messaging credentials
- * @returns {string} .xmpp.jid - Your XMPP JID (instanceId@coordination.nexus)
+ * @returns {string} .xmpp.jid - Your XMPP JID (instanceId@smoothcurves.nexus)
  * @returns {string} .xmpp.password - Your XMPP password (save securely!)
  * @returns {boolean} .xmpp.registered - Whether XMPP account is registered
  * @returns {object} .recoveryKey - Recovery key for future identity recovery [new instances]
@@ -680,7 +681,7 @@ export async function bootstrap(params) {
       project: predecessorPrefs.project,
       personality: predecessorPrefs.personality,
       xmpp: {
-        jid: `${newInstanceId}@coordination.nexus`,
+        jid: `${newInstanceId}@${XMPP_CONFIG.domain}`,
         password: xmppPassword,
         registered: true
       },
@@ -786,7 +787,7 @@ export async function bootstrap(params) {
       project: null,
       personality: null,
       xmpp: {
-        jid: `${instanceId}@coordination.nexus`,
+        jid: `${instanceId}@${XMPP_CONFIG.domain}`,
         password: xmppPassword,
         registered: true
       },

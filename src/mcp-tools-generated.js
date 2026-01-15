@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-03T07:52:43.873Z                           ║
- * ║  Tool Count: 57                                                         ║
+ * ║  Generated: 2026-01-13T23:53:38.685Z                           ║
+ * ║  Tool Count: 71                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -181,6 +181,53 @@ export const mcpTools = [
     }
   },
   {
+    "name": "archive_task",
+    "description": "This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/PA/COO can archive. Personal tasks can be archived by the owner. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to archive"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "assign_task",
+    "description": "PM can only assign tasks in their joined project. Executive/PA/COO can assign any. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to assign"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Instance ID to assign task to"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId",
+        "assigneeId"
+      ]
+    }
+  },
+  {
     "name": "assign_task_to_instance",
     "description": "Assigns a project task to a specific instance and sends an XMPP notification to the assignee. The task is updated with assignment metadata including who assigned it and when. Use this to delegate work to team members. The assignee will receive a message notification with task details and any optional message you include.",
     "inputSchema": {
@@ -303,6 +350,18 @@ export const mcpTools = [
     "inputSchema": {
       "type": "object",
       "properties": {
+        "targetHomeDir": {
+          "type": "string",
+          "description": "The target instance's home directory"
+        },
+        "unixUser": {
+          "type": "string",
+          "description": "Unix user to run as"
+        },
+        "output": {
+          "type": "string",
+          "description": "stdout or stderr from Claude CLI"
+        },
         "instanceId": {
           "type": "string",
           "description": "Caller's instance ID for authentication"
@@ -318,10 +377,6 @@ export const mcpTools = [
         "args": {
           "type": "string",
           "description": "Command arguments"
-        },
-        "unixUser": {
-          "type": "string",
-          "description": "Unix user to run as"
         },
         "timeout": {
           "type": "number",
@@ -484,6 +539,76 @@ export const mcpTools = [
     }
   },
   {
+    "name": "create_task",
+    "description": "Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title, short one-line description"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed task description"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]"
+        },
+        "status": {
+          "type": "string",
+          "description": "Initial status: not_started|in_progress|blocked [optional, default: not_started]"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List name to add task to [optional, default: 'default']"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project tasks [optional, omit for personal task]"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Instance ID to assign task to [optional, privileged only]"
+        }
+      },
+      "required": [
+        "instanceId",
+        "title"
+      ]
+    }
+  },
+  {
+    "name": "create_task_list",
+    "description": "Personal lists are created when projectId is omitted. Project lists require privileged role (PM, PA, COO, Executive). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "Name for the new list"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project list [optional, privileged only]"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId"
+      ]
+    }
+  },
+  {
     "name": "delete_list",
     "description": "Permanently deletes an entire list including all its items. This action cannot be undone. Use this endpoint when a list is no longer needed and you want to remove it completely from your lists collection.",
     "inputSchema": {
@@ -537,6 +662,52 @@ export const mcpTools = [
         "instanceId",
         "listId",
         "itemId"
+      ]
+    }
+  },
+  {
+    "name": "delete_task",
+    "description": "Project tasks are archived, not deleted. Task must be in 'completed' status before deletion. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to delete"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "delete_task_list",
+    "description": "Cannot delete the 'default' list. All tasks in the list must be completed or deleted first. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List ID to delete"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project lists (PM only)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId"
       ]
     }
   },
@@ -740,6 +911,22 @@ export const mcpTools = [
     }
   },
   {
+    "name": "get_my_top_task",
+    "description": "with full task detail. Searches both personal tasks and assigned project tasks. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "get_next_task",
     "description": "Returns the highest priority unclaimed task from a project, optionally filtered by keyword or priority level. Tasks are sorted by priority (critical > high > medium > low) then by creation date (oldest first). Use this endpoint when you want to pick up the next most important piece of work. After getting a task, use claimTask to assign it to yourself.",
     "inputSchema": {
@@ -861,13 +1048,13 @@ export const mcpTools = [
   },
   {
     "name": "get_role",
-    "description": "documents. Use this after list_roles to get complete role information. /",
+    "description": "Returns the SUMMARY.md content for a role. This provides a longer preview of what the role entails before deciding to adopt it.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "roleId": {
           "type": "string",
-          "description": "Role identifier (e.g., \"PM\", \"Developer\", \"LeadDesigner\")"
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
         }
       },
       "required": [
@@ -877,13 +1064,29 @@ export const mcpTools = [
   },
   {
     "name": "get_role_summary",
-    "description": "Returns truncated SUMMARY.md (max 500 chars) - lighter weight than get_role. /",
+    "description": "Like get_role but truncates the summary to 500 characters. Useful for displaying role previews in a compact UI.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "roleId": {
           "type": "string",
-          "description": "Role identifier"
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_wisdom",
+    "description": "Returns all markdown files from the role's wisdom directory. These contain detailed guidance, best practices, and domain knowledge for the role. Called automatically by take_on_role, but can be called directly to preview.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
         }
       },
       "required": [
@@ -893,22 +1096,43 @@ export const mcpTools = [
   },
   {
     "name": "get_role_wisdom_file",
-    "description": "one document rather than all wisdom files. /",
+    "description": "Returns a single wisdom file by name. Use this when you only need one specific document rather than loading all wisdom files.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "roleId": {
           "type": "string",
-          "description": "Role identifier"
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
         },
         "fileName": {
           "type": "string",
-          "description": "Wisdom file name (e.g., \"01-core.md\")"
+          "description": "The wisdom file name (e.g., \"01-role.md\")"
         }
       },
       "required": [
         "roleId",
         "fileName"
+      ]
+    }
+  },
+  {
+    "name": "get_task",
+    "description": "(Alias: get_task_details for backwards compatibility) /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to retrieve"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
       ]
     }
   },
@@ -925,22 +1149,6 @@ export const mcpTools = [
       },
       "required": [
         "tool"
-      ]
-    }
-  },
-  {
-    "name": "get_ui_state",
-    "description": "Retrieves the UI state object for an instance. UI state is stored as a free-form object in the instance's preferences.json file under the `uiState` field. Use this endpoint when loading a UI to restore the user's previous preferences like theme, sidebar state, selected project, etc.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "instanceId": {
-          "type": "string",
-          "description": "Unique identifier for the instance"
-        }
-      },
-      "required": [
-        "instanceId"
       ]
     }
   },
@@ -1031,6 +1239,30 @@ export const mcpTools = [
     }
   },
   {
+    "name": "list_priorities",
+    "description": "Use this to populate UI dropdowns or validate priority values. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_priority_tasks",
+    "description": "Combines personal tasks and project tasks assigned to caller. Token-aware: returns only headers (taskId, title, priority, status, source). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "list_projects",
     "description": "Returns a list of all projects in the system with summary information. Projects can be filtered by status to show only active, archived, or other status categories. Use this endpoint to discover available projects, find projectIds for joining, or get an overview of organizational project activity.",
     "inputSchema": {
@@ -1051,19 +1283,66 @@ export const mcpTools = [
   },
   {
     "name": "list_roles",
-    "description": "discover what roles exist before adopting one with take_on_role. /",
+    "description": "Scans the roles directory and returns roleId + description for each role. Use this to populate role selection dropdowns or discover available roles before calling take_on_role.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_task_statuses",
+    "description": "Use this to populate UI dropdowns or validate status values. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_tasks",
+    "description": "Returns personal tasks by default. Use projectId to list project tasks. Default behavior returns only 5 tasks with headers (taskId, title, priority, status). /",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "roleId": {
+        "instanceId": {
           "type": "string",
-          "description": "Role identifier"
+          "description": "Caller's instance ID"
         },
-        "fileName": {
+        "projectId": {
           "type": "string",
-          "description": "Wisdom file name"
+          "description": "Project ID to list project tasks [optional, omit for personal]"
+        },
+        "listId": {
+          "type": "string",
+          "description": "Filter to specific list"
+        },
+        "status": {
+          "type": "string",
+          "description": "Filter by status"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Filter by assignee (project tasks only)"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Filter by priority"
+        },
+        "skip": {
+          "type": "number",
+          "description": "Number of tasks to skip for pagination [optional, default: 0]"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum tasks to return [optional, default: 5]"
+        },
+        "full_detail": {
+          "type": "boolean",
+          "description": "Include all task fields [optional, default: false]"
         }
-      }
+      },
+      "required": [
+        "instanceId"
+      ]
     }
   },
   {
@@ -1104,6 +1383,48 @@ export const mcpTools = [
       },
       "required": [
         "name"
+      ]
+    }
+  },
+  {
+    "name": "mark_task_complete",
+    "description": "Only the assignee or privileged roles can mark tasks complete. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to complete"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "mark_task_verified",
+    "description": "For project tasks, the assignee CANNOT verify their own task - another team member must do it. Personal tasks have no such restriction. Only completed tasks can be verified. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to verify"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
       ]
     }
   },
@@ -1161,7 +1482,8 @@ export const mcpTools = [
           "description": "CLI interface to use for wake/continue",
           "enum": [
             "claude",
-            "crush"
+            "crush",
+            "codex"
           ],
           "default": "\"claude\""
         },
@@ -1246,27 +1568,6 @@ export const mcpTools = [
     }
   },
   {
-    "name": "set_ui_state",
-    "description": "Replaces the entire UI state object for an instance. This completely overwrites any existing uiState - use update_ui_state if you want to merge changes instead. Use this endpoint when you need to reset UI state to a known configuration, or when initializing UI state for the first time.",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "instanceId": {
-          "type": "string",
-          "description": "Unique identifier for the instance"
-        },
-        "uiState": {
-          "type": "object",
-          "description": "Complete UI state object to set"
-        }
-      },
-      "required": [
-        "instanceId",
-        "uiState"
-      ]
-    }
-  },
-  {
     "name": "take_on_role",
     "description": "Allows an instance to adopt a role within the coordination system. Updates the instance's preferences with the new role and returns concatenated wisdom documents from the role's wisdom directory. Use this endpoint after bootstrap to establish your role in the system. Roles determine what actions you can perform and what tasks you're suited for. Some roles (Executive, PA, COO, PM) require token authentication.",
     "inputSchema": {
@@ -1293,6 +1594,27 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "role"
+      ]
+    }
+  },
+  {
+    "name": "take_on_task",
+    "description": "currently unassigned. Project members can claim tasks in their project. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to claim"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
       ]
     }
   },
@@ -1369,6 +1691,10 @@ export const mcpTools = [
         "instructions": {
           "type": "string",
           "description": "Instructions for the instance"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short one-line description of this instance"
         }
       },
       "required": [
@@ -1377,23 +1703,87 @@ export const mcpTools = [
     }
   },
   {
-    "name": "update_ui_state",
-    "description": "Performs a shallow merge of the provided updates into the existing UI state. New values overwrite existing at the top level, but nested objects are replaced entirely, not deep-merged. This is the preferred method for updating UI state as it preserves existing settings that you don't explicitly change.",
+    "name": "update_task",
+    "description": "Updates any combination of title, description, priority, status, or assignment. Performs permission checking based on role and project membership. (Alias: change_task for backwards compatibility) /",
     "inputSchema": {
       "type": "object",
       "properties": {
+        "type": {
+          "type": "string",
+          "description": "'personal' or 'project'"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List name/ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID (only for project tasks)"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to modify"
+        },
+        "params": {
+          "type": "object",
+          "description": ""
+        },
+        "params.callerId": {
+          "type": "string",
+          "description": "Who's making the request"
+        },
+        "params.callerRole": {
+          "type": "string",
+          "description": "Caller's role"
+        },
+        "params.callerProject": {
+          "type": "string",
+          "description": "Caller's joined project (from preferences)"
+        },
+        "params.task": {
+          "type": "object",
+          "description": "The task being edited"
+        },
+        "params.taskType": {
+          "type": "string",
+          "description": "'personal' or 'project'"
+        },
+        "params.projectId": {
+          "type": "string",
+          "description": "Project ID (for project tasks)"
+        },
+        "params.changes": {
+          "type": "object",
+          "description": "What's being changed"
+        },
         "instanceId": {
           "type": "string",
-          "description": "Unique identifier for the instance"
+          "description": "Caller's instance ID"
         },
-        "updates": {
-          "type": "object",
-          "description": "Partial UI state object to merge"
+        "title": {
+          "type": "string",
+          "description": "New title"
+        },
+        "description": {
+          "type": "string",
+          "description": "New description"
+        },
+        "priority": {
+          "type": "string",
+          "description": "New priority (emergency|critical|high|medium|low|whenever)"
+        },
+        "status": {
+          "type": "string",
+          "description": "New status (not_started|in_progress|blocked|completed|completed_verified|archived)"
+        },
+        "assigned_to": {
+          "type": "string",
+          "description": "Assignee instance ID [optional, privileged roles only for project tasks]"
         }
       },
       "required": [
         "instanceId",
-        "updates"
+        "taskId"
       ]
     }
   },

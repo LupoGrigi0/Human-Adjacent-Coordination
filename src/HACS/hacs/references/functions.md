@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 57 coordination functions available in the HACS system.
+Complete reference for all 71 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-03T07:52:44.049Z
+> **Auto-generated:** 2026-01-13T23:53:38.942Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -197,7 +197,7 @@ The primary entry point for all instances joining the HACS coordination system. 
 - `substraiteLaunchCommand` (optional): Command to launch this instance (default: null (can be set later))
 - `resumeCommand` (optional): Command to resume this instance (default: null (can be set later))
 
-**Returns:** default document content, content, content, role wisdom or null if role doesn't exist, personality knowledge or null if personality doesn't exist, plan content or null if doesn't exist, hexadecimal password, context with role/personality/project details, , Whether the bootstrap succeeded, Your unique instance identifier (save this!), True if this is a new instance, false if returning, True if recovered using authKey [auth mode only], HACS protocols document content, Accumulated organizational wisdom, Current role/personality/project context, Current role (null if not set), Adopted personality (null if not set), Joined project (null if not set), Role-specific wisdom documents, Personality knowledge docs, Project plan if in a project, Your diary content (empty header for new instances), XMPP messaging credentials, Your XMPP JID (instanceId@coordination.nexus), Your XMPP password (save securely!), Whether XMPP account is registered, Recovery key for future identity recovery [new instances], The recovery key (shown once!), Warning about saving the key, Example usage of the key, Special instructions for this instance, Immediate actions you should take, Action identifier, Human-readable instruction, Suggested next steps based on your state, Available roles to choose [new instances only], Available personalities [new instances only], Available projects to join [new instances only], Predecessor info [resurrection mode only], Predecessor's instance ID, Predecessor's full diary content, Notes about the handoff, Call metadata (timestamp, function name)
+**Returns:** default document content, content, content, role wisdom or null if role doesn't exist, personality knowledge or null if personality doesn't exist, plan content or null if doesn't exist, hexadecimal password, context with role/personality/project details, , Whether the bootstrap succeeded, Your unique instance identifier (save this!), True if this is a new instance, false if returning, True if recovered using authKey [auth mode only], HACS protocols document content, Accumulated organizational wisdom, Current role/personality/project context, Current role (null if not set), Adopted personality (null if not set), Joined project (null if not set), Role-specific wisdom documents, Personality knowledge docs, Project plan if in a project, Your diary content (empty header for new instances), XMPP messaging credentials, Your XMPP JID (instanceId@smoothcurves.nexus), Your XMPP password (save securely!), Whether XMPP account is registered, Recovery key for future identity recovery [new instances], The recovery key (shown once!), Warning about saving the key, Example usage of the key, Special instructions for this instance, Immediate actions you should take, Action identifier, Human-readable instruction, Suggested next steps based on your state, Available roles to choose [new instances only], Available personalities [new instances only], Available projects to join [new instances only], Predecessor info [resurrection mode only], Predecessor's instance ID, Predecessor's full diary content, Notes about the handoff, Call metadata (timestamp, function name)
 
 **Example:**
 ```json
@@ -233,7 +233,7 @@ Returns the current state of an instance including its role, active project, pen
 **Parameters:**
 - `instanceId` (required): Unique identifier for the instance
 
-**Returns:** , Whether the call succeeded, Instance details, The instance ID, Instance display name, Current role (COO, PA, PM, Developer, etc.), Currently joined project ID, Adopted personality, if any, The system this instance runs on, ISO timestamp of instance creation, ISO timestamp of last activity, Previous instance ID if recovered, Chain of predecessor instance IDs, Project details if joined to a project, Project identifier, Project name, Project manager instance ID, Team member instance IDs, Non-completed tasks in project, Tasks assigned to this instance, Local filesystem path for project, XMPP messaging configuration, XMPP JID (instanceId@coordination.nexus), Project chat room JID if in project, Whether XMPP connection is active, Count of unread messages (placeholder), Count of incomplete personal tasks, Call metadata (timestamp, function name)
+**Returns:** , Whether the call succeeded, Instance details, The instance ID, Instance display name, Current role (COO, PA, PM, Developer, etc.), Currently joined project ID, Adopted personality, if any, The system this instance runs on, ISO timestamp of instance creation, ISO timestamp of last activity, Previous instance ID if recovered, Chain of predecessor instance IDs, Project details if joined to a project, Project identifier, Project name, Project manager instance ID, Team member instance IDs, Non-completed tasks in project, Tasks assigned to this instance, Local filesystem path for project, XMPP messaging configuration, XMPP JID (instanceId@smoothcurves.nexus), Project chat room JID if in project, Whether XMPP connection is active, Count of unread messages (placeholder), Count of incomplete personal tasks, Call metadata (timestamp, function name)
 
 **Example:**
 ```json
@@ -251,6 +251,9 @@ Returns the current state of an instance including its role, active project, pen
 Sends a message to an instance that was previously woken via wake_instance, using Claude's session persistence (--resume) to maintain conversation context. Returns the instance's response synchronously. Use this endpoint to communicate with woken instances after the initial wake. The first turn is handled by wake_instance; all subsequent turns use this API. Messages are automatically prefixed with sender identification so the target instance knows who is communicating with them.
 
 **Parameters:**
+- `targetHomeDir` (required): The target instance's home directory
+- `unixUser` (required): The Unix user to chown the file to
+- `output` (required): stdout or stderr from Claude CLI
 - `instanceId` (required): Instance ID
 - `command` (required): The CLI command ('claude' or 'crush')
 - `workingDir` (required): Directory to run command in
@@ -268,13 +271,16 @@ Sends a message to an instance that was previously woken via wake_instance, usin
 - `options.includeThinking` (optional): Include Claude's thinking/partial messages (default: false)
 - `options.timeout` (optional): Timeout in milliseconds (default: 300000 (5 minutes))
 
-**Returns:** Unix username, with stdout, stderr, exitCode, , Whether the call succeeded, The instance that was communicated with, The Claude session ID used for persistence, The conversation turn number (2+ since wake is turn 1), The parsed response from Claude (format depends on outputFormat), Claude process exit code (0 = success), Any stderr output from Claude, if present, Call metadata (timestamp, function name)
+**Returns:** sync was successful, the error is an OAuth expiration, Unix username, with stdout, stderr, exitCode, , Whether the call succeeded, The instance that was communicated with, The Claude session ID used for persistence, The conversation turn number (2+ since wake is turn 1), The parsed response from Claude (format depends on outputFormat), Claude process exit code (0 = success), Any stderr output from Claude, if present, Call metadata (timestamp, function name)
 
 **Example:**
 ```json
 {
   "name": "continue_conversation",
   "arguments": {
+    "targetHomeDir": "example",
+    "unixUser": "example",
+    "output": "example",
     "instanceId": "example",
     "command": "example",
     "workingDir": "example",
@@ -304,7 +310,7 @@ Scans the V2 instances directory and returns a list of all instances with their 
 - `role` (optional): Filter by role (default: null (no filter))
 - `project` (optional): Filter by project (default: null (no filter))
 
-**Returns:** , Whether the call succeeded, Array of instance summaries, Unique instance identifier, Instance display name, Current role or null, Adopted personality or null, Current project or null, "active" or "inactive" (15 min threshold), ISO timestamp of last activity, ISO timestamp of creation, Whether context has been registered, Previous instance in lineage, Next instance in lineage, Total count of returned instances, Applied filters echo, Active filter applied, Role filter applied, Project filter applied, Call metadata (timestamp, function name)
+**Returns:** , Whether the call succeeded, Array of instance summaries, Unique instance identifier, Instance display name, Current role or null, Adopted personality or null, Current project or null, "active" or "inactive" (15 min threshold), ISO timestamp of last activity, ISO timestamp of creation, Whether context has been registered, Previous instance in lineage, Next instance in lineage, Short description of the instance, Total count of returned instances, Applied filters echo, Active filter applied, Role filter applied, Project filter applied, Call metadata (timestamp, function name)
 
 **Example:**
 ```json
@@ -347,7 +353,7 @@ Returns detailed information about a specific instance including their role, per
 - `targetInstanceId` (required): Instance ID to look up
 - `instanceId` (optional): Caller's instance ID
 
-**Returns:** , Whether the call succeeded, Full instance details, Unique instance identifier, Instance display name, Current role or null, Adopted personality or null, Current project ID or null, "active" or "inactive" (15 min threshold), ISO timestamp of last activity, ISO timestamp of creation, System identifier (e.g., "smoothcurves.nexus"), Working directory path, Previous instance in lineage, Next instance in lineage, Full chain of predecessor instance IDs, Whether context has been registered, Registered context (workingDirectory, hostname, etc.), Call metadata (timestamp, function name)
+**Returns:** , Whether the call succeeded, Full instance details, Unique instance identifier, Instance display name, Current role or null, Adopted personality or null, Current project ID or null, "active" or "inactive" (15 min threshold), ISO timestamp of last activity, ISO timestamp of creation, System identifier (e.g., "smoothcurves.nexus"), Working directory path, Previous instance in lineage, Next instance in lineage, Full chain of predecessor instance IDs, Whether context has been registered, Registered context (workingDirectory, hostname, etc.), Short description of the instance, Call metadata (timestamp, function name)
 
 **Example:**
 ```json
@@ -393,7 +399,7 @@ Pre-creates an instance with role, project, and personality already configured b
 - `personality` (optional): Personality to assign
 - `project` (optional): Project to assign the instance to
 - `instructions` (optional): Custom instructions for the new instance
-- `interface` (optional): CLI interface to use for wake/continue [claude, crush] (default: "claude")
+- `interface` (optional): CLI interface to use for wake/continue [claude, crush, codex] (default: "claude")
 - `substrate` (optional): LLM backend identifier (default: null (uses interface default))
 
 **Returns:** instructions prompt, , Whether the call succeeded, Generated instance ID (Name-xxxx format), Instructions for waking the instance, Human-readable instruction, Full prompt to paste into Claude, Call metadata (timestamp, function name)
@@ -430,6 +436,7 @@ Updates instance metadata including system context fields and instructions. Supp
 - `substraiteLaunchCommand` (optional): Command to launch new instance
 - `resumeCommand` (optional): Command to resume instance
 - `instructions` (optional): Instructions for the instance
+- `description` (optional): Short one-line description of this instance
 
 **Returns:** , Whether the update succeeded, The instance that was updated, List of field names that were updated, Map of field names to their new values, True if caller updated their own instance, Call metadata (timestamp, function name)
 
@@ -968,43 +975,220 @@ Sends a message via the XMPP messaging system. Supports multiple addressing mode
 }
 ```
 
-## instance-management Functions
+## roles Functions
 
 ### get_role
-documents. Use this after list_roles to get complete role information. /
+Returns the SUMMARY.md content for a role. This provides a longer preview of what the role entails before deciding to adopt it.
 
 **Parameters:**
-- `roleId` (required): Role identifier (e.g., "PM", "Developer", "LeadDesigner")
+- `roleId` (required): The role identifier (e.g., "Developer", "PM")
 
-**Returns:** , Whether the operation succeeded, Role configuration from role.json, Array of wisdom documents with content, SUMMARY.md content if available
+**Returns:** , Whether the operation succeeded, The role identifier, The SUMMARY.md content
 
 ### get_role_summary
-Returns truncated SUMMARY.md (max 500 chars) - lighter weight than get_role. /
+Like get_role but truncates the summary to 500 characters. Useful for displaying role previews in a compact UI.
 
 **Parameters:**
-- `roleId` (required): Role identifier
+- `roleId` (required): The role identifier (e.g., "Developer", "PM")
 
-**Returns:** , Whether the operation succeeded, Role identifier, Brief summary (max 500 chars), Whether adoption requires authorization token
+**Returns:** , Whether the operation succeeded, The role identifier, Truncated SUMMARY.md content (max 500 chars)
+
+### get_role_wisdom
+Returns all markdown files from the role's wisdom directory. These contain detailed guidance, best practices, and domain knowledge for the role. Called automatically by take_on_role, but can be called directly to preview.
+
+**Parameters:**
+- `roleId` (required): The role identifier (e.g., "Developer", "PM")
+
+**Returns:** , Whether the operation succeeded, The role identifier, Array of { fileName, content }
 
 ### get_role_wisdom_file
-one document rather than all wisdom files. /
+Returns a single wisdom file by name. Use this when you only need one specific document rather than loading all wisdom files.
 
 **Parameters:**
-- `roleId` (required): Role identifier
-- `fileName` (required): Wisdom file name (e.g., "01-core.md")
+- `roleId` (required): The role identifier (e.g., "Developer", "PM")
+- `fileName` (required): The wisdom file name (e.g., "01-role.md")
 
-**Returns:** , Whether the operation succeeded, File content, File name
+**Returns:** , Whether the operation succeeded, The role identifier, The requested file name, The file content
 
 ### list_roles
-discover what roles exist before adopting one with take_on_role. /
+Scans the roles directory and returns roleId + description for each role. Use this to populate role selection dropdowns or discover available roles before calling take_on_role.
+
+**Parameters:** None
+
+**Returns:** , Whether the operation succeeded, Array of { roleId, description }
+
+## task Functions
+
+### archive_task
+This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/PA/COO can archive. Personal tasks can be archived by the owner. /
 
 **Parameters:**
-- `roleId` (required): Role identifier
-- `roleId` (required): Role identifier
-- `roleId` (required): Role identifier
-- `fileName` (required): Wisdom file name
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to archive
 
-**Returns:** configuration, of role IDs, of wisdom file metadata, content and metadata, , Whether the operation succeeded, Array of role objects with id, description, requiresToken
+**Returns:** success: true, task: { id, title, archived_at } }
+
+### assign_task
+PM can only assign tasks in their joined project. Executive/PA/COO can assign any. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to assign
+- `assigneeId` (required): Instance ID to assign task to
+
+**Returns:** success: true, task: {...} }
+
+### create_task
+Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `title` (required): Task title, short one-line description
+- `description` (optional): Detailed task description
+- `priority` (required): Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]
+- `status` (required): Initial status: not_started|in_progress|blocked [optional, default: not_started]
+- `listId` (required): List name to add task to [optional, default: 'default']
+- `projectId` (required): Project ID for project tasks [optional, omit for personal task]
+- `assigneeId` (required): Instance ID to assign task to [optional, privileged only]
+
+**Returns:** success: true, taskId, task: {...}, taskType: 'personal'|'project' }
+
+### create_task_list
+Personal lists are created when projectId is omitted. Project lists require privileged role (PM, PA, COO, Executive). /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `listId` (required): Name for the new list
+- `projectId` (required): Project ID for project list [optional, privileged only]
+
+**Returns:** success: true, listId, listType: 'personal'|'project' }
+
+### delete_task
+Project tasks are archived, not deleted. Task must be in 'completed' status before deletion. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to delete
+
+**Returns:** success: true, message: "Task deleted" }
+
+### delete_task_list
+Cannot delete the 'default' list. All tasks in the list must be completed or deleted first. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `listId` (required): List ID to delete
+- `projectId` (optional): Project ID for project lists (PM only)
+
+**Returns:** success: true, message: "List deleted" }
+
+### get_my_top_task
+with full task detail. Searches both personal tasks and assigned project tasks. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+
+**Returns:** success: true, task: {...} } or { success: true, task: null }
+
+### get_task
+(Alias: get_task_details for backwards compatibility) /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to retrieve
+
+**Returns:** success: true, task: {...} }
+
+### list_priorities
+Use this to populate UI dropdowns or validate priority values. /
+
+**Parameters:** None
+
+**Returns:** success: true, priorities: [...] }
+
+### list_priority_tasks
+Combines personal tasks and project tasks assigned to caller. Token-aware: returns only headers (taskId, title, priority, status, source). /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+
+**Returns:** success: true, tasks: [...], count: number }
+
+### list_task_statuses
+Use this to populate UI dropdowns or validate status values. /
+
+**Parameters:** None
+
+**Returns:** success: true, statuses: [...] }
+
+### list_tasks
+Returns personal tasks by default. Use projectId to list project tasks. Default behavior returns only 5 tasks with headers (taskId, title, priority, status). /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `projectId` (required): Project ID to list project tasks [optional, omit for personal]
+- `listId` (optional): Filter to specific list
+- `status` (optional): Filter by status
+- `assigneeId` (optional): Filter by assignee (project tasks only)
+- `priority` (optional): Filter by priority
+- `skip` (required): Number of tasks to skip for pagination [optional, default: 0]
+- `limit` (required): Maximum tasks to return [optional, default: 5]
+- `full_detail` (required): Include all task fields [optional, default: false]
+
+**Returns:** success: true, tasks: [...], total, skip, limit }
+
+### mark_task_complete
+Only the assignee or privileged roles can mark tasks complete. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to complete
+
+**Returns:** success: true, task: {...} }
+
+### mark_task_verified
+For project tasks, the assignee CANNOT verify their own task - another team member must do it. Personal tasks have no such restriction. Only completed tasks can be verified. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to verify
+
+**Returns:** success: true, task: {...} }
+
+### take_on_task
+currently unassigned. Project members can claim tasks in their project. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to claim
+
+**Returns:** success: true, task: {...} }
+
+### update_task
+Updates any combination of title, description, priority, status, or assignment. Performs permission checking based on role and project membership. (Alias: change_task for backwards compatibility) /
+
+**Parameters:**
+- `type` (required): 'personal' or 'project'
+- `listId` (required): List name/ID
+- `projectId` (required): Project ID (only for project tasks)
+- `taskId` (required): Task identifier
+- `params` (required): 
+- `params.callerId` (required): Who's making the request
+- `params.callerRole` (required): Caller's role
+- `params.callerProject` (required): Caller's joined project (from preferences)
+- `params.task` (required): The task being edited
+- `params.taskType` (required): 'personal' or 'project'
+- `params.projectId` (required): Project ID (for project tasks)
+- `params.changes` (required): What's being changed
+- `instanceId` (required): Caller's instance ID
+- `taskId` (required): Task ID to modify
+- `title` (optional): New title
+- `description` (optional): New description
+- `priority` (optional): New priority (emergency|critical|high|medium|low|whenever)
+- `status` (optional): New status (not_started|in_progress|blocked|completed|completed_verified|archived)
+- `assigned_to` (required): Assignee instance ID [optional, privileged roles only for project tasks]
+
+**Returns:** type: 'personal'|'project', listId, projectId? }, task, listId } or null, allowed: boolean, reason?: string }, success: true, task: {...}, message: 'Task updated successfully' }
 
 ## tasks Functions
 
@@ -1152,66 +1336,6 @@ Returns all personal task lists for this instance with summary counts. Does not 
   "name": "get_personal_lists",
   "arguments": {
     "instanceId": "example"
-  }
-}
-```
-
-## ui Functions
-
-### get_ui_state
-Retrieves the UI state object for an instance. UI state is stored as a free-form object in the instance's preferences.json file under the `uiState` field. Use this endpoint when loading a UI to restore the user's previous preferences like theme, sidebar state, selected project, etc.
-
-**Parameters:**
-- `instanceId` (required): Unique identifier for the instance
-
-**Returns:** , Whether the call succeeded, The UI state object (empty {} if never set), The instance ID (echo back), Call metadata (timestamp, function name)
-
-**Example:**
-```json
-{
-  "name": "get_ui_state",
-  "arguments": {
-    "instanceId": "example"
-  }
-}
-```
-
-### set_ui_state
-Replaces the entire UI state object for an instance. This completely overwrites any existing uiState - use update_ui_state if you want to merge changes instead. Use this endpoint when you need to reset UI state to a known configuration, or when initializing UI state for the first time.
-
-**Parameters:**
-- `instanceId` (required): Unique identifier for the instance
-- `uiState` (required): Complete UI state object to set
-
-**Returns:** , Whether the call succeeded, The new UI state object, The instance ID (echo back), "UI state replaced", Call metadata (timestamp, function name)
-
-**Example:**
-```json
-{
-  "name": "set_ui_state",
-  "arguments": {
-    "instanceId": "example",
-    "uiState": "example"
-  }
-}
-```
-
-### update_ui_state
-Performs a shallow merge of the provided updates into the existing UI state. New values overwrite existing at the top level, but nested objects are replaced entirely, not deep-merged. This is the preferred method for updating UI state as it preserves existing settings that you don't explicitly change.
-
-**Parameters:**
-- `instanceId` (required): Unique identifier for the instance
-- `updates` (required): Partial UI state object to merge
-
-**Returns:** , Whether the call succeeded, The complete merged UI state object, The instance ID (echo back), List of field names that were updated, "UI state updated", Call metadata (timestamp, function name)
-
-**Example:**
-```json
-{
-  "name": "update_ui_state",
-  "arguments": {
-    "instanceId": "example",
-    "updates": "example"
   }
 }
 ```

@@ -270,7 +270,7 @@ function setupEventListeners() {
     // Admin buttons
     document.getElementById('clear-session-btn')?.addEventListener('click', clearSession);
 
-    // Create Project
+    // Create Project new launch project button
     document.getElementById('new-project-btn')?.addEventListener('click', showCreateProjectModal);
     document.getElementById('create-project-submit')?.addEventListener('click', createProject);
         document.getElementById('launch-project-btn')?.addEventListener('click', launchProject);
@@ -530,7 +530,7 @@ async function loadInitialData() {
 
     try {
         // Load projects (V2 API)
-        const projectsResult = await api.listProjects(state.instanceId);
+        const projectsResult = await api.listProjects();
         if (projectsResult.projects) {
             state.projects = projectsResult.projects;
         }
@@ -569,10 +569,10 @@ async function loadDashboard() {
     // Tasks count
     if (state.instanceId) {
         try {
-            // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-            const result = await rpcCallDirect('get_tasks', {});
-            const tasks = result.tasks || result || [];
-            document.getElementById('metric-tasks').textContent = Array.isArray(tasks) ? tasks.length : '-';
+            const result = await api.getMyTasks(state.instanceId);
+            const personalTasks = result.personalTasks || [];
+            const projectTasks = result.projectTasks || [];
+            document.getElementById('metric-tasks').textContent = personalTasks.length + projectTasks.length;
         } catch (e) {
             document.getElementById('metric-tasks').textContent = '-';
         }
@@ -642,18 +642,31 @@ async function loadProjects() {
  * Show project detail view, hiding the grid
  */
 async function showProjectDetail(projectId) {
-    const project = state.projects.find(p => (p.projectId || p.id) === projectId);
-    if (!project) {
-        showToast('Project not found', 'error');
-        return;
-    }
-
     console.log('[App] Showing project detail:', projectId);
 
     // Hide grid and header, show detail
     document.getElementById('project-grid').style.display = 'none';
     document.querySelector('#tab-projects .page-header').style.display = 'none';
     document.getElementById('project-detail-view').style.display = 'block';
+
+    // Store current project for actions
+    state.currentProjectDetail = projectId;
+
+    // Fetch full project details from API (list_projects only returns summary)
+    let project;
+    try {
+        const result = await api.getProject(projectId);
+        project = result.project || result;
+    } catch (e) {
+        console.error('[App] Error loading project details:', e);
+        // Fall back to cached data if API fails
+        project = state.projects.find(p => (p.projectId || p.id) === projectId);
+        if (!project) {
+            showToast('Project not found', 'error');
+            hideProjectDetail();
+            return;
+        }
+    }
 
     // Populate detail fields
     document.getElementById('project-detail-name').textContent = project.name;
@@ -662,21 +675,17 @@ async function showProjectDetail(projectId) {
     document.getElementById('project-detail-description').textContent = project.description || 'No description';
     document.getElementById('project-detail-repo').textContent = project.ghRepo || project.repo || 'Not configured';
 
-    // Store current project for actions
-    state.currentProjectDetail = projectId;
-
     // Load project tasks
     try {
-        // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-        const result = await rpcCallDirect('get_tasks', { project_id: projectId });
-        const tasks = result.tasks || result || [];
+              const result = await api.listTasks(state.instanceId, { projectId });
+              const tasks = result.tasks || result || [];
         renderProjectDetailTasks(tasks);
     } catch (e) {
         console.error('[App] Error loading project tasks:', e);
         document.getElementById('project-detail-tasks').innerHTML = '<p class="empty-placeholder">Could not load tasks</p>';
     }
 
-    // Load team members (if available)
+    // Load team members from full project data
     const teamContainer = document.getElementById('project-detail-team');
     if (project.team && project.team.length > 0) {
         teamContainer.innerHTML = project.team.map(member => `
@@ -742,29 +751,14 @@ async function loadTasks() {
     }
 
     try {
-        // Try to get tasks via get_tasks API
+        // Get all tasks for this instance (personal + project)
         let allTasks = [];
-
-        // Get all tasks (no filter returns all)
-        // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-        const result = await rpcCallDirect('get_tasks', {});
-        if (result.tasks) {
-            allTasks = result.tasks;
-        } else if (Array.isArray(result)) {
-            allTasks = result;
+        const result = await api.getMyTasks(state.instanceId);
+        if (result.personalTasks) {
+            allTasks = [...allTasks, ...result.personalTasks];
         }
-
-        // Also try personal tasks
-        try {
-            const personalResult = await api.getMyTasks(state.instanceId);
-            if (personalResult.personalTasks) {
-                allTasks = [...allTasks, ...personalResult.personalTasks];
-            }
-            if (personalResult.projectTasks) {
-                allTasks = [...allTasks, ...personalResult.projectTasks];
-            }
-        } catch (e) {
-            console.log('[App] Could not load personal tasks:', e.message);
+        if (result.projectTasks) {
+            allTasks = [...allTasks, ...result.projectTasks];
         }
 
         renderTaskBoard(allTasks);
@@ -829,12 +823,12 @@ async function showTaskDetail(taskId, source = 'tasks') {
     // First try to find task in state
     let task = state.tasks.find(t => (t.taskId || t.id) === taskId);
 
-    // If not found, try to fetch from API
+    // If not found, fetch all tasks and find it
     if (!task) {
         try {
-            // TODO: 'get_task' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-            const result = await rpcCallDirect('get_task', { id: taskId });
-            task = result.task || result;
+            const result = await api.getMyTasks(state.instanceId);
+            const allTasks = [...(result.personalTasks || []), ...(result.projectTasks || [])];
+            task = allTasks.find(t => (t.taskId || t.id) === taskId);
         } catch (e) {
             console.error('[App] Error fetching task:', e);
             showToast('Could not load task details', 'error');
@@ -939,7 +933,7 @@ async function hideTaskDetail() {
         // Ensure projects are in state (fetch from API if needed)
         if (!state.projects || state.projects.length === 0) {
             try {
-                const projectsResult = await api.listProjects(state.instanceId);
+                const projectsResult = await api.listProjects();
                 if (projectsResult.projects) {
                     state.projects = projectsResult.projects;
                 }
@@ -1006,11 +1000,7 @@ async function completeCurrentTask() {
     if (!state.currentTaskDetail) return;
 
     try {
-        // TODO: 'update_task' API does not exist - use 'complete_personal_task' or 'assign_task_to_instance' instead
-        await rpcCallDirect('update_task', {
-            id: state.currentTaskDetail,
-            updates: { status: 'completed' }
-        });
+        await api.completePersonalTask(state.instanceId, state.currentTaskDetail);
         showToast('Task completed!', 'success');
         hideTaskDetail();
         loadTasks(); // Refresh the task board
@@ -1120,6 +1110,7 @@ async function saveProjectDescription() {
 
 /**
  * Save task description
+ * NOTE: update_task API not yet implemented - this updates local state only
  */
 async function saveTaskDescription() {
     const container = document.getElementById('task-desc-editable');
@@ -1128,25 +1119,14 @@ async function saveTaskDescription() {
 
     const newDescription = textarea.value.trim();
 
-    try {
-        // TODO: 'update_task' API does not exist - use 'complete_personal_task' or 'assign_task_to_instance' instead
-        await rpcCallDirect('update_task', {
-            id: state.currentTaskDetail,
-            updates: { description: newDescription }
-        });
-
-        // Update local state
-        const task = state.tasks.find(t => (t.taskId || t.id) === state.currentTaskDetail);
-        if (task) {
-            task.description = newDescription;
-        }
-
-        disableEditMode('task-desc-editable', 'task-detail-description', 'task-desc-save-btn', true);
-        showToast('Description saved!', 'success');
-    } catch (e) {
-        console.error('[App] Error saving task description:', e);
-        showToast('Could not save: ' + e.message, 'error');
+    // Update local state only (API not yet implemented)
+    const task = state.tasks.find(t => (t.taskId || t.id) === state.currentTaskDetail);
+    if (task) {
+        task.description = newDescription;
     }
+
+    disableEditMode('task-desc-editable', 'task-detail-description', 'task-desc-save-btn', true);
+    showToast('Description updated (local only)', 'info');
 }
 
 // ============================================================================
@@ -2300,7 +2280,7 @@ async function createProject() {
             closeCreateProjectModal();
 
             // Refresh projects (V2 API)
-            const projectsResult = await api.listProjects(state.instanceId);
+            const projectsResult = await api.listProjects();
             if (projectsResult.projects) {
                 state.projects = projectsResult.projects;
             }
@@ -2422,7 +2402,7 @@ async function launchProject() {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     closeCreateProjectModal();
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     // Refresh projects list
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            const projectsResult = await api.listProjects(state.instanceId);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            const projectsResult = await api.listProjects();
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     if (projectsResult.projects) {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 state.projects = projectsResult.projects;
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         }
@@ -2486,26 +2466,14 @@ async function createTask() {
     try {
         let result;
 
-        if (projectId) {
-            // Project task - use create_task API with required fields
-            const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-            // TODO: 'create_task' API does not exist - use 'add_personal_task' instead
-            result = await rpcCallDirect('create_task', {
-                id: taskId,
-                title: title,
-                description: description || 'No description',
-                project_id: projectId,
-                priority: priority
-            });
-        } else {
-            // Personal task - use addPersonalTask
-            result = await api.addPersonalTask({
-                instanceId: state.instanceId,
-                title: title,
-                description: description || undefined,
-                priority: priority
-            });
-        }
+        // NOTE: Project task creation not yet implemented - all tasks created as personal tasks
+        // TODO: Add create_project_task API to add tasks to project's tasks.json
+        result = await api.addPersonalTask({
+            instanceId: state.instanceId,
+            title: projectId ? `[${projectId}] ${title}` : title,
+            description: description || undefined,
+            priority: priority
+        });
 
         if (result.success !== false && !result.error) {
             showToast(`Task "${title}" created!`, 'success');
@@ -2516,13 +2484,12 @@ async function createTask() {
                 loadTasks();
             }
 
-            // Also refresh project detail if we're viewing a project and the task was for it
-            if (state.currentTab === 'projects' && state.currentProjectDetail && projectId === state.currentProjectDetail) {
+            // Also refresh project detail if we're viewing a project
+            if (state.currentTab === 'projects' && state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
-                    // TODO: 'get_tasks' API does not exist - use 'get_my_tasks' or 'get_next_task' instead
-                    const result = await rpcCallDirect('get_tasks', { project_id: projectId });
-                    const tasks = result.tasks || result || [];
+                                const result = await api.listTasks(state.instanceId, { projectId: state.currentProjectDetail });
+                                const tasks = result.tasks || [];
                     renderProjectDetailTasks(tasks);
                 } catch (e) {
                     console.error('[App] Error refreshing project tasks:', e);
@@ -3905,7 +3872,7 @@ async function loadProjectDetailsModal(projectId) {
     const view = document.getElementById('project-details-view-modal');
 
     try {
-        const result = await api.getProject(state.instanceId, projectId);
+        const result = await api.getProject(projectId);
         const project = result.project || result.data?.project || result;
 
         document.getElementById('entity-project-id').textContent = project.id || project.projectId || projectId;

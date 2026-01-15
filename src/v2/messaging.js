@@ -22,8 +22,8 @@ import { lookupIdentity } from './identity.js';
 
 const execAsync = promisify(exec);
 
-// Configuration
-const XMPP_CONFIG = {
+// Configuration - exported for use by bootstrap, introspect, joinProject
+export const XMPP_CONFIG = {
   domain: 'smoothcurves.nexus',
   conference: 'conference.smoothcurves.nexus',
   container: 'ejabberd',

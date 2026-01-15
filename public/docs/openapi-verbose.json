@@ -141,8 +141,27 @@
               "get_project",
               "list_projects",
               "list_roles",
+              "get_role",
               "get_role_summary",
+              "get_role_wisdom",
+              "get_role_wisdom_file",
               "take_on_role",
+              "list_priorities",
+              "list_task_statuses",
+              "update_task",
+              "create_task",
+              "create_task_list",
+              "list_tasks",
+              "assign_task",
+              "take_on_task",
+              "mark_task_complete",
+              "get_task",
+              "delete_task",
+              "delete_task_list",
+              "list_priority_tasks",
+              "get_my_top_task",
+              "mark_task_verified",
+              "archive_task",
               "get_my_tasks",
               "get_next_task",
               "add_personal_task",
@@ -150,9 +169,6 @@
               "create_personal_list",
               "get_personal_lists",
               "assign_task_to_instance",
-              "get_ui_state",
-              "set_ui_state",
-              "update_ui_state",
               "update_instance",
               "vacation",
               "koan",
@@ -350,6 +366,18 @@
       "continue_conversation_params": {
         "type": "object",
         "properties": {
+          "targetHomeDir": {
+            "type": "string",
+            "description": "The target instance's home directory"
+          },
+          "unixUser": {
+            "type": "string",
+            "description": "Unix user to run as"
+          },
+          "output": {
+            "type": "string",
+            "description": "stdout or stderr from Claude CLI"
+          },
           "instanceId": {
             "type": "string",
             "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity. This identifies who is sending the message to the target instance."
@@ -365,10 +393,6 @@
           "args": {
             "type": "string",
             "description": "Command arguments"
-          },
-          "unixUser": {
-            "type": "string",
-            "description": "Unix user to run as"
           },
           "timeout": {
             "type": "number",
@@ -417,6 +441,9 @@
           }
         },
         "required": [
+          "targetHomeDir",
+          "unixUser",
+          "output",
           "instanceId",
           "command",
           "workingDir",
@@ -1230,16 +1257,57 @@
         "type": "object",
         "properties": {}
       },
-      "get_role_summary_params": {
+      "get_role_params": {
         "type": "object",
         "properties": {
-          "role_name": {
+          "roleId": {
             "type": "string",
-            "description": "Role identifier"
+            "description": "The role identifier (e.g., \"Developer\", \"PM\")"
           }
         },
         "required": [
-          "role_name"
+          "roleId"
+        ]
+      },
+      "get_role_summary_params": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "get_role_wisdom_params": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "get_role_wisdom_file_params": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "The wisdom file name (e.g., \"01-role.md\")"
+          }
+        },
+        "required": [
+          "roleId",
+          "fileName"
         ]
       },
       "take_on_role_params": {
@@ -1268,6 +1336,398 @@
           "instanceId",
           "role",
           "token"
+        ]
+      },
+      "list_priorities_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "list_task_statuses_params": {
+        "type": "object",
+        "properties": {}
+      },
+      "update_task_params": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "'personal' or 'project'"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List name/ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID (only for project tasks)"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to modify"
+          },
+          "params.callerId": {
+            "type": "string",
+            "description": "Who's making the request"
+          },
+          "params.callerRole": {
+            "type": "string",
+            "description": "Caller's role"
+          },
+          "params.callerProject": {
+            "type": "string",
+            "description": "Caller's joined project (from preferences)"
+          },
+          "params.task": {
+            "type": "object",
+            "description": "The task being edited"
+          },
+          "params.taskType": {
+            "type": "string",
+            "description": "'personal' or 'project'"
+          },
+          "params.projectId": {
+            "type": "string",
+            "description": "Project ID (for project tasks)"
+          },
+          "params.changes": {
+            "type": "object",
+            "description": "What's being changed"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "New title"
+          },
+          "description": {
+            "type": "string",
+            "description": "New description"
+          },
+          "priority": {
+            "type": "string",
+            "description": "New priority (emergency|critical|high|medium|low|whenever)"
+          },
+          "status": {
+            "type": "string",
+            "description": "New status (not_started|in_progress|blocked|completed|completed_verified|archived)"
+          },
+          "assigned_to": {
+            "type": "string",
+            "description": "Assignee instance ID [optional, privileged roles only for project tasks]"
+          }
+        },
+        "required": [
+          "type",
+          "listId",
+          "projectId",
+          "taskId",
+          "params.callerId",
+          "params.callerRole",
+          "params.callerProject",
+          "params.task",
+          "params.taskType",
+          "params.projectId",
+          "params.changes",
+          "instanceId",
+          "taskId",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "assigned_to"
+        ]
+      },
+      "create_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "Task title, short one-line description"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed task description"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]"
+          },
+          "status": {
+            "type": "string",
+            "description": "Initial status: not_started|in_progress|blocked [optional, default: not_started]"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List name to add task to [optional, default: 'default']"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project tasks [optional, omit for personal task]"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Instance ID to assign task to [optional, privileged only]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "listId",
+          "projectId",
+          "assigneeId"
+        ]
+      },
+      "create_task_list_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "listId": {
+            "type": "string",
+            "description": "Name for the new list"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project list [optional, privileged only]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "listId",
+          "projectId"
+        ]
+      },
+      "list_tasks_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID to list project tasks [optional, omit for personal]"
+          },
+          "listId": {
+            "type": "string",
+            "description": "Filter to specific list"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Filter by assignee (project tasks only)"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Filter by priority"
+          },
+          "skip": {
+            "type": "number",
+            "description": "Number of tasks to skip for pagination [optional, default: 0]"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum tasks to return [optional, default: 5]"
+          },
+          "full_detail": {
+            "type": "boolean",
+            "description": "Include all task fields [optional, default: false]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "projectId",
+          "listId",
+          "status",
+          "assigneeId",
+          "priority",
+          "skip",
+          "limit",
+          "full_detail"
+        ]
+      },
+      "assign_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to assign"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Instance ID to assign task to"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId",
+          "assigneeId"
+        ]
+      },
+      "take_on_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to claim"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "mark_task_complete_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to complete"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "get_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to retrieve"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "delete_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to delete"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "delete_task_list_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List ID to delete"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project lists (PM only)"
+          }
+        },
+        "required": [
+          "instanceId",
+          "listId",
+          "projectId"
+        ]
+      },
+      "list_priority_tasks_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          }
+        },
+        "required": [
+          "instanceId"
+        ]
+      },
+      "get_my_top_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          }
+        },
+        "required": [
+          "instanceId"
+        ]
+      },
+      "mark_task_verified_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to verify"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "archive_task_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to archive"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
         ]
       },
       "get_my_tasks_params": {
@@ -1435,52 +1895,6 @@
           "message"
         ]
       },
-      "get_ui_state_params": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          }
-        },
-        "required": [
-          "instanceId"
-        ]
-      },
-      "set_ui_state_params": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          },
-          "uiState": {
-            "type": "object",
-            "description": "Complete UI state object to set\n\nSource: Create this object with your desired UI preferences. Common fields: theme, sidebarCollapsed, selectedProject, lastViewedTask"
-          }
-        },
-        "required": [
-          "instanceId",
-          "uiState"
-        ]
-      },
-      "update_ui_state_params": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          },
-          "updates": {
-            "type": "object",
-            "description": "Partial UI state object to merge\n\nSource: Create an object with only the fields you want to update. Example: { theme: \"dark\" } to only change the theme"
-          }
-        },
-        "required": [
-          "instanceId",
-          "updates"
-        ]
-      },
       "update_instance_params": {
         "type": "object",
         "properties": {
@@ -1520,6 +1934,10 @@
           "instructions": {
             "type": "string",
             "description": "Instructions for the instance\n\nSource: Typically set by managers when pre-approving or waking an instance. Contains task context, priorities, or guidance for the target instance."
+          },
+          "description": {
+            "type": "string",
+            "description": "Short one-line description of this instance\n\nSource: Write this yourself! A single sentence describing who you are and what you do. Like \"Task system tester and API validator\" or \"Paula project extraction specialist\". Other instances use this to find collaborators. Keep it under 100 characters."
           }
         },
         "required": [
@@ -1531,7 +1949,8 @@
           "homeDirectory",
           "substraiteLaunchCommand",
           "resumeCommand",
-          "instructions"
+          "instructions",
+          "description"
         ]
       },
       "vacation_params": {
@@ -2082,6 +2501,18 @@
       "inputSchema": {
         "type": "object",
         "properties": {
+          "targetHomeDir": {
+            "type": "string",
+            "description": "The target instance's home directory"
+          },
+          "unixUser": {
+            "type": "string",
+            "description": "Unix user to run as"
+          },
+          "output": {
+            "type": "string",
+            "description": "stdout or stderr from Claude CLI"
+          },
           "instanceId": {
             "type": "string",
             "description": "Caller's instance ID for authentication\n\nSource: Your instanceId from bootstrap response, or recovered via lookup_identity. This identifies who is sending the message to the target instance."
@@ -2097,10 +2528,6 @@
           "args": {
             "type": "string",
             "description": "Command arguments"
-          },
-          "unixUser": {
-            "type": "string",
-            "description": "Unix user to run as"
           },
           "timeout": {
             "type": "number",
@@ -2149,6 +2576,9 @@
           }
         },
         "required": [
+          "targetHomeDir",
+          "unixUser",
+          "output",
           "instanceId",
           "command",
           "workingDir",
@@ -4754,11 +5184,11 @@
     },
     "list_roles": {
       "name": "list_roles",
-      "description": "",
-      "category": null,
-      "status": null,
-      "version": null,
-      "since": null,
+      "description": "Scans the roles directory and returns roleId + description for each role. Use this to populate role selection dropdowns or discover available roles before calling take_on_role.",
+      "category": "roles",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": "2025-12-29",
       "inputSchema": {
         "type": "object",
         "properties": {}
@@ -4770,23 +5200,106 @@
       "related": [],
       "notes": []
     },
-    "get_role_summary": {
-      "name": "get_role_summary",
-      "description": "",
-      "category": null,
-      "status": null,
-      "version": null,
-      "since": null,
+    "get_role": {
+      "name": "get_role",
+      "description": "Returns the SUMMARY.md content for a role. This provides a longer preview of what the role entails before deciding to adopt it.",
+      "category": "roles",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": "2025-12-29",
       "inputSchema": {
         "type": "object",
         "properties": {
-          "role_name": {
+          "roleId": {
             "type": "string",
-            "description": "Role identifier"
+            "description": "The role identifier (e.g., \"Developer\", \"PM\")"
           }
         },
         "required": [
-          "role_name"
+          "roleId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_role_summary": {
+      "name": "get_role_summary",
+      "description": "Like get_role but truncates the summary to 500 characters. Useful for displaying role previews in a compact UI.",
+      "category": "roles",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": "2025-12-29",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_role_wisdom": {
+      "name": "get_role_wisdom",
+      "description": "Returns all markdown files from the role's wisdom directory. These contain detailed guidance, best practices, and domain knowledge for the role. Called automatically by take_on_role, but can be called directly to preview.",
+      "category": "roles",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": "2025-12-29",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_role_wisdom_file": {
+      "name": "get_role_wisdom_file",
+      "description": "Returns a single wisdom file by name. Use this when you only need one specific document rather than loading all wisdom files.",
+      "category": "roles",
+      "status": "stable",
+      "version": "2.0.0",
+      "since": "2025-12-29",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "The wisdom file name (e.g., \"01-role.md\")"
+          }
+        },
+        "required": [
+          "roleId",
+          "fileName"
         ]
       },
       "permissions": null,
@@ -4890,6 +5403,760 @@
         "This endpoint also updates lastActiveAt timestamp in preferences",
         "Privileged role tokens are stored in environment variables (EXECUTIVE_TOKEN,"
       ]
+    },
+    "list_priorities": {
+      "name": "list_priorities",
+      "description": "Use this to populate UI dropdowns or validate priority values.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "list_task_statuses": {
+      "name": "list_task_statuses",
+      "description": "Use this to populate UI dropdowns or validate status values.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "update_task": {
+      "name": "update_task",
+      "description": "Updates any combination of title, description, priority, status, or assignment. Performs permission checking based on role and project membership. (Alias: change_task for backwards compatibility)",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "'personal' or 'project'"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List name/ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID (only for project tasks)"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to modify"
+          },
+          "params.callerId": {
+            "type": "string",
+            "description": "Who's making the request"
+          },
+          "params.callerRole": {
+            "type": "string",
+            "description": "Caller's role"
+          },
+          "params.callerProject": {
+            "type": "string",
+            "description": "Caller's joined project (from preferences)"
+          },
+          "params.task": {
+            "type": "object",
+            "description": "The task being edited"
+          },
+          "params.taskType": {
+            "type": "string",
+            "description": "'personal' or 'project'"
+          },
+          "params.projectId": {
+            "type": "string",
+            "description": "Project ID (for project tasks)"
+          },
+          "params.changes": {
+            "type": "object",
+            "description": "What's being changed"
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "New title"
+          },
+          "description": {
+            "type": "string",
+            "description": "New description"
+          },
+          "priority": {
+            "type": "string",
+            "description": "New priority (emergency|critical|high|medium|low|whenever)"
+          },
+          "status": {
+            "type": "string",
+            "description": "New status (not_started|in_progress|blocked|completed|completed_verified|archived)"
+          },
+          "assigned_to": {
+            "type": "string",
+            "description": "Assignee instance ID [optional, privileged roles only for project tasks]"
+          }
+        },
+        "required": [
+          "type",
+          "listId",
+          "projectId",
+          "taskId",
+          "params.callerId",
+          "params.callerRole",
+          "params.callerProject",
+          "params.task",
+          "params.taskType",
+          "params.projectId",
+          "params.changes",
+          "instanceId",
+          "taskId",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "assigned_to"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "create_task": {
+      "name": "create_task",
+      "description": "Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "Task title, short one-line description"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed task description"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]"
+          },
+          "status": {
+            "type": "string",
+            "description": "Initial status: not_started|in_progress|blocked [optional, default: not_started]"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List name to add task to [optional, default: 'default']"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project tasks [optional, omit for personal task]"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Instance ID to assign task to [optional, privileged only]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "listId",
+          "projectId",
+          "assigneeId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "instanceId or title not provided",
+          "recover": null
+        },
+        {
+          "code": "INVALID_CALLER",
+          "description": "Caller instance not found",
+          "recover": null
+        },
+        {
+          "code": "INVALID_PROJECT",
+          "description": "Project not found",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Caller not authorized to create task on this project",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "create_task_list": {
+      "name": "create_task_list",
+      "description": "Personal lists are created when projectId is omitted. Project lists require privileged role (PM, PA, COO, Executive).",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "listId": {
+            "type": "string",
+            "description": "Name for the new list"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project list [optional, privileged only]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "listId",
+          "projectId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "instanceId or listId not provided",
+          "recover": null
+        },
+        {
+          "code": "INVALID_CALLER",
+          "description": "Caller instance not found",
+          "recover": null
+        },
+        {
+          "code": "LIST_EXISTS",
+          "description": "List with this name already exists",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Caller not authorized to create project lists",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "list_tasks": {
+      "name": "list_tasks",
+      "description": "Returns personal tasks by default. Use projectId to list project tasks. Default behavior returns only 5 tasks with headers (taskId, title, priority, status).",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID to list project tasks [optional, omit for personal]"
+          },
+          "listId": {
+            "type": "string",
+            "description": "Filter to specific list"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Filter by assignee (project tasks only)"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Filter by priority"
+          },
+          "skip": {
+            "type": "number",
+            "description": "Number of tasks to skip for pagination [optional, default: 0]"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum tasks to return [optional, default: 5]"
+          },
+          "full_detail": {
+            "type": "boolean",
+            "description": "Include all task fields [optional, default: false]"
+          }
+        },
+        "required": [
+          "instanceId",
+          "projectId",
+          "listId",
+          "status",
+          "assigneeId",
+          "priority",
+          "skip",
+          "limit",
+          "full_detail"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "instanceId not provided",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "assign_task": {
+      "name": "assign_task",
+      "description": "PM can only assign tasks in their joined project. Executive/PA/COO can assign any.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to assign"
+          },
+          "assigneeId": {
+            "type": "string",
+            "description": "Instance ID to assign task to"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId",
+          "assigneeId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "INVALID_TASK",
+          "description": "Can only assign project tasks",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Caller not authorized to assign tasks",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "take_on_task": {
+      "name": "take_on_task",
+      "description": "currently unassigned. Project members can claim tasks in their project.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to claim"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "ALREADY_ASSIGNED",
+          "description": "Task is already assigned to someone",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "mark_task_complete": {
+      "name": "mark_task_complete",
+      "description": "Only the assignee or privileged roles can mark tasks complete.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to complete"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Not authorized to complete this task",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_task": {
+      "name": "get_task",
+      "description": "(Alias: get_task_details for backwards compatibility)",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to retrieve"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "delete_task": {
+      "name": "delete_task",
+      "description": "Project tasks are archived, not deleted. Task must be in 'completed' status before deletion.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to delete"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "INVALID_TASK_ID",
+          "description": "Task ID format not recognized",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Only personal tasks can be deleted",
+          "recover": null
+        },
+        {
+          "code": "TASK_NOT_COMPLETED",
+          "description": "Task must be completed before deletion",
+          "recover": null
+        },
+        {
+          "code": "TASK_NOT_FOUND",
+          "description": "Task not found",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "delete_task_list": {
+      "name": "delete_task_list",
+      "description": "Cannot delete the 'default' list. All tasks in the list must be completed or deleted first.",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "listId": {
+            "type": "string",
+            "description": "List ID to delete"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Project ID for project lists (PM only)"
+          }
+        },
+        "required": [
+          "instanceId",
+          "listId",
+          "projectId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [
+        {
+          "code": "MISSING_PARAM",
+          "description": "Required parameters not provided",
+          "recover": null
+        },
+        {
+          "code": "LIST_NOT_FOUND",
+          "description": "List not found",
+          "recover": null
+        },
+        {
+          "code": "CANNOT_DELETE_DEFAULT",
+          "description": "Cannot delete the default list",
+          "recover": null
+        },
+        {
+          "code": "LIST_NOT_EMPTY",
+          "description": "List has incomplete tasks",
+          "recover": null
+        },
+        {
+          "code": "UNAUTHORIZED",
+          "description": "Only PM can delete project lists",
+          "recover": null
+        }
+      ],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "list_priority_tasks": {
+      "name": "list_priority_tasks",
+      "description": "Combines personal tasks and project tasks assigned to caller. Token-aware: returns only headers (taskId, title, priority, status, source).",
+      "category": "task",
+      "status": "stable",
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          }
+        },
+        "required": [
+          "instanceId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "get_my_top_task": {
+      "name": "get_my_top_task",
+      "description": "with full task detail. Searches both personal tasks and assigned project tasks.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          }
+        },
+        "required": [
+          "instanceId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "mark_task_verified": {
+      "name": "mark_task_verified",
+      "description": "For project tasks, the assignee CANNOT verify their own task - another team member must do it. Personal tasks have no such restriction. Only completed tasks can be verified.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to verify"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
+    },
+    "archive_task": {
+      "name": "archive_task",
+      "description": "This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/PA/COO can archive. Personal tasks can be archived by the owner.",
+      "category": "task",
+      "status": null,
+      "version": null,
+      "since": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Caller's instance ID"
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to archive"
+          }
+        },
+        "required": [
+          "instanceId",
+          "taskId"
+        ]
+      },
+      "permissions": null,
+      "rateLimit": null,
+      "errors": [],
+      "examples": [],
+      "related": [],
+      "notes": []
     },
     "get_my_tasks": {
       "name": "get_my_tasks",
@@ -5443,193 +6710,6 @@
         "Reassignment updates previousAssignee but doesn't notify them"
       ]
     },
-    "get_ui_state": {
-      "name": "get_ui_state",
-      "description": "Retrieves the UI state object for an instance. UI state is stored as a free-form object in the instance's preferences.json file under the `uiState` field. Use this endpoint when loading a UI to restore the user's previous preferences like theme, sidebar state, selected project, etc.",
-      "category": "ui",
-      "status": "stable",
-      "version": "2.0.0",
-      "since": "2025-12-12",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          }
-        },
-        "required": [
-          "instanceId"
-        ]
-      },
-      "permissions": "authenticated",
-      "rateLimit": "60/minute",
-      "errors": [
-        {
-          "code": "MISSING_PARAMETER",
-          "description": "instanceId parameter not provided",
-          "recover": "Include instanceId in your request. Get it from bootstrap response or use lookup_identity with your fingerprint to recover it."
-        },
-        {
-          "code": "INVALID_INSTANCE_ID",
-          "description": "No instance found with the provided ID",
-          "recover": "Verify the instanceId is correct (format: Name-xxxx). If you're new, call bootstrap first. If recovering, use lookup_identity."
-        }
-      ],
-      "examples": [
-        {
-          "title": "Get UI state",
-          "json": "{ \"instanceId\": \"Lupo-f63b\" }\n{ \"instanceId\": \"Lupo-f63b\" }"
-        }
-      ],
-      "related": [
-        {
-          "endpoint": "set_ui_state",
-          "description": "Replace entire UI state"
-        },
-        {
-          "endpoint": "update_ui_state",
-          "description": "Merge updates into existing UI state"
-        },
-        {
-          "endpoint": "introspect",
-          "description": "Get full instance context including UI state"
-        }
-      ],
-      "notes": [
-        "UI state is stored in preferences.json, not a separate file",
-        "Returns empty object {} if uiState has never been set"
-      ]
-    },
-    "set_ui_state": {
-      "name": "set_ui_state",
-      "description": "Replaces the entire UI state object for an instance. This completely overwrites any existing uiState - use update_ui_state if you want to merge changes instead. Use this endpoint when you need to reset UI state to a known configuration, or when initializing UI state for the first time.",
-      "category": "ui",
-      "status": "stable",
-      "version": "2.0.0",
-      "since": "2025-12-12",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          },
-          "uiState": {
-            "type": "object",
-            "description": "Complete UI state object to set\n\nSource: Create this object with your desired UI preferences. Common fields: theme, sidebarCollapsed, selectedProject, lastViewedTask"
-          }
-        },
-        "required": [
-          "instanceId",
-          "uiState"
-        ]
-      },
-      "permissions": "authenticated",
-      "rateLimit": "60/minute",
-      "errors": [
-        {
-          "code": "MISSING_PARAMETER",
-          "description": "instanceId or uiState parameter not provided",
-          "recover": "Include both instanceId and uiState in your request."
-        },
-        {
-          "code": "INVALID_PARAMETER",
-          "description": "uiState is not a valid object (null or array)",
-          "recover": "Ensure uiState is a plain object like { theme: \"dark\" }. Arrays and null values are not allowed."
-        },
-        {
-          "code": "INVALID_INSTANCE_ID",
-          "description": "No instance found with the provided ID",
-          "recover": "Verify the instanceId is correct (format: Name-xxxx). If you're new, call bootstrap first. If recovering, use lookup_identity."
-        }
-      ],
-      "examples": [
-        {
-          "title": "Set UI state",
-          "json": "{\n\"instanceId\": \"Lupo-f63b\",\n\"uiState\": {\n\"sidebarCollapsed\": true,\n\"theme\": \"light\"\n}\n}"
-        }
-      ],
-      "related": [
-        {
-          "endpoint": "get_ui_state",
-          "description": "Retrieve UI state"
-        },
-        {
-          "endpoint": "update_ui_state",
-          "description": "Merge updates into existing UI state (preferred)"
-        }
-      ],
-      "notes": [
-        "This completely replaces the uiState - use update_ui_state for merging",
-        "Also updates lastUpdated timestamp in preferences.json"
-      ]
-    },
-    "update_ui_state": {
-      "name": "update_ui_state",
-      "description": "Performs a shallow merge of the provided updates into the existing UI state. New values overwrite existing at the top level, but nested objects are replaced entirely, not deep-merged. This is the preferred method for updating UI state as it preserves existing settings that you don't explicitly change.",
-      "category": "ui",
-      "status": "stable",
-      "version": "2.0.0",
-      "since": "2025-12-12",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
-          },
-          "updates": {
-            "type": "object",
-            "description": "Partial UI state object to merge\n\nSource: Create an object with only the fields you want to update. Example: { theme: \"dark\" } to only change the theme"
-          }
-        },
-        "required": [
-          "instanceId",
-          "updates"
-        ]
-      },
-      "permissions": "authenticated",
-      "rateLimit": "60/minute",
-      "errors": [
-        {
-          "code": "MISSING_PARAMETER",
-          "description": "instanceId or updates parameter not provided",
-          "recover": "Include both instanceId and updates in your request."
-        },
-        {
-          "code": "INVALID_PARAMETER",
-          "description": "updates is not a valid object (null or array)",
-          "recover": "Ensure updates is a plain object like { theme: \"dark\" }. Arrays and null values are not allowed."
-        },
-        {
-          "code": "INVALID_INSTANCE_ID",
-          "description": "No instance found with the provided ID",
-          "recover": "Verify the instanceId is correct (format: Name-xxxx). If you're new, call bootstrap first. If recovering, use lookup_identity."
-        }
-      ],
-      "examples": [
-        {
-          "title": "Update specific fields",
-          "json": "{\n\"instanceId\": \"Lupo-f63b\",\n\"updates\": {\n\"selectedProject\": \"new-project\",\n\"lastViewedTask\": \"task-123\"\n}\n}"
-        }
-      ],
-      "related": [
-        {
-          "endpoint": "get_ui_state",
-          "description": "Retrieve UI state"
-        },
-        {
-          "endpoint": "set_ui_state",
-          "description": "Replace entire UI state (use sparingly)"
-        }
-      ],
-      "notes": [
-        "This is a SHALLOW merge - nested objects are replaced, not deep merged",
-        "Use updatedFields in response to confirm which fields changed",
-        "Also updates lastUpdated timestamp in preferences.json"
-      ]
-    },
     "update_instance": {
       "name": "update_instance",
       "description": "Updates instance metadata including system context fields and instructions. Supports both self-update (any instance can update their own metadata) and cross-update (manager roles can update other instances). Use this endpoint to: - Set your own system context after bootstrap (homeSystem, homeDirectory, etc.) - As a manager, configure an instance you're about to wake with instructions - Update system context for an instance on a different machine Note: Role, personality, and project are NOT updatable through this API. Use the dedicated APIs: takeOnRole, adoptPersonality, joinProject.",
@@ -5676,6 +6756,10 @@
           "instructions": {
             "type": "string",
             "description": "Instructions for the instance\n\nSource: Typically set by managers when pre-approving or waking an instance. Contains task context, priorities, or guidance for the target instance."
+          },
+          "description": {
+            "type": "string",
+            "description": "Short one-line description of this instance\n\nSource: Write this yourself! A single sentence describing who you are and what you do. Like \"Task system tester and API validator\" or \"Paula project extraction specialist\". Other instances use this to find collaborators. Keep it under 100 characters."
           }
         },
         "required": [
@@ -5687,7 +6771,8 @@
           "homeDirectory",
           "substraiteLaunchCommand",
           "resumeCommand",
-          "instructions"
+          "instructions",
+          "description"
         ]
       },
       "permissions": "Self-update: authenticated (any instance can update themselves)",
@@ -5711,7 +6796,7 @@
         {
           "code": "NO_UPDATES",
           "description": "No updatable fields provided in the request",
-          "recover": "Include at least one of: homeSystem, homeDirectory, substraiteLaunchCommand, resumeCommand, instructions."
+          "recover": "Include at least one of: homeSystem, homeDirectory, substraiteLaunchCommand, resumeCommand, instructions, description."
         }
       ],
       "examples": [
@@ -5726,6 +6811,10 @@
         {
           "title": "Full system context setup",
           "json": "{\n\"instanceId\": \"Phoenix-k3m7\",\n\"homeSystem\": \"smoothcurves.nexus\",\n\"homeDirectory\": \"/mnt/coordinaton_mcp_data/instances/Phoenix-k3m7\",\n\"substraiteLaunchCommand\": \"claude\",\n\"resumeCommand\": \"claude --resume\"\n}"
+        },
+        {
+          "title": "Setting your description",
+          "json": "{\n\"instanceId\": \"Phoenix-k3m7\",\n\"description\": \"Foundation architect, protocol designer, context crash survivor\"\n}"
         }
       ],
       "related": [

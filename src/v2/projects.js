@@ -595,3 +595,69 @@ export async function listProjects(params = {}) {
     };
   }
 }
+
+/**
+ * Get tasks for a specific project
+ * Simple document reader - reads tasks.json from project directory
+ *
+ * @param {object} params
+ * @param {string} params.projectId - Project to get tasks for
+ * @returns {object} Tasks list
+ */
+export async function getProjectTasks(params) {
+  const metadata = {
+    timestamp: new Date().toISOString(),
+    function: 'getProjectTasks'
+  };
+
+  if (!params.projectId) {
+    return {
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'projectId is required'
+      },
+      metadata
+    };
+  }
+
+  const projectDir = getProjectDir(params.projectId);
+  const tasksPath = path.join(projectDir, 'tasks.json');
+
+  try {
+    const tasksData = await readJSON(tasksPath);
+
+    if (!tasksData) {
+      return {
+        success: true,
+        tasks: [],
+        total: 0,
+        metadata
+      };
+    }
+
+    return {
+      success: true,
+      tasks: tasksData.tasks || [],
+      total: (tasksData.tasks || []).length,
+      metadata
+    };
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return {
+        success: true,
+        tasks: [],
+        total: 0,
+        metadata
+      };
+    }
+    return {
+      success: false,
+      error: {
+        code: 'READ_ERROR',
+        message: error.message
+      },
+      metadata
+    };
+  }
+}

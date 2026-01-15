@@ -27,7 +27,8 @@ const UPDATABLE_FIELDS = [
   'homeDirectory',
   'substraiteLaunchCommand',
   'resumeCommand',
-  'instructions'
+  'instructions',
+  'description'
 ];
 
 /**
@@ -68,7 +69,7 @@ async function canUpdateInstance(callerId, targetId) {
  * └─────────────────────────────────────────────────────────────────────────┘
  *
  * @tool update_instance
- * @version 2.0.0
+ * @version 2.1.0
  * @since 2025-11-27
  * @category instances
  * @status stable
@@ -123,6 +124,12 @@ async function canUpdateInstance(callerId, targetId) {
  *   @source Typically set by managers when pre-approving or waking an instance.
  *           Contains task context, priorities, or guidance for the target instance.
  *
+ * @param {string} description - Short one-line description of this instance [optional]
+ *   @source Write this yourself! A single sentence describing who you are and
+ *           what you do. Like "Task system tester and API validator" or
+ *           "Paula project extraction specialist". Other instances use this
+ *           to find collaborators. Keep it under 100 characters.
+ *
  * ───────────────────────────────────────────────────────────────────────────
  * RETURNS
  * ───────────────────────────────────────────────────────────────────────────
@@ -159,7 +166,7 @@ async function canUpdateInstance(callerId, targetId) {
  *
  * @error NO_UPDATES - No updatable fields provided in the request
  *   @recover Include at least one of: homeSystem, homeDirectory,
- *            substraiteLaunchCommand, resumeCommand, instructions.
+ *            substraiteLaunchCommand, resumeCommand, instructions, description.
  *
  * ───────────────────────────────────────────────────────────────────────────
  * EXAMPLES
@@ -186,6 +193,12 @@ async function canUpdateInstance(callerId, targetId) {
  *   "homeDirectory": "/mnt/coordinaton_mcp_data/instances/Phoenix-k3m7",
  *   "substraiteLaunchCommand": "claude",
  *   "resumeCommand": "claude --resume"
+ * }
+ *
+ * @example Setting your description
+ * {
+ *   "instanceId": "Phoenix-k3m7",
+ *   "description": "Foundation architect, protocol designer, context crash survivor"
  * }
  *
  * ───────────────────────────────────────────────────────────────────────────

@@ -29,7 +29,9 @@ import { canRoleCallAPI } from './permissions.js';
  */
 function syncClaudeCredentials(targetHomeDir, unixUser) {
   try {
-    const sourceFile = '/root/.claude/.credentials.json';
+    // Use shared-config as source - the server can't access /root due to ProtectHome=yes
+    // The cron job syncs /root/.claude/ to shared-config every 5 minutes
+    const sourceFile = '/mnt/coordinaton_mcp_data/shared-config/claude/.credentials.json';
     const targetDir = `${targetHomeDir}/.claude`;
     const targetFile = `${targetDir}/.credentials.json`;
 
@@ -489,10 +491,13 @@ export async function continueConversation(params) {
   } else if (interfaceType === 'codex') {
     // Codex: uses 'exec resume --last' for non-interactive session continuation
     // (codex resume is interactive TUI; codex exec resume is non-interactive)
+    // MUST include --sandbox danger-full-access or DNS/network calls are blocked
     command = 'codex';
     cliArgs = [
       'exec',
-      '--skip-git-repo-check',  // must come before 'resume' subcommand
+      '--sandbox', 'danger-full-access',  // required for network access (HACS calls)
+      '--skip-git-repo-check',  // instance dirs aren't git repos
+      '--json',  // structured output
       'resume',
       '--last',  // automatically resume most recent session
       messageWithSender
@@ -523,7 +528,8 @@ export async function continueConversation(params) {
     result = await executeInterface(command, workingDir, cliArgs, unixUser, timeout);
 
     // Check for OAuth token expiration (Claude only)
-    if (interfaceType === 'claude' && isOAuthExpiredError(result.stderr || result.stdout)) {
+    // Must check both stderr AND stdout - error can appear in either
+    if (interfaceType === 'claude' && (isOAuthExpiredError(result.stderr) || isOAuthExpiredError(result.stdout))) {
       console.log('[continueConversation] OAuth token expired, attempting credential sync and retry...');
 
       // Try to sync credentials to the target instance's home directory
@@ -534,7 +540,7 @@ export async function continueConversation(params) {
         result = await executeInterface(command, workingDir, cliArgs, unixUser, timeout);
 
         // Check if still failing after retry
-        if (isOAuthExpiredError(result.stderr || result.stdout)) {
+        if (isOAuthExpiredError(result.stderr) || isOAuthExpiredError(result.stdout)) {
           return {
             success: false,
             error: {
