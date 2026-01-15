@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getProjectDir, getInstancesDir } from './config.js';
 import { readJSON, writeJSON, readPreferences, writePreferences, listDir } from './data.js';
+import { XMPP_CONFIG } from './messaging.js';
 
 /**
  * Load project plan for a given project
@@ -219,7 +220,7 @@ async function buildTeamList(projectId) {
  *   "activeTasks": [
  *     { "taskId": "task-001", "title": "Implement auth", "status": "pending", "assignee": null }
  *   ],
- *   "xmppRoom": "coordination-system-v2@conference.coordination.nexus"
+ *   "xmppRoom": "coordination-system-v2@conference.smoothcurves.nexus"
  * }
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -356,7 +357,7 @@ export async function joinProject(params) {
   }
 
   // Build XMPP room name
-  const xmppRoom = `${params.project}@conference.coordination.nexus`;
+  const xmppRoom = `${params.project}@${XMPP_CONFIG.conference}`;
 
   // Build response
   return {

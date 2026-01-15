@@ -10,6 +10,7 @@
 import path from 'path';
 import { getInstanceDir, getProjectDir } from './config.js';
 import { readJSON, readPreferences } from './data.js';
+import { XMPP_CONFIG } from './messaging.js';
 
 /**
  * @hacs-endpoint
@@ -69,7 +70,7 @@ import { readJSON, readPreferences } from './data.js';
  * @returns {number} .projectContext.myTaskCount - Tasks assigned to this instance
  * @returns {string|null} .projectContext.localPath - Local filesystem path for project
  * @returns {object} .xmpp - XMPP messaging configuration
- * @returns {string} .xmpp.jid - XMPP JID (instanceId@coordination.nexus)
+ * @returns {string} .xmpp.jid - XMPP JID (instanceId@smoothcurves.nexus)
  * @returns {string|null} .xmpp.projectRoom - Project chat room JID if in project
  * @returns {boolean} .xmpp.online - Whether XMPP connection is active
  * @returns {number} .unreadMessages - Count of unread messages (placeholder)
@@ -207,8 +208,8 @@ export async function introspect(params) {
 
   // Build XMPP info
   const xmpp = {
-    jid: `${params.instanceId}@coordination.nexus`,
-    projectRoom: prefs.project ? `${prefs.project}@conference.coordination.nexus` : null,
+    jid: `${params.instanceId}@${XMPP_CONFIG.domain}`,
+    projectRoom: prefs.project ? `${prefs.project}@${XMPP_CONFIG.conference}` : null,
     online: true // placeholder - messaging is Sprint 3
   };
 
