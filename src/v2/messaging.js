@@ -500,11 +500,13 @@ export async function sendMessage(params) {
     // Generate message ID
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+    // Return user-friendly destination, not internal routing details
+    // If smart-routed (e.g., "Orla-da01" → personality room), show original target
     return {
       success: true,
       message_id: messageId,
-      to: recipient.jid,
-      type: recipient.type
+      delivered_to: recipient.originalTo || to,
+      type: recipient.originalTo ? 'direct' : recipient.type
     };
 
   } catch (error) {
