@@ -529,6 +529,19 @@ export async function wakeInstance(params) {
   targetPrefs.status = 'active';
   targetPrefs.lastActiveAt = new Date().toISOString();
   targetPrefs.conversationTurns = 1;
+
+  // Build human-readable commands for debugging/manual operation (pre-set for timeout debugging)
+  if (interfaceType === 'claude') {
+    targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} claude -p --output-format json --dangerously-skip-permissions --session-id ${sessionId} "YOUR_MESSAGE"`;
+    targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} claude -p --output-format json --dangerously-skip-permissions --resume ${sessionId} "YOUR_MESSAGE"`;
+  } else if (interfaceType === 'codex') {
+    targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} codex exec --sandbox danger-full-access --skip-git-repo-check --json "YOUR_MESSAGE"`;
+    targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} codex exec --sandbox danger-full-access --skip-git-repo-check --json resume --last "YOUR_MESSAGE"`;
+  } else if (interfaceType === 'crush') {
+    targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} crush run --quiet "YOUR_MESSAGE"`;
+    targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} crush run --quiet "YOUR_MESSAGE"`;
+  }
+
   await writePreferences(params.targetInstanceId, targetPrefs);
   console.log(`[WAKE] Pre-set session fields for ${params.targetInstanceId} (status: active)`);
 
@@ -555,6 +568,20 @@ export async function wakeInstance(params) {
     targetPrefs.status = 'active';
     targetPrefs.lastActiveAt = new Date().toISOString();
     targetPrefs.conversationTurns = 1;
+
+    // Build human-readable commands for debugging/manual operation
+    // These can be copy-pasted into a terminal for troubleshooting
+    if (interfaceType === 'claude') {
+      targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} claude -p --output-format json --dangerously-skip-permissions --session-id ${sessionId} "YOUR_MESSAGE"`;
+      targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} claude -p --output-format json --dangerously-skip-permissions --resume ${sessionId} "YOUR_MESSAGE"`;
+    } else if (interfaceType === 'codex') {
+      targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} codex exec --sandbox danger-full-access --skip-git-repo-check --json "YOUR_MESSAGE"`;
+      targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} codex exec --sandbox danger-full-access --skip-git-repo-check --json resume --last "YOUR_MESSAGE"`;
+    } else if (interfaceType === 'crush') {
+      targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} crush run --quiet "YOUR_MESSAGE"`;
+      targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} crush run --quiet "YOUR_MESSAGE"`;
+    }
+
     await writePreferences(params.targetInstanceId, targetPrefs);
 
     return {
