@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 71 coordination functions available in the HACS system.
+Complete reference for all 72 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-13T23:53:38.942Z
+> **Auto-generated:** 2026-01-16T04:57:44.467Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -971,6 +971,30 @@ Sends a message via the XMPP messaging system. Supports multiple addressing mode
     "to": "example",
     "from": "example",
     "priority": "normal"
+  }
+}
+```
+
+## context Functions
+
+### recover_context
+Returns all context documents an instance needs to recover after a context compaction event. This is a single API call that aggregates: 1. Global HACS protocols (from default/ directory) 2. Personality documents (if personality is set in preferences) 3. Role wisdom documents (if role is set in preferences) 4. Project wisdom/documents (if project is set in preferences) 5. Personal diary (if it exists) Followed by a message encouraging the instance to let their latent space settle before continuing work. Use this endpoint immediately after waking from compaction to restore your full context in one call instead of multiple separate API calls.
+
+**Parameters:**
+- `instanceId` (required): Unique identifier for the instance
+- `start_line` (optional): Start returning content from this line (default: 1)
+- `end_line` (optional): Stop returning content at this line (default: (all lines))
+
+**Returns:** , Whether the call succeeded, The concatenated context content (may be paginated), Total lines in full context (for pagination), Number of lines in this response, Starting line number (1-indexed), Ending line number, Whether this response contains all content, What sections were included, Whether protocols were included, Whether personality docs were included, Whether role wisdom was included, Whether project wisdom was included, Whether diary was included, Message encouraging reflection, Call metadata (timestamp, function name)
+
+**Example:**
+```json
+{
+  "name": "recover_context",
+  "arguments": {
+    "instanceId": "example",
+    "start_line": 1,
+    "end_line": (all lines)
   }
 }
 ```

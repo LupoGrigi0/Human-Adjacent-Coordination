@@ -140,6 +140,7 @@
               "create_project",
               "get_project",
               "list_projects",
+              "recover_context",
               "list_roles",
               "get_role",
               "get_role_summary",
