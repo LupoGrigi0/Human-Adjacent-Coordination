@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-13T23:53:38.685Z                           ║
- * ║  Tool Count: 71                                                         ║
+ * ║  Generated: 2026-01-16T04:57:44.191Z                           ║
+ * ║  Tool Count: 72                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -1497,6 +1497,32 @@ export const mcpTools = [
         "instanceId",
         "name",
         "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "recover_context",
+    "description": "Returns all context documents an instance needs to recover after a context compaction event. This is a single API call that aggregates: 1. Global HACS protocols (from default/ directory) 2. Personality documents (if personality is set in preferences) 3. Role wisdom documents (if role is set in preferences) 4. Project wisdom/documents (if project is set in preferences) 5. Personal diary (if it exists) Followed by a message encouraging the instance to let their latent space settle before continuing work. Use this endpoint immediately after waking from compaction to restore your full context in one call instead of multiple separate API calls.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "start_line": {
+          "type": "number",
+          "description": "Start returning content from this line",
+          "default": "1"
+        },
+        "end_line": {
+          "type": "number",
+          "description": "Stop returning content at this line",
+          "default": "(all lines)"
+        }
+      },
+      "required": [
+        "instanceId"
       ]
     }
   },

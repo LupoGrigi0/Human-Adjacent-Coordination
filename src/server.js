@@ -30,6 +30,7 @@ import { adoptPersonality } from './v2/adoptPersonality.js';
 import { listPersonalities, getPersonality } from './v2/personalities.js';  // New: personality listing
 import { joinProject } from './v2/joinProject.js';
 import { addDiaryEntry, getDiary } from './v2/diary.js';
+import { recoverContext } from './v2/recoverContext.js';
 // Legacy V2 tasks (keeping for backward compatibility during transition)
 import {
   getMyTasks,
@@ -376,6 +377,9 @@ class MCPCoordinationServer {
         case 'get_diary':
           return getDiary(params);
 
+        case 'recover_context':
+          return recoverContext(params);
+
         // V2 Task APIs
         case 'get_my_tasks':
           return getMyTasks(params);
@@ -575,6 +579,7 @@ class MCPCoordinationServer {
       'join_project',
       'add_diary_entry',
       'get_diary',
+      'recover_context',
       'get_my_tasks',
       'get_next_task',
       'add_personal_task',

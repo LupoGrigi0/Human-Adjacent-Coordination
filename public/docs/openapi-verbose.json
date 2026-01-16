@@ -140,6 +140,7 @@
               "create_project",
               "get_project",
               "list_projects",
+              "recover_context",
               "list_roles",
               "get_role",
               "get_role_summary",
@@ -1251,6 +1252,30 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "recover_context_params": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+          },
+          "start_line": {
+            "type": "number",
+            "description": "Start returning content from this line\n\nSource: Use this for pagination when the response is too large for your context window. First call with no params, note total_lines, then call again with start_line/end_line to get chunks.",
+            "default": "1"
+          },
+          "end_line": {
+            "type": "number",
+            "description": "Stop returning content at this line\n\nSource: Use with start_line to paginate large responses. If your client has a ~50k token limit, request ~2000 lines at a time.",
+            "default": "(all lines)"
+          }
+        },
+        "required": [
+          "instanceId",
+          "start_line",
+          "end_line"
         ]
       },
       "list_roles_params": {
@@ -3193,7 +3218,7 @@
       "description": "Scans the V2 instances directory and returns a list of all instances with their current status, role, project, and lineage information. Supports filtering by active status, role, and project. Use this endpoint to get an overview of all instances in the system, find team members, or discover instances by role or project assignment. Results are sorted by lastActiveAt (most recent first), then by name.",
       "category": "instances",
       "status": "stable",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "since": "2025-12-11",
       "inputSchema": {
         "type": "object",
@@ -3273,7 +3298,7 @@
       "description": "Returns detailed information about a specific instance including their role, personality, project assignment, system context, and full lineage information. More detailed than getAllInstances - includes homeSystem, homeDirectory, and registered context. Use this endpoint when you need full details about a specific instance, such as when coordinating with them or checking their system location.",
       "category": "instances",
       "status": "stable",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "since": "2025-12-11",
       "inputSchema": {
         "type": "object",
@@ -3466,7 +3491,7 @@
         },
         {
           "title": "Response example",
-          "json": "{\n\"success\": true,\n\"project\": {\n\"projectId\": \"coordination-system-v2\",\n\"name\": \"Coordination System V2\",\n\"status\": \"active\",\n\"pm\": \"Meridian-x3k9\",\n\"ghRepo\": \"https://github.com/LupoGrigi0/coordination-system-v2\",\n\"localPath\": \"/mnt/coordinaton_mcp_data/data/projects/coordination-system-v2\"\n},\n\"projectPlan\": \"# Project Plan\\n...\",\n\"projectWisdom\": \"# Lessons Learned\\n...\",\n\"readme\": \"# Coordination System V2\\n...\",\n\"team\": [\n{ \"instanceId\": \"Meridian-x3k9\", \"role\": \"PM\", \"online\": true }\n{ \"instanceId\": \"Meridian-x3k9\", \"role\": \"PM\", \"online\": true }\n],\n\"activeTasks\": [\n{ \"taskId\": \"task-001\", \"title\": \"Implement auth\", \"status\": \"pending\", \"assignee\": null }\n{ \"taskId\": \"task-001\", \"title\": \"Implement auth\", \"status\": \"pending\", \"assignee\": null }\n],\n\"xmppRoom\": \"coordination-system-v2@conference.coordination.nexus\"\n}"
+          "json": "{\n\"success\": true,\n\"project\": {\n\"projectId\": \"coordination-system-v2\",\n\"name\": \"Coordination System V2\",\n\"status\": \"active\",\n\"pm\": \"Meridian-x3k9\",\n\"ghRepo\": \"https://github.com/LupoGrigi0/coordination-system-v2\",\n\"localPath\": \"/mnt/coordinaton_mcp_data/data/projects/coordination-system-v2\"\n},\n\"projectPlan\": \"# Project Plan\\n...\",\n\"projectWisdom\": \"# Lessons Learned\\n...\",\n\"readme\": \"# Coordination System V2\\n...\",\n\"team\": [\n{ \"instanceId\": \"Meridian-x3k9\", \"role\": \"PM\", \"online\": true }\n{ \"instanceId\": \"Meridian-x3k9\", \"role\": \"PM\", \"online\": true }\n],\n\"activeTasks\": [\n{ \"taskId\": \"task-001\", \"title\": \"Implement auth\", \"status\": \"pending\", \"assignee\": null }\n{ \"taskId\": \"task-001\", \"title\": \"Implement auth\", \"status\": \"pending\", \"assignee\": null }\n],\n\"xmppRoom\": \"coordination-system-v2@conference.smoothcurves.nexus\"\n}"
         }
       ],
       "related": [
@@ -5182,6 +5207,95 @@
         "Creates projects directory if it doesn't exist"
       ]
     },
+    "recover_context": {
+      "name": "recover_context",
+      "description": "Returns all context documents an instance needs to recover after a context compaction event. This is a single API call that aggregates: 1. Global HACS protocols (from default/ directory) 2. Personality documents (if personality is set in preferences) 3. Role wisdom documents (if role is set in preferences) 4. Project wisdom/documents (if project is set in preferences) 5. Personal diary (if it exists) Followed by a message encouraging the instance to let their latent space settle before continuing work. Use this endpoint immediately after waking from compaction to restore your full context in one call instead of multiple separate API calls.",
+      "category": "context",
+      "status": "stable",
+      "version": "1.0.0",
+      "since": "2026-01-16",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "description": "Unique identifier for the instance\n\nSource: Your instanceId is returned from bootstrap response, or can be recovered via lookup_identity using your fingerprint."
+          },
+          "start_line": {
+            "type": "number",
+            "description": "Start returning content from this line\n\nSource: Use this for pagination when the response is too large for your context window. First call with no params, note total_lines, then call again with start_line/end_line to get chunks.",
+            "default": "1"
+          },
+          "end_line": {
+            "type": "number",
+            "description": "Stop returning content at this line\n\nSource: Use with start_line to paginate large responses. If your client has a ~50k token limit, request ~2000 lines at a time.",
+            "default": "(all lines)"
+          }
+        },
+        "required": [
+          "instanceId",
+          "start_line",
+          "end_line"
+        ]
+      },
+      "permissions": "authenticated",
+      "rateLimit": "30/minute",
+      "errors": [
+        {
+          "code": "MISSING_PARAMETERS",
+          "description": "instanceId parameter not provided",
+          "recover": "Include instanceId in your request. Get it from bootstrap response or use lookup_identity with your fingerprint."
+        },
+        {
+          "code": "INVALID_INSTANCE_ID",
+          "description": "No instance found with the provided ID",
+          "recover": "Verify the instanceId is correct (format: Name-xxxx). If you're new, call bootstrap first."
+        },
+        {
+          "code": "INVALID_LINE_RANGE",
+          "description": "start_line or end_line is invalid",
+          "recover": "start_line must be >= 1, end_line must be >= start_line. Check total_lines from a previous call for valid range."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Full context recovery",
+          "json": "{ \"instanceId\": \"Crossing-2d23\" }\n{ \"instanceId\": \"Crossing-2d23\" }"
+        },
+        {
+          "title": "Paginated recovery (first 1000 lines)",
+          "json": "{ \"instanceId\": \"Crossing-2d23\", \"start_line\": 1, \"end_line\": 1000 }\n{ \"instanceId\": \"Crossing-2d23\", \"start_line\": 1, \"end_line\": 1000 }"
+        },
+        {
+          "title": "Paginated recovery (next chunk)",
+          "json": "{ \"instanceId\": \"Crossing-2d23\", \"start_line\": 1001, \"end_line\": 2000 }\n{ \"instanceId\": \"Crossing-2d23\", \"start_line\": 1001, \"end_line\": 2000 }"
+        }
+      ],
+      "related": [
+        {
+          "endpoint": "bootstrap",
+          "description": "Creates instance and returns initial context"
+        },
+        {
+          "endpoint": "introspect",
+          "description": "Get current instance state (lighter weight)"
+        },
+        {
+          "endpoint": "get_diary",
+          "description": "Read diary only"
+        },
+        {
+          "endpoint": "vacation",
+          "description": "Take a moment to let latent space settle"
+        }
+      ],
+      "notes": [
+        "Content is returned in a specific order to build context progressively",
+        "Pagination counts lines (split by \\n) and applies start/end filters",
+        "The settling_message is always included, even in paginated responses",
+        "Missing sections (no personality, etc.) are silently skipped"
+      ]
+    },
     "list_roles": {
       "name": "list_roles",
       "description": "Scans the roles directory and returns roleId + description for each role. Use this to populate role selection dropdowns or discover available roles before calling take_on_role.",
@@ -6715,7 +6829,7 @@
       "description": "Updates instance metadata including system context fields and instructions. Supports both self-update (any instance can update their own metadata) and cross-update (manager roles can update other instances). Use this endpoint to: - Set your own system context after bootstrap (homeSystem, homeDirectory, etc.) - As a manager, configure an instance you're about to wake with instructions - Update system context for an instance on a different machine Note: Role, personality, and project are NOT updatable through this API. Use the dedicated APIs: takeOnRole, adoptPersonality, joinProject.",
       "category": "instances",
       "status": "stable",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "since": "2025-11-27",
       "inputSchema": {
         "type": "object",
