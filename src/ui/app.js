@@ -5,6 +5,7 @@
  * Uses ES modules and the api.js isolation layer.
  *
  * @author Canvas (UI Engineer)
+ *  * @contributor Scout-4820 (Browser Extension Instance, Jan 2026)
  */
 
 import api, { setEnvironment, getEnvironment, ApiError } from './api.js';
@@ -269,9 +270,10 @@ function setupEventListeners() {
     // Admin buttons
     document.getElementById('clear-session-btn')?.addEventListener('click', clearSession);
 
-    // Create Project
+    // Create Project new launch project button
     document.getElementById('new-project-btn')?.addEventListener('click', showCreateProjectModal);
     document.getElementById('create-project-submit')?.addEventListener('click', createProject);
+        document.getElementById('launch-project-btn')?.addEventListener('click', launchProject);
 
     // Create Task
     document.getElementById('new-task-btn')?.addEventListener('click', showCreateTaskModal);
@@ -344,6 +346,32 @@ function setupEventListeners() {
         }
     });
     document.getElementById('project-assign-instance-btn')?.addEventListener('click', showAssignInstanceModal);
+
+    // PM card buttons
+    document.getElementById('pm-continue-btn')?.addEventListener('click', () => {
+        // Switch to PM chat tab in sidebar
+        const pmTab = document.querySelector('.chat-tab[data-tab="pm-chat"]');
+        pmTab?.click();
+        // Focus the input
+        document.getElementById('pm-chat-input')?.focus();
+    });
+    document.getElementById('pm-message-btn')?.addEventListener('click', () => {
+        if (state.currentProjectPM) {
+            // Switch to messages tab and select the PM's personality room
+            switchTab('messages');
+            setTimeout(() => {
+                const pmName = state.currentProjectPM.name?.toLowerCase();
+                selectConversation('dm', `personality-${pmName}`);
+            }, 100);
+        }
+    });
+
+    // Refresh team room button
+    document.getElementById('refresh-team-room')?.addEventListener('click', () => {
+        if (state.currentProject) {
+            loadProjectTeamMessages(state.currentProject);
+        }
+    });
 
     // Task Detail - back button and actions
     document.getElementById('task-back-btn')?.addEventListener('click', hideTaskDetail);
@@ -528,7 +556,7 @@ async function loadInitialData() {
 
     try {
         // Load projects (V2 API)
-        const projectsResult = await api.listProjects(state.instanceId);
+        const projectsResult = await api.listProjects();
         if (projectsResult.projects) {
             state.projects = projectsResult.projects;
         }
@@ -567,9 +595,10 @@ async function loadDashboard() {
     // Tasks count
     if (state.instanceId) {
         try {
-            const result = await rpcCallDirect('get_tasks', {});
-            const tasks = result.tasks || result || [];
-            document.getElementById('metric-tasks').textContent = Array.isArray(tasks) ? tasks.length : '-';
+            const result = await api.getMyTasks(state.instanceId);
+            const personalTasks = result.personalTasks || [];
+            const projectTasks = result.projectTasks || [];
+            document.getElementById('metric-tasks').textContent = personalTasks.length + projectTasks.length;
         } catch (e) {
             document.getElementById('metric-tasks').textContent = '-';
         }
@@ -637,53 +666,392 @@ async function loadProjects() {
 
 /**
  * Show project detail view, hiding the grid
+ * Redesigned with PM card, team grid, documents, collapsible tasks, and chat sidebar
  */
 async function showProjectDetail(projectId) {
-    const project = state.projects.find(p => (p.projectId || p.id) === projectId);
-    if (!project) {
-        showToast('Project not found', 'error');
-        return;
-    }
-
     console.log('[App] Showing project detail:', projectId);
 
-    // Hide grid and header, show detail
+    // Hide grid and header, show detail (using flex for the new layout)
     document.getElementById('project-grid').style.display = 'none';
     document.querySelector('#tab-projects .page-header').style.display = 'none';
-    document.getElementById('project-detail-view').style.display = 'block';
-
-    // Populate detail fields
-    document.getElementById('project-detail-name').textContent = project.name;
-    document.getElementById('project-detail-status').textContent = project.status;
-    document.getElementById('project-detail-status').className = `project-status status-${project.status}`;
-    document.getElementById('project-detail-description').textContent = project.description || 'No description';
-    document.getElementById('project-detail-repo').textContent = project.ghRepo || project.repo || 'Not configured';
+    document.getElementById('project-detail-view').style.display = 'flex';
 
     // Store current project for actions
     state.currentProjectDetail = projectId;
 
-    // Load project tasks
+    // Fetch full project details from API
+    let project;
     try {
-        const result = await rpcCallDirect('get_tasks', { project_id: projectId });
+        const result = await api.getProject(projectId);
+        project = result.project || result;
+        state.currentProject = project; // Store for later use
+    } catch (e) {
+        console.error('[App] Error loading project details:', e);
+        project = state.projects.find(p => (p.projectId || p.id) === projectId);
+        if (!project) {
+            showToast('Project not found', 'error');
+            hideProjectDetail();
+            return;
+        }
+    }
+
+    // Populate header
+    document.getElementById('project-detail-name').textContent = project.name;
+    document.getElementById('project-detail-status').textContent = project.status;
+    document.getElementById('project-detail-status').className = `project-status status-${project.status}`;
+
+    // Populate PM section
+    renderProjectPM(project);
+
+    // Populate team section
+    renderProjectTeam(project);
+
+    // Populate description
+    document.getElementById('project-detail-description').textContent = project.description || 'No description';
+
+    // Populate documents
+    renderProjectDocuments(project);
+
+    // Load and render project tasks
+    try {
+        const result = await api.listTasks(state.instanceId, { projectId });
         const tasks = result.tasks || result || [];
         renderProjectDetailTasks(tasks);
+        document.getElementById('primary-task-count').textContent = tasks.length;
     } catch (e) {
         console.error('[App] Error loading project tasks:', e);
         document.getElementById('project-detail-tasks').innerHTML = '<p class="empty-placeholder">Could not load tasks</p>';
+        document.getElementById('primary-task-count').textContent = '0';
     }
 
-    // Load team members (if available)
+    // Populate repository
+    const repoEl = document.getElementById('project-detail-repo');
+    const repoUrl = project.ghRepo || project.repo;
+    if (repoUrl) {
+        repoEl.innerHTML = `<a href="${escapeHtml(repoUrl)}" target="_blank" class="repo-link">${escapeHtml(repoUrl)}</a>`;
+    } else {
+        repoEl.textContent = 'Not configured';
+    }
+
+    // Initialize chat sidebar
+    initProjectChatSidebar(project);
+
+    // Set up collapsible task list headers
+    setupTaskListCollapse();
+}
+
+/**
+ * Render the PM section with prominent card
+ */
+function renderProjectPM(project) {
+    const pmCard = document.getElementById('project-pm-card');
+    const pmId = project.pm;
+
+    if (pmId) {
+        // Find PM instance details
+        const pmInstance = state.instances.find(i => i.instanceId === pmId || i.name === pmId);
+        const pmName = pmInstance?.name || pmId.split('-')[0] || pmId;
+        const pmStatus = pmInstance?.status || 'unknown';
+
+        pmCard.classList.remove('no-pm');
+        document.getElementById('pm-avatar').textContent = pmName.charAt(0).toUpperCase();
+        document.getElementById('pm-name').textContent = pmName;
+        document.getElementById('pm-id').textContent = pmId;
+        document.getElementById('pm-status').textContent = pmStatus === 'active' ? 'Online' : 'Offline';
+
+        // Show action buttons
+        document.getElementById('pm-continue-btn').style.display = pmStatus === 'active' ? 'inline-flex' : 'none';
+        document.getElementById('pm-message-btn').style.display = 'inline-flex';
+
+        // Store PM info for chat
+        state.currentProjectPM = { instanceId: pmId, name: pmName, status: pmStatus };
+    } else {
+        pmCard.classList.add('no-pm');
+        document.getElementById('pm-avatar').textContent = '?';
+        document.getElementById('pm-name').textContent = 'No PM Assigned';
+        document.getElementById('pm-id').textContent = '-';
+        document.getElementById('pm-status').textContent = '-';
+        document.getElementById('pm-continue-btn').style.display = 'none';
+        document.getElementById('pm-message-btn').style.display = 'none';
+        state.currentProjectPM = null;
+    }
+}
+
+/**
+ * Render team members as card grid
+ */
+function renderProjectTeam(project) {
     const teamContainer = document.getElementById('project-detail-team');
+
     if (project.team && project.team.length > 0) {
-        teamContainer.innerHTML = project.team.map(member => `
-            <div class="team-member">
-                <span class="team-avatar">${(member.name || member).charAt(0).toUpperCase()}</span>
-                <span>${escapeHtml(member.name || member)}</span>
-            </div>
-        `).join('');
+        teamContainer.innerHTML = project.team.map(member => {
+            const memberId = typeof member === 'string' ? member : member.instanceId || member.id;
+            const memberName = typeof member === 'string' ? member.split('-')[0] : member.name || member.instanceId?.split('-')[0] || 'Unknown';
+            const memberRole = typeof member === 'object' ? member.role : null;
+            const isOnline = typeof member === 'object' ? member.online : false;
+
+            return `
+                <div class="team-member-card" data-instance-id="${escapeHtml(memberId)}">
+                    <div class="team-member-avatar">${memberName.charAt(0).toUpperCase()}</div>
+                    <div class="team-member-info">
+                        <div class="team-member-name">${escapeHtml(memberName)}</div>
+                        ${memberRole ? `<div class="team-member-role">${escapeHtml(memberRole)}</div>` : ''}
+                    </div>
+                    <div class="team-member-status ${isOnline ? 'online' : ''}"></div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers to team cards
+        teamContainer.querySelectorAll('.team-member-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const instanceId = card.dataset.instanceId;
+                if (instanceId) {
+                    showInstanceDetail(instanceId);
+                }
+            });
+        });
     } else {
         teamContainer.innerHTML = '<p class="empty-placeholder">No team members assigned</p>';
     }
+}
+
+/**
+ * Render project documents list
+ */
+function renderProjectDocuments(project) {
+    const docsContainer = document.getElementById('project-detail-documents');
+    const docs = project.documents || [];
+
+    if (docs.length > 0) {
+        docsContainer.innerHTML = docs.map(doc => `
+            <div class="document-item" data-doc="${escapeHtml(doc)}">
+                <span class="document-icon">&#128196;</span>
+                <span class="document-name">${escapeHtml(doc)}</span>
+                <span class="document-view-btn">View &rarr;</span>
+            </div>
+        `).join('');
+
+        // Add click handlers for document viewing
+        docsContainer.querySelectorAll('.document-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const docName = item.dataset.doc;
+                await showProjectDocument(state.currentProjectDetail, docName);
+            });
+        });
+    } else {
+        docsContainer.innerHTML = '<p class="empty-placeholder">No documents</p>';
+    }
+}
+
+/**
+ * Show a project document in a modal
+ */
+async function showProjectDocument(projectId, docName) {
+    showToast(`Loading ${docName}...`, 'info');
+    // TODO: Implement document viewing modal
+    // For now, just show a toast - would need a getProjectDocument API
+    console.log('[App] Would show document:', projectId, docName);
+    showToast('Document viewing coming soon', 'info');
+}
+
+/**
+ * Initialize the project chat sidebar
+ */
+function initProjectChatSidebar(project) {
+    // Set up tab switching
+    const tabs = document.querySelectorAll('.chat-sidebar-tabs .chat-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Remove active from all tabs and contents
+            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.chat-tab-content').forEach(c => c.classList.remove('active'));
+
+            // Add active to clicked tab and corresponding content
+            tab.classList.add('active');
+            const targetId = tab.dataset.tab + '-content';
+            document.getElementById(targetId)?.classList.add('active');
+        });
+    });
+
+    // Set team room name
+    document.getElementById('team-room-name').textContent = project.xmppRoom ?
+        project.name + ' Room' : 'Project Room';
+
+    // Set PM name in chat
+    if (state.currentProjectPM) {
+        document.getElementById('chat-pm-name').textContent = state.currentProjectPM.name;
+        document.getElementById('pm-chat-send').disabled = false;
+    } else {
+        document.getElementById('chat-pm-name').textContent = 'No PM';
+        document.getElementById('pm-chat-send').disabled = true;
+    }
+
+    // Load team room messages
+    loadProjectTeamMessages(project);
+
+    // Set up message sending
+    setupProjectChatInputs(project);
+}
+
+/**
+ * Load messages from the project's XMPP room
+ */
+async function loadProjectTeamMessages(project) {
+    const container = document.getElementById('team-room-messages');
+
+    if (!project.xmppRoom) {
+        container.innerHTML = '<div class="empty-state-mini"><span>No project room configured</span></div>';
+        return;
+    }
+
+    try {
+        const roomName = project.xmppRoom.split('@')[0]; // Extract room name from JID
+        const result = await api.getMessages(state.instanceId, { room: `project-${project.projectId || project.id}`, limit: 20 });
+        const messages = result.messages || [];
+
+        if (messages.length === 0) {
+            container.innerHTML = '<div class="empty-state-mini"><span>No messages yet</span></div>';
+            return;
+        }
+
+        container.innerHTML = messages.map(msg => {
+            const isSent = msg.from?.includes(state.instanceId) || msg.from?.includes('Lupo');
+            const senderName = msg.from?.split('@')[0] || 'Unknown';
+            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+            return `
+                <div class="message-mini ${isSent ? 'sent' : 'received'}">
+                    ${!isSent ? `<div class="message-mini-sender">${escapeHtml(senderName)}</div>` : ''}
+                    <div>${escapeHtml(msg.body || msg.subject || '(no content)')}</div>
+                    <div class="message-mini-time">${time}</div>
+                </div>
+            `;
+        }).join('');
+
+        // Scroll to bottom
+        container.scrollTop = container.scrollHeight;
+    } catch (e) {
+        console.error('[App] Error loading team messages:', e);
+        container.innerHTML = '<div class="empty-state-mini"><span>Could not load messages</span></div>';
+    }
+}
+
+/**
+ * Set up chat input handlers for project sidebar
+ */
+function setupProjectChatInputs(project) {
+    // Team room send
+    const teamSendBtn = document.getElementById('team-room-send');
+    const teamInput = document.getElementById('team-room-input');
+    const teamSubject = document.getElementById('team-room-subject');
+
+    teamSendBtn.onclick = async () => {
+        const body = teamInput.value.trim();
+        if (!body) return;
+
+        try {
+            await api.sendMessage(state.instanceId, {
+                to: `project:${project.projectId || project.id}`,
+                subject: teamSubject.value.trim() || undefined,
+                body: body
+            });
+            teamInput.value = '';
+            teamSubject.value = '';
+            showToast('Message sent', 'success');
+            loadProjectTeamMessages(project);
+        } catch (e) {
+            console.error('[App] Error sending team message:', e);
+            showToast('Failed to send message', 'error');
+        }
+    };
+
+    // Enter key to send
+    teamInput.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            teamSendBtn.click();
+        }
+    };
+
+    // PM chat send (via continue_conversation)
+    const pmSendBtn = document.getElementById('pm-chat-send');
+    const pmInput = document.getElementById('pm-chat-input');
+
+    pmSendBtn.onclick = async () => {
+        if (!state.currentProjectPM) return;
+        const body = pmInput.value.trim();
+        if (!body) return;
+
+        // Check for API key
+        if (!state.wakeApiKey) {
+            await ensureApiKey();
+            if (!state.wakeApiKey) return;
+        }
+
+        try {
+            pmSendBtn.disabled = true;
+            document.getElementById('pm-chat-messages').innerHTML += `
+                <div class="message-mini sent">
+                    <div>${escapeHtml(body)}</div>
+                    <div class="message-mini-time">Sending...</div>
+                </div>
+            `;
+
+            const result = await api.continueConversation(
+                state.instanceId,
+                state.currentProjectPM.instanceId,
+                uiConfig.MESSAGE_PREFIX + body + uiConfig.MESSAGE_POSTSCRIPT,
+                state.wakeApiKey
+            );
+
+            // Show response
+            const response = result.response || result.output || 'No response';
+            document.getElementById('pm-chat-messages').innerHTML += `
+                <div class="message-mini received">
+                    <div class="message-mini-sender">${escapeHtml(state.currentProjectPM.name)}</div>
+                    <div>${escapeHtml(response.substring(0, 500))}${response.length > 500 ? '...' : ''}</div>
+                    <div class="message-mini-time">Just now</div>
+                </div>
+            `;
+
+            pmInput.value = '';
+
+            // Update turn count
+            const turnCount = result.turn || (state.pmChatTurns || 0) + 1;
+            state.pmChatTurns = turnCount;
+            document.getElementById('pm-chat-turn-count').textContent = `Turn ${turnCount}`;
+
+            // Scroll to bottom
+            const container = document.getElementById('pm-chat-messages');
+            container.scrollTop = container.scrollHeight;
+
+        } catch (e) {
+            console.error('[App] Error in PM chat:', e);
+            showToast('Failed to send to PM: ' + e.message, 'error');
+        } finally {
+            pmSendBtn.disabled = !state.currentProjectPM;
+        }
+    };
+
+    pmInput.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            pmSendBtn.click();
+        }
+    };
+}
+
+/**
+ * Set up collapsible task list behavior
+ */
+function setupTaskListCollapse() {
+    document.querySelectorAll('.task-list-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const card = header.closest('.task-list-card');
+            card.classList.toggle('expanded');
+        });
+    });
 }
 
 /**
@@ -694,6 +1062,9 @@ function hideProjectDetail() {
     document.getElementById('project-grid').style.display = 'grid';
     document.querySelector('#tab-projects .page-header').style.display = 'flex';
     state.currentProjectDetail = null;
+    state.currentProject = null;
+    state.currentProjectPM = null;
+    state.pmChatTurns = 0;
 }
 
 /**
@@ -738,28 +1109,14 @@ async function loadTasks() {
     }
 
     try {
-        // Try to get tasks via get_tasks API
+        // Get all tasks for this instance (personal + project)
         let allTasks = [];
-
-        // Get all tasks (no filter returns all)
-        const result = await rpcCallDirect('get_tasks', {});
-        if (result.tasks) {
-            allTasks = result.tasks;
-        } else if (Array.isArray(result)) {
-            allTasks = result;
+        const result = await api.getMyTasks(state.instanceId);
+        if (result.personalTasks) {
+            allTasks = [...allTasks, ...result.personalTasks];
         }
-
-        // Also try personal tasks
-        try {
-            const personalResult = await api.getMyTasks(state.instanceId);
-            if (personalResult.personalTasks) {
-                allTasks = [...allTasks, ...personalResult.personalTasks];
-            }
-            if (personalResult.projectTasks) {
-                allTasks = [...allTasks, ...personalResult.projectTasks];
-            }
-        } catch (e) {
-            console.log('[App] Could not load personal tasks:', e.message);
+        if (result.projectTasks) {
+            allTasks = [...allTasks, ...result.projectTasks];
         }
 
         renderTaskBoard(allTasks);
@@ -824,11 +1181,12 @@ async function showTaskDetail(taskId, source = 'tasks') {
     // First try to find task in state
     let task = state.tasks.find(t => (t.taskId || t.id) === taskId);
 
-    // If not found, try to fetch from API
+    // If not found, fetch all tasks and find it
     if (!task) {
         try {
-            const result = await rpcCallDirect('get_task', { id: taskId });
-            task = result.task || result;
+            const result = await api.getMyTasks(state.instanceId);
+            const allTasks = [...(result.personalTasks || []), ...(result.projectTasks || [])];
+            task = allTasks.find(t => (t.taskId || t.id) === taskId);
         } catch (e) {
             console.error('[App] Error fetching task:', e);
             showToast('Could not load task details', 'error');
@@ -933,7 +1291,7 @@ async function hideTaskDetail() {
         // Ensure projects are in state (fetch from API if needed)
         if (!state.projects || state.projects.length === 0) {
             try {
-                const projectsResult = await api.listProjects(state.instanceId);
+                const projectsResult = await api.listProjects();
                 if (projectsResult.projects) {
                     state.projects = projectsResult.projects;
                 }
@@ -1000,10 +1358,7 @@ async function completeCurrentTask() {
     if (!state.currentTaskDetail) return;
 
     try {
-        await rpcCallDirect('update_task', {
-            id: state.currentTaskDetail,
-            updates: { status: 'completed' }
-        });
+        await api.completePersonalTask(state.instanceId, state.currentTaskDetail);
         showToast('Task completed!', 'success');
         hideTaskDetail();
         loadTasks(); // Refresh the task board
@@ -1091,6 +1446,7 @@ async function saveProjectDescription() {
     const newDescription = textarea.value.trim();
 
     try {
+        // TODO: 'update_project' API does not exist - update functionality may need to be implemented
         await rpcCallDirect('update_project', {
             id: state.currentProjectDetail,
             updates: { description: newDescription }
@@ -1112,6 +1468,7 @@ async function saveProjectDescription() {
 
 /**
  * Save task description
+ * NOTE: update_task API not yet implemented - this updates local state only
  */
 async function saveTaskDescription() {
     const container = document.getElementById('task-desc-editable');
@@ -1120,24 +1477,14 @@ async function saveTaskDescription() {
 
     const newDescription = textarea.value.trim();
 
-    try {
-        await rpcCallDirect('update_task', {
-            id: state.currentTaskDetail,
-            updates: { description: newDescription }
-        });
-
-        // Update local state
-        const task = state.tasks.find(t => (t.taskId || t.id) === state.currentTaskDetail);
-        if (task) {
-            task.description = newDescription;
-        }
-
-        disableEditMode('task-desc-editable', 'task-detail-description', 'task-desc-save-btn', true);
-        showToast('Description saved!', 'success');
-    } catch (e) {
-        console.error('[App] Error saving task description:', e);
-        showToast('Could not save: ' + e.message, 'error');
+    // Update local state only (API not yet implemented)
+    const task = state.tasks.find(t => (t.taskId || t.id) === state.currentTaskDetail);
+    if (task) {
+        task.description = newDescription;
     }
+
+    disableEditMode('task-desc-editable', 'task-detail-description', 'task-desc-save-btn', true);
+    showToast('Description updated (local only)', 'info');
 }
 
 // ============================================================================
@@ -1207,6 +1554,7 @@ async function assignInstanceToProject(instanceId, name) {
         const newTeam = [...currentTeam, instanceId || name];
 
         // Update via API
+        // TODO: 'update_project' API does not exist - update functionality may need to be implemented
         await rpcCallDirect('update_project', {
             id: state.currentProjectDetail,
             updates: { team: newTeam }
@@ -2290,7 +2638,7 @@ async function createProject() {
             closeCreateProjectModal();
 
             // Refresh projects (V2 API)
-            const projectsResult = await api.listProjects(state.instanceId);
+            const projectsResult = await api.listProjects();
             if (projectsResult.projects) {
                 state.projects = projectsResult.projects;
             }
@@ -2310,6 +2658,121 @@ async function createProject() {
         showToast('Error creating project: ' + error.message, 'error');
     }
 }
+
+// ============================================================================
+// LAUNCH PROJECT (Scout-4820, Jan 2026)
+// ============================================================================
+
+async function launchProject() {
+    const name = document.getElementById('project-name').value.trim();
+        const description = document.getElementById('project-description').value.trim();
+            const ghRepo = document.getElementById('project-gh-repo').value.trim();
+                const pmPersonality = document.getElementById('pm-personality').value;
+                    
+                        // Validate
+                            if (!name) {
+                                    showToast('Please enter a project name', 'error');
+                                            return;
+                                                }
+                                                    
+                                                        if (!state.instanceId) {
+                                                                showToast('Not connected', 'error');
+                                                                        return;
+                                                                            }
+                                                                                
+                                                                                    // Prompt for API key
+                                                                                        const apiKey = prompt('Enter API key for PM wake operations (or Cancel to go back):');
+                                                                                            if (!apiKey) {
+                                                                                                    return; // User cancelled
+                                                                                                        }
+                                                                                                            
+                                                                                                                console.log('[Launch] Starting launch sequence for:', name);
+                                                                                                                    
+                                                                                                                        try {
+                                                                                                                                // Step 1: Create the project
+                                                                                                                                        console.log('[Launch] Step 1: Creating project...');
+                                                                                                                                                const projectId = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                                                                                                                                                        
+                                                                                                                                                                const projectParams = {
+                                                                                                                                                                            instanceId: state.instanceId,
+                                                                                                                                                                                        projectId: projectId,
+                                                                                                                                                                                                    name: name
+                                                                                                                                                                                                            };
+                                                                                                                                                                                                                    if (description) projectParams.description = description;
+                                                                                                                                                                                                                            if (ghRepo) projectParams.ghRepo = ghRepo;
+                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                            const projectResult = await api.createProject(projectParams);
+                                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                                            if (!projectResult.success) {
+                                                                                                                                                                                                                                                                        throw new Error(projectResult.error?.message || 'Failed to create project');
+                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                        console.log('[Launch] Project created:', projectResult);
+                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                        // Step 2: Pre-approve the PM
+                                                                                                                                                                                                                                                                                                                console.log('[Launch] Step 2: Pre-approving PM...');
+                                                                                                                                                                                                                                                                                                                        const pmName = name.replace(/\s+/g, '') + '-PM';
+                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                        const preApproveResult = await api.preApprove({
+                                                                                                                                                                                                                                                                                                                                                    instanceId: state.instanceId,
+                                                                                                                                                                                                                                                                                                                                                                name: pmName,
+                                                                                                                                                                                                                                                                                                                                                                            role: 'PM',
+                                                                                                                                                                                                                                                                                                                                                                                        personality: pmPersonality,
+                                                                                                                                                                                                                                                                                                                                                                                                    project: projectId,
+                                                                                                                                                                                                                                                                                                                                                                                                                apiKey: apiKey,
+                                                                                                                                                                                                                                                                                                                                                                                                                            instructions: 'You are the PM for ' + name + '. Your first task is to wake a Lead Designer and collaborate on the system design.'
+                                                                                                                                                                                                                                                                                                                                                                                                                                    });
+                                                                                                                                                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    if (!preApproveResult.success) {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                throw new Error(preApproveResult.error?.message || 'Failed to pre-approve PM');
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                console.log('[Launch] PM pre-approved:', preApproveResult);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                const pmInstanceId = preApproveResult.newInstanceId;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                // Step 3: Wake the PM
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        console.log('[Launch] Step 3: Waking PM...');
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                const wakeMessage = `Welcome! You are the PM for ${name}.
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                Project brief: ${description || 'No description provided.'}
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                Your first tasks:
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                1. Use pre_approve to create a Lead Designer instance (role: LeadDesigner, personality: Zara)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                2. Use wake_instance to bring them online
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                3. Use continue_conversation to collaborate on the system design
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                4. Once design is complete, break it into sprints and build the team
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                You have full PM role wisdom loaded. Check your role wisdom for the continue vs send_message distinction.`;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                const wakeResult = await api.wakeInstance({
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            instanceId: state.instanceId,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        targetInstanceId: pmInstanceId,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    apiKey: apiKey,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                message: wakeMessage
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        });
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        if (!wakeResult.success) {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    throw new Error(wakeResult.error?.message || 'Failed to wake PM');
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    console.log('[Launch] PM woken successfully:', wakeResult);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    // Success!
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            showToast('🚀 Project launched! PM ' + pmInstanceId + ' is now online.', 'success');
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    closeCreateProjectModal();
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    // Refresh projects list
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            const projectsResult = await api.listProjects();
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    if (projectsResult.projects) {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                state.projects = projectsResult.projects;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                if (state.currentTab === 'projects') {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            loadProjects();
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                } catch (error) {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        console.error('[Launch] Error:', error);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                showToast('Launch failed: ' + error.message, 'error');
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
 
 // ============================================================================
 // CREATE TASK
@@ -2361,25 +2824,14 @@ async function createTask() {
     try {
         let result;
 
-        if (projectId) {
-            // Project task - use create_task API with required fields
-            const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-            result = await rpcCallDirect('create_task', {
-                id: taskId,
-                title: title,
-                description: description || 'No description',
-                project_id: projectId,
-                priority: priority
-            });
-        } else {
-            // Personal task - use addPersonalTask
-            result = await api.addPersonalTask({
-                instanceId: state.instanceId,
-                title: title,
-                description: description || undefined,
-                priority: priority
-            });
-        }
+        // NOTE: Project task creation not yet implemented - all tasks created as personal tasks
+        // TODO: Add create_project_task API to add tasks to project's tasks.json
+        result = await api.addPersonalTask({
+            instanceId: state.instanceId,
+            title: projectId ? `[${projectId}] ${title}` : title,
+            description: description || undefined,
+            priority: priority
+        });
 
         if (result.success !== false && !result.error) {
             showToast(`Task "${title}" created!`, 'success');
@@ -2390,12 +2842,12 @@ async function createTask() {
                 loadTasks();
             }
 
-            // Also refresh project detail if we're viewing a project and the task was for it
-            if (state.currentTab === 'projects' && state.currentProjectDetail && projectId === state.currentProjectDetail) {
+            // Also refresh project detail if we're viewing a project
+            if (state.currentTab === 'projects' && state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
-                    const result = await rpcCallDirect('get_tasks', { project_id: projectId });
-                    const tasks = result.tasks || result || [];
+                                const result = await api.listTasks(state.instanceId, { projectId: state.currentProjectDetail });
+                                const tasks = result.tasks || [];
                     renderProjectDetailTasks(tasks);
                 } catch (e) {
                     console.error('[App] Error refreshing project tasks:', e);
@@ -2411,7 +2863,6 @@ async function createTask() {
 }
 
 // Direct RPC call for APIs that don't go through our wrapper
-// NOTE: Should eventually use api.js environment system, but for now hardcode production
 async function rpcCallDirect(method, args) {
     const url = 'https://smoothcurves.nexus/mcp';
     const payload = {
@@ -3779,7 +4230,7 @@ async function loadProjectDetailsModal(projectId) {
     const view = document.getElementById('project-details-view-modal');
 
     try {
-        const result = await api.getProject(state.instanceId, projectId);
+        const result = await api.getProject(projectId);
         const project = result.project || result.data?.project || result;
 
         document.getElementById('entity-project-id').textContent = project.id || project.projectId || projectId;

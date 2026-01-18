@@ -2790,3 +2790,587 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================================================================
+   PROJECT DETAIL PANEL - REDESIGNED
+   ============================================================================ */
+
+/* Main Layout - Flex with sidebar */
+.project-detail-layout {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+}
+
+.project-main-content {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+    min-width: 0;
+}
+
+/* Section styling */
+.project-pm-section,
+.project-team-section,
+.project-description-section,
+.project-documents-section,
+.project-tasks-section,
+.project-repo-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.project-repo-section {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.75rem;
+}
+
+.section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.section-header-row .section-title {
+    margin-bottom: 0;
+}
+
+/* PM Card - Prominent */
+.pm-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    border-radius: var(--radius-lg);
+    color: white;
+}
+
+.pm-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.pm-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.pm-name {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.pm-id {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    font-family: var(--font-mono);
+}
+
+.pm-status {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.pm-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.pm-actions .btn {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+.pm-actions .btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* No PM state */
+.pm-card.no-pm {
+    background: var(--surface-color);
+    border: 2px dashed var(--border-color);
+    color: var(--text-secondary);
+}
+
+.pm-card.no-pm .pm-avatar {
+    background: var(--background-color);
+    color: var(--text-muted);
+}
+
+/* Team Grid */
+.team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.team-member-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.team-member-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow);
+}
+
+.team-member-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary-light);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.team-member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.team-member-name {
+    font-weight: 500;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.team-member-role {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.team-member-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.team-member-status.online {
+    background: var(--success-color);
+}
+
+/* Documents List */
+.documents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.document-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.document-item:hover {
+    border-color: var(--primary-color);
+    background: var(--surface-hover);
+}
+
+.document-icon {
+    font-size: 1.25rem;
+    color: var(--primary-color);
+}
+
+.document-name {
+    flex: 1;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.document-view-btn {
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.document-item:hover .document-view-btn {
+    opacity: 1;
+}
+
+/* Task Lists - Collapsible Cards */
+.task-lists-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.task-list-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.task-list-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--background-color);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+
+.task-list-header:hover {
+    background: var(--surface-hover);
+}
+
+.collapse-icon {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+}
+
+.task-list-card:not(.expanded) .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.list-name {
+    flex: 1;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.task-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--border-color);
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+}
+
+.task-list-content {
+    display: none;
+    padding: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.task-list-card.expanded .task-list-content {
+    display: block;
+}
+
+/* Task items within list */
+.detail-task-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.detail-task-item:hover {
+    background: var(--surface-hover);
+}
+
+.detail-task-title {
+    flex: 1;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.detail-task-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: capitalize;
+}
+
+/* Repository Link */
+.repo-link {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--primary-color);
+    word-break: break-all;
+}
+
+.repo-link:hover {
+    text-decoration: underline;
+}
+
+/* ============================================================================
+   PROJECT CHAT SIDEBAR
+   ============================================================================ */
+.project-chat-sidebar {
+    width: 320px;
+    background: var(--surface-color);
+    border-left: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.chat-sidebar-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.chat-tab {
+    flex: 1;
+    padding: 0.75rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.chat-tab:hover {
+    color: var(--text-primary);
+    background: var(--surface-hover);
+}
+
+.chat-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.chat-tab-content {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.chat-tab-content.active {
+    display: flex;
+}
+
+.chat-header-mini {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.chat-room-name,
+.chat-pm-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.chat-turn-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.chat-messages-mini {
+    flex: 1;
+    padding: 0.75rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.empty-state-mini {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* Mini message bubbles */
+.message-mini {
+    max-width: 85%;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.message-mini.sent {
+    background: var(--primary-color);
+    color: white;
+    align-self: flex-end;
+    border-bottom-right-radius: 0.25rem;
+}
+
+.message-mini.received {
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    align-self: flex-start;
+    border-bottom-left-radius: 0.25rem;
+}
+
+.message-mini-sender {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    opacity: 0.8;
+}
+
+.message-mini-time {
+    font-size: 0.625rem;
+    opacity: 0.6;
+    margin-top: 0.25rem;
+}
+
+/* Chat Input Mini */
+.chat-input-mini {
+    padding: 0.75rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.chat-subject-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    outline: none;
+}
+
+.chat-subject-input:focus {
+    border-color: var(--primary-color);
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chat-input-row textarea {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    resize: none;
+    outline: none;
+}
+
+.chat-input-row textarea:focus {
+    border-color: var(--primary-color);
+}
+
+.btn-send {
+    width: 36px;
+    height: 36px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+
+.btn-send:hover:not(:disabled) {
+    background: var(--primary-dark);
+}
+
+.btn-send:disabled {
+    background: var(--border-color);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.btn-refresh {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.25rem;
+}
+
+.btn-refresh:hover {
+    color: var(--primary-color);
+}
+
+/* ============================================================================
+   PROJECT DETAIL RESPONSIVE
+   ============================================================================ */
+@media (max-width: 900px) {
+    .project-detail-layout {
+        flex-direction: column;
+    }
+
+    .project-chat-sidebar {
+        width: 100%;
+        height: 300px;
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+    }
+}
+
+@media (max-width: 639px) {
+    .team-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pm-card {
+        flex-wrap: wrap;
+    }
+
+    .pm-actions {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+}
