@@ -2822,19 +2822,22 @@ async function createTask() {
     }
 
     try {
-        let result;
-
-        // NOTE: Project task creation not yet implemented - all tasks created as personal tasks
-        // TODO: Add create_project_task API to add tasks to project's tasks.json
-        result = await api.addPersonalTask({
+        // Use create_task API which handles both personal and project tasks
+        const taskParams = {
             instanceId: state.instanceId,
-            title: projectId ? `[${projectId}] ${title}` : title,
-            description: description || undefined,
+            title: title,
             priority: priority
-        });
+        };
+
+        // Add optional fields if provided
+        if (description) taskParams.description = description;
+        if (projectId) taskParams.projectId = projectId;
+
+        const result = await api.createTask(taskParams);
 
         if (result.success !== false && !result.error) {
-            showToast(`Task "${title}" created!`, 'success');
+            const taskType = projectId ? 'project' : 'personal';
+            showToast(`Task "${title}" created (${taskType})!`, 'success');
             closeCreateTaskModal();
 
             // Refresh tasks view
@@ -2846,9 +2849,12 @@ async function createTask() {
             if (state.currentTab === 'projects' && state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
-                                const result = await api.listTasks(state.instanceId, { projectId: state.currentProjectDetail });
-                                const tasks = result.tasks || [];
+                    const taskResult = await api.listTasks(state.instanceId, { projectId: state.currentProjectDetail });
+                    const tasks = taskResult.tasks || [];
                     renderProjectDetailTasks(tasks);
+                    // Update task count
+                    const countEl = document.getElementById('primary-task-count');
+                    if (countEl) countEl.textContent = tasks.length;
                 } catch (e) {
                     console.error('[App] Error refreshing project tasks:', e);
                 }

@@ -330,6 +330,20 @@ export async function addPersonalTask(params) {
 }
 
 /**
+ * Create a task (personal or project)
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.title - Task title
+ * @param {string} [params.description] - Task description
+ * @param {string} [params.projectId] - Project ID (omit for personal task)
+ * @param {string} [params.priority] - Priority: emergency|critical|high|medium|low|whenever
+ * @param {string} [params.listId] - List name to add task to (default: 'default')
+ */
+export async function createTask(params) {
+  return rpcCall('create_task', params);
+}
+
+/**
  * Complete a personal task
  * @param {string} instanceId
  * @param {string} taskId
@@ -767,6 +781,7 @@ export const api = {
     listTasks,
   getNextTask,
   addPersonalTask,
+  createTask,
   completePersonalTask,
   getPersonalLists,
   createPersonalList,
