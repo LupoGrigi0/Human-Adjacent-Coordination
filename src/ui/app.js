@@ -1745,11 +1745,14 @@ async function loadInstances() {
 
                 // Toggle this dropdown
                 if (dropdown.style.display === 'none') {
-                    // Populate with projects
-                    const projectNames = state.projects.map(p => p.name || p.projectId);
+                    // Populate with projects - use projectId for API, name for display
                     dropdown.innerHTML = `
                         <div class="project-option" data-project="">None</div>
-                        ${projectNames.map(p => `<div class="project-option" data-project="${escapeHtml(p)}">${escapeHtml(p)}</div>`).join('')}
+                        ${state.projects.map(p => {
+                            const id = p.projectId || p.id;
+                            const name = p.name || id;
+                            return `<div class="project-option" data-project="${escapeHtml(id)}">${escapeHtml(name)}</div>`;
+                        }).join('')}
                     `;
 
                     // Add click handlers for options
@@ -1757,23 +1760,24 @@ async function loadInstances() {
                         opt.addEventListener('click', async (ev) => {
                             ev.stopPropagation();
                             const targetInstanceId = selector.dataset.instanceId;
-                            const projectName = opt.dataset.project;
+                            const projectId = opt.dataset.project;
+                            const displayName = opt.textContent; // User-friendly name
 
                             console.log('[App] Assigning project to instance:', {
                                 targetInstanceId,
-                                project: projectName || '(none)'
+                                projectId: projectId || '(none)'
                             });
 
                             try {
-                                // Use joinProject API - it takes instanceId (the target) and project name
-                                await api.joinProject(targetInstanceId, projectName || null);
-                                showToast(`Assigned to ${projectName || 'no project'}`, 'success');
+                                // Use joinProject API - it takes instanceId and projectId
+                                await api.joinProject(targetInstanceId, projectId || null);
+                                showToast(`Assigned to ${displayName}`, 'success');
                                 dropdown.style.display = 'none';
                                 loadInstances(); // Refresh
                             } catch (error) {
                                 console.error('[App] Error assigning project:', {
                                     targetInstanceId,
-                                    project: projectName,
+                                    projectId: projectId,
                                     error: error.message,
                                     code: error.code
                                 });
@@ -3320,12 +3324,13 @@ async function populateWakeDropdowns() {
             `<option value="${p.id || p}">${p.label || p.name || p}</option>`
         ).join('');
 
-    // Populate project dropdown
-    const projectNames = state.projects.map(p => p.name || p.projectId);
+    // Populate project dropdown - use projectId for value, name for display
     projectSelect.innerHTML = '<option value="">No project assignment</option>' +
-        projectNames.map(name =>
-            `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
-        ).join('');
+        state.projects.map(p => {
+            const id = p.projectId || p.id;
+            const name = p.name || id;
+            return `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`;
+        }).join('');
 }
 
 /**
