@@ -210,6 +210,29 @@ tail -f /var/log/nginx/error.log
 tail -f /var/log/nginx/access.log
 ```
 
+### nginx Gotchas
+
+**Don't nest `location` blocks inside `alias` blocks:**
+```nginx
+# BAD - nested location with alias breaks path resolution
+location /SomePath {
+    alias /path/to/files;
+    location ~* \.(png|jpg)$ {
+        alias /path/to/files;  # BUG: doesn't work correctly
+    }
+}
+
+# GOOD - flat structure, caching in parent
+location /SomePath {
+    alias /path/to/files;
+    try_files $uri $uri/ =404;
+    expires 1d;
+    add_header Cache-Control "public";
+}
+```
+
+The nested `alias` doesn't inherit or compute paths correctly from the parent. Static assets will 404 even though files exist. Discovered 2026-01-14 on Paula project.
+
 ---
 
 ## SSL/TLS Certificates
