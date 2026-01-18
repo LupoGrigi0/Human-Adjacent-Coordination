@@ -31,6 +31,20 @@ import { listPersonalities, getPersonality } from './v2/personalities.js';  // N
 import { joinProject } from './v2/joinProject.js';
 import { addDiaryEntry, getDiary } from './v2/diary.js';
 import { recoverContext } from './v2/recoverContext.js';
+// V2 Documents (foundational type for document management)
+import {
+  createDocument,
+  readDocument,
+  editDocument,
+  renameDocument,
+  archiveDocument,
+  unarchiveDocument,
+  listDocuments,
+  listArchive,
+  listVitalDocuments,
+  addToVital,
+  removeFromVital
+} from './v2/documents.js';
 // Legacy V2 tasks (keeping for backward compatibility during transition)
 import {
   getMyTasks,
@@ -380,6 +394,30 @@ class MCPCoordinationServer {
         case 'recover_context':
           return recoverContext(params);
 
+        // V2 Document APIs
+        case 'create_document':
+          return createDocument(params);
+        case 'read_document':
+          return readDocument(params);
+        case 'edit_document':
+          return editDocument(params);
+        case 'rename_document':
+          return renameDocument(params);
+        case 'archive_document':
+          return archiveDocument(params);
+        case 'unarchive_document':
+          return unarchiveDocument(params);
+        case 'list_documents':
+          return listDocuments(params);
+        case 'list_archive':
+          return listArchive(params);
+        case 'list_vital_documents':
+          return listVitalDocuments(params);
+        case 'add_to_vital':
+          return addToVital(params);
+        case 'remove_from_vital':
+          return removeFromVital(params);
+
         // V2 Task APIs
         case 'get_my_tasks':
           return getMyTasks(params);
@@ -580,6 +618,18 @@ class MCPCoordinationServer {
       'add_diary_entry',
       'get_diary',
       'recover_context',
+      // V2 Document APIs
+      'create_document',
+      'read_document',
+      'edit_document',
+      'rename_document',
+      'archive_document',
+      'unarchive_document',
+      'list_documents',
+      'list_archive',
+      'list_vital_documents',
+      'add_to_vital',
+      'remove_from_vital',
       'get_my_tasks',
       'get_next_task',
       'add_personal_task',

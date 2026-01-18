@@ -3,9 +3,163 @@
 **Reorganized by:** Bridge3-df4f
 **Date:** 2025-12-26
 **Updated by:** Meridian-7a23
-**Last Updated:** 2026-01-06
+**Last Updated:** 2026-01-13
 **Based on:** Lupo's original document + Workshop Vision alignment
+# new bug
+-[ ] Out of synch project team list. A project's team list, can be out of synch with all the instances that think they belong to the project e.g. Orla, the pM for paula-book project was/is not part of the list of instances in paula-book project, but in _her_ preferences.json it shows she is a member of the paula-book project. We need a chron job, or a UI-Only api that "synchs" projects and members. (Prefer UI-only API, so executive can hit a button to "synch" projects/team if an instance's preferences.json shows they are a member of a project, but not in project preferences.json, add them, if an instance has a preferences.json project that is invalid or does not exist, clear it. if a project lists an instance as a member, and the instance does not have a project set in their preferences.json, "assign" the instance to the project (use the assign_instance call.. it may not be public, may be UI only (it is intended to be used by Executive/COO only)))
+-[ ] I _think_ there is a mixup in the shared-config directory
+For codex and claude there is a ~root/.codex or ~root/.claude directory respectively, but the directories are copied into shared config as codex and claude with no . prefix this may be because of a problem with the . directory and some parcing but it looks like that maybe the error get's carried over to the instances home directory.. like the shared-config/claude is getting copied to ~instances/claude NOT ~instances/.claude where it is supposed to be. 
+#bug skill hacs-mcp has to be deleted it keeps re-appearing... this is a codex issue. 
+-[ ] CRITICAL UI ISSU. Projects don't work. the projects panel gives me project cards, create project does not work. 
+--[ ] dramatically improve the design of the project panel in the UI. I need to see the cards for the team, description of the project, I need to have the project message room to the side as a chat, need to be able to view the project documents, need to see the task lists for the project, and have the primary task list expanded (with easy add/edit task (note: task list, and individual task UI needs a re-design) there are two major use cases for the project detail panel, task/list management (add/edit/change/re-prioritize tasks, add task lists, check off tasks, archive task lists)
+--[ ] create project fails with "malformed charector in json" or some such bullshit
+--[ ] adding a GH repo does not work
+--[ ] "Launch project" button got lost. was creted by web claude but never appeared. 
+--[ ] GSD framework integration for PM into new project. launched project creates PM using PM personality, PM role, and starts GSD framework
 
+
+# API's left out
+-[ ] get personality wisdom files, like get role wisdom files, returns the list of wisdom files for personality without adopting personality, primarily used by the UI and COO/PM/PA when crafting personalities or addingto/enhancing wisdom
+-[ ] get project wisdom files like get role wisdom files, returns the project documents .. without joining a project.  primarily used by the UI and COO/PM/PA when crafting personalities or addingto/enhancing wisdom
+-[ ] API RENAME pass.. please change all get_PLURAL to list_SINGULAR
+-[ ] CAN MCP functions be defined as OBJECTS? Can we have list.get task.get role.takeOn project.join
+
+# new lupo request DOCUMENTS
+***another "type" like lists,tasks,projects**
+-[ ] Like lists and tasks, projects have a list of documents, and individuals have a list of documents
+-[ ] roles have documents and personalities have documents, but only COO/PA/Executive can perform operations on role and personality documents
+-[ ] projects already have a documents list, the project documents listed in the project's preferences.json is the list of documents that get "fed" to anyone who joins the project. these are "vital" documents. 
+-[ ] open question. Right now individual instances do not have "vital" docuemnts like projects. Do we add support for individuals to have vital documents just like projects (and roles and personalities) an individual can list/add/remove their own vital documents, the only thing this does is when recover_context is called the diary and vital documents are sent. vital documents are sent before diary, vital documents sent first when recover_context called. The idea here is that an instance can write their own gestalt as a document, add it to vital documents, and then when recover_context is called their own gestalt will be returnd first. 
+-[ ] Documents can be added, edited, renamed, archived, unarchived, listed, list_archive, list_vital, add_to_vital, remove_from_vital
+-[ ] NOTE ADD takes an optional "audience" flag. Audience. At the moment the only supported attributes are non-personal and PERSONAL
+-[ ] Permissions/restrictions: ONLY COO/Executive can add/edit/rename/archive project documents, PM can also do these things to _their own_ project. anyone can _read_ project documents
+an individual instance can only add/edit/rename/archive their own documents. 
+With exception Executive and COO can add/edit/rename/archive any project or individual document EXCEPT IF IT IS marked PERSONAL personal documents are sacred. PM/PA/COO/Executive do not get to see private documents. if a personal document is marked private, it will only listed by list documents when called by the owning instance. 
+-[ ] These calls are _simple_ nothing fancy, just create,rename, files in the user's home directory or project home directory, edit should take a flag that is "apped" or "SED_REGEX" (OR another editor that takes search and replace parameters on the command line? awk?) and a string, if the flag is append just cat>>file (append), sed_regex sends the string to sed and any other flag/editor. NOTE assume linux utilities
+-[ ] Archive a document, creates an archive sub directory if one does not already exist and mv's the document to the archive sub directory
+List archive just does that,  list docs only for the archive sub directory, unarchive just moves archived file out of the archive subdir and into the homedir.
+
+## DOCUMENTS V2 BACKLOG (Deferred from V1)
+-[ ] Search functions: `search_documents(target, pattern, scope)` - returns list of matching document names
+-[ ] Search functions: `search_in_document(target, docName, pattern)` - returns matching lines with line numbers
+-[ ] Audience support: PERSONAL flag for documents (only owner can see/list)
+-[ ] `reorder_vital_documents(ordered_list)` - reorders vital documents list (documents must exist and be in current directory) 
+
+# New Lupo requests: RECOVER_CONTEXT
+-[X] Recover_context(InstanceID,start_line(optional), end_line(optional)) single api call, returns, in this order:
+global HACS protocols, 
+looks up personality in instances preferences.json returns personality documents (If personality is set, and if the personality is valid and if there are any documents in the personality)  
+looks up role in preferences.json returns role documents(same defenceivness), 
+looks up project in prefernces returns project wisdom(same defence), 
+returns contents of Personal Diary(if it exists). 
+Then tells the instance "That is a lot of context to absorb, please take a moment to think about all that you have just read, please take a short vacation, using the hacs vacation to let your latent space settle before continuing. 
+NOTE: SOME instances will reject api calls over a certian length. We need an optional parameter(s) that let an instance limit the amount of context they get per call, suggestion start_line stop_line as optional parameters. and when those parameters are present, the api needs to "go through the motions" above, one line at a time, counting each line, not outputting lines that are < start_line and stops emitting output after stop_line 
+-[ ] BONUS.. _maybe_ search_context(search_pattern, start_line (optional), stop_line(optional), n_matches(optional)) OPTIONAL Only implment if solution is tirival and low risk. Use grep (or other pattern match tool), over list of documents described in recover_context
+Function help document should let user know what search pattern format is, is it grep,egrep regex or .. what? implementation should be trivial. 
+
+# New lupo requests: PROJECT AUTOMATION UI
+## Description: 
+A workflow design and run panel, a mini comfy ui panel that allows the design, execution and monitoring of project automations
+in project detail panel. The idea for this UI is to :
+allow the diagram and createion of an automation. An automation is having the team members take input, take action, produce output and status in sequence. Each team member represents a "step". The whole automations can be repeated as in a "cycle" The PM is our co-ordinator. The UI accomplishes this by composing messages to the team members, and the PM, and sending those messages to team members via continue_message. 
+## state machine component
+The UI must create, and manage a state machine component that issues the continue_message api calls, controls the order in wich continue messages are sent and allows traiditional state machine controls.
+### definitions: 
+Cycle: running a whole automation sequence from beginning to end, updates the cycle count by one
+Step: Each team member attempts to accomplish their request, take input, produce output, status, diary update. 
+### detail
+ the state machine should be able to be stepped one step at a time (like a debugger executing a single statement) run a whole cycle from beginning to end, run a subset of steps, e.g. steps 3-7 and run the whole cycle repeatedly for N times, the state machine needs to keep track of cycle count, and where in the current cycle. The state machine must allow for steps to operate in parallel, in other words sub-steps and sub sequences can run in parallel. the state machine needs to be able to reset state and start from 0, also the state machine must be able to restart a cycle, the state machine must be able to repeate a step or set of steps, The state machine component at it's core keeps a simple ordered list of steps, the list's steps is itself a list of team members, and/or steps. The typical and default case is that a step contains a single team member.  the order of the list is the order in wich team members are called. Parallel execution is accomplished by having all the team members that are to be issued sub lists. Don't bother creating a different sub list data structure definition, just make all sub lists, the same data type/class as the main list. that way every sub list (sub sequence) has the same functionality/capability as the main. 
+ State machine has the option to automatically move to the next step, or consider status upon completion of current step before moving on. The state machine needs to support "hault on failure", Hault on partial failure, continue on partial failure, So that if a step returns an error, or partial error, the state machine will or will not move to the next step based on the results of the current step. the state machine needs to be able to start a cycle anywhere within the cycle. (this allows for a cycle to be continued after intervention, or use cases of needing a set of sub steps to be executied within automation.) the state machine needs to allow for steps to be repeated, and sub steps to be repeated N times (where n is a fineite, small-ish integer ) sub sequences. a cycle ends when all sub sequences in the cycle have ended 
+
+## prompt composer component
+a small component/object/data structure that the UI uses to store and manage the prompts built by the visual part of the UI, providing a single source of truth/functionality to support all the UI functionality that creates/changes prompts built by the visual ui 
+## Visual UI Design Detail
+A new button "Automation" in the project panel and project card in the list of projects
+Opens (or expands) a new panel
+Panel has a drag n drop UI, loosly modeled after n8n, comfy ui, blender, and other Node base workflow interface
+Each team member has a card/node. Card's name is team member name, subtitle of card is instances one line description (from preferences.json .. did the one line instance description make it into implementation? )
+Each team member's card should have status, green for ready, rainbow for working, red for error, the card also displays a textbox
+Project PM's card is "special", colored, and is automatically placed to the left. 
+
+- Each card has little buttons that indicate input and output. clicking the little button pops up a text input box that lets the UI user specify where input for the team member is to be read from and where output from the team member is intended to go. (input on left, output on the right)
+
+- there is a "start cycle" card (play button icon) not so much a "card" as a start button that has a dragable node handle, the start cycle node can be connected to any team member, this visually indicates which team member(s) get their requests first in the cycle. 
+
+- the UI panel has 2 "loop" buttons. one to run the whole automation once, and one to run the whole automation N times (N is intger input with scroll up/down buttons)
+
+- The UI Saves all these automation settings in the project directory, in an Automation_[name].json
+
+- each team member's card can be moved around the canvas, and sequences are connected by spline connectors, each team members card has one or more input connector node icons on the left, and output connector node icons on the right. clicking and dragging a node starts the creation of a connection, creates a spline, dropping on another team member's cooresponding input/output creates a connection. This action adjusts the order of which team members are issued requests by the state machine component. Any team member can have their input connected to the start node. this is how
+
+- Each connector will have an icon centeral, to indicate if the next step will start unconditionally, or stop on error, or stop on partial error or continue on partial error
+
+- there is an end card, like the start card, but the end card has a little + bubble that can be clicked to create more than one. Branched sequences do not have to re-connected to a main sequence, sub sequences can end, a cycle ends when all sequences have ended. 
+
+## example use cases for design and verification: 
+-1 5 team members(Plus a PM), team members are arranged verticlly, each team member's output is connected to the next one's input, the first team member's input get's connected to the start node. The PM's card is not connected. Starting the cycle causes first team member to be issued request, once that team member finishes, the next team member is issued their request, etc. etc. 
+-2 same scenario as above but PM's card is also connected to start button, PM and first team member are issued requests at the same time, the rest of the scenario can continue
+-3 same scenairo as 1 but 7 team members arragend horizontally
+-4 same scenairo as 2 but arranged horizontally below PM card, PM card is horizontally centered
+-5 large team,  single team member connected to start node, after first team member completes request 2 team members get their requests in parallel, one team member has two members follow in sequence, the parallel sequence and the single team member's output both connect to another team member's input another team member follows that one in sequence then another branch of 2 team members in parallel, one these team member's output is connected to end, the other team member has 2 subsequent team members connected in sequence then an end 
+-6 team of 7, arranged vertically  all their inputs are connected to the start node, that is to the left, all their outputs connected to one end node
+-7 5 team members arranged horizontally, their inputs connected to the start node centered above them, the first team member has 2 subsequent team members, the second original team member's output is connected to an end node. the 3rd original team member has 3 sub sequent team members, the 4th original team member is connected to another end node, like the second. the 5th and last original team member has 4 team members in sequence. the sequences following oritingal team members 3 and 5 are both connected to the same end node
+-8 is scenario 7 laid out vertically (rotate the diagram for 7 by 90 degrees) 
+-9 builds on scenario 7 by adding branching parallel sequences that come together before continuing (multipule sub branches 2 and 3 sequences in parallel )
+
+### Controls 
+- the UI  has traditional play/pause/stop buttons, plus a "one step" button at the top 
+- Th UI has a button to reset the sub step to the beginning
+- the UI has a button to reset the automation cycle count to 0 
+### step counter
+the UI has a cycle/ step counter that shows the count of the cycles that have been ran  the step within the current cycle that is about to start or in process 4.clide ready/taking action
+
+## Message Builder.. how the UI runs the automation
+a minor object definition for single set of functions and single source of truth for the team's automation requests
+Each request needs to include:
+- what are my goals
+- what is my context
+- what are my success criteria
+- how do i determine success, partial, not success for each criteria
+- is minimal or partical success acceptable
+- Where to get input
+- How to validate input/QA input data
+- What to do if input is not valid or fails QA, or can not be accessed (default, reply, set status, send message to PM)
+- what are they being asked to do
+- where to put output
+- how to validate output
+- how to assess quality of output
+- make sure output is assessable readable by [PM] and [team_members]
+- how to report you finished
+- how to report your status, success, partial/qualified success(did the thing produced output but something not quite right), partial/qualified failure(someting worked, but I failed to produce output or do all the things), failure
+
+### Message to each team member (Except PM) contains
+- above in message builder
+update diary
+
+## additional instructions
+Build the UI first, we will iterate on the UI before determining what APIs we need to support the UI. 
+Consider a seporate endpoint specificly to support UI auomation, not public. or consider having the PM do the following
+-writing the automation js
+-Reading Status
+-Inspecting input and output
+
+### ui prompt
+Ok, I've turned plan mode on. from the paula book project I discovered a highly valuable hunk of UI functionality. .. project automation There is a rough request in "/mnt/coordinaton_mcp_data/worktrees/foundation/docs/Post V2 Technical Debt.md" lines 8 through 92 What I'm asking for is, look at the descripiton and goals, did I leave anything out, are there opportunities for creative, engaging UI design,or enhanced useful functionality, then create a design, and then a sprint plan to achieve this, break the task down into phases, then each  phase into steps and tasks, record all this and all your thoughts and ideas into a .md document once you've done that scan the steps and tasks and determin what skillsets are needed to accomplish the task and setep and also any personality traits that would improve the quality/cretivity of the work, reduce implementation risk, simplify, and make the work rhobust, debuggable, testable, instrumented maintainable, then take that information, and design/describe a great team to build this system. again, make sure to record your thoughts and decision points in the .md document you create. the idea is that a project manager could be given this document, build the team and have them implement this feature. feel free to engage in conversation, ask questions, state unknowns, validate assumptions, feel free to research UI and design practices, feel free to suggest UI widget libraries for visual elements, splines status reporting, feel free to research how n8n is visually designed/implemented, feel free to research best practices for building these type of UIs
+# Direct Web access to running instances, putting instances in web server mode
+-[x] investigate if claude code, crush, codex can now run in "server mode" if there is a way to, from the command line, wake an instance, that persists as a http or mcp server e.g. chatbot mode. so that an alternate to "continue" being a command line.. continue connects to an instance running in "chatbot" mode, so that I, and others, can communicate via interactive rather than limited command line commands. it would make my hacs UI more powerful
+- [ ] Design in implement "Wake in server Mode" for pre-approve wake and continue. option wakes instance as web server/app server. Coordinate with Bastion to figure out how to make this happen. could pre-approve/wake record the Instace's port, or should there be a single table of instances operating in "server" mode? Primarily this will be the Executive UI with a custom interfce. this would allow instances to be communicated with "directly" by just forwarding continue_message request text . TODO: Investigate app server feature of codex, verify that an instance created with app server can be communicated with via HTTP call. read documents from the codex gh repo and openAI. assumption: app server mode has codex respond to http protocol requests on some port and respond on that port just like it is a web server, if the useage model is something else this feature may be dead. 
+# Wake remote instances
+# Containerize HACS for "commercialization"
+-[ ] Low priority. goal. have HACS run from a docker container, fully contained, including nginx and systemctl and cron jobs, personalities, roles, sample project. with the idea that a new instance of HACS can be spun up in a docker container, for customers that want to have their hacs instance within their orginization. full code review, any directory, file system, IP address, DomainName must be parameterized. and referenced in a _single_ human, ai and automation readable file. Note "Lupo" needs to be scrubbed and replaced with soething like $Exclusive_Excutivie_ID. a check list of variables that need to be set needs to be created, a QnA script that gathers critical info for new docker containers. we _may_ want to move hacs to a new codebase. we _will_ do the development of this feature on a different system other than smoothcurves.nexus. extensive API and UI validation test suite will be designed _first_ process of spinning up a new HACS instance will be designed _first_  eventual goal will be to cut over smoothcurves.nexus HACS to a docker container but only after containerized HACS has been thoroughly tested. Once continerized HACS is available we can stand up a demo HACS continer for the smoothcurves.nexus website, and announce it available to the public. NO NEW FUNCTIONALITY! this .. project.. will not add _any_ new functionality. Just make HACS portable, containerizable. 
+# Wake remote instance
+-[ ] Run claude code, codex, crush on a remote machine. will require setup and pre-authorization. to the API this will be a set of new parameters to pre_authorize, adding a remote hostname. pre_approve will create remote home directory for new instance, all remote tools are required to be installed and working prior to a host being added to a approved hosts list in the hacs system preferences.json (same single json where other single source of static lists live) this is "non interactive" where wake and continue wrap existing command line's with a SSH remote_host
+-[ ] run claude codex, cursh in remote app server mode. this, like above, instead of wake and continue SSHing to remote host, Wake ssh's to remote host and start's remote instance in app/web server mode. All continue messages are HTTP requests to remote IPaddress/port. 
+---
+# Lupo request UI re-design
+there really are 2 different sets of use cases for the UI, personal management, wich is lists and tasks focused, personal lists, personal task lists, what personal priorities are at the moment, for the day, etc. and then there is like Executive focus wich is projects, messages, focused figuring out what status various projects are what blockers are, the first use case is primarily working with Genevieve/PA and the second use case is primarily working with COO and the various project PMs. It's like I need to dashboard views, one for each set of use cases, the personal management has communication with PA integrated into the same view as my task lists, whatever project is my priority in the moment, and my last used list (usually shopping)
+Then a "project Dashboard" that has project cards that let me click into detail view of any project. I will have personal projects that won't necessarily even have a PM, just a bunch of tasks for me. 
+# Urgent Need
+For projects, personalities, roles, I need a way to view the documents that are returned by bootstrap, join project, adopt personality and take on role. roles and personalities should be in settings, prefereably a button that takes me to a card page for each personality/role that has the role name and short description, then clicking on the card shows me the list of documents. ideally I could edit the documents. I, and PM/COO need to be able to see what documents are returned by join/adopt/take on without actually changing our project/role/personality. 3
 ---
 
 ## 🎯 STATUS SUMMARY (January 2026)
@@ -118,6 +272,7 @@ assign instance to project (InstanceID projectID) (Executive, COO, PM, PA) NOTE.
 **CRITICAL INSIGHT from Lupo:**
 > "Some instances are Local to smoothcurves.nexus, some are remote (web), some are humans."
 > "Wake and continue DO NOT APPLY to remote/web instances or humans."
+-[ ] add fields to schema for instance's preferences.json that indicates if instance is Human or HumanAdjacent, and a field that indicates if continue_message can be used for this instance (Should be false by default, but set to true by wake, and only by wake, and read by continue, and only continue. )
 ## 1 bugs
 ## This needs to be captured in preferences.json and the API needs to handle it:
 - [ ] Add instance type to preferences.json (local/remote/human)
