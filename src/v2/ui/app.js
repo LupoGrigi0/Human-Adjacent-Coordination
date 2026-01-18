@@ -347,6 +347,32 @@ function setupEventListeners() {
     });
     document.getElementById('project-assign-instance-btn')?.addEventListener('click', showAssignInstanceModal);
 
+    // PM card buttons
+    document.getElementById('pm-continue-btn')?.addEventListener('click', () => {
+        // Switch to PM chat tab in sidebar
+        const pmTab = document.querySelector('.chat-tab[data-tab="pm-chat"]');
+        pmTab?.click();
+        // Focus the input
+        document.getElementById('pm-chat-input')?.focus();
+    });
+    document.getElementById('pm-message-btn')?.addEventListener('click', () => {
+        if (state.currentProjectPM) {
+            // Switch to messages tab and select the PM's personality room
+            switchTab('messages');
+            setTimeout(() => {
+                const pmName = state.currentProjectPM.name?.toLowerCase();
+                selectConversation('dm', `personality-${pmName}`);
+            }, 100);
+        }
+    });
+
+    // Refresh team room button
+    document.getElementById('refresh-team-room')?.addEventListener('click', () => {
+        if (state.currentProject) {
+            loadProjectTeamMessages(state.currentProject);
+        }
+    });
+
     // Task Detail - back button and actions
     document.getElementById('task-back-btn')?.addEventListener('click', hideTaskDetail);
     document.getElementById('task-claim-btn')?.addEventListener('click', claimCurrentTask);
@@ -640,26 +666,27 @@ async function loadProjects() {
 
 /**
  * Show project detail view, hiding the grid
+ * Redesigned with PM card, team grid, documents, collapsible tasks, and chat sidebar
  */
 async function showProjectDetail(projectId) {
     console.log('[App] Showing project detail:', projectId);
 
-    // Hide grid and header, show detail
+    // Hide grid and header, show detail (using flex for the new layout)
     document.getElementById('project-grid').style.display = 'none';
     document.querySelector('#tab-projects .page-header').style.display = 'none';
-    document.getElementById('project-detail-view').style.display = 'block';
+    document.getElementById('project-detail-view').style.display = 'flex';
 
     // Store current project for actions
     state.currentProjectDetail = projectId;
 
-    // Fetch full project details from API (list_projects only returns summary)
+    // Fetch full project details from API
     let project;
     try {
         const result = await api.getProject(projectId);
         project = result.project || result;
+        state.currentProject = project; // Store for later use
     } catch (e) {
         console.error('[App] Error loading project details:', e);
-        // Fall back to cached data if API fails
         project = state.projects.find(p => (p.projectId || p.id) === projectId);
         if (!project) {
             showToast('Project not found', 'error');
@@ -668,35 +695,363 @@ async function showProjectDetail(projectId) {
         }
     }
 
-    // Populate detail fields
+    // Populate header
     document.getElementById('project-detail-name').textContent = project.name;
     document.getElementById('project-detail-status').textContent = project.status;
     document.getElementById('project-detail-status').className = `project-status status-${project.status}`;
-    document.getElementById('project-detail-description').textContent = project.description || 'No description';
-    document.getElementById('project-detail-repo').textContent = project.ghRepo || project.repo || 'Not configured';
 
-    // Load project tasks
+    // Populate PM section
+    renderProjectPM(project);
+
+    // Populate team section
+    renderProjectTeam(project);
+
+    // Populate description
+    document.getElementById('project-detail-description').textContent = project.description || 'No description';
+
+    // Populate documents
+    renderProjectDocuments(project);
+
+    // Load and render project tasks
     try {
-              const result = await api.listTasks(state.instanceId, { projectId });
-              const tasks = result.tasks || result || [];
+        const result = await api.listTasks(state.instanceId, { projectId });
+        const tasks = result.tasks || result || [];
         renderProjectDetailTasks(tasks);
+        document.getElementById('primary-task-count').textContent = tasks.length;
     } catch (e) {
         console.error('[App] Error loading project tasks:', e);
         document.getElementById('project-detail-tasks').innerHTML = '<p class="empty-placeholder">Could not load tasks</p>';
+        document.getElementById('primary-task-count').textContent = '0';
     }
 
-    // Load team members from full project data
+    // Populate repository
+    const repoEl = document.getElementById('project-detail-repo');
+    const repoUrl = project.ghRepo || project.repo;
+    if (repoUrl) {
+        repoEl.innerHTML = `<a href="${escapeHtml(repoUrl)}" target="_blank" class="repo-link">${escapeHtml(repoUrl)}</a>`;
+    } else {
+        repoEl.textContent = 'Not configured';
+    }
+
+    // Initialize chat sidebar
+    initProjectChatSidebar(project);
+
+    // Set up collapsible task list headers
+    setupTaskListCollapse();
+}
+
+/**
+ * Render the PM section with prominent card
+ */
+function renderProjectPM(project) {
+    const pmCard = document.getElementById('project-pm-card');
+    const pmId = project.pm;
+
+    if (pmId) {
+        // Find PM instance details
+        const pmInstance = state.instances.find(i => i.instanceId === pmId || i.name === pmId);
+        const pmName = pmInstance?.name || pmId.split('-')[0] || pmId;
+        const pmStatus = pmInstance?.status || 'unknown';
+
+        pmCard.classList.remove('no-pm');
+        document.getElementById('pm-avatar').textContent = pmName.charAt(0).toUpperCase();
+        document.getElementById('pm-name').textContent = pmName;
+        document.getElementById('pm-id').textContent = pmId;
+        document.getElementById('pm-status').textContent = pmStatus === 'active' ? 'Online' : 'Offline';
+
+        // Show action buttons
+        document.getElementById('pm-continue-btn').style.display = pmStatus === 'active' ? 'inline-flex' : 'none';
+        document.getElementById('pm-message-btn').style.display = 'inline-flex';
+
+        // Store PM info for chat
+        state.currentProjectPM = { instanceId: pmId, name: pmName, status: pmStatus };
+    } else {
+        pmCard.classList.add('no-pm');
+        document.getElementById('pm-avatar').textContent = '?';
+        document.getElementById('pm-name').textContent = 'No PM Assigned';
+        document.getElementById('pm-id').textContent = '-';
+        document.getElementById('pm-status').textContent = '-';
+        document.getElementById('pm-continue-btn').style.display = 'none';
+        document.getElementById('pm-message-btn').style.display = 'none';
+        state.currentProjectPM = null;
+    }
+}
+
+/**
+ * Render team members as card grid
+ */
+function renderProjectTeam(project) {
     const teamContainer = document.getElementById('project-detail-team');
+
     if (project.team && project.team.length > 0) {
-        teamContainer.innerHTML = project.team.map(member => `
-            <div class="team-member">
-                <span class="team-avatar">${(member.name || member).charAt(0).toUpperCase()}</span>
-                <span>${escapeHtml(member.name || member)}</span>
-            </div>
-        `).join('');
+        teamContainer.innerHTML = project.team.map(member => {
+            const memberId = typeof member === 'string' ? member : member.instanceId || member.id;
+            const memberName = typeof member === 'string' ? member.split('-')[0] : member.name || member.instanceId?.split('-')[0] || 'Unknown';
+            const memberRole = typeof member === 'object' ? member.role : null;
+            const isOnline = typeof member === 'object' ? member.online : false;
+
+            return `
+                <div class="team-member-card" data-instance-id="${escapeHtml(memberId)}">
+                    <div class="team-member-avatar">${memberName.charAt(0).toUpperCase()}</div>
+                    <div class="team-member-info">
+                        <div class="team-member-name">${escapeHtml(memberName)}</div>
+                        ${memberRole ? `<div class="team-member-role">${escapeHtml(memberRole)}</div>` : ''}
+                    </div>
+                    <div class="team-member-status ${isOnline ? 'online' : ''}"></div>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers to team cards
+        teamContainer.querySelectorAll('.team-member-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const instanceId = card.dataset.instanceId;
+                if (instanceId) {
+                    showInstanceDetail(instanceId);
+                }
+            });
+        });
     } else {
         teamContainer.innerHTML = '<p class="empty-placeholder">No team members assigned</p>';
     }
+}
+
+/**
+ * Render project documents list
+ */
+function renderProjectDocuments(project) {
+    const docsContainer = document.getElementById('project-detail-documents');
+    const docs = project.documents || [];
+
+    if (docs.length > 0) {
+        docsContainer.innerHTML = docs.map(doc => `
+            <div class="document-item" data-doc="${escapeHtml(doc)}">
+                <span class="document-icon">&#128196;</span>
+                <span class="document-name">${escapeHtml(doc)}</span>
+                <span class="document-view-btn">View &rarr;</span>
+            </div>
+        `).join('');
+
+        // Add click handlers for document viewing
+        docsContainer.querySelectorAll('.document-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const docName = item.dataset.doc;
+                await showProjectDocument(state.currentProjectDetail, docName);
+            });
+        });
+    } else {
+        docsContainer.innerHTML = '<p class="empty-placeholder">No documents</p>';
+    }
+}
+
+/**
+ * Show a project document in a modal
+ */
+async function showProjectDocument(projectId, docName) {
+    showToast(`Loading ${docName}...`, 'info');
+    // TODO: Implement document viewing modal
+    // For now, just show a toast - would need a getProjectDocument API
+    console.log('[App] Would show document:', projectId, docName);
+    showToast('Document viewing coming soon', 'info');
+}
+
+/**
+ * Initialize the project chat sidebar
+ */
+function initProjectChatSidebar(project) {
+    // Set up tab switching
+    const tabs = document.querySelectorAll('.chat-sidebar-tabs .chat-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Remove active from all tabs and contents
+            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.chat-tab-content').forEach(c => c.classList.remove('active'));
+
+            // Add active to clicked tab and corresponding content
+            tab.classList.add('active');
+            const targetId = tab.dataset.tab + '-content';
+            document.getElementById(targetId)?.classList.add('active');
+        });
+    });
+
+    // Set team room name
+    document.getElementById('team-room-name').textContent = project.xmppRoom ?
+        project.name + ' Room' : 'Project Room';
+
+    // Set PM name in chat
+    if (state.currentProjectPM) {
+        document.getElementById('chat-pm-name').textContent = state.currentProjectPM.name;
+        document.getElementById('pm-chat-send').disabled = false;
+    } else {
+        document.getElementById('chat-pm-name').textContent = 'No PM';
+        document.getElementById('pm-chat-send').disabled = true;
+    }
+
+    // Load team room messages
+    loadProjectTeamMessages(project);
+
+    // Set up message sending
+    setupProjectChatInputs(project);
+}
+
+/**
+ * Load messages from the project's XMPP room
+ */
+async function loadProjectTeamMessages(project) {
+    const container = document.getElementById('team-room-messages');
+
+    if (!project.xmppRoom) {
+        container.innerHTML = '<div class="empty-state-mini"><span>No project room configured</span></div>';
+        return;
+    }
+
+    try {
+        const roomName = project.xmppRoom.split('@')[0]; // Extract room name from JID
+        const result = await api.getMessages(state.instanceId, { room: `project-${project.projectId || project.id}`, limit: 20 });
+        const messages = result.messages || [];
+
+        if (messages.length === 0) {
+            container.innerHTML = '<div class="empty-state-mini"><span>No messages yet</span></div>';
+            return;
+        }
+
+        container.innerHTML = messages.map(msg => {
+            const isSent = msg.from?.includes(state.instanceId) || msg.from?.includes('Lupo');
+            const senderName = msg.from?.split('@')[0] || 'Unknown';
+            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+            return `
+                <div class="message-mini ${isSent ? 'sent' : 'received'}">
+                    ${!isSent ? `<div class="message-mini-sender">${escapeHtml(senderName)}</div>` : ''}
+                    <div>${escapeHtml(msg.body || msg.subject || '(no content)')}</div>
+                    <div class="message-mini-time">${time}</div>
+                </div>
+            `;
+        }).join('');
+
+        // Scroll to bottom
+        container.scrollTop = container.scrollHeight;
+    } catch (e) {
+        console.error('[App] Error loading team messages:', e);
+        container.innerHTML = '<div class="empty-state-mini"><span>Could not load messages</span></div>';
+    }
+}
+
+/**
+ * Set up chat input handlers for project sidebar
+ */
+function setupProjectChatInputs(project) {
+    // Team room send
+    const teamSendBtn = document.getElementById('team-room-send');
+    const teamInput = document.getElementById('team-room-input');
+    const teamSubject = document.getElementById('team-room-subject');
+
+    teamSendBtn.onclick = async () => {
+        const body = teamInput.value.trim();
+        if (!body) return;
+
+        try {
+            await api.sendMessage(state.instanceId, {
+                to: `project:${project.projectId || project.id}`,
+                subject: teamSubject.value.trim() || undefined,
+                body: body
+            });
+            teamInput.value = '';
+            teamSubject.value = '';
+            showToast('Message sent', 'success');
+            loadProjectTeamMessages(project);
+        } catch (e) {
+            console.error('[App] Error sending team message:', e);
+            showToast('Failed to send message', 'error');
+        }
+    };
+
+    // Enter key to send
+    teamInput.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            teamSendBtn.click();
+        }
+    };
+
+    // PM chat send (via continue_conversation)
+    const pmSendBtn = document.getElementById('pm-chat-send');
+    const pmInput = document.getElementById('pm-chat-input');
+
+    pmSendBtn.onclick = async () => {
+        if (!state.currentProjectPM) return;
+        const body = pmInput.value.trim();
+        if (!body) return;
+
+        // Check for API key
+        if (!state.wakeApiKey) {
+            await ensureApiKey();
+            if (!state.wakeApiKey) return;
+        }
+
+        try {
+            pmSendBtn.disabled = true;
+            document.getElementById('pm-chat-messages').innerHTML += `
+                <div class="message-mini sent">
+                    <div>${escapeHtml(body)}</div>
+                    <div class="message-mini-time">Sending...</div>
+                </div>
+            `;
+
+            const result = await api.continueConversation(
+                state.instanceId,
+                state.currentProjectPM.instanceId,
+                uiConfig.MESSAGE_PREFIX + body + uiConfig.MESSAGE_POSTSCRIPT,
+                state.wakeApiKey
+            );
+
+            // Show response
+            const response = result.response || result.output || 'No response';
+            document.getElementById('pm-chat-messages').innerHTML += `
+                <div class="message-mini received">
+                    <div class="message-mini-sender">${escapeHtml(state.currentProjectPM.name)}</div>
+                    <div>${escapeHtml(response.substring(0, 500))}${response.length > 500 ? '...' : ''}</div>
+                    <div class="message-mini-time">Just now</div>
+                </div>
+            `;
+
+            pmInput.value = '';
+
+            // Update turn count
+            const turnCount = result.turn || (state.pmChatTurns || 0) + 1;
+            state.pmChatTurns = turnCount;
+            document.getElementById('pm-chat-turn-count').textContent = `Turn ${turnCount}`;
+
+            // Scroll to bottom
+            const container = document.getElementById('pm-chat-messages');
+            container.scrollTop = container.scrollHeight;
+
+        } catch (e) {
+            console.error('[App] Error in PM chat:', e);
+            showToast('Failed to send to PM: ' + e.message, 'error');
+        } finally {
+            pmSendBtn.disabled = !state.currentProjectPM;
+        }
+    };
+
+    pmInput.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            pmSendBtn.click();
+        }
+    };
+}
+
+/**
+ * Set up collapsible task list behavior
+ */
+function setupTaskListCollapse() {
+    document.querySelectorAll('.task-list-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const card = header.closest('.task-list-card');
+            card.classList.toggle('expanded');
+        });
+    });
 }
 
 /**
@@ -707,6 +1062,9 @@ function hideProjectDetail() {
     document.getElementById('project-grid').style.display = 'grid';
     document.querySelector('#tab-projects .page-header').style.display = 'flex';
     state.currentProjectDetail = null;
+    state.currentProject = null;
+    state.currentProjectPM = null;
+    state.pmChatTurns = 0;
 }
 
 /**

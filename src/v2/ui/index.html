@@ -197,47 +197,139 @@
                         <div class="loading-placeholder">Loading projects...</div>
                     </div>
 
-                    <!-- Project Detail View (hidden by default) -->
-                    <div id="project-detail-view" class="detail-view" style="display: none;">
-                        <div class="detail-header">
-                            <button class="btn-back" id="project-back-btn">
-                                <span>&#8592;</span> Back to Projects
-                            </button>
-                            <h1 id="project-detail-name">Project Name</h1>
-                            <span class="project-status" id="project-detail-status"></span>
-                        </div>
-                        <div class="detail-content">
-                            <div class="detail-section">
-                                <div class="detail-section-header">
-                                    <h3>Description</h3>
-                                    <button class="btn-save-edit" id="project-desc-save-btn">Save</button>
+                    <!-- Project Detail View (hidden by default) - Redesigned -->
+                    <div id="project-detail-view" class="project-detail-layout" style="display: none;">
+                        <!-- Main Content Area -->
+                        <div class="project-main-content">
+                            <!-- Header -->
+                            <div class="detail-header">
+                                <button class="btn-back" id="project-back-btn">
+                                    <span>&#8592;</span> Back to Projects
+                                </button>
+                                <h1 id="project-detail-name">Project Name</h1>
+                                <span class="project-status" id="project-detail-status"></span>
+                            </div>
+
+                            <!-- PM Section - Prominent -->
+                            <div class="project-pm-section" id="project-pm-section">
+                                <h3 class="section-title">Project Manager</h3>
+                                <div class="pm-card" id="project-pm-card">
+                                    <div class="pm-avatar" id="pm-avatar">?</div>
+                                    <div class="pm-info">
+                                        <span class="pm-name" id="pm-name">No PM Assigned</span>
+                                        <span class="pm-id" id="pm-id">-</span>
+                                        <span class="pm-status" id="pm-status">-</span>
+                                    </div>
+                                    <div class="pm-actions">
+                                        <button class="btn btn-primary" id="pm-continue-btn" style="display: none;">Continue</button>
+                                        <button class="btn btn-secondary" id="pm-message-btn" style="display: none;">Message</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Team Members Section -->
+                            <div class="project-team-section">
+                                <div class="section-header-row">
+                                    <h3 class="section-title">Team Members</h3>
+                                    <button class="btn btn-small btn-secondary" id="project-assign-instance-btn">+ Add Member</button>
+                                </div>
+                                <div id="project-detail-team" class="team-grid">
+                                    <p class="empty-placeholder">No team members assigned</p>
+                                </div>
+                            </div>
+
+                            <!-- Description Section -->
+                            <div class="project-description-section">
+                                <div class="section-header-row">
+                                    <h3 class="section-title">Description</h3>
+                                    <button class="btn-save-edit" id="project-desc-save-btn" style="display: none;">Save</button>
                                 </div>
                                 <div class="editable-field" id="project-desc-editable" data-field="description">
                                     <p id="project-detail-description">No description</p>
                                 </div>
                             </div>
-                            <div class="detail-section">
-                                <h3>Repository</h3>
-                                <p id="project-detail-repo">-</p>
-                            </div>
-                            <div class="detail-section">
-                                <h3>Tasks</h3>
-                                <div id="project-detail-tasks" class="detail-task-list">
-                                    <p class="empty-placeholder">Loading tasks...</p>
+
+                            <!-- Documents Section -->
+                            <div class="project-documents-section">
+                                <h3 class="section-title">Documents</h3>
+                                <div id="project-detail-documents" class="documents-list">
+                                    <p class="empty-placeholder">No documents</p>
                                 </div>
-                                <button class="btn btn-small" id="project-add-task-btn" style="margin-top: 0.75rem;">+ Add Task</button>
                             </div>
-                            <div class="detail-section">
-                                <h3>Team Members</h3>
-                                <div id="project-detail-team" class="team-list">
-                                    <p class="empty-placeholder">No team members assigned</p>
+
+                            <!-- Task Lists Section - Collapsible -->
+                            <div class="project-tasks-section">
+                                <div class="section-header-row">
+                                    <h3 class="section-title">Task Lists</h3>
+                                    <button class="btn btn-small" id="project-add-task-btn">+ Add Task</button>
                                 </div>
+                                <div id="project-task-lists" class="task-lists-container">
+                                    <!-- Primary task list (auto-expanded) -->
+                                    <div class="task-list-card expanded" id="project-primary-tasks">
+                                        <div class="task-list-header" data-list="primary">
+                                            <span class="collapse-icon">&#9660;</span>
+                                            <span class="list-name">Tasks</span>
+                                            <span class="task-count" id="primary-task-count">0</span>
+                                        </div>
+                                        <div class="task-list-content" id="project-detail-tasks">
+                                            <p class="empty-placeholder">No tasks yet</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Repository Info (collapsed) -->
+                            <div class="project-repo-section">
+                                <h3 class="section-title">Repository</h3>
+                                <p id="project-detail-repo" class="repo-link">-</p>
                             </div>
                         </div>
-                        <div class="detail-actions">
-                            <button class="btn" id="project-message-team-btn">Message Team</button>
-                            <button class="btn btn-secondary" id="project-assign-instance-btn">Assign Instance</button>
-                            <button class="btn btn-secondary" id="project-edit-btn">Edit Project</button>
+
+                        <!-- Chat Sidebar -->
+                        <div class="project-chat-sidebar" id="project-chat-sidebar">
+                            <div class="chat-sidebar-tabs">
+                                <button class="chat-tab active" data-tab="team-room">Team Room</button>
+                                <button class="chat-tab" data-tab="pm-chat">PM Chat</button>
+                            </div>
+
+                            <!-- Team Room Tab -->
+                            <div class="chat-tab-content active" id="team-room-content">
+                                <div class="chat-header-mini">
+                                    <span class="chat-room-name" id="team-room-name">Project Room</span>
+                                    <button class="btn-icon btn-refresh" id="refresh-team-room" title="Refresh">&#8635;</button>
+                                </div>
+                                <div class="chat-messages-mini" id="team-room-messages">
+                                    <div class="empty-state-mini">
+                                        <span>No messages yet</span>
+                                    </div>
+                                </div>
+                                <div class="chat-input-mini">
+                                    <input type="text" id="team-room-subject" placeholder="Subject (optional)" class="chat-subject-input">
+                                    <div class="chat-input-row">
+                                        <textarea id="team-room-input" placeholder="Message team..." rows="2"></textarea>
+                                        <button class="btn-send" id="team-room-send">&#10148;</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PM Chat Tab -->
+                            <div class="chat-tab-content" id="pm-chat-content">
+                                <div class="chat-header-mini">
+                                    <span class="chat-pm-name" id="chat-pm-name">PM</span>
+                                    <span class="chat-turn-count" id="pm-chat-turn-count">Turn 0</span>
+                                </div>
+                                <div class="chat-messages-mini" id="pm-chat-messages">
+                                    <div class="empty-state-mini">
+                                        <span>No PM assigned or not woken</span>
+                                    </div>
+                                </div>
+                                <div class="chat-input-mini">
+                                    <div class="chat-input-row">
+                                        <textarea id="pm-chat-input" placeholder="Message PM..." rows="2"></textarea>
+                                        <button class="btn-send" id="pm-chat-send" disabled>&#10148;</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
