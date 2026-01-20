@@ -712,9 +712,9 @@ async function showProjectDetail(projectId) {
     // Populate documents
     renderProjectDocuments(project);
 
-    // Load and render project tasks
+    // Load and render project tasks (request up to 100, API defaults to 5)
     try {
-        const result = await api.listTasks(state.instanceId, { projectId });
+        const result = await api.listTasks(state.instanceId, { projectId, limit: 100 });
         const tasks = result.tasks || result || [];
         renderProjectDetailTasks(tasks);
         document.getElementById('primary-task-count').textContent = tasks.length;
@@ -2832,7 +2832,7 @@ async function createTask() {
             if (state.currentTab === 'projects' && state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
-                    const taskResult = await api.listTasks(state.instanceId, { projectId: state.currentProjectDetail });
+                    const taskResult = await api.listTasks(state.instanceId, { projectId: state.currentProjectDetail, limit: 100 });
                     const tasks = taskResult.tasks || [];
                     renderProjectDetailTasks(tasks);
                     // Update task count
