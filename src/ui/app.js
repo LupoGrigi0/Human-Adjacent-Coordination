@@ -1545,34 +1545,13 @@ async function assignInstanceToProject(instanceId, name) {
     if (!state.currentProjectDetail) return;
 
     try {
-        // Get current project
-        const project = state.projects.find(p => (p.projectId || p.id) === state.currentProjectDetail);
-        if (!project) throw new Error('Project not found');
-
-        // Add to team
-        const currentTeam = project.team || [];
-        const newTeam = [...currentTeam, instanceId || name];
-
-        // Update via API
-        // TODO: 'update_project' API does not exist - update functionality may need to be implemented
-        await rpcCallDirect('update_project', {
-            id: state.currentProjectDetail,
-            updates: { team: newTeam }
-        });
-
-        // Update local state
-        project.team = newTeam;
-
-        // Refresh the team display
-        const teamContainer = document.getElementById('project-detail-team');
-        teamContainer.innerHTML = newTeam.map(member => `
-            <div class="team-member">
-                <span class="team-avatar">${(member.name || member).toString().charAt(0).toUpperCase()}</span>
-                <span>${escapeHtml(member.name || member)}</span>
-            </div>
-        `).join('');
+        // Use join_project API - have the instance join the project
+        await api.joinProject(instanceId, state.currentProjectDetail);
 
         showToast(`${name} added to project!`, 'success');
+
+        // Refresh the project detail to show updated team
+        await showProjectDetail(state.currentProjectDetail);
     } catch (e) {
         console.error('[App] Error assigning instance:', e);
         showToast('Could not assign instance: ' + e.message, 'error');
