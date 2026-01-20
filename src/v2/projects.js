@@ -256,12 +256,17 @@ export async function createProject(params) {
   // Create project directory
   await ensureDir(projectDir);
 
+  // Sanitize description - convert newlines to spaces to prevent JSON issues
+  const sanitizedDescription = params.description
+    ? params.description.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim()
+    : 'No description provided';
+
   // Template values for placeholder replacement
   const now = new Date().toISOString();
   const templateValues = {
     PROJECT_ID: params.projectId,
     PROJECT_NAME: params.name,
-    PROJECT_DESCRIPTION: params.description || 'No description provided',
+    PROJECT_DESCRIPTION: sanitizedDescription,
     CREATED_AT: now
   };
 
@@ -291,7 +296,7 @@ export async function createProject(params) {
         id: params.projectId,
         type: 'project',
         name: params.name,
-        description: params.description || 'No description provided',
+        description: sanitizedDescription,
         status: 'active',
         documents: [],
         pm: null,
@@ -314,7 +319,7 @@ export async function createProject(params) {
     project: {
       projectId: params.projectId,
       name: params.name,
-      description: params.description || 'No description provided',
+      description: sanitizedDescription,
       status: 'active',
       xmppRoom: createdPrefs?.xmppRoom || `${params.projectId}@conference.smoothcurves.nexus`
     },
