@@ -10,68 +10,7 @@
 
 import api, { setEnvironment, getEnvironment, ApiError } from './api.js';
 import * as uiConfig from './ui-config.js';
-
-// ============================================================================
-// STATE MANAGEMENT
-// ============================================================================
-
-// Configuration - This UI always runs as Lupo (Executive)
-const CONFIG = {
-    defaultName: 'Lupo',
-    defaultRole: 'Executive',
-    storageKey: 'v2_lupo_instance_id',
-    fixedInstanceId: 'Lupo-f63b'  // Always use this specific instance ID
-};
-
-const state = {
-    // Identity
-    instanceId: null,
-    name: CONFIG.defaultName,
-    role: CONFIG.defaultRole,
-    personality: null,
-    project: null,
-
-    // Data
-    projects: [],
-    instances: [],
-    tasks: [],
-    messages: [],
-    lists: [],
-    diary: '',
-
-    // Lists state
-    currentListId: null,
-    currentList: null,
-
-    // Instance detail state
-    currentInstanceDetail: null,
-
-    // Wake API state
-    wakeApiKey: null,
-    wakeConversationTarget: null,
-    wakeConversationTurns: [],
-    wakeConversationLoading: false,
-    availableRoles: [],
-    availablePersonalities: [],
-
-    // UI State
-    currentTab: 'dashboard',
-    currentConversation: null,
-    conversationType: null, // 'instance' | 'project'
-    theme: 'light',
-
-    // Connection
-    connected: false,
-    lastUpdate: null,
-
-    // Polling
-    messagePollingInterval: null,
-    unreadCount: 0
-};
-
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
+import { CONFIG, state } from './state.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] Initializing V2 Dashboard as Lupo...');
