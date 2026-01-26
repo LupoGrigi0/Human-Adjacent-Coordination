@@ -45,6 +45,12 @@ import {
   addToVital,
   removeFromVital
 } from './v2/documents.js';
+// V2 Git Operations (for team members working on project code)
+import {
+  cloneProjectRepo,
+  pushProjectChanges,
+  getRepoStatus
+} from './v2/git-operations.js';
 // Legacy V2 tasks (keeping for backward compatibility during transition)
 import {
   getMyTasks,
@@ -418,6 +424,14 @@ class MCPCoordinationServer {
         case 'remove_from_vital':
           return removeFromVital(params);
 
+        // V2 Git Operations
+        case 'clone_project_repo':
+          return cloneProjectRepo(params);
+        case 'push_project_changes':
+          return pushProjectChanges(params);
+        case 'get_repo_status':
+          return getRepoStatus(params);
+
         // V2 Task APIs
         case 'get_my_tasks':
           return getMyTasks(params);
@@ -630,6 +644,10 @@ class MCPCoordinationServer {
       'list_vital_documents',
       'add_to_vital',
       'remove_from_vital',
+      // V2 Git Operations
+      'clone_project_repo',
+      'push_project_changes',
+      'get_repo_status',
       'get_my_tasks',
       'get_next_task',
       'add_personal_task',
