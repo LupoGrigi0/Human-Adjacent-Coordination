@@ -383,6 +383,70 @@ export async function assignTaskToInstance(params) {
   return rpcCall('assign_task_to_instance', params);
 }
 
+/**
+ * Mark a task as complete
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to mark complete
+ */
+export async function markTaskComplete(instanceId, taskId) {
+  return rpcCall('mark_task_complete', { instanceId, taskId });
+}
+
+/**
+ * Update a task (status, priority, description, etc.)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to update
+ * @param {object} updates - Fields to update (status, priority, title, description, etc.)
+ */
+export async function updateTask(instanceId, taskId, updates) {
+  return rpcCall('update_task', { instanceId, taskId, ...updates });
+}
+
+// ============================================================================
+// DOCUMENT APIs
+// ============================================================================
+
+/**
+ * List documents for a project
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} projectId - Project to list documents for
+ */
+export async function listDocuments(instanceId, projectId) {
+  return rpcCall('list_documents', { instanceId, projectId });
+}
+
+/**
+ * Read a document
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} projectId - Project the document belongs to
+ * @param {string} documentId - Document ID/name to read
+ */
+export async function readDocument(instanceId, projectId, documentId) {
+  return rpcCall('read_document', { instanceId, projectId, documentId });
+}
+
+/**
+ * Create a new document
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} projectId - Project to create document in
+ * @param {string} documentId - Document ID/name
+ * @param {string} content - Document content
+ */
+export async function createDocument(instanceId, projectId, documentId, content) {
+  return rpcCall('create_document', { instanceId, projectId, documentId, content });
+}
+
+/**
+ * Edit an existing document
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} projectId - Project the document belongs to
+ * @param {string} documentId - Document ID/name
+ * @param {string} content - New document content
+ */
+export async function editDocument(instanceId, projectId, documentId, content) {
+  return rpcCall('edit_document', { instanceId, projectId, documentId, content });
+}
+
 // ============================================================================
 // DIARY APIs
 // ============================================================================
@@ -786,6 +850,14 @@ export const api = {
   getPersonalLists,
   createPersonalList,
   assignTaskToInstance,
+  markTaskComplete,
+  updateTask,
+
+  // Documents
+  listDocuments,
+  readDocument,
+  createDocument,
+  editDocument,
 
   // Diary
   getDiary,
