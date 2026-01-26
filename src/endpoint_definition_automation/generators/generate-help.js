@@ -49,6 +49,7 @@ function parseEndpointBlock(block) {
 
   const lines = block.split('\n');
   let descriptionLines = [];
+  let inDescription = false;
   let currentParam = null;
 
   for (const line of lines) {
@@ -61,18 +62,25 @@ function parseEndpointBlock(block) {
     // Parse @tags
     if (trimmed.startsWith('@tool ')) {
       endpoint.tool = trimmed.replace('@tool ', '').trim();
+      inDescription = false;
     } else if (trimmed.startsWith('@version ')) {
       endpoint.version = trimmed.replace('@version ', '').trim();
+      inDescription = false;
     } else if (trimmed.startsWith('@category ')) {
       endpoint.category = trimmed.replace('@category ', '').trim();
+      inDescription = false;
     } else if (trimmed.startsWith('@status ')) {
       endpoint.status = trimmed.replace('@status ', '').trim();
+      inDescription = false;
     } else if (trimmed.startsWith('@visibility ')) {
       endpoint.visibility = trimmed.replace('@visibility ', '').trim();
+      inDescription = false;
     } else if (trimmed.startsWith('@description')) {
+      inDescription = true;
       const desc = trimmed.replace('@description', '').trim();
       if (desc) descriptionLines.push(desc);
     } else if (trimmed.startsWith('@param ')) {
+      inDescription = false;
       // Parse: @param {type} name - description [required/optional]
       const paramMatch = trimmed.match(/@param\s+\{([^}]+)\}\s+(\w+)\s*-?\s*(.*)/);
       if (paramMatch) {
@@ -88,19 +96,23 @@ function parseEndpointBlock(block) {
         endpoint.parameters.push(currentParam);
       }
     } else if (trimmed.startsWith('@returns ')) {
+      inDescription = false;
       const returnMatch = trimmed.match(/@returns\s+\{([^}]+)\}\s*(.*)/);
       if (returnMatch) {
         const [, type, desc] = returnMatch;
         endpoint.returns.push({ type, description: desc });
       }
     } else if (trimmed.startsWith('@example')) {
+      inDescription = false;
       // Next lines until another @ tag are the example
     } else if (trimmed.startsWith('@related ')) {
+      inDescription = false;
       endpoint.related.push(trimmed.replace('@related ', '').trim());
     } else if (trimmed.startsWith('@note ')) {
+      inDescription = false;
       endpoint.notes.push(trimmed.replace('@note ', '').trim());
-    } else if (!trimmed.startsWith('@') && descriptionLines.length > 0) {
-      // Continue description on next lines
+    } else if (!trimmed.startsWith('@') && inDescription) {
+      // Continue description on next lines (until we hit another @tag)
       descriptionLines.push(trimmed);
     }
   }
