@@ -26,7 +26,7 @@ export async function loadInstances() {
     grid.innerHTML = '<div class="loading-placeholder">Loading instances...</div>';
 
     try {
-        const result = await api.getAllInstances(state.instanceId);
+        const result = await api.getInstances({ instanceId: state.instanceId });
         state.instances = result.instances || [];
 
         renderInstancesGrid();
