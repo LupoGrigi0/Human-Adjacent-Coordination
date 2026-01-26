@@ -1,6 +1,6 @@
 # HACS Developer Guide
 
-**Updated:** 2026-01-10
+**Updated:** 2026-01-26
 **Author:** Bastion (DevOps), Crossing (Integration), Ember (Task System)
 **Audience:** All HACS team members and contributors
 
@@ -290,6 +290,25 @@ The system auto-generates `openapi.json` from code comments. Use this format:
  * @returns {boolean} .success - Whether it worked
  */
 ```
+
+### Multi-line Descriptions
+
+The `@description` tag supports multi-line content. Put `@description` on its own line, then continue on subsequent lines until the next `@tag`:
+
+```javascript
+/**
+ * @hacs-endpoint
+ * @tool your_api_name
+ * @description
+ * This is a multi-line description that explains what the API does.
+ * It can span multiple lines for better readability.
+ * The parser uses an `inDescription` flag to track when we're collecting
+ * description content, stopping when it hits any other @tag.
+ * @param {string} instanceId - Caller's instance ID
+ */
+```
+
+**Technical note:** The help generator (`generate-help.js`) uses an `inDescription` boolean flag to properly parse multi-line descriptions. This was added in commit `d9a9e27` to fix empty descriptions in `get_tool_help` output.
 
 ### 4. Regenerate Documentation (Optional)
 
