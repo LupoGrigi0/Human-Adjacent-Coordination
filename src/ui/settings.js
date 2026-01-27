@@ -17,7 +17,7 @@ import { showToast } from './utils.js';
  * Initialize theme from localStorage
  */
 export function initTheme() {
-    const savedTheme = localStorage.getItem('v2_theme') || 'dark';
+    const savedTheme = localStorage.getItem('v2_theme') || 'light';
     setTheme(savedTheme);
 }
 
@@ -27,13 +27,13 @@ export function initTheme() {
  */
 export function setTheme(theme) {
     state.theme = theme;
-    document.body.dataset.theme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('v2_theme', theme);
 
-    // Update theme toggle button
-    const themeBtn = document.getElementById('theme-toggle');
-    if (themeBtn) {
-        themeBtn.textContent = theme === 'dark' ? '\u2600' : '\u263D'; // sun/moon
+    // Update theme toggle icon
+    const themeIcon = document.querySelector('.theme-icon');
+    if (themeIcon) {
+        themeIcon.textContent = theme === 'dark' ? '\u2600' : '\u263D'; // sun/moon
     }
 }
 
@@ -41,8 +41,7 @@ export function setTheme(theme) {
  * Toggle between light and dark themes
  */
 export function toggleTheme() {
-    const newTheme = state.theme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
+    setTheme(state.theme === 'dark' ? 'light' : 'dark');
 }
 
 // ============================================================================

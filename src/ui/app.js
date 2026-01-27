@@ -12,6 +12,7 @@ import api, { setEnvironment, getEnvironment, ApiError } from './api.js';
 import * as uiConfig from './ui-config.js';
 import { CONFIG, state } from './state.js';
 import { escapeHtml, showToast } from './utils.js';
+import { initTheme, setTheme, toggleTheme } from './settings.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] Initializing V2 Dashboard as Lupo...');
@@ -80,28 +81,6 @@ async function autoBootstrapAsLupo() {
         updateConnectionStatus(false);
         showToast('Failed to connect: ' + error.message, 'error');
     }
-}
-
-// ============================================================================
-// THEME
-// ============================================================================
-
-function initTheme() {
-    const savedTheme = localStorage.getItem('v2_theme') || 'light';
-    setTheme(savedTheme);
-}
-
-function setTheme(theme) {
-    state.theme = theme;
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('v2_theme', theme);
-
-    const themeIcon = document.querySelector('.theme-icon');
-    themeIcon.textContent = theme === 'dark' ? '\u2600' : '\u263D'; // sun/moon
-}
-
-function toggleTheme() {
-    setTheme(state.theme === 'dark' ? 'light' : 'dark');
 }
 
 // ============================================================================
