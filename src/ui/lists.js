@@ -19,7 +19,6 @@ import api from './api.js';
  */
 export async function loadLists() {
     const grid = document.getElementById('lists-grid');
-    if (!grid) return;
 
     if (!state.instanceId) {
         grid.innerHTML = '<div class="empty-placeholder">Bootstrap to see lists</div>';
@@ -30,49 +29,43 @@ export async function loadLists() {
 
     try {
         const result = await api.getLists(state.instanceId);
-        state.lists = result.lists || [];
+        const lists = result.lists || [];
+        state.lists = lists;
 
-        renderListsGrid();
-    } catch (error) {
-        console.error('[Lists] Error loading lists:', error);
-        grid.innerHTML = `<div class="error-placeholder">Error: ${escapeHtml(error.message)}</div>`;
-    }
-}
+        if (lists.length === 0) {
+            grid.innerHTML = `
+                <div class="empty-placeholder">
+                    <p>No lists yet. Create your first list!</p>
+                </div>
+            `;
+            return;
+        }
 
-/**
- * Render lists grid
- */
-export function renderListsGrid() {
-    const grid = document.getElementById('lists-grid');
-    if (!grid) return;
+        grid.innerHTML = lists.map(list => {
+            const itemCount = list.itemCount || list.items?.length || 0;
+            const completedCount = list.completedCount || 0;
+            return `
+                <div class="list-card" data-list-id="${list.id || list.listId}">
+                    <div class="list-card-name">${escapeHtml(list.name)}</div>
+                    <div class="list-card-description">${escapeHtml(list.description || 'No description')}</div>
+                    <div class="list-card-stats">
+                        <span>&#128203; ${itemCount} items</span>
+                        ${completedCount > 0 ? `<span>&#9745; ${completedCount} done</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
 
-    if (state.lists.length === 0) {
-        grid.innerHTML = `
-            <div class="empty-placeholder">
-                No lists yet
-                <button class="btn btn-primary" onclick="window.showCreateListModal()">Create List</button>
-            </div>
-        `;
-        return;
-    }
-
-    grid.innerHTML = state.lists.map(list => `
-        <div class="list-card" data-list-id="${escapeHtml(list.id || list.listId)}">
-            <div class="list-name">${escapeHtml(list.name)}</div>
-            <div class="list-meta">
-                <span class="list-item-count">${list.itemCount || 0} items</span>
-                <span class="list-checked-count">${list.checkedCount || 0} done</span>
-            </div>
-        </div>
-    `).join('');
-
-    // Add click handlers
-    grid.querySelectorAll('.list-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const listId = card.dataset.listId;
-            showListDetail(listId);
+        // Add click handlers
+        grid.querySelectorAll('.list-card').forEach(card => {
+            card.addEventListener('click', () => {
+                showListDetail(card.dataset.listId);
+            });
         });
-    });
+    } catch (error) {
+        console.error('[App] Error loading lists:', error);
+        grid.innerHTML = `<div class="empty-placeholder">Error loading lists: ${escapeHtml(error.message)}</div>`;
+    }
 }
 
 // ============================================================================
@@ -80,83 +73,70 @@ export function renderListsGrid() {
 // ============================================================================
 
 /**
- * Show list detail
+ * Show list detail panel with items
  * @param {string} listId - List ID
  */
 export async function showListDetail(listId) {
     state.currentListId = listId;
 
-    const detailView = document.getElementById('list-detail-view');
-    const grid = document.getElementById('lists-grid');
+    // Hide grid, show detail panel
+    document.getElementById('lists-grid').parentElement.style.display = 'none';
+    document.getElementById('list-detail-panel').style.display = 'flex';
 
-    if (!detailView || !grid) return;
+    const nameEl = document.getElementById('list-detail-name');
+    const descEl = document.getElementById('list-detail-description');
+    const itemsEl = document.getElementById('list-items');
 
-    grid.style.display = 'none';
-    detailView.style.display = 'block';
+    nameEl.textContent = 'Loading...';
+    descEl.textContent = '';
+    itemsEl.innerHTML = '<div class="loading-placeholder">Loading items...</div>';
 
     try {
         const result = await api.getList(state.instanceId, listId);
-        state.currentList = result.list || result;
+        const list = result.list || result;
+        state.currentList = list;
 
-        renderListDetail();
+        nameEl.textContent = list.name;
+        descEl.textContent = list.description || 'No description';
+
+        renderListItems(list.items || []);
     } catch (error) {
-        showToast('Error loading list: ' + error.message, 'error');
+        console.error('[App] Error loading list:', error);
+        itemsEl.innerHTML = `<div class="empty-placeholder">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
 
 /**
- * Render list detail view
+ * Render list items
+ * @param {Array} items - Array of list items
  */
-function renderListDetail() {
-    const list = state.currentList;
-    if (!list) return;
+function renderListItems(items) {
+    const container = document.getElementById('list-items');
 
-    document.getElementById('list-detail-name').textContent = list.name;
-
-    const itemsContainer = document.getElementById('list-items');
-    const items = list.items || [];
-
-    if (items.length === 0) {
-        itemsContainer.innerHTML = '<div class="empty-placeholder">No items yet</div>';
+    if (!items || items.length === 0) {
+        container.innerHTML = '<div class="empty-placeholder">No items yet. Add one above!</div>';
         return;
     }
 
-    itemsContainer.innerHTML = items.map(item => `
-        <div class="list-item ${item.checked ? 'checked' : ''}" data-item-id="${escapeHtml(item.id)}">
-            <input type="checkbox" ${item.checked ? 'checked' : ''} class="item-checkbox">
-            <span class="item-text">${escapeHtml(item.text)}</span>
-            <button class="btn btn-icon btn-danger item-delete">&times;</button>
+    container.innerHTML = items.map(item => `
+        <div class="list-item ${item.completed ? 'completed' : ''}" data-item-id="${item.id || item.itemId}">
+            <input type="checkbox" class="list-item-checkbox"
+                   ${item.completed ? 'checked' : ''}
+                   onchange="toggleListItem('${item.id || item.itemId}')">
+            <span class="list-item-text">${escapeHtml(item.text)}</span>
+            <button class="list-item-delete" onclick="deleteListItem('${item.id || item.itemId}')" title="Delete item">
+                &#128465;
+            </button>
         </div>
     `).join('');
-
-    // Add checkbox handlers
-    itemsContainer.querySelectorAll('.item-checkbox').forEach(cb => {
-        cb.addEventListener('change', () => {
-            const itemId = cb.closest('.list-item').dataset.itemId;
-            toggleListItem(itemId);
-        });
-    });
-
-    // Add delete handlers
-    itemsContainer.querySelectorAll('.item-delete').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const itemId = btn.closest('.list-item').dataset.itemId;
-            deleteListItem(itemId);
-        });
-    });
 }
 
 /**
- * Hide list detail
+ * Hide list detail, return to grid
  */
 export function hideListDetail() {
-    const detailView = document.getElementById('list-detail-view');
-    const grid = document.getElementById('lists-grid');
-
-    if (detailView) detailView.style.display = 'none';
-    if (grid) grid.style.display = 'grid';
-
+    document.getElementById('list-detail-panel').style.display = 'none';
+    document.getElementById('lists-grid').parentElement.style.display = 'flex';
     state.currentListId = null;
     state.currentList = null;
 }
@@ -166,72 +146,195 @@ export function hideListDetail() {
 // ============================================================================
 
 /**
- * Toggle list item checked state
+ * Toggle a list item's completed state
  * @param {string} itemId - Item ID
  */
 export async function toggleListItem(itemId) {
+    if (!state.currentListId || !state.instanceId) return;
+
+    // Optimistic UI update - toggle locally first
+    if (state.currentList && state.currentList.items) {
+        const item = state.currentList.items.find(i => (i.id || i.itemId) === itemId);
+        if (item) {
+            item.completed = !item.completed;
+            renderListItems(state.currentList.items);
+        }
+    }
+
     try {
-        await api.toggleListItem(state.instanceId, state.currentListId, itemId);
-        showListDetail(state.currentListId);
+        const result = await api.toggleListItem(state.instanceId, state.currentListId, itemId);
+        console.log('[App] Toggle result:', result);
+        // Refresh grid counts in background
+        loadLists();
     } catch (error) {
-        showToast('Error toggling item: ' + error.message, 'error');
+        console.error('[App] Error toggling item:', error);
+        showToast('Could not update item: ' + error.message, 'error');
+        // Revert optimistic update on error
+        await showListDetail(state.currentListId);
     }
 }
 
 /**
- * Add item to current list
- * @param {string} text - Item text
- */
-export async function addListItem(text) {
-    if (!text?.trim()) return;
-
-    try {
-        await api.addListItem(state.instanceId, state.currentListId, text);
-        showToast('Item added!', 'success');
-        showListDetail(state.currentListId);
-    } catch (error) {
-        showToast('Error adding item: ' + error.message, 'error');
-    }
-}
-
-/**
- * Delete list item
+ * Delete a list item
  * @param {string} itemId - Item ID
  */
 export async function deleteListItem(itemId) {
+    if (!state.currentListId || !state.instanceId) return;
+
     try {
         await api.deleteListItem(state.instanceId, state.currentListId, itemId);
-        showListDetail(state.currentListId);
+        showToast('Item deleted', 'success');
+        // Refresh the list and grid counts
+        await showListDetail(state.currentListId);
+        loadLists();
     } catch (error) {
-        showToast('Error deleting item: ' + error.message, 'error');
+        console.error('[App] Error deleting item:', error);
+        showToast('Could not delete item: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Add a new item to the current list
+ */
+export async function addListItem() {
+    const input = document.getElementById('new-item-input');
+    const text = input.value.trim();
+
+    if (!text || !state.currentListId || !state.instanceId) return;
+
+    try {
+        await api.addListItem(state.instanceId, state.currentListId, text);
+        input.value = '';
+        showToast('Item added!', 'success');
+        // Refresh the list and grid counts
+        await showListDetail(state.currentListId);
+        loadLists();
+    } catch (error) {
+        console.error('[App] Error adding item:', error);
+        showToast('Could not add item: ' + error.message, 'error');
     }
 }
 
 // ============================================================================
-// LIST CREATION
+// LIST MANAGEMENT
 // ============================================================================
 
 /**
  * Show create list modal
  */
 export function showCreateListModal() {
-    // TODO: Implement create list modal
-    showToast('Create list modal coming soon', 'info');
+    document.getElementById('create-list-modal').classList.add('active');
+    document.getElementById('list-name').value = '';
+    document.getElementById('list-description').value = '';
+    document.getElementById('list-name').focus();
+}
+
+/**
+ * Close create list modal
+ */
+export function closeCreateListModal() {
+    document.getElementById('create-list-modal').classList.remove('active');
+}
+
+/**
+ * Create a new list
+ */
+export async function createList() {
+    const name = document.getElementById('list-name').value.trim();
+    const description = document.getElementById('list-description').value.trim();
+
+    if (!name) {
+        showToast('Please enter a list name', 'error');
+        return;
+    }
+
+    if (!state.instanceId) {
+        showToast('Not connected', 'error');
+        return;
+    }
+
+    try {
+        const result = await api.createList(state.instanceId, name, description || undefined);
+
+        if (result.success !== false && !result.error) {
+            showToast(`List "${name}" created!`, 'success');
+            closeCreateListModal();
+            loadLists();
+        } else {
+            showToast(result.error?.message || 'Failed to create list', 'error');
+        }
+    } catch (error) {
+        console.error('[App] Create list error:', error);
+        showToast('Error creating list: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Delete the current list
+ */
+export async function deleteCurrentList() {
+    if (!state.currentListId || !state.instanceId) return;
+
+    const listName = state.currentList?.name || 'this list';
+    if (!confirm(`Are you sure you want to delete "${listName}"? This cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        await api.deleteList(state.instanceId, state.currentListId);
+        showToast('List deleted', 'success');
+        hideListDetail();
+        loadLists();
+    } catch (error) {
+        console.error('[App] Error deleting list:', error);
+        showToast('Could not delete list: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Rename the current list
+ */
+export async function renameCurrentList() {
+    if (!state.currentListId || !state.instanceId) return;
+
+    const currentName = state.currentList?.name || '';
+    const newName = prompt('Enter new name:', currentName);
+
+    if (!newName || newName.trim() === currentName) return;
+
+    try {
+        await api.renameList(state.instanceId, state.currentListId, newName.trim());
+        showToast('List renamed', 'success');
+        document.getElementById('list-detail-name').textContent = newName.trim();
+        loadLists(); // Refresh sidebar
+    } catch (error) {
+        console.error('[App] Error renaming list:', error);
+        showToast('Could not rename list: ' + error.message, 'error');
+    }
 }
 
 // ============================================================================
-// EXPORTS
+// WINDOW GLOBALS
 // ============================================================================
 
-window.showCreateListModal = showCreateListModal;
+// Make functions globally accessible for onclick handlers
+window.toggleListItem = toggleListItem;
+window.deleteListItem = deleteListItem;
+
+// ============================================================================
+// DEFAULT EXPORT
+// ============================================================================
 
 export default {
     loadLists,
-    renderListsGrid,
     showListDetail,
     hideListDetail,
     toggleListItem,
-    addListItem,
     deleteListItem,
-    showCreateListModal
+    addListItem,
+    showCreateListModal,
+    closeCreateListModal,
+    createList,
+    deleteCurrentList,
+    renameCurrentList
 };
