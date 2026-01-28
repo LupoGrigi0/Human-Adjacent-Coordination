@@ -3345,6 +3345,170 @@ body {
 }
 
 /* ============================================================================
+   SCROLLABLE CONTAINERS
+   ============================================================================ */
+
+/* Team grid scrollable - apply to existing containers */
+#project-detail-team,
+.team-grid {
+    max-height: 280px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+#project-detail-team::-webkit-scrollbar,
+.team-grid::-webkit-scrollbar {
+    width: 6px;
+}
+
+#project-detail-team::-webkit-scrollbar-track,
+.team-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#project-detail-team::-webkit-scrollbar-thumb,
+.team-grid::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+#project-detail-team::-webkit-scrollbar-thumb:hover,
+.team-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* Task lists scrollable - apply to existing containers */
+#project-task-lists,
+.task-lists-container {
+    max-height: 400px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+#project-task-lists::-webkit-scrollbar,
+.task-lists-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+#project-task-lists::-webkit-scrollbar-track,
+.task-lists-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#project-task-lists::-webkit-scrollbar-thumb,
+.task-lists-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+/* Individual task list content scrollable */
+.task-list-content {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* ============================================================================
+   MOBILE ENHANCEMENTS
+   ============================================================================ */
+
+/* Touch-friendly tap targets */
+@media (max-width: 768px) {
+    /* Larger touch targets */
+    .nav-item,
+    .btn,
+    .team-member-card,
+    .project-card,
+    .instance-card,
+    .task-item,
+    .detail-task-item {
+        min-height: 44px;
+    }
+
+    /* Better spacing for mobile */
+    .content-area {
+        padding: 0.75rem;
+    }
+
+    /* Stack grids on mobile */
+    .projects-grid,
+    .instances-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Smaller card padding on mobile */
+    .card,
+    .project-card,
+    .instance-card {
+        padding: 0.75rem;
+    }
+
+    /* Sidebar handling - hidden by default on mobile */
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    /* Main content full width on mobile */
+    .main-content {
+        margin-left: 0;
+    }
+
+    /* Hamburger menu visible on mobile */
+    .mobile-menu-toggle {
+        display: flex;
+    }
+
+    /* Modal/panel full screen on mobile */
+    .project-detail-panel,
+    .instance-detail-panel,
+    .list-detail-panel {
+        width: 100%;
+        left: 0;
+    }
+
+    /* Reduce font sizes slightly on mobile */
+    .section-header h2 {
+        font-size: 1.125rem;
+    }
+
+    /* Scrollable containers smaller on mobile */
+    .team-section {
+        max-height: 200px;
+    }
+
+    .task-lists-wrapper {
+        max-height: 300px;
+    }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+    .header {
+        padding: 0 0.5rem;
+    }
+
+    .user-display {
+        display: none;
+    }
+
+    .pm-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .pm-actions {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+}
+
+/* ============================================================================
    PROJECT DETAIL RESPONSIVE
    ============================================================================ */
 @media (max-width: 900px) {
