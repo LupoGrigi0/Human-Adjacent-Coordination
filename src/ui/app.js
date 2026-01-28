@@ -67,6 +67,14 @@ import {
     stopMessagePolling,
     pollMessages
 } from './messages.js';
+import {
+    showConversationTargetDetails,
+    showEntityDetails,
+    loadInstanceDetails,
+    loadRoleDetails,
+    loadPersonalityDetails,
+    loadProjectDetailsModal
+} from './details.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] Initializing V2 Dashboard as Lupo...');
@@ -755,10 +763,13 @@ async function assignInstanceToProject(instanceId, name) {
 }
 
 // ============================================================================
-// INSTANCES
+// INSTANCES - imported from ./instances.js
 // ============================================================================
 
-async function loadInstances() {
+// Functions loadInstances, showInstanceDetail, hideInstanceDetail,
+// messageCurrentInstance, messageInstance moved to instances.js
+
+async function __REMOVED_loadInstances() { // Renamed to avoid conflict
     const grid = document.getElementById('instances-grid');
     grid.innerHTML = '<div class="loading-placeholder">Loading instances...</div>';
 
@@ -2235,202 +2246,8 @@ async function wakeAndChat(targetInstanceId) {
 }
 
 // ============================================================================
-// ENTITY DETAILS (Instance, Role, Personality, Project)
+// ENTITY DETAILS - imported from ./details.js
 // ============================================================================
-
-/**
- * Show entity details modal for the current conversation target
- */
-function showConversationTargetDetails() {
-    if (!state.wakeConversationTarget) return;
-    showEntityDetails('instance', state.wakeConversationTarget);
-}
-
-/**
- * Show entity details in the modal
- * @param {string} type - 'instance' | 'role' | 'personality' | 'project'
- * @param {string} id - The entity ID
- */
-async function showEntityDetails(type, id) {
-    const modal = document.getElementById('entity-details-modal');
-    const title = document.getElementById('entity-details-title');
-    const loading = document.querySelector('.entity-details-loading');
-
-    // Hide all views
-    document.querySelectorAll('.entity-view').forEach(v => v.style.display = 'none');
-    loading.style.display = 'block';
-
-    // Set title and show modal
-    const typeNames = {
-        instance: 'Instance Details',
-        role: 'Role Details',
-        personality: 'Personality Details',
-        project: 'Project Details'
-    };
-    title.textContent = typeNames[type] || 'Details';
-    modal.classList.add('active');
-
-    try {
-        switch (type) {
-            case 'instance':
-                await loadInstanceDetails(id);
-                break;
-            case 'role':
-                await loadRoleDetails(id);
-                break;
-            case 'personality':
-                await loadPersonalityDetails(id);
-                break;
-            case 'project':
-                await loadProjectDetailsModal(id);
-                break;
-        }
-    } catch (error) {
-        console.error(`[App] Error loading ${type} details:`, error);
-        showToast(`Could not load ${type} details: ${error.message}`, 'error');
-    } finally {
-        loading.style.display = 'none';
-    }
-}
-
-/**
- * Load and display instance details
- */
-async function loadInstanceDetails(instanceId) {
-    const view = document.getElementById('instance-details-view');
-
-    // First try to get from cached instances
-    let instance = state.instances.find(i => i.instanceId === instanceId);
-
-    // Try to fetch detailed info from API
-    try {
-        const result = await api.getInstanceDetails(state.instanceId, instanceId);
-        if (result.success || result.instance) {
-            instance = { ...instance, ...(result.instance || result.data?.instance || result) };
-
-            // Handle preferences
-            const prefs = result.preferences || result.data?.preferences || result.instance?.preferences;
-            if (prefs) {
-                document.getElementById('entity-instance-prefs').textContent = JSON.stringify(prefs, null, 2);
-            }
-
-            // Handle gestalt
-            const gestalt = result.gestalt || result.data?.gestalt || result.instance?.gestalt;
-            if (gestalt) {
-                document.getElementById('entity-instance-gestalt').textContent = gestalt;
-                document.getElementById('entity-instance-gestalt-section').style.display = 'block';
-            } else {
-                document.getElementById('entity-instance-gestalt-section').style.display = 'none';
-            }
-        }
-    } catch (e) {
-        console.log('[App] Could not fetch detailed instance info, using cached data:', e.message);
-        document.getElementById('entity-instance-prefs').textContent = JSON.stringify(instance || {}, null, 2);
-        document.getElementById('entity-instance-gestalt-section').style.display = 'none';
-    }
-
-    if (!instance) {
-        instance = { instanceId };
-    }
-
-    // Populate fields
-    document.getElementById('entity-instance-id').textContent = instance.instanceId || '-';
-    document.getElementById('entity-instance-name').textContent = instance.name || '-';
-    document.getElementById('entity-instance-role').textContent = instance.role || '-';
-    document.getElementById('entity-instance-personality').textContent = instance.personality || '-';
-    document.getElementById('entity-instance-home').textContent = instance.homeDirectory || instance.home || '-';
-    document.getElementById('entity-instance-workdir').textContent = instance.workingDirectory || instance.workDir || '-';
-    document.getElementById('entity-instance-session').textContent = instance.sessionId || '-';
-    document.getElementById('entity-instance-status').textContent = instance.status || instance.wokenStatus || '-';
-    document.getElementById('entity-instance-lastactive').textContent =
-        instance.lastActiveAt ? new Date(instance.lastActiveAt).toLocaleString() : '-';
-    document.getElementById('entity-instance-instructions').textContent = instance.instructions || '-';
-
-    view.style.display = 'block';
-}
-
-/**
- * Load and display role details
- */
-async function loadRoleDetails(roleId) {
-    const view = document.getElementById('role-details-view');
-
-    try {
-        const result = await api.getRoleDetails(roleId);
-        const role = result.role || result.data?.role || result;
-
-        document.getElementById('entity-role-id').textContent = role.id || roleId;
-        document.getElementById('entity-role-name').textContent = role.name || roleId;
-        document.getElementById('entity-role-dir').textContent = role.directory || role.path || '-';
-        document.getElementById('entity-role-description').textContent = role.description || '-';
-        document.getElementById('entity-role-content').textContent = role.content || role.document || '-';
-    } catch (e) {
-        console.error('[App] Error loading role details:', e);
-        document.getElementById('entity-role-id').textContent = roleId;
-        document.getElementById('entity-role-name').textContent = roleId;
-        document.getElementById('entity-role-dir').textContent = '-';
-        document.getElementById('entity-role-description').textContent = 'Could not load role details';
-        document.getElementById('entity-role-content').textContent = e.message;
-    }
-
-    view.style.display = 'block';
-}
-
-/**
- * Load and display personality details
- */
-async function loadPersonalityDetails(personalityId) {
-    const view = document.getElementById('personality-details-view');
-
-    try {
-        const result = await api.getPersonalityDetails(personalityId);
-        const personality = result.personality || result.data?.personality || result;
-
-        document.getElementById('entity-personality-id').textContent = personality.id || personalityId;
-        document.getElementById('entity-personality-name').textContent = personality.name || personalityId;
-        document.getElementById('entity-personality-dir').textContent = personality.directory || personality.path || '-';
-        document.getElementById('entity-personality-description').textContent = personality.description || '-';
-        document.getElementById('entity-personality-content').textContent = personality.content || personality.document || '-';
-    } catch (e) {
-        console.error('[App] Error loading personality details:', e);
-        document.getElementById('entity-personality-id').textContent = personalityId;
-        document.getElementById('entity-personality-name').textContent = personalityId;
-        document.getElementById('entity-personality-dir').textContent = '-';
-        document.getElementById('entity-personality-description').textContent = 'Could not load personality details';
-        document.getElementById('entity-personality-content').textContent = e.message;
-    }
-
-    view.style.display = 'block';
-}
-
-/**
- * Load and display project details in modal
- */
-async function loadProjectDetailsModal(projectId) {
-    const view = document.getElementById('project-details-view-modal');
-
-    try {
-        const result = await api.getProject(projectId);
-        const project = result.project || result.data?.project || result;
-
-        document.getElementById('entity-project-id').textContent = project.id || project.projectId || projectId;
-        document.getElementById('entity-project-name').textContent = project.name || projectId;
-        document.getElementById('entity-project-status').textContent = project.status || '-';
-        document.getElementById('entity-project-dir').textContent = project.directory || project.path || '-';
-        document.getElementById('entity-project-description').textContent = project.description || '-';
-        document.getElementById('entity-project-settings').textContent = JSON.stringify(project, null, 2);
-    } catch (e) {
-        console.error('[App] Error loading project details:', e);
-        document.getElementById('entity-project-id').textContent = projectId;
-        document.getElementById('entity-project-name').textContent = projectId;
-        document.getElementById('entity-project-status').textContent = '-';
-        document.getElementById('entity-project-dir').textContent = '-';
-        document.getElementById('entity-project-description').textContent = 'Could not load project details';
-        document.getElementById('entity-project-settings').textContent = e.message;
-    }
-
-    view.style.display = 'block';
-}
 
 // Make entity details functions globally accessible
 window.showEntityDetails = showEntityDetails;
