@@ -1,16 +1,14 @@
 /**
  * Tasks Module
  *
- * Handles task listing, creation, and management.
- * Task detail panel is provided by details.js for reuse.
+ * Handles task loading, task board rendering, and task detail views.
+ * Source of truth: app.js implementation (board view with detail panel).
  *
  * @module tasks
  */
 
 import { state } from './state.js';
-import { escapeHtml, showToast, formatDateTime, getPriorityClass, getStatusClass } from './utils.js';
-import { showTaskDetail } from './details.js';
-import { showCreateTaskModal, handleCreateTask } from './modals.js';
+import { escapeHtml, showToast } from './utils.js';
 import api from './api.js';
 
 // ============================================================================
@@ -19,83 +17,244 @@ import api from './api.js';
 
 /**
  * Load tasks for the current user
+ * Requires instanceId to be set
  */
 export async function loadTasks() {
-    const container = document.getElementById('tasks-container');
-    if (!container) return;
-
-    container.innerHTML = '<div class="loading-placeholder">Loading tasks...</div>';
-
-    try {
-        const result = await api.getMyTasks(state.instanceId);
-        state.tasks = result.tasks || [];
-
-        renderTasksList();
-    } catch (error) {
-        console.error('[Tasks] Error loading tasks:', error);
-        container.innerHTML = `<div class="error-placeholder">Error: ${escapeHtml(error.message)}</div>`;
-    }
-}
-
-/**
- * Render tasks list
- */
-export function renderTasksList() {
-    const container = document.getElementById('tasks-container');
-    if (!container) return;
-
-    if (state.tasks.length === 0) {
-        container.innerHTML = `
-            <div class="empty-placeholder">
-                No tasks yet
-                <button class="btn btn-primary" onclick="window.showCreateTaskModal()">Create Task</button>
-            </div>
-        `;
+    if (!state.instanceId) {
+        document.querySelectorAll('.task-list').forEach(list => {
+            list.innerHTML = '<div class="loading-placeholder">Bootstrap to see tasks</div>';
+        });
         return;
     }
 
-    // Group by project vs personal
-    const personal = state.tasks.filter(t => !t.projectId);
-    const project = state.tasks.filter(t => t.projectId);
+    try {
+        // Get all tasks for this instance (personal + project)
+        let allTasks = [];
+        const result = await api.getMyTasks(state.instanceId);
+        if (result.personalTasks) {
+            allTasks = [...allTasks, ...result.personalTasks];
+        }
+        if (result.projectTasks) {
+            allTasks = [...allTasks, ...result.projectTasks];
+        }
 
-    container.innerHTML = `
-        ${personal.length > 0 ? `
-            <div class="task-section">
-                <h3>Personal Tasks</h3>
-                ${renderTaskItems(personal)}
-            </div>
-        ` : ''}
-        ${project.length > 0 ? `
-            <div class="task-section">
-                <h3>Project Tasks</h3>
-                ${renderTaskItems(project)}
-            </div>
-        ` : ''}
-    `;
+        renderTaskBoard(allTasks);
+    } catch (error) {
+        console.error('[Tasks] Error loading tasks:', error);
+        document.querySelectorAll('.task-list').forEach(list => {
+            list.innerHTML = '<div class="loading-placeholder">Error loading tasks</div>';
+        });
+    }
+}
 
-    // Add click handlers
-    container.querySelectorAll('.task-item').forEach(item => {
+// ============================================================================
+// TASK BOARD RENDERING
+// ============================================================================
+
+/**
+ * Render the task board with columns for pending, in_progress, completed
+ * @param {Array} tasks - Array of task objects
+ */
+export function renderTaskBoard(tasks) {
+    // Store tasks for later lookup
+    state.tasks = tasks;
+
+    const pending = tasks.filter(t => t.status === 'pending');
+    const inProgress = tasks.filter(t => t.status === 'in_progress');
+    const completed = tasks.filter(t => t.status === 'completed');
+
+    document.getElementById('pending-count').textContent = pending.length;
+    document.getElementById('progress-count').textContent = inProgress.length;
+    document.getElementById('completed-count').textContent = completed.length;
+
+    document.getElementById('pending-tasks').innerHTML = renderTaskList(pending);
+    document.getElementById('progress-tasks').innerHTML = renderTaskList(inProgress);
+    document.getElementById('completed-tasks').innerHTML = renderTaskList(completed);
+
+    // Add click handlers to task items
+    document.querySelectorAll('.task-item').forEach(item => {
         item.addEventListener('click', () => {
             const taskId = item.dataset.taskId;
-            showTaskDetail(taskId, true);
+            showTaskDetail(taskId);
         });
     });
 }
 
 /**
  * Render task items HTML
+ * @param {Array} tasks - Array of task objects
+ * @returns {string} HTML string
  */
-function renderTaskItems(tasks) {
+function renderTaskList(tasks) {
+    if (tasks.length === 0) {
+        return '<div class="loading-placeholder">No tasks</div>';
+    }
+
     return tasks.map(task => `
-        <div class="task-item" data-task-id="${escapeHtml(task.id || task.taskId)}">
-            <span class="task-priority-dot ${getPriorityClass(task.priority)}"></span>
-            <div class="task-content">
-                <div class="task-title">${escapeHtml(task.title)}</div>
-                ${task.projectId ? `<div class="task-project">${escapeHtml(task.projectId)}</div>` : ''}
+        <div class="task-item" data-task-id="${task.taskId || task.id}">
+            <div class="task-title">${escapeHtml(task.title)}</div>
+            <div class="task-meta">
+                <span class="priority-badge priority-${task.priority}">${task.priority}</span>
+                <span>${task.project || 'Personal'}</span>
             </div>
-            <span class="task-status ${getStatusClass(task.status)}">${task.status || 'pending'}</span>
         </div>
     `).join('');
+}
+
+// ============================================================================
+// TASK DETAIL VIEW
+// ============================================================================
+
+/**
+ * Show task detail view, hiding the board
+ * @param {string} taskId - The task ID to show
+ * @param {string} [source='tasks'] - Where we came from: 'tasks' or 'project'
+ */
+export async function showTaskDetail(taskId, source = 'tasks') {
+    // Track where we came from for back navigation
+    state.taskDetailSource = source;
+
+    // First try to find task in state
+    let task = state.tasks.find(t => (t.taskId || t.id) === taskId);
+
+    // If not found, fetch all tasks and find it
+    if (!task) {
+        try {
+            const result = await api.getMyTasks(state.instanceId);
+            const allTasks = [...(result.personalTasks || []), ...(result.projectTasks || [])];
+            task = allTasks.find(t => (t.taskId || t.id) === taskId);
+        } catch (e) {
+            console.error('[Tasks] Error fetching task:', e);
+            showToast('Could not load task details', 'error');
+            return;
+        }
+    }
+
+    if (!task) {
+        showToast('Task not found', 'error');
+        return;
+    }
+
+    console.log('[Tasks] Showing task detail:', taskId, task, 'source:', source);
+
+    // If coming from project, switch to tasks tab first (task detail is in tasks tab)
+    if (source === 'project') {
+        // Switch to tasks tab without triggering loadTasks (we just want to show detail)
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.tab === 'tasks');
+        });
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === 'tab-tasks');
+        });
+        state.currentTab = 'tasks';
+    }
+
+    // Hide board and header, show detail
+    document.querySelector('.task-board').style.display = 'none';
+    document.querySelector('.task-filters').style.display = 'none';
+    document.querySelector('#tab-tasks .page-header').style.display = 'none';
+    document.getElementById('task-detail-view').style.display = 'block';
+
+    // Populate detail fields
+    document.getElementById('task-detail-title').textContent = task.title;
+    document.getElementById('task-detail-priority').textContent = task.priority || 'medium';
+    document.getElementById('task-detail-priority').className = `priority-badge priority-${task.priority || 'medium'}`;
+    document.getElementById('task-detail-status').textContent = task.status || 'pending';
+    document.getElementById('task-detail-description').textContent = task.description || 'No description';
+    document.getElementById('task-detail-project').textContent = task.project || task.project_id || 'Personal';
+    document.getElementById('task-detail-assignee').textContent = task.assignee || task.claimed_by || 'Unassigned';
+
+    // Format created date with creator if available
+    // Check multiple field name variations for compatibility
+    let createdText = '-';
+    const createdDate = task.createdAt || task.created_at || task.dateCreated || task.timestamp || task.created;
+    if (createdDate) {
+        const date = new Date(createdDate).toLocaleString();
+        const creator = task.created_by || task.creator || task.createdBy || task.author || null;
+        createdText = creator ? `${date} by ${creator}` : date;
+    } else {
+        // Debug: Log available task fields to help identify correct field names
+        console.log('[Tasks] Task has no created date. Available fields:', Object.keys(task));
+    }
+    document.getElementById('task-detail-created').textContent = createdText;
+
+    // Store current task for actions
+    state.currentTaskDetail = taskId;
+
+    // Update button states based on task status
+    const claimBtn = document.getElementById('task-claim-btn');
+    const completeBtn = document.getElementById('task-complete-btn');
+
+    if (task.status === 'completed') {
+        claimBtn.style.display = 'none';
+        completeBtn.textContent = 'Completed';
+        completeBtn.disabled = true;
+    } else if (task.assignee || task.claimed_by) {
+        claimBtn.textContent = 'Reassign';
+        claimBtn.style.display = 'inline-flex';
+        completeBtn.textContent = 'Mark Complete';
+        completeBtn.disabled = false;
+    } else {
+        claimBtn.textContent = 'Claim Task';
+        claimBtn.style.display = 'inline-flex';
+        completeBtn.textContent = 'Mark Complete';
+        completeBtn.disabled = false;
+    }
+
+    // Update breadcrumb text based on source
+    const backText = document.getElementById('task-back-text');
+    if (backText) {
+        if (source === 'project' && state.currentProjectDetail) {
+            const project = state.projects.find(p => (p.projectId || p.id) === state.currentProjectDetail);
+            backText.textContent = `Back to ${project?.name || 'Project'}`;
+        } else {
+            backText.textContent = 'Back to Tasks';
+        }
+    }
+}
+
+/**
+ * Hide task detail, return to where we came from
+ */
+export async function hideTaskDetail() {
+    document.getElementById('task-detail-view').style.display = 'none';
+
+    // Check where we came from
+    if (state.taskDetailSource === 'project' && state.currentProjectDetail) {
+        // Save project ID before switchTab clears it
+        const projectId = state.currentProjectDetail;
+
+        // Ensure projects are in state (fetch from API if needed)
+        if (!state.projects || state.projects.length === 0) {
+            try {
+                const projectsResult = await api.listProjects();
+                if (projectsResult.projects) {
+                    state.projects = projectsResult.projects;
+                }
+            } catch (e) {
+                console.error('[Tasks] Error loading projects:', e);
+            }
+        }
+
+        // Switch to projects tab (this hides all detail views)
+        // Need to call switchTab which is in app.js - use window global
+        if (typeof window.switchTab === 'function') {
+            window.switchTab('projects');
+        }
+
+        // Small delay to let tab switch complete, then show project detail
+        if (typeof window.showProjectDetail === 'function') {
+            setTimeout(() => window.showProjectDetail(projectId), 50);
+        }
+    } else {
+        // Return to task board (default)
+        document.querySelector('.task-board').style.display = 'grid';
+        document.querySelector('.task-filters').style.display = 'flex';
+        document.querySelector('#tab-tasks .page-header').style.display = 'flex';
+    }
+
+    state.currentTaskDetail = null;
+    state.taskDetailSource = null;
 }
 
 // ============================================================================
@@ -103,16 +262,54 @@ function renderTaskItems(tasks) {
 // ============================================================================
 
 /**
- * Complete a task
- * @param {string} taskId - Task ID to complete
+ * Claim the currently displayed task (assign to self)
  */
-export async function completeTask(taskId) {
+export async function claimCurrentTask() {
+    if (!state.currentTaskDetail || !state.instanceId) return;
+
     try {
-        await api.markTaskComplete(state.instanceId, taskId);
-        showToast('Task completed!', 'success');
+        // Get the task's project ID if available
+        const task = state.tasks.find(t => (t.id || t.taskId) === state.currentTaskDetail);
+        const projectId = task?.projectId || task?.project_id || null;
+
+        // Use assign_task_to_instance API to claim (assign to self)
+        await api.assignTaskToInstance({
+            instanceId: state.instanceId,
+            taskId: state.currentTaskDetail,
+            assigneeInstanceId: state.instanceId,
+            projectId: projectId
+        });
+        showToast('Task claimed!', 'success');
+
+        // Update the assignee display immediately
+        document.getElementById('task-detail-assignee').textContent = state.instanceId;
+
+        // Update button states
+        const claimBtn = document.getElementById('task-claim-btn');
+        claimBtn.textContent = 'Reassign';
+
+        // Also refresh task board in background
         loadTasks();
-    } catch (error) {
-        showToast('Failed to complete task: ' + error.message, 'error');
+    } catch (e) {
+        console.error('[Tasks] Error claiming task:', e);
+        showToast('Could not claim task: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Mark the currently displayed task as complete
+ */
+export async function completeCurrentTask() {
+    if (!state.currentTaskDetail) return;
+
+    try {
+        await api.completePersonalTask(state.instanceId, state.currentTaskDetail);
+        showToast('Task completed!', 'success');
+        hideTaskDetail();
+        loadTasks(); // Refresh the task board
+    } catch (e) {
+        console.error('[Tasks] Error completing task:', e);
+        showToast('Could not complete task: ' + e.message, 'error');
     }
 }
 
@@ -147,16 +344,26 @@ export async function updateTaskPriority(taskId, priority) {
 }
 
 // ============================================================================
+// WINDOW GLOBALS
+// ============================================================================
+
+// Make functions available globally for onclick handlers and cross-module calls
+window.showTaskDetail = showTaskDetail;
+window.hideTaskDetail = hideTaskDetail;
+window.claimCurrentTask = claimCurrentTask;
+window.completeCurrentTask = completeCurrentTask;
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
-// Make functions available globally
-window.showCreateTaskModal = showCreateTaskModal;
-
 export default {
     loadTasks,
-    renderTasksList,
-    completeTask,
+    renderTaskBoard,
+    showTaskDetail,
+    hideTaskDetail,
+    claimCurrentTask,
+    completeCurrentTask,
     updateTaskStatus,
     updateTaskPriority
 };
