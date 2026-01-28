@@ -495,6 +495,17 @@ function setupProjectChatInputs(project) {
 // ============================================================================
 
 /**
+ * Show the create project modal
+ */
+export function showCreateProjectModal() {
+    document.getElementById('create-project-modal').classList.add('active');
+    document.getElementById('project-name').value = '';
+    document.getElementById('project-description').value = '';
+    document.getElementById('project-gh-repo').value = '';
+    document.getElementById('project-name').focus();
+}
+
+/**
  * Close the create project modal
  */
 export function closeCreateProjectModal() {
@@ -750,6 +761,7 @@ export default {
     showProjectDetail,
     hideProjectDetail,
     renderProjectDetailTasks,
+    showCreateProjectModal,
     closeCreateProjectModal,
     createProject,
     launchProject
