@@ -180,8 +180,29 @@ function setupEventListeners() {
         item.addEventListener('click', () => {
             const tab = item.dataset.tab;
             switchTab(tab);
+            // Close mobile sidebar when nav item is clicked
+            closeMobileSidebar();
         });
     });
+
+    // Mobile menu toggle
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+    if (mobileMenuToggle) {
+        mobileMenuToggle.addEventListener('click', () => {
+            mobileMenuToggle.classList.toggle('active');
+            sidebar.classList.toggle('mobile-open');
+            sidebarOverlay.classList.toggle('active');
+        });
+    }
+
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', () => {
+            closeMobileSidebar();
+        });
+    }
 
     // Note: Conversation filters removed in V2 - using XMPP room structure instead
 
@@ -396,6 +417,20 @@ function setupEventListeners() {
         }
     });
     document.getElementById('task-desc-save-btn')?.addEventListener('click', saveTaskDescription);
+}
+
+/**
+ * Close mobile sidebar
+ * Used when clicking a nav item or the overlay
+ */
+function closeMobileSidebar() {
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+    if (mobileMenuToggle) mobileMenuToggle.classList.remove('active');
+    if (sidebar) sidebar.classList.remove('mobile-open');
+    if (sidebarOverlay) sidebarOverlay.classList.remove('active');
 }
 
 // ============================================================================

@@ -3510,6 +3510,12 @@ body {
 
     /* Sidebar handling - hidden by default on mobile */
     .sidebar {
+        position: fixed;
+        top: var(--header-height);
+        left: 0;
+        bottom: 0;
+        z-index: 90;
+        width: var(--sidebar-width);
         transform: translateX(-100%);
         transition: transform 0.3s ease;
     }
