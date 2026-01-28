@@ -47,6 +47,14 @@ import {
     createProject,
     launchProject
 } from './projects.js';
+import {
+    showModal,
+    hideModal,
+    hideAllModals,
+    showConfirm,
+    showInstanceSelector,
+    showProjectSelector
+} from './modals.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] Initializing V2 Dashboard as Lupo...');
