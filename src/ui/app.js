@@ -26,6 +26,7 @@ import {
     deleteCurrentList,
     renameCurrentList
 } from './lists.js';
+import { loadDashboard } from './dashboard.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] Initializing V2 Dashboard as Lupo...');
@@ -516,56 +517,8 @@ async function loadInitialData() {
 }
 
 // ============================================================================
-// DASHBOARD
+// DASHBOARD - imported from ./dashboard.js
 // ============================================================================
-
-async function loadDashboard() {
-    // Update metrics
-    document.getElementById('metric-projects').textContent = state.projects.length;
-    document.getElementById('metric-instances').textContent = state.instances.filter(i => i.status === 'active').length || state.instances.length || '-';
-
-    // Tasks count
-    if (state.instanceId) {
-        try {
-            const result = await api.getMyTasks(state.instanceId);
-            const personalTasks = result.personalTasks || [];
-            const projectTasks = result.projectTasks || [];
-            document.getElementById('metric-tasks').textContent = personalTasks.length + projectTasks.length;
-        } catch (e) {
-            document.getElementById('metric-tasks').textContent = '-';
-        }
-    } else {
-        document.getElementById('metric-tasks').textContent = '-';
-    }
-
-    // Messages count
-    document.getElementById('metric-messages').textContent = state.unreadCount || '-';
-
-    // Make metric cards clickable
-    document.querySelectorAll('.metric-card').forEach(card => {
-        card.style.cursor = 'pointer';
-        card.onclick = () => {
-            const label = card.querySelector('.metric-label')?.textContent?.toLowerCase();
-            if (label?.includes('project')) switchTab('projects');
-            else if (label?.includes('task')) switchTab('tasks');
-            else if (label?.includes('instance') || label?.includes('online')) switchTab('instances');
-            else if (label?.includes('message') || label?.includes('unread')) switchTab('messages');
-        };
-    });
-
-    // Activity feed (placeholder for now)
-    document.getElementById('activity-feed').innerHTML = `
-        <div class="activity-item" style="cursor:pointer" onclick="switchTab('projects')">
-            <strong>${state.projects.length}</strong> projects available
-        </div>
-        <div class="activity-item" style="cursor:pointer" onclick="switchTab('instances')">
-            <strong>${state.instances.length}</strong> instances registered
-        </div>
-        <div class="activity-item">
-            Dashboard loaded at ${new Date().toLocaleTimeString()}
-        </div>
-    `;
-}
 
 // ============================================================================
 // PROJECTS
