@@ -6,6 +6,10 @@
     <title>V2 Coordination Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <!-- IBM Plex Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <!-- Header -->
@@ -1121,6 +1125,52 @@
 
     <!-- Toast Notifications -->
     <div class="toast-container" id="toast-container"></div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="bottom-nav" id="bottom-nav">
+        <button class="bottom-nav-item active" data-tab="dashboard" title="Dashboard">
+            <span class="bottom-nav-icon">&#9632;</span>
+            <span class="bottom-nav-label">Home</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="messages" title="Messages">
+            <span class="bottom-nav-icon">&#9993;</span>
+            <span class="bottom-nav-label">Messages</span>
+            <span class="bottom-nav-badge" id="bottom-unread-count" style="display: none;">0</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="projects" title="Projects">
+            <span class="bottom-nav-icon">&#128193;</span>
+            <span class="bottom-nav-label">Projects</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="tasks" title="Tasks">
+            <span class="bottom-nav-icon">&#9745;</span>
+            <span class="bottom-nav-label">Tasks</span>
+        </button>
+        <button class="bottom-nav-item" id="more-menu-btn" title="More">
+            <span class="bottom-nav-icon">&#8801;</span>
+            <span class="bottom-nav-label">More</span>
+        </button>
+    </nav>
+
+    <!-- More Menu (slides up from bottom) -->
+    <div class="more-menu-overlay" id="more-menu-overlay"></div>
+    <div class="more-menu" id="more-menu">
+        <div class="more-menu-header">
+            <span>More</span>
+            <button class="more-menu-close" id="more-menu-close">&times;</button>
+        </div>
+        <button class="more-menu-item" data-tab="lists">
+            <span class="more-menu-icon">&#128203;</span>
+            <span>Lists</span>
+        </button>
+        <button class="more-menu-item" data-tab="instances">
+            <span class="more-menu-icon">&#129302;</span>
+            <span>Instances</span>
+        </button>
+        <button class="more-menu-item" data-tab="settings">
+            <span class="more-menu-icon">&#9881;</span>
+            <span>Settings</span>
+        </button>
+    </div>
 
     <script type="module" src="app.js"></script>
 </body>
