@@ -686,6 +686,10 @@ function updateUnreadBadge() {
             badge.style.display = 'none';
         }
     }
+    // Also update bottom nav badge (mobile)
+    if (window.updateBottomNavUnreadBadge) {
+        window.updateBottomNavUnreadBadge(state.unreadCount);
+    }
 }
 
 // ============================================================================

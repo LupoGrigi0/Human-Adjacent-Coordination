@@ -2289,3 +2289,82 @@ window.selectConversation = selectConversation;
 window.replyToMessage = replyToMessage;
 window.dismissQuote = dismissQuote;
 window.showMessageDetail = showMessageDetail;
+
+// ============================================================================
+// BOTTOM NAVIGATION (Mobile)
+// ============================================================================
+
+const bottomNav = document.getElementById('bottom-nav');
+const moreMenuBtn = document.getElementById('more-menu-btn');
+const moreMenu = document.getElementById('more-menu');
+const moreMenuOverlay = document.getElementById('more-menu-overlay');
+const moreMenuClose = document.getElementById('more-menu-close');
+
+// Bottom nav tab switching
+if (bottomNav) {
+    bottomNav.querySelectorAll('.bottom-nav-item[data-tab]').forEach(item => {
+        item.addEventListener('click', () => {
+            const tab = item.dataset.tab;
+            switchTab(tab);
+            // Update active state
+            bottomNav.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+        });
+    });
+}
+
+// More menu toggle
+if (moreMenuBtn) {
+    moreMenuBtn.addEventListener('click', () => {
+        moreMenu.classList.add('active');
+        moreMenuOverlay.classList.add('active');
+    });
+}
+
+function closeMoreMenu() {
+    moreMenu?.classList.remove('active');
+    moreMenuOverlay?.classList.remove('active');
+}
+
+moreMenuClose?.addEventListener('click', closeMoreMenu);
+moreMenuOverlay?.addEventListener('click', closeMoreMenu);
+
+// More menu items
+document.querySelectorAll('.more-menu-item[data-tab]').forEach(item => {
+    item.addEventListener('click', () => {
+        const tab = item.dataset.tab;
+        switchTab(tab);
+        closeMoreMenu();
+        // Update bottom nav - remove active from all
+        bottomNav?.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
+    });
+});
+
+// Sync bottom nav with sidebar nav (for when sidebar is used on larger screens)
+document.querySelectorAll('.sidebar .nav-item[data-tab]').forEach(item => {
+    item.addEventListener('click', () => {
+        const tab = item.dataset.tab;
+        // Update bottom nav active state
+        if (bottomNav) {
+            bottomNav.querySelectorAll('.bottom-nav-item').forEach(i => {
+                i.classList.toggle('active', i.dataset.tab === tab);
+            });
+        }
+    });
+});
+
+// Sync unread count badge with bottom nav
+function updateBottomNavUnreadBadge(count) {
+    const badge = document.getElementById('bottom-unread-count');
+    if (badge) {
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = 'block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+// Export for use by messaging module
+window.updateBottomNavUnreadBadge = updateBottomNavUnreadBadge;
