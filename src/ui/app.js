@@ -75,6 +75,28 @@ import {
     loadPersonalityDetails,
     loadProjectDetailsModal
 } from './details.js';
+import {
+    loadInstances,
+    showInstanceDetail,
+    hideInstanceDetail,
+    messageCurrentInstance,
+    messageInstance,
+    ensureApiKey,
+    handleApiKeySubmit,
+    showWakeInstanceModal,
+    populateWakeDropdowns,
+    toggleWakeSpecificId,
+    handleWakeSubmit,
+    wakeCurrentInstance,
+    promoteCurrentInstance,
+    openInstanceConversation,
+    openConversationPanel,
+    closeConversationPanel,
+    updateInstanceChatSendButton,
+    renderInstanceChatMessages,
+    sendInstanceChatMessage,
+    wakeAndChat
+} from './instances.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] Initializing V2 Dashboard as Lupo...');
@@ -986,8 +1008,9 @@ async function __REMOVED_loadInstances() { // Renamed to avoid conflict
 
 /**
  * Show instance detail panel
+ * @deprecated Moved to instances.js - this copy will be removed
  */
-async function showInstanceDetail(instanceId) {
+async function __REMOVED_showInstanceDetail(instanceId) {
     const instance = state.instances.find(i => i.instanceId === instanceId);
     if (!instance) {
         showToast('Instance not found', 'error');
@@ -1125,8 +1148,9 @@ async function showInstanceDetail(instanceId) {
 
 /**
  * Hide instance detail, return to grid
+ * @deprecated Moved to instances.js - this copy will be removed
  */
-function hideInstanceDetail() {
+function __REMOVED_hideInstanceDetail() {
     document.getElementById('instance-detail-view').style.display = 'none';
     document.getElementById('instances-grid').style.display = 'grid';
     document.querySelector('#tab-instances .page-header').style.display = 'flex';
@@ -1135,8 +1159,9 @@ function hideInstanceDetail() {
 
 /**
  * Send message to current instance
+ * @deprecated Moved to instances.js
  */
-function messageCurrentInstance() {
+function __REMOVED_messageCurrentInstance() {
     if (!state.currentInstanceDetail) return;
 
     const instance = state.instances.find(i => i.instanceId === state.currentInstanceDetail);
@@ -1150,8 +1175,9 @@ function messageCurrentInstance() {
 
 /**
  * Send XMPP message to a specific instance (by instanceId)
+ * @deprecated Moved to instances.js
  */
-function messageInstance(instanceId) {
+function __REMOVED_messageInstance(instanceId) {
     const instance = state.instances.find(i => i.instanceId === instanceId);
     const dmName = instance?.name || instanceId.split('-')[0];
 
@@ -1372,7 +1398,7 @@ async function rpcCallDirect(method, args) {
  * Check if we have an API key, prompt if not
  * @returns {Promise<string|null>} The API key or null if cancelled
  */
-async function ensureApiKey() {
+async function __REMOVED_ensureApiKey() {
     // Check sessionStorage first
     if (state.wakeApiKey) {
         return state.wakeApiKey;
@@ -1398,7 +1424,7 @@ async function ensureApiKey() {
 /**
  * Handle API key submit
  */
-function handleApiKeySubmit() {
+function __REMOVED_handleApiKeySubmit() {
     const input = document.getElementById('api-key-input');
     const remember = document.getElementById('api-key-remember');
     const modal = document.getElementById('api-key-modal');
@@ -1430,7 +1456,7 @@ function handleApiKeySubmit() {
 /**
  * Show wake instance modal and populate dropdowns
  */
-async function showWakeInstanceModal() {
+async function __REMOVED_showWakeInstanceModal() {
     const modal = document.getElementById('wake-instance-modal');
     modal.classList.add('active');
 
@@ -1459,7 +1485,7 @@ const PRIVILEGED_ROLES = ['PM', 'PA', 'COO', 'Executive'];
 /**
  * Populate role, personality, and project dropdowns
  */
-async function populateWakeDropdowns() {
+async function __REMOVED_populateWakeDropdowns() {
     const roleSelect = document.getElementById('wake-role');
     const personalitySelect = document.getElementById('wake-personality');
     const projectSelect = document.getElementById('wake-project');
@@ -1516,7 +1542,7 @@ async function populateWakeDropdowns() {
 /**
  * Toggle visibility of specific instance ID field
  */
-function toggleWakeSpecificId() {
+function __REMOVED_toggleWakeSpecificId() {
     const checkbox = document.getElementById('wake-specific-id');
     const group = document.getElementById('wake-specific-id-group');
     const submitBtn = document.getElementById('wake-instance-submit');
@@ -1528,7 +1554,7 @@ function toggleWakeSpecificId() {
 /**
  * Handle wake form submission
  */
-async function handleWakeSubmit() {
+async function __REMOVED_handleWakeSubmit() {
     const apiKey = await ensureApiKey();
     if (!apiKey) {
         showToast('API key required for wake operations', 'error');
@@ -1684,7 +1710,7 @@ async function handleWakeSubmit() {
 /**
  * Wake the current instance being viewed
  */
-async function wakeCurrentInstance() {
+async function __REMOVED_wakeCurrentInstance() {
     if (!state.currentInstanceDetail) return;
 
     const apiKey = await ensureApiKey();
@@ -1765,7 +1791,7 @@ async function wakeCurrentInstance() {
 /**
  * Promote the current instance to a privileged role
  */
-async function promoteCurrentInstance() {
+async function __REMOVED_promoteCurrentInstance() {
     if (!state.currentInstanceDetail) return;
 
     // Prompt for the promotion token
@@ -1829,7 +1855,7 @@ async function promoteCurrentInstance() {
 /**
  * Open conversation with the current instance detail
  */
-function openInstanceConversation() {
+function __REMOVED_openInstanceConversation() {
     if (!state.currentInstanceDetail) return;
     openConversationPanel(state.currentInstanceDetail);
 }
@@ -1837,7 +1863,7 @@ function openInstanceConversation() {
 /**
  * Open the in-page conversation panel for an instance
  */
-async function openConversationPanel(targetInstanceId) {
+async function __REMOVED_openConversationPanel(targetInstanceId) {
     const apiKey = await ensureApiKey();
     if (!apiKey) return;
 
@@ -1916,7 +1942,7 @@ async function openConversationPanel(targetInstanceId) {
 /**
  * Close the in-page conversation panel
  */
-function closeConversationPanel() {
+function __REMOVED_closeConversationPanel() {
     document.getElementById('instance-chat-panel').style.display = 'none';
     document.querySelector('.instances-layout')?.classList.remove('chat-open');
     state.wakeConversationTarget = null;
@@ -1925,7 +1951,7 @@ function closeConversationPanel() {
 /**
  * Update send button state for instance chat
  */
-function updateInstanceChatSendButton() {
+function __REMOVED_updateInstanceChatSendButton() {
     const input = document.getElementById('instance-chat-input');
     const sendBtn = document.getElementById('instance-chat-send');
     sendBtn.disabled = !input.value.trim() || state.wakeConversationLoading;
@@ -1935,7 +1961,7 @@ function updateInstanceChatSendButton() {
  * Render conversation messages in the instance chat panel
  * Handles multi-person conversations where different instances may have sent messages
  */
-function renderInstanceChatMessages() {
+function __REMOVED_renderInstanceChatMessages() {
     const container = document.getElementById('instance-chat-messages');
     const myName = state.name.toLowerCase();
 
@@ -2015,7 +2041,7 @@ function renderInstanceChatMessages() {
 /**
  * Send a message in the instance chat panel
  */
-async function sendInstanceChatMessage() {
+async function __REMOVED_sendInstanceChatMessage() {
     const input = document.getElementById('instance-chat-input');
     const sendBtn = document.getElementById('instance-chat-send');
     const statusEl = document.getElementById('chat-instance-status');
@@ -2173,7 +2199,7 @@ async function sendInstanceChatMessage() {
  * Called when user tries to Continue with an instance that hasn't been woken
  * @param {string} targetInstanceId - Instance to wake
  */
-async function wakeAndChat(targetInstanceId) {
+async function __REMOVED_wakeAndChat(targetInstanceId) {
     const apiKey = await ensureApiKey();
     if (!apiKey) return;
 
