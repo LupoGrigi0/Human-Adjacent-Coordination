@@ -32,10 +32,21 @@ export async function loadTasks() {
         let allTasks = [];
         const result = await api.getMyTasks(state.instanceId);
         if (result.personalTasks) {
-            allTasks = [...allTasks, ...result.personalTasks];
+            // Personal tasks may not have status field from API - default to 'pending'
+            const personalWithStatus = result.personalTasks.map(task => ({
+                ...task,
+                status: task.status || 'pending',
+                source: 'personal'
+            }));
+            allTasks = [...allTasks, ...personalWithStatus];
         }
         if (result.projectTasks) {
-            allTasks = [...allTasks, ...result.projectTasks];
+            // Project tasks have status from API
+            const projectWithSource = result.projectTasks.map(task => ({
+                ...task,
+                source: 'project'
+            }));
+            allTasks = [...allTasks, ...projectWithSource];
         }
 
         renderTaskBoard(allTasks);
@@ -59,9 +70,13 @@ export function renderTaskBoard(tasks) {
     // Store tasks for later lookup
     state.tasks = tasks;
 
-    const pending = tasks.filter(t => t.status === 'pending');
-    const inProgress = tasks.filter(t => t.status === 'in_progress');
-    const completed = tasks.filter(t => t.status === 'completed');
+    // Map V2 statuses to board columns:
+    // - Pending column: 'pending', 'not_started', or no status
+    // - In Progress column: 'in_progress', 'blocked'
+    // - Completed column: 'completed', 'completed_verified', 'archived'
+    const pending = tasks.filter(t => !t.status || t.status === 'pending' || t.status === 'not_started');
+    const inProgress = tasks.filter(t => t.status === 'in_progress' || t.status === 'blocked');
+    const completed = tasks.filter(t => t.status === 'completed' || t.status === 'completed_verified' || t.status === 'archived');
 
     document.getElementById('pending-count').textContent = pending.length;
     document.getElementById('progress-count').textContent = inProgress.length;
@@ -121,7 +136,17 @@ export async function showTaskDetail(taskId, source = 'tasks') {
     if (!task) {
         try {
             const result = await api.getMyTasks(state.instanceId);
-            const allTasks = [...(result.personalTasks || []), ...(result.projectTasks || [])];
+            // Normalize personal tasks with default status
+            const personalTasks = (result.personalTasks || []).map(t => ({
+                ...t,
+                status: t.status || 'pending',
+                source: 'personal'
+            }));
+            const projectTasks = (result.projectTasks || []).map(t => ({
+                ...t,
+                source: 'project'
+            }));
+            const allTasks = [...personalTasks, ...projectTasks];
             task = allTasks.find(t => (t.taskId || t.id) === taskId);
         } catch (e) {
             console.error('[Tasks] Error fetching task:', e);
