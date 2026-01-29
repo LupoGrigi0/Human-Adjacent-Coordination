@@ -502,8 +502,8 @@ function updateConnectionStatus(connected) {
     const dot = document.getElementById('status-dot');
     const text = document.getElementById('status-text');
 
-    dot.classList.toggle('connected', connected);
-    text.textContent = connected ? 'Connected' : 'Disconnected';
+    if (dot) dot.classList.toggle('connected', connected);
+    if (text) text.textContent = connected ? 'Connected' : 'Disconnected';
 }
 
 function updateUserDisplay() {
