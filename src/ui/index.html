@@ -15,14 +15,26 @@
     <!-- Header -->
     <header class="header">
         <div class="header-content">
-            <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">
-                <span class="hamburger-line"></span>
-                <span class="hamburger-line"></span>
-                <span class="hamburger-line"></span>
-            </button>
             <div class="logo">
                 <img src="logo.png" alt="HACS" class="logo-img">
                 HACS
+            </div>
+
+            <!-- Desktop Navigation Dropdown -->
+            <div class="nav-dropdown" id="nav-dropdown">
+                <button class="nav-dropdown-toggle" id="nav-dropdown-toggle">
+                    Menu <span class="dropdown-arrow">▼</span>
+                </button>
+                <div class="nav-dropdown-menu" id="nav-dropdown-menu">
+                    <button class="nav-dropdown-item" data-tab="dashboard">Dashboard</button>
+                    <button class="nav-dropdown-item" data-tab="messages">Messages <span class="nav-badge" id="unread-count" style="display:none;">0</span></button>
+                    <button class="nav-dropdown-item" data-tab="projects">Projects</button>
+                    <button class="nav-dropdown-item" data-tab="tasks">Tasks</button>
+                    <button class="nav-dropdown-item" data-tab="lists">Lists</button>
+                    <button class="nav-dropdown-item" data-tab="instances">Instances</button>
+                    <div class="nav-dropdown-divider"></div>
+                    <button class="nav-dropdown-item" data-tab="settings">Settings</button>
+                </div>
             </div>
 
             <div class="header-controls">
@@ -46,47 +58,6 @@
 
     <!-- Main Layout -->
     <div class="app-layout">
-        <!-- Sidebar Navigation -->
-        <nav class="sidebar">
-            <div class="nav-section">
-                <button class="nav-item" data-tab="messages" title="Messages">
-                    <span class="nav-icon">&#9993;</span>
-                    <span class="nav-label">Messages</span>
-                    <span class="nav-badge" id="unread-count" style="display: none;">0</span>
-                </button>
-                <button class="nav-item active" data-tab="dashboard" title="Dashboard">
-                    <span class="nav-icon">&#9632;</span>
-                    <span class="nav-label">Dashboard</span>
-                </button>
-                <button class="nav-item" data-tab="projects" title="Projects">
-                    <span class="nav-icon">&#128193;</span>
-                    <span class="nav-label">Projects</span>
-                </button>
-                <button class="nav-item" data-tab="tasks" title="Tasks">
-                    <span class="nav-icon">&#9745;</span>
-                    <span class="nav-label">Tasks</span>
-                </button>
-                <button class="nav-item" data-tab="lists" title="Lists">
-                    <span class="nav-icon">&#128203;</span>
-                    <span class="nav-label">Lists</span>
-                </button>
-                <button class="nav-item" data-tab="instances" title="Instances">
-                    <span class="nav-icon">&#129302;</span>
-                    <span class="nav-label">Instances</span>
-                </button>
-            </div>
-
-            <div class="nav-section nav-bottom">
-                <button class="nav-item" data-tab="settings" title="Settings">
-                    <span class="nav-icon">&#9881;</span>
-                    <span class="nav-label">Settings</span>
-                </button>
-            </div>
-        </nav>
-
-        <!-- Sidebar Overlay (mobile) -->
-        <div class="sidebar-overlay" id="sidebar-overlay"></div>
-
         <!-- Main Content Area -->
         <main class="main-content">
             <!-- Messages Tab -->

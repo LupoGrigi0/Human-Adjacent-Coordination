@@ -180,31 +180,39 @@ function setupEventListeners() {
         item.addEventListener('click', () => {
             const tab = item.dataset.tab;
             switchTab(tab);
-            // Close mobile sidebar when nav item is clicked
-            closeMobileSidebar();
+            // Close nav dropdown when nav item is clicked
+            closeNavDropdown();
         });
     });
 
-    // Mobile menu toggle
-    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
-    const sidebar = document.querySelector('.sidebar');
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    // Desktop navigation dropdown
+    const navDropdown = document.getElementById('nav-dropdown');
+    const navDropdownToggle = document.getElementById('nav-dropdown-toggle');
 
-    if (mobileMenuToggle) {
-        mobileMenuToggle.addEventListener('click', () => {
-            mobileMenuToggle.classList.toggle('active');
-            sidebar.classList.toggle('mobile-open');
-            sidebarOverlay.classList.toggle('active');
+    if (navDropdownToggle) {
+        navDropdownToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navDropdown.classList.toggle('open');
         });
     }
 
-    if (sidebarOverlay) {
-        sidebarOverlay.addEventListener('click', () => {
-            closeMobileSidebar();
+    // Nav dropdown items
+    document.querySelectorAll('.nav-dropdown-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const tab = item.getAttribute('data-tab');
+            if (tab) {
+                switchTab(tab);
+                navDropdown?.classList.remove('open');
+            }
         });
-    }
+    });
 
-    // Note: Conversation filters removed in V2 - using XMPP room structure instead
+    // Close nav dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (navDropdown && !e.target.closest('.nav-dropdown')) {
+            navDropdown.classList.remove('open');
+        }
+    });
 
     // Bootstrap button
     document.getElementById('bootstrap-btn')?.addEventListener('click', showBootstrapModal);
@@ -420,17 +428,12 @@ function setupEventListeners() {
 }
 
 /**
- * Close mobile sidebar
- * Used when clicking a nav item or the overlay
+ * Close navigation dropdown
+ * Used when clicking a nav item
  */
-function closeMobileSidebar() {
-    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
-    const sidebar = document.querySelector('.sidebar');
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
-
-    if (mobileMenuToggle) mobileMenuToggle.classList.remove('active');
-    if (sidebar) sidebar.classList.remove('mobile-open');
-    if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+function closeNavDropdown() {
+    const navDropdown = document.getElementById('nav-dropdown');
+    if (navDropdown) navDropdown.classList.remove('open');
 }
 
 // ============================================================================
@@ -454,8 +457,8 @@ function switchTab(tabName) {
         hideInstanceDetail();
     }
 
-    // Update nav items
-    document.querySelectorAll('.nav-item').forEach(item => {
+    // Update nav items (dropdown, bottom nav, and legacy sidebar)
+    document.querySelectorAll('.nav-item, .nav-dropdown-item, .bottom-nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.tab === tabName);
     });
 
