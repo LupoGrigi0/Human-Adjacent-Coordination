@@ -479,10 +479,11 @@ export async function loadConversationMessages(type, id) {
                 `onclick="showMessageDetail('${msg.id}', '${escapeHtml(msg.from || 'Unknown')}', '${escapeHtml((msg.subject || '').replace(/'/g, "\\'"))}', '${room}')" style="cursor: pointer;"` : '';
 
             // For inbox: show subject only with "click to read" hint
-            // For other views: show full body
+            // For other views: show full body (but skip if body equals subject to avoid duplication)
+            const showBody = body && body !== msg.subject;
             const bodyContent = isInbox && !isSent
                 ? `<div class="inbox-preview">Click to read & reply</div>`
-                : `<div>${escapeHtml(body)}</div>`;
+                : (showBody ? `<div>${escapeHtml(body)}</div>` : '');
 
             return `
                 <div class="message-bubble ${isSent ? 'sent' : 'received'} ${isInbox && !isSent ? 'inbox-message' : ''}" ${clickHandler}>
