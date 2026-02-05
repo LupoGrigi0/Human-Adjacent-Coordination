@@ -13,7 +13,7 @@ import { logger } from './logger.js';
 // Import all handlers
 import * as ProjectHandler from './handlers/projects.js';
 import * as TaskHandler from './handlers/tasks-v2.js';
-import * as MessageHandler from './handlers/messages-v3.js';
+// REMOVED: MessageHandler (dead code - old non-XMPP message system, 2026-02-05)
 import * as InstanceHandler from './handlers/instances.js';
 // REMOVED: LessonHandlers and MetaRecursiveHandlers (dead code cleanup 2025-12-28)
 import { handlers as RoleHandlers } from './v2/roles.js';  // Moved from handlers/
@@ -291,25 +291,10 @@ class MCPCoordinationServer {
         case 'list_priority_tasks':
           return listPriorityTasks(params);
 
-        // Message system functions
+        // XMPP Real-time Messaging
+        // NOTE: send_message is the friendly fuzzy wrapper, xmpp_send_message is the raw API
         case 'send_message':
-          return MessageHandler.sendMessage(params);
-        case 'get_messages':
-          return MessageHandler.getMessages(params);
-        case 'get_message':
-          return MessageHandler.getMessage(params);
-        case 'mark_message_read':
-          return MessageHandler.markMessageRead(params);
-        case 'archive_message':
-          return MessageHandler.archiveMessage(params);
-        case 'get_archived_messages':
-          return MessageHandler.getArchivedMessages(params);
-        case 'get_message_stats':
-          return MessageHandler.getMessageStats(params);
-        case 'delete_message':
-          return MessageHandler.deleteMessage(params);
-
-        // XMPP Real-time Messaging (V2)
+          return XMPPHandler.friendlySendMessage(params);
         case 'xmpp_send_message':
           return XMPPHandler.sendMessage(params);
         case 'xmpp_get_messages':
