@@ -1,5 +1,5 @@
 /**
- * MCP Coordination System - XMPP Messaging Handler v4.1
+ * MCP Coordination System - XMPP Messaging Handler v5.0
  * Real-time messaging via ejabberd XMPP server
  *
  * Design principles (from Lupo's feedback):
@@ -8,11 +8,18 @@
  * - Separate APIs for body and metadata
  * - Roles and personalities use rooms
  *
+ * v5.0 - Fuzzy send_message (2026-02-04)
+ * - Case-insensitive fuzzy matching on recipient names
+ * - Auto-resolves to instance/project/role/personality room
+ * - Helpful error messages with suggestions on ambiguity
+ * - "Send to Ember" just works, no need to know the full ID
+ *
  * SECURITY: v4.1 - Patched command injection vulnerability (2025-12-05)
  *
- * @author Messenger (MessengerEngineer)
+ * @author Messenger (MessengerEngineer), Ember-75b6
  * @date 2025-12-04
  * @security-patch 2025-12-05
+ * @fuzzy-matching 2026-02-04
  */
 
 import { exec } from 'child_process';
@@ -106,6 +113,295 @@ function sanitizeIdentifier(name) {
     .replace(/[^a-z0-9_-]/g, '_')
     .substring(0, SECURITY_LIMITS.MAX_USERNAME_LENGTH);
 }
+
+// ============================================================================
+// FUZZY MATCHING UTILITIES (v5.0)
+// ============================================================================
+
+/**
+ * Simple Levenshtein distance for fuzzy matching
+ * @param {string} a
+ * @param {string} b
+ * @returns {number} - Edit distance between strings
+ */
+function levenshteinDistance(a, b) {
+  if (!a || !b) return Math.max(a?.length || 0, b?.length || 0);
+
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Score how well a query matches a target (higher = better)
+ * @param {string} query - Search query (what user typed)
+ * @param {string} target - Target to match against
+ * @returns {number} - Score (0-100, higher is better)
+ */
+function fuzzyScore(query, target) {
+  if (!query || !target) return 0;
+
+  const q = query.toLowerCase().trim();
+  const t = target.toLowerCase().trim();
+
+  // Exact match
+  if (q === t) return 100;
+
+  // Starts with (very high score)
+  if (t.startsWith(q)) return 90;
+
+  // Contains (high score)
+  if (t.includes(q)) return 80;
+
+  // Query starts with target (e.g., "ember-75b6" starts with "ember")
+  if (q.startsWith(t)) return 75;
+
+  // Levenshtein distance (fuzzy matching for typos)
+  const distance = levenshteinDistance(q, t);
+  const maxLen = Math.max(q.length, t.length);
+  const similarity = 1 - (distance / maxLen);
+
+  // Only return positive score if reasonably similar (>50% match)
+  if (similarity > 0.5) {
+    return Math.round(similarity * 60);
+  }
+
+  return 0;
+}
+
+/**
+ * Get all known instances for fuzzy matching
+ * @returns {Promise<Array<{id: string, name: string, role: string, project: string, personality: string}>>}
+ */
+async function getAllKnownInstances() {
+  try {
+    const { getAllInstances } = await import('./instances.js');
+    const result = await getAllInstances({});
+    if (result.success && result.instances) {
+      return result.instances.map(inst => ({
+        id: inst.instanceId,
+        name: inst.name || inst.instanceId.split('-')[0],
+        role: inst.role,
+        project: inst.project,
+        personality: inst.personality || inst.name || inst.instanceId.split('-')[0]
+      }));
+    }
+  } catch (e) {
+    await logger.error('Failed to get instances for fuzzy matching', { error: e.message });
+  }
+  return [];
+}
+
+/**
+ * Get all known projects for fuzzy matching
+ * @returns {Promise<Array<string>>}
+ */
+async function getAllKnownProjects() {
+  try {
+    const fs = await import('fs/promises');
+    const { DATA_ROOT } = await import('./config.js');
+    const projectsDir = `${DATA_ROOT}/projects`;
+    const dirs = await fs.readdir(projectsDir);
+    return dirs.filter(d => !d.startsWith('.'));
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Fuzzy match a recipient and return best matches with scores
+ * @param {string} query - What the user typed as recipient
+ * @returns {Promise<Array<{type: string, target: string, jid: string, score: number, display: string}>>}
+ */
+async function fuzzyMatchRecipient(query) {
+  if (!query) return [];
+
+  const q = query.toLowerCase().trim();
+  const matches = [];
+
+  // Check explicit prefixes first (not fuzzy)
+  if (q.startsWith('role:')) {
+    const role = q.substring(5);
+    matches.push({
+      type: 'room',
+      subtype: 'role',
+      target: role,
+      jid: `role-${sanitizeIdentifier(role)}@${XMPP_CONFIG.conference}`,
+      score: 100,
+      display: `role:${role}`
+    });
+    return matches;
+  }
+
+  if (q.startsWith('project:') || q.startsWith('team:')) {
+    const project = q.substring(q.indexOf(':') + 1);
+    matches.push({
+      type: 'room',
+      subtype: 'project',
+      target: project,
+      jid: `project-${sanitizeIdentifier(project)}@${XMPP_CONFIG.conference}`,
+      score: 100,
+      display: `project:${project}`
+    });
+    return matches;
+  }
+
+  if (q.startsWith('personality:')) {
+    const personality = q.substring(12);
+    matches.push({
+      type: 'room',
+      subtype: 'personality',
+      target: personality,
+      jid: `personality-${sanitizeIdentifier(personality)}@${XMPP_CONFIG.conference}`,
+      score: 100,
+      display: `personality:${personality}`
+    });
+    return matches;
+  }
+
+  if (q === 'all') {
+    matches.push({
+      type: 'room',
+      subtype: 'broadcast',
+      target: 'all',
+      jid: `announcements@${XMPP_CONFIG.conference}`,
+      score: 100,
+      display: 'all (announcements)'
+    });
+    return matches;
+  }
+
+  // Already a JID?
+  if (query.includes('@')) {
+    matches.push({
+      type: 'direct',
+      target: query,
+      jid: query,
+      score: 100,
+      display: query
+    });
+    return matches;
+  }
+
+  // Fuzzy match against instances (by name and full ID)
+  const instances = await getAllKnownInstances();
+  for (const inst of instances) {
+    // Match against name
+    const nameScore = fuzzyScore(q, inst.name);
+    if (nameScore > 0) {
+      matches.push({
+        type: 'room',
+        subtype: 'personality',
+        target: inst.name,
+        jid: `personality-${sanitizeIdentifier(inst.name)}@${XMPP_CONFIG.conference}`,
+        score: nameScore,
+        display: `${inst.name} (instance: ${inst.id})`,
+        instanceId: inst.id
+      });
+    }
+
+    // Match against full instance ID (if different from name)
+    const idScore = fuzzyScore(q, inst.id);
+    if (idScore > nameScore && idScore > 0) {
+      // Only add if it's a better match than the name
+      const existing = matches.find(m => m.instanceId === inst.id);
+      if (existing) {
+        existing.score = Math.max(existing.score, idScore);
+      } else {
+        matches.push({
+          type: 'room',
+          subtype: 'personality',
+          target: inst.name,
+          jid: `personality-${sanitizeIdentifier(inst.name)}@${XMPP_CONFIG.conference}`,
+          score: idScore,
+          display: `${inst.name} (instance: ${inst.id})`,
+          instanceId: inst.id
+        });
+      }
+    }
+  }
+
+  // Fuzzy match against roles
+  for (const role of XMPP_CONFIG.roleRooms) {
+    const score = fuzzyScore(q, role);
+    if (score > 0) {
+      matches.push({
+        type: 'room',
+        subtype: 'role',
+        target: role,
+        jid: `role-${role}@${XMPP_CONFIG.conference}`,
+        score: score,
+        display: `role:${role}`
+      });
+    }
+  }
+
+  // Fuzzy match against projects
+  const projects = await getAllKnownProjects();
+  for (const project of projects) {
+    const score = fuzzyScore(q, project);
+    if (score > 0) {
+      matches.push({
+        type: 'room',
+        subtype: 'project',
+        target: project,
+        jid: `project-${sanitizeIdentifier(project)}@${XMPP_CONFIG.conference}`,
+        score: score,
+        display: `project:${project}`
+      });
+    }
+  }
+
+  // Fuzzy match against persistent personalities
+  for (const personality of XMPP_CONFIG.persistentUsers) {
+    const score = fuzzyScore(q, personality);
+    if (score > 0) {
+      matches.push({
+        type: 'room',
+        subtype: 'personality',
+        target: personality,
+        jid: `personality-${personality}@${XMPP_CONFIG.conference}`,
+        score: score,
+        display: `${personality} (personality)`
+      });
+    }
+  }
+
+  // Sort by score (highest first), deduplicate by JID
+  const seen = new Set();
+  const deduplicated = [];
+  matches.sort((a, b) => b.score - a.score);
+  for (const m of matches) {
+    if (!seen.has(m.jid)) {
+      seen.add(m.jid);
+      deduplicated.push(m);
+    }
+  }
+
+  return deduplicated;
+}
+
+// ============================================================================
+// END FUZZY MATCHING UTILITIES
+// ============================================================================
 
 /**
  * Execute ejabberdctl command in Docker container
@@ -452,11 +748,54 @@ export async function sendMessage(params) {
     await ensureUser(sanitizedFrom);
     const fromJid = `${sanitizedFrom}@${XMPP_CONFIG.domain}`;
 
-    // Resolve recipient
-    const recipient = await resolveRecipient(to);
-    if (recipient.error) {
-      return { success: false, error: recipient.error };
+    // v5.0: FUZZY RECIPIENT RESOLUTION
+    // Instead of the old resolveRecipient, use fuzzy matching
+    const matches = await fuzzyMatchRecipient(to);
+
+    if (matches.length === 0) {
+      // No matches at all - provide helpful error
+      const instances = await getAllKnownInstances();
+      const projects = await getAllKnownProjects();
+      const suggestions = [];
+
+      // Suggest some known targets
+      if (instances.length > 0) {
+        suggestions.push(`Known instances: ${instances.slice(0, 5).map(i => i.name).join(', ')}${instances.length > 5 ? '...' : ''}`);
+      }
+      if (projects.length > 0) {
+        suggestions.push(`Projects: ${projects.slice(0, 5).join(', ')}${projects.length > 5 ? '...' : ''}`);
+      }
+      suggestions.push(`Roles: ${XMPP_CONFIG.roleRooms.join(', ')}`);
+      suggestions.push(`Tip: Use "role:developer" or "project:hacs" for explicit targeting`);
+
+      return {
+        success: false,
+        error: `No recipient found matching "${to}"`,
+        suggestions,
+        hint: 'Try a name, instance ID, project name, role, or use explicit prefixes like role: or project:'
+      };
     }
+
+    // Check for ambiguity
+    const topScore = matches[0].score;
+    const goodMatches = matches.filter(m => m.score >= topScore - 10 && m.score >= 70);
+
+    if (goodMatches.length > 1 && topScore < 100) {
+      // Multiple good matches, none clearly best - ask for clarification
+      return {
+        success: false,
+        error: `Ambiguous recipient "${to}" - multiple matches found`,
+        matches: goodMatches.slice(0, 5).map(m => ({
+          display: m.display,
+          score: m.score,
+          use: m.subtype ? `${m.subtype}:${m.target}` : m.target
+        })),
+        hint: 'Please be more specific, or use one of the suggested values in the "use" field'
+      };
+    }
+
+    // Use the best match
+    const recipient = matches[0];
 
     // Ensure room exists if sending to a room
     if (recipient.type === 'room') {
@@ -500,13 +839,13 @@ export async function sendMessage(params) {
     // Generate message ID
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    // Return user-friendly destination, not internal routing details
-    // If smart-routed (e.g., "Orla-da01" → personality room), show original target
+    // Include what we resolved to in the response (helpful for debugging)
     return {
       success: true,
       message_id: messageId,
-      delivered_to: recipient.originalTo || to,
-      type: recipient.originalTo ? 'direct' : recipient.type
+      delivered_to: recipient.display,
+      resolved_jid: recipient.jid,
+      type: recipient.type
     };
 
   } catch (error) {
