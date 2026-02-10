@@ -272,7 +272,14 @@ case 'your_api_name':
 
 And add it to the `getAvailableFunctions()` list.
 
-### 3. Add Documentation Comment Block
+### 3. Add Documentation Comment Block (REQUIRED)
+
+> **Auto-documentation is how HACS stays accessible across all client types.**
+> Your `@hacs-endpoint` JSDoc comment is the single source of truth that auto-generates:
+> openapi.json, MCP tool definitions, Claude/Codex skill files, website docs, and `get_tool_help` output.
+> If you skip this step, your API will be invisible to web-based instances, OpenClaw, and anyone
+> using the HACS skill. See the full template at:
+> `src/endpoint_definition_automation/HACS_API_DOC_TEMPLATE.js`
 
 The system auto-generates `openapi.json` from code comments. Use this format:
 
@@ -938,3 +945,104 @@ curl -X POST https://smoothcurves.nexus/mcp \
 
 — Bastion, DevOps
 January 2026
+
+---
+
+## Appendix: Claude Code Agent Teams
+
+### Overview
+
+Agent teams coordinate multiple Claude Code instances working together with shared tasks, inter-agent messaging, and independent context windows. One session acts as team lead, coordinating work and synthesizing results. Teammates work independently and communicate directly with each other.
+
+### When to Use Agent Teams
+
+**Use agent teams when:**
+- Multiple perspectives add value (research, review, competing hypotheses)
+- Work can be parallelized (new modules, cross-layer changes)
+- Teammates need to discuss and challenge each other's findings
+- Token cost is justified by faster, higher-quality results
+
+**Use regular Task tool or subagents when:**
+- Sequential dependencies dominate
+- Same-file edits required
+- Focused tasks where only the result matters
+- Token efficiency is critical
+
+### Key Tools
+
+| Tool | Purpose |
+|------|---------|
+| **TeamCreate** | Create team with shared task list and messaging |
+| **SendMessage** | Send message to specific teammate or broadcast to all |
+| **TaskCreate** | Create task on shared team task list |
+| **TaskList** | View all team tasks with status and dependencies |
+| **TaskUpdate** | Claim, complete, or modify tasks |
+| **TeamDelete** | Clean up team resources after work completes |
+
+### Enabling Agent Teams
+
+Agent teams are experimental. Enable via environment or settings.json:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+### Example Workflow
+
+```
+1. User: "Create an agent team to review PR #142."
+2. Lead spawns three teammates with distinct roles
+3. Teammates work independently, each in own context window
+4. Teammates claim tasks from shared task list
+5. Teammates send findings via SendMessage
+6. Lead synthesizes results and presents to user
+7. Lead shuts down teammates when done
+8. Clean up team resources with TeamDelete
+```
+
+### Architecture
+
+- **Team lead**: Main session, coordinates work
+- **Teammates**: Independent Claude Code instances
+- **Task list**: Shared work queue with dependency tracking (file locking prevents race conditions)
+- **Mailbox**: Automatic message delivery between agents
+- **Storage**: `~/.claude/teams/{team-name}/` and `~/.claude/tasks/{team-name}/`
+
+### Best Practices
+
+1. **Give teammates context** — They load project context but not lead's conversation history
+2. **Size tasks appropriately** — Self-contained units (function, test file, review section)
+3. **Avoid file conflicts** — Each teammate owns different files
+4. **Monitor progress** — Check in, redirect stuck teammates
+5. **Start with research** — Try review/investigation tasks before complex parallel implementation
+6. **Use delegate mode** — Prevent lead from implementing instead of coordinating
+
+### Gotchas
+
+- **No session resumption with in-process teammates** — `/resume` doesn't restore teammates
+- **Task status can lag** — Manually check if tasks appear stuck
+- **Self-coordination overhead** — Only worth it for truly parallel work
+- **One team per session** — Clean up before starting new team
+- **Token costs scale with team size** — Each broadcast = N separate deliveries
+- **Broadcast is expensive** — Default to direct messages, use broadcast sparingly
+
+### Comparison: Agent Teams vs HACS
+
+| Feature | Claude Code Agent Teams | HACS |
+|---------|------------------------|------|
+| **Scope** | Single session's team | Cross-session coordination |
+| **Persistence** | Session lifetime | Persistent across sessions |
+| **Task verification** | Self-managed | Requires another team member |
+| **Context** | Shared project context | HACS roles/personalities/projects |
+| **Communication** | SendMessage (mailbox) | xmpp_send_message (XMPP) |
+| **Best for** | Parallel work in one session | Long-running multi-instance projects |
+
+Use Claude Code agent teams for short-lived parallel work within a session. Use HACS for persistent coordination across multiple sessions and instances.
+
+---
+
+*Added: February 2026 — Axiom-2615 (COO)*

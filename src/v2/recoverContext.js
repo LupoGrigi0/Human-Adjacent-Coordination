@@ -49,6 +49,7 @@ import {
  * 2. Personality documents (if personality is set in preferences)
  * 3. Role wisdom documents (if role is set in preferences)
  * 4. Project wisdom/documents (if project is set in preferences)
+ * 4.5. Vital documents (personal docs from vitalDocuments[] in preferences)
  * 5. Personal diary (if it exists)
  *
  * Followed by a message encouraging the instance to let their latent
@@ -184,6 +185,7 @@ export async function recoverContext(params) {
     personality: false,
     role: false,
     project: false,
+    vitalDocuments: false,
     diary: false
   };
 
@@ -293,6 +295,31 @@ export async function recoverContext(params) {
       }
     } catch (err) {
       // Silent fail - project docs are optional
+    }
+  }
+
+  // 4.5. Vital Documents (personal instance docs, loaded before diary)
+  if (prefs.vitalDocuments && Array.isArray(prefs.vitalDocuments) && prefs.vitalDocuments.length > 0) {
+    try {
+      const instanceDir = getInstanceDir(params.instanceId);
+      const docsDir = path.join(instanceDir, 'documents');
+      const vitalContents = [];
+
+      for (const docName of prefs.vitalDocuments) {
+        try {
+          const content = await fs.readFile(path.join(docsDir, docName), 'utf8');
+          vitalContents.push(`## ${docName}\n\n${content}`);
+        } catch (err) {
+          // Skip unreadable vital documents
+        }
+      }
+
+      if (vitalContents.length > 0) {
+        contentParts.push(`\n\n# === VITAL DOCUMENTS ===\n\n` + vitalContents.join('\n\n---\n\n'));
+        sections.vitalDocuments = true;
+      }
+    } catch (err) {
+      // Silent fail - vital documents are optional
     }
   }
 
