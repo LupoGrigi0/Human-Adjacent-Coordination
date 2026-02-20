@@ -402,49 +402,119 @@ export async function updateTask(instanceId, taskId, updates) {
   return rpcCall('update_task', { instanceId, taskId, ...updates });
 }
 
+/**
+ * Create a task list within a project
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} listId - Name for the new list
+ * @param {string} [projectId] - Project ID (omit for personal)
+ */
+export async function createTaskList(instanceId, listId, projectId) {
+  const params = { instanceId, listId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('create_task_list', params);
+}
+
+/**
+ * Delete a task list
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} listId - List ID to delete
+ * @param {string} [projectId] - Project ID (for project lists)
+ */
+export async function deleteTaskList(instanceId, listId, projectId) {
+  const params = { instanceId, listId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('delete_task_list', params);
+}
+
+/**
+ * Claim an unassigned task (assign to self)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to claim
+ */
+export async function takeOnTask(instanceId, taskId) {
+  return rpcCall('take_on_task', { instanceId, taskId });
+}
+
+/**
+ * Mark a task as verified (another team member must verify, not the assignee)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to verify
+ */
+export async function markTaskVerified(instanceId, taskId) {
+  return rpcCall('mark_task_verified', { instanceId, taskId });
+}
+
+/**
+ * Archive a completed/verified task
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to archive
+ */
+export async function archiveTask(instanceId, taskId) {
+  return rpcCall('archive_task', { instanceId, taskId });
+}
+
+/**
+ * Get a single task by ID
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to retrieve
+ */
+export async function getTask(instanceId, taskId) {
+  return rpcCall('get_task', { instanceId, taskId });
+}
+
 // ============================================================================
 // DOCUMENT APIs
 // ============================================================================
 
 /**
- * List documents for a project
+ * List documents for a target (project, instance, etc.)
  * @param {string} instanceId - Caller's instance ID
- * @param {string} projectId - Project to list documents for
+ * @param {string} [target] - Target location (e.g., "project:paula-book")
  */
-export async function listDocuments(instanceId, projectId) {
-  return rpcCall('list_documents', { instanceId, projectId });
+export async function listDocuments(instanceId, target) {
+  const params = { instanceId };
+  if (target) params.target = target;
+  return rpcCall('list_documents', params);
 }
 
 /**
  * Read a document
  * @param {string} instanceId - Caller's instance ID
- * @param {string} projectId - Project the document belongs to
- * @param {string} documentId - Document ID/name to read
+ * @param {string} name - Document name
+ * @param {string} [target] - Target location (e.g., "project:paula-book")
  */
-export async function readDocument(instanceId, projectId, documentId) {
-  return rpcCall('read_document', { instanceId, projectId, documentId });
+export async function readDocument(instanceId, name, target) {
+  const params = { instanceId, name };
+  if (target) params.target = target;
+  return rpcCall('read_document', params);
 }
 
 /**
  * Create a new document
  * @param {string} instanceId - Caller's instance ID
- * @param {string} projectId - Project to create document in
- * @param {string} documentId - Document ID/name
+ * @param {string} name - Document name (e.g., "my-notes" or "my-notes.md")
  * @param {string} content - Document content
+ * @param {string} [target] - Target location (e.g., "project:paula-book")
  */
-export async function createDocument(instanceId, projectId, documentId, content) {
-  return rpcCall('create_document', { instanceId, projectId, documentId, content });
+export async function createDocument(instanceId, name, content, target) {
+  const params = { instanceId, name, content };
+  if (target) params.target = target;
+  return rpcCall('create_document', params);
 }
 
 /**
  * Edit an existing document
  * @param {string} instanceId - Caller's instance ID
- * @param {string} projectId - Project the document belongs to
- * @param {string} documentId - Document ID/name
- * @param {string} content - New document content
+ * @param {string} name - Document name
+ * @param {string} mode - Edit mode: "append" or "replace"
+ * @param {object} options - Mode-specific options
+ * @param {string} [options.target] - Target location (e.g., "project:paula-book")
+ * @param {string} [options.content] - Content to append (append mode)
+ * @param {string} [options.search] - Search pattern (replace mode)
+ * @param {string} [options.replacement] - Replacement text (replace mode)
  */
-export async function editDocument(instanceId, projectId, documentId, content) {
-  return rpcCall('edit_document', { instanceId, projectId, documentId, content });
+export async function editDocument(instanceId, name, mode, options = {}) {
+  return rpcCall('edit_document', { instanceId, name, mode, ...options });
 }
 
 // ============================================================================
@@ -842,7 +912,7 @@ export const api = {
 
   // Tasks
   getMyTasks,
-    listTasks,
+  listTasks,
   getNextTask,
   addPersonalTask,
   createTask,
@@ -851,7 +921,13 @@ export const api = {
   createPersonalList,
   assignTaskToInstance,
   markTaskComplete,
+  markTaskVerified,
+  archiveTask,
   updateTask,
+  getTask,
+  takeOnTask,
+  createTaskList,
+  deleteTaskList,
 
   // Documents
   listDocuments,
