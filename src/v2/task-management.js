@@ -122,22 +122,46 @@ function generateSuffix() {
 function generateTaskId(type, listId, projectId = null) {
   const seq = Date.now().toString(36) + generateSuffix();
   if (type === 'personal') {
-    return `ptask-${listId}-${seq}`;
+    return `ptask-${listId}::${seq}`;
   } else {
-    return `prjtask-${projectId}-${listId}-${seq}`;
+    // Use :: separator to handle hyphenated project IDs
+    return `prjtask-${projectId}::${listId}::${seq}`;
   }
 }
 
 /**
  * Parse task ID to extract type and context
+ * Supports both new :: separator and legacy - separator formats.
+ * For legacy format with hyphenated project IDs, projectId may be wrong —
+ * callers should pass explicit projectId parameter as override.
  * @param {string} taskId - Task identifier
+ * @param {string} [projectIdOverride] - Explicit project ID (fixes hyphenated project IDs)
  * @returns {object} { type: 'personal'|'project', listId, projectId? }
  */
-function parseTaskId(taskId) {
+function parseTaskId(taskId, projectIdOverride = null) {
   if (taskId.startsWith('ptask-')) {
+    // Personal: ptask-{listId}::{seq} (new) or ptask-{listId}-{seq} (legacy)
+    if (taskId.includes('::')) {
+      const parts = taskId.substring(6).split('::');
+      return { type: 'personal', listId: parts[0] };
+    }
     const parts = taskId.substring(6).split('-');
     return { type: 'personal', listId: parts[0] };
   } else if (taskId.startsWith('prjtask-')) {
+    // Project: prjtask-{projectId}::{listId}::{seq} (new) or prjtask-{projectId}-{listId}-{seq} (legacy)
+    if (taskId.includes('::')) {
+      const inner = taskId.substring(8);
+      const parts = inner.split('::');
+      return { type: 'project', projectId: projectIdOverride || parts[0], listId: parts[1] };
+    }
+    // Legacy format — projectId extraction breaks for hyphenated project IDs
+    if (projectIdOverride) {
+      // Strip known projectId from the inner string to extract listId
+      const inner = taskId.substring(8); // e.g., "fix-project-detail-panel-default-mkkcqhjq9170"
+      const afterProject = inner.substring(projectIdOverride.length + 1); // e.g., "default-mkkcqhjq9170"
+      const remainParts = afterProject.split('-');
+      return { type: 'project', projectId: projectIdOverride, listId: remainParts[0] };
+    }
     const parts = taskId.substring(8).split('-');
     return { type: 'project', projectId: parts[0], listId: parts[1] };
   }
@@ -354,7 +378,7 @@ export async function updateTask(params) {
   }
 
   // Parse task ID to determine type
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -786,7 +810,7 @@ export async function assignTask(params) {
   }
 
   // Verify task is a project task
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed || parsed.type !== 'project') {
     return {
       success: false,
@@ -889,7 +913,7 @@ export async function getTask(params) {
     };
   }
 
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -955,7 +979,7 @@ export async function deleteTask(params) {
     };
   }
 
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -1263,7 +1287,7 @@ export async function markTaskVerified(params) {
   }
 
   // Parse task ID
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -1387,7 +1411,7 @@ export async function archiveTask(params) {
   }
 
   // Parse task ID
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,

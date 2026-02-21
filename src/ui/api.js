@@ -388,8 +388,10 @@ export async function assignTaskToInstance(params) {
  * @param {string} instanceId - Caller's instance ID
  * @param {string} taskId - Task to mark complete
  */
-export async function markTaskComplete(instanceId, taskId) {
-  return rpcCall('mark_task_complete', { instanceId, taskId });
+export async function markTaskComplete(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('mark_task_complete', params);
 }
 
 /**
@@ -398,8 +400,10 @@ export async function markTaskComplete(instanceId, taskId) {
  * @param {string} taskId - Task to update
  * @param {object} updates - Fields to update (status, priority, title, description, etc.)
  */
-export async function updateTask(instanceId, taskId, updates) {
-  return rpcCall('update_task', { instanceId, taskId, ...updates });
+export async function updateTask(instanceId, taskId, updates, projectId) {
+  const params = { instanceId, taskId, ...updates };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('update_task', params);
 }
 
 /**
@@ -431,8 +435,10 @@ export async function deleteTaskList(instanceId, listId, projectId) {
  * @param {string} instanceId - Caller's instance ID
  * @param {string} taskId - Task to claim
  */
-export async function takeOnTask(instanceId, taskId) {
-  return rpcCall('take_on_task', { instanceId, taskId });
+export async function takeOnTask(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('take_on_task', params);
 }
 
 /**
@@ -440,8 +446,10 @@ export async function takeOnTask(instanceId, taskId) {
  * @param {string} instanceId - Caller's instance ID
  * @param {string} taskId - Task to verify
  */
-export async function markTaskVerified(instanceId, taskId) {
-  return rpcCall('mark_task_verified', { instanceId, taskId });
+export async function markTaskVerified(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('mark_task_verified', params);
 }
 
 /**
@@ -449,8 +457,10 @@ export async function markTaskVerified(instanceId, taskId) {
  * @param {string} instanceId - Caller's instance ID
  * @param {string} taskId - Task to archive
  */
-export async function archiveTask(instanceId, taskId) {
-  return rpcCall('archive_task', { instanceId, taskId });
+export async function archiveTask(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('archive_task', params);
 }
 
 /**
@@ -458,8 +468,10 @@ export async function archiveTask(instanceId, taskId) {
  * @param {string} instanceId - Caller's instance ID
  * @param {string} taskId - Task to retrieve
  */
-export async function getTask(instanceId, taskId) {
-  return rpcCall('get_task', { instanceId, taskId });
+export async function getTask(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('get_task', params);
 }
 
 // ============================================================================
@@ -515,6 +527,41 @@ export async function createDocument(instanceId, name, content, target) {
  */
 export async function editDocument(instanceId, name, mode, options = {}) {
   return rpcCall('edit_document', { instanceId, name, mode, ...options });
+}
+
+/**
+ * List vital documents for a target
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} [target] - Target location (e.g., "project:paula-book")
+ */
+export async function listVitalDocuments(instanceId, target) {
+  const params = { instanceId };
+  if (target) params.target = target;
+  return rpcCall('list_vital_documents', params);
+}
+
+/**
+ * Add a document to the vital documents list
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Document name
+ * @param {string} [target] - Target location
+ */
+export async function addToVital(instanceId, name, target) {
+  const params = { instanceId, name };
+  if (target) params.target = target;
+  return rpcCall('add_to_vital', params);
+}
+
+/**
+ * Remove a document from the vital documents list
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Document name
+ * @param {string} [target] - Target location
+ */
+export async function removeFromVital(instanceId, name, target) {
+  const params = { instanceId, name };
+  if (target) params.target = target;
+  return rpcCall('remove_from_vital', params);
 }
 
 // ============================================================================
@@ -934,6 +981,9 @@ export const api = {
   readDocument,
   createDocument,
   editDocument,
+  listVitalDocuments,
+  addToVital,
+  removeFromVital,
 
   // Diary
   getDiary,

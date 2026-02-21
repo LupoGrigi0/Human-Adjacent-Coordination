@@ -1,8 +1,5 @@
 /**
- * Projects Module
- *
- * Handles project listing, project detail panel, create project, and launch project.
- * The project detail panel is the main view for managing a project.
+ * Projects Module - v2 with all 24 feedback items
  *
  * @module projects
  */
@@ -16,16 +13,52 @@ import * as uiConfig from './ui-config.js';
 let expandedLists = new Set();
 let expandedTaskId = null;
 let expandedSections = new Set(['tasks']);
-let projectTasks = {};  // { listId: [tasks] }
+let projectTasks = {};
 let projectDocuments = [];
 let projectVision = null;
 let onlineInstances = new Set();
 let chatPollInterval = null;
+let showCompletedLists = new Set(); // which lists show completed tasks
+let vitalDocuments = new Set(); // vital doc names
 
-const STATUS_CYCLE = ['not_started', 'in_progress', 'completed'];
+const STATUSES = ['not_started', 'in_progress', 'blocked', 'completed', 'completed_verified', 'archived'];
 const PRIORITIES = ['emergency', 'critical', 'high', 'medium', 'low', 'whenever'];
-const PRIORITY_COLORS = { emergency: '#ef4444', critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#6b7280', whenever: 'transparent' };
+const PRIORITY_COLORS = { emergency: '#ef4444', critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#6b7280', whenever: '#a78bfa' };
 const STATUS_LABELS = { not_started: 'Not Started', in_progress: 'In Progress', blocked: 'Blocked', completed: 'Completed', completed_verified: 'Verified', archived: 'Archived' };
+const STATUS_ICONS = { not_started: '\u25CB', in_progress: '\u25D4', blocked: '\u26A0', completed: '\u2714', completed_verified: '\u2714\u2714', archived: '\uD83D\uDCE6' };
+const PROJECT_STATUSES = ['active', 'paused', 'archived'];
+
+// ============================================================================
+// DROPDOWN UTILITY
+// ============================================================================
+
+function showDropdown(anchorEl, options, onSelect) {
+    closeAllDropdowns();
+    const rect = anchorEl.getBoundingClientRect();
+    const dd = document.createElement('div');
+    dd.className = 'pd-dropdown';
+    dd.style.cssText = `position:fixed; left:${rect.left}px; top:${rect.bottom + 2}px; z-index:1000;`;
+    // Ensure dropdown doesn't go off-screen right
+    dd.innerHTML = options.map(o =>
+        `<div class="pd-dropdown-item${o.selected ? ' selected' : ''}" data-value="${o.value}">${o.icon ? '<span style="margin-right:4px">' + o.icon + '</span>' : ''}${escapeHtml(o.label)}</div>`
+    ).join('');
+    dd.addEventListener('click', e => {
+        const item = e.target.closest('.pd-dropdown-item');
+        if (item) { onSelect(item.dataset.value); dd.remove(); }
+    });
+    document.body.appendChild(dd);
+    // Reposition if off-screen
+    const ddRect = dd.getBoundingClientRect();
+    if (ddRect.right > window.innerWidth) dd.style.left = (window.innerWidth - ddRect.width - 8) + 'px';
+    if (ddRect.bottom > window.innerHeight) dd.style.top = (rect.top - ddRect.height - 2) + 'px';
+    setTimeout(() => document.addEventListener('click', function handler(e) {
+        if (!dd.contains(e.target)) { dd.remove(); document.removeEventListener('click', handler); }
+    }), 0);
+}
+
+function closeAllDropdowns() {
+    document.querySelectorAll('.pd-dropdown, .priority-popover').forEach(el => el.remove());
+}
 
 // ============================================================================
 // PROJECT LIST
@@ -63,6 +96,8 @@ export async function showProjectDetail(projectId) {
     projectTasks = {};
     projectDocuments = [];
     projectVision = null;
+    showCompletedLists = new Set();
+    vitalDocuments = new Set();
 
     document.getElementById('project-grid').style.display = 'none';
     const pageHeader = document.querySelector('#tab-projects .page-header');
@@ -88,7 +123,6 @@ export async function showProjectDetail(projectId) {
         if (!project) { showToast('Project not found', 'error'); hideProjectDetail(); return; }
     }
 
-    // Set PM info
     const pmId = project.pm;
     let pmInstance = null;
     if (pmId) {
@@ -98,12 +132,13 @@ export async function showProjectDetail(projectId) {
         state.currentProjectPM = null;
     }
 
-    // Fetch presence, tasks, documents in parallel
-    const [presenceResult, tasksResult, docsResult, visionResult] = await Promise.allSettled([
+    // Fetch presence, tasks, documents, vision, vital docs in parallel
+    const [presenceResult, tasksResult, docsResult, visionResult, vitalResult] = await Promise.allSettled([
         api.getPresence(),
         api.listTasks(state.instanceId, { projectId, limit: 200, full_detail: true }),
         api.listDocuments(state.instanceId, `project:${projectId}`),
-        api.readDocument(state.instanceId, 'PROJECT_VISION.md', `project:${projectId}`)
+        api.readDocument(state.instanceId, 'PROJECT_VISION.md', `project:${projectId}`),
+        api.listVitalDocuments(state.instanceId, `project:${projectId}`)
     ]);
 
     if (presenceResult.status === 'fulfilled') {
@@ -112,11 +147,8 @@ export async function showProjectDetail(projectId) {
     }
 
     let allTasks = [];
-    if (tasksResult.status === 'fulfilled') {
-        allTasks = tasksResult.value.tasks || [];
-    }
+    if (tasksResult.status === 'fulfilled') allTasks = tasksResult.value.tasks || [];
 
-    // Group tasks by list
     projectTasks = {};
     allTasks.forEach(t => {
         const lid = t.listId || t.list || 'default';
@@ -124,11 +156,11 @@ export async function showProjectDetail(projectId) {
         projectTasks[lid].push(t);
     });
 
-    if (docsResult.status === 'fulfilled') {
-        projectDocuments = docsResult.value.documents || [];
-    }
-    if (visionResult.status === 'fulfilled') {
-        projectVision = visionResult.value.content || visionResult.value.document || null;
+    if (docsResult.status === 'fulfilled') projectDocuments = docsResult.value.documents || [];
+    if (visionResult.status === 'fulfilled') projectVision = visionResult.value.content || visionResult.value.document || null;
+    if (vitalResult.status === 'fulfilled') {
+        const vDocs = vitalResult.value.documents || vitalResult.value.vitalDocuments || [];
+        vitalDocuments = new Set(vDocs.map(d => typeof d === 'string' ? d : d.name));
     }
 
     renderProjectDetail(project, allTasks);
@@ -150,15 +182,16 @@ function renderProjectDetail(project, allTasks) {
         <div class="project-detail-header-top">
             <button class="back-btn" onclick="window._pdHideDetail()">&larr; Projects</button>
             <div class="project-detail-header-title">
-                <h2>${escapeHtml(project.name)}</h2>
-                <span class="status-badge status-${project.status}" data-project-id="${projectId}" onclick="window._pdCycleProjectStatus(this)">${project.status}</span>
+                <h2 class="pd-project-name" onclick="window._pdRenameProject(this)" title="Click to rename">${escapeHtml(project.name)}</h2>
+                <span class="status-badge status-${project.status}" onclick="window._pdProjectStatusDropdown(event)" title="Click to change status">${project.status}</span>
+                <span class="status-badge" style="background:rgba(59,130,246,0.15);color:#3b82f6" onclick="window._pdProjectPriorityDropdown(event)" title="Click to set priority">priority</span>
             </div>
         </div>
         <div class="project-detail-header-meta">
-            <span class="project-detail-pm" title="${escapeHtml(state.currentProjectPM?.instanceId || '')}">
+            <span class="project-detail-pm" onclick="window._pdPMDropdown(event)" title="Click to assign PM" style="cursor:pointer">
                 <span class="online-dot ${pmOnline ? 'online' : ''}"></span> PM: ${escapeHtml(pmName)}
             </span>
-            <span class="project-detail-team-count" onclick="window._pdToggleSection('team')">${team.length} members</span>
+            <span class="project-detail-team-count" onclick="window._pdAddTeamMember(event)" style="cursor:pointer" title="Click to add members">${team.length} members</span>
             <span class="project-detail-progress">${completedCount}/${totalCount} done</span>
         </div>
     </div>
@@ -203,45 +236,44 @@ function renderTasksSection(listIds, projectId) {
     <div class="section-collapse" data-section="tasks">
         <div class="section-collapse-header" onclick="window._pdToggleSection('tasks')">
             <span class="chevron ${isExpanded ? 'expanded' : ''}">&rsaquo;</span> Tasks
+            <span class="section-header-actions">
+                <button class="section-add-btn" onclick="event.stopPropagation(); window._pdCreateList('${projectId}')" title="New task list">+</button>
+            </span>
         </div>
         <div class="section-collapse-body" style="display:${isExpanded ? 'block' : 'none'}">
             ${listIds.map(lid => renderTaskList(lid, projectTasks[lid] || [], projectId)).join('')}
-            <button class="inline-form-btn" onclick="window._pdCreateList('${projectId}')">+ New List</button>
         </div>
     </div>`;
 }
 
 function renderTaskList(listId, tasks, projectId) {
     const isExpanded = expandedLists.has(listId);
-    const completed = tasks.filter(t => ['completed', 'completed_verified'].includes(t.status)).length;
+    const showCompleted = showCompletedLists.has(listId);
+    const activeTasks = tasks.filter(t => !['completed', 'completed_verified', 'archived'].includes(t.status));
+    const completedTasks = tasks.filter(t => ['completed', 'completed_verified'].includes(t.status));
+    const completed = completedTasks.length;
     const pct = tasks.length > 0 ? Math.round(completed / tasks.length * 100) : 0;
-    const docIcon = projectDocuments.some(d => d.toLowerCase().startsWith(listId.toLowerCase())) ? ' <span class="companion-doc-icon" title="Has companion document">&#128196;</span>' : '';
+    const eyeIcon = showCompleted ? '\uD83D\uDC41' : '\uD83D\uDC41\u200D\uD83D\uDDE8'; // eye vs eye-speech
 
     return `
     <div class="task-list-section" data-list-id="${listId}">
-        <div class="task-list-header" onclick="window._pdToggleList('${listId}')">
-            <span class="chevron ${isExpanded ? 'expanded' : ''}">&rsaquo;</span>
-            <span class="task-list-name">${escapeHtml(listId)}${docIcon}</span>
+        <div class="task-list-header">
+            <span class="chevron ${isExpanded ? 'expanded' : ''}" onclick="window._pdToggleList('${listId}')">&rsaquo;</span>
+            <span class="task-list-name" onclick="window._pdToggleList('${listId}')">${escapeHtml(listId)}</span>
             <span class="task-list-progress-text">${completed}/${tasks.length}</span>
             <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <span class="completed-toggle-icon" onclick="event.stopPropagation(); window._pdToggleCompleted('${listId}')" title="${showCompleted ? 'Hide completed' : 'Show completed'}">${showCompleted ? '\uD83D\uDC41' : '\uD83D\uDC41\u200D\uD83D\uDDE8'}</span>
+            ${isExpanded ? `<input type="text" class="task-header-input task-create-input" placeholder="New task..." data-list-id="${listId}" data-project-id="${projectId}" onclick="event.stopPropagation()">` : ''}
         </div>
         <div class="task-list-body" style="display:${isExpanded ? 'block' : 'none'}">
-            ${tasks.filter(t => t.status !== 'completed_verified' && t.status !== 'archived').map(t => renderTaskRow(t)).join('')}
-            <div class="task-list-completed-toggle">
-                <button class="btn-link" onclick="window._pdToggleCompleted(this, '${listId}')">Show completed (${completed})</button>
-            </div>
-            <div class="task-list-completed" style="display:none">
-                ${tasks.filter(t => t.status === 'completed' || t.status === 'completed_verified').map(t => renderTaskRow(t)).join('')}
-            </div>
-            <div class="inline-form" data-list-id="${listId}" data-project-id="${projectId}">
-                <input type="text" class="inline-form-input task-create-input" placeholder="+ Add task..." data-list-id="${listId}" data-project-id="${projectId}">
-            </div>
+            ${activeTasks.map(t => renderTaskRow(t)).join('')}
+            ${showCompleted ? completedTasks.map(t => renderTaskRow(t)).join('') : ''}
         </div>
     </div>`;
 }
 
 function renderTaskRow(task) {
-    const tid = task.taskId || task.id;
+    const tid = task.id || task.taskId;
     const priority = task.priority || 'medium';
     const status = task.status || 'not_started';
     const assignee = task.assigned_to || task.assignee;
@@ -253,26 +285,30 @@ function renderTaskRow(task) {
         <div class="task-row-summary">
             <span class="priority-dot priority-dot-${priority}" data-task-id="${tid}" onclick="window._pdPriorityPopover(event, '${tid}')" title="${priority}"></span>
             <span class="task-row-title" data-task-id="${tid}" onclick="window._pdExpandTask('${tid}')">${escapeHtml(task.title)}</span>
-            <span class="status-badge status-${status}" data-task-id="${tid}" onclick="window._pdCycleStatus(event, '${tid}')">${STATUS_LABELS[status] || status}</span>
-            ${assigneeLabel ? `<span class="task-assignee-avatar" title="${escapeHtml(assignee)}">${escapeHtml(assigneeLabel.charAt(0).toUpperCase())}</span>` : ''}
+            <span class="status-badge status-${status}" data-task-id="${tid}" onclick="window._pdStatusDropdown(event, '${tid}')" title="${STATUS_LABELS[status] || status}">${STATUS_LABELS[status] || status}</span>
+            ${assigneeLabel
+                ? `<span class="task-assignee-avatar" data-task-id="${tid}" onclick="window._pdAssigneeDropdown(event, '${tid}')" title="${escapeHtml(assignee)}">${escapeHtml(assigneeLabel.charAt(0).toUpperCase())}</span>`
+                : `<span class="task-assignee-avatar task-assignee-empty" data-task-id="${tid}" onclick="window._pdAssigneeDropdown(event, '${tid}')" title="Assign">?</span>`
+            }
         </div>`;
 
-    if (isExpanded) {
-        row += renderTaskExpanded(task);
-    }
+    if (isExpanded) row += renderTaskExpanded(task);
     row += '</div>';
     return row;
 }
 
 function renderTaskExpanded(task) {
-    const tid = task.taskId || task.id;
-    const team = state.currentProject?.team || [];
+    const tid = task.id || task.taskId;
     const isAssignee = task.assigned_to === state.instanceId || task.assignee === state.instanceId;
     const isCompleted = task.status === 'completed';
     const isVerified = task.status === 'completed_verified';
 
     return `
     <div class="task-detail-inline">
+        <div class="task-detail-field">
+            <label>Title</label>
+            <input type="text" class="task-detail-title-input" data-task-id="${tid}" value="${escapeHtml(task.title || '')}" onblur="window._pdSaveField('${tid}','title',this.value)">
+        </div>
         <div class="task-detail-field">
             <label>Description</label>
             <textarea class="task-detail-desc" data-task-id="${tid}" onblur="window._pdSaveField('${tid}','description',this.value)">${escapeHtml(task.description || '')}</textarea>
@@ -287,14 +323,14 @@ function renderTaskExpanded(task) {
             <div class="task-detail-field">
                 <label>Status</label>
                 <select data-task-id="${tid}" onchange="window._pdSaveField('${tid}','status',this.value)">
-                    ${Object.keys(STATUS_LABELS).map(s => `<option value="${s}" ${s === task.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
+                    ${STATUSES.map(s => `<option value="${s}" ${s === task.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
                 </select>
             </div>
             <div class="task-detail-field">
                 <label>Assignee</label>
                 <select data-task-id="${tid}" onchange="window._pdSaveField('${tid}','assigned_to',this.value)">
                     <option value="">Unassigned</option>
-                    ${team.map(m => {
+                    ${(state.currentProject?.team || []).map(m => {
                         const mid = typeof m === 'string' ? m : m.instanceId || m.id;
                         const mname = typeof m === 'string' ? m.split('-')[0] : m.name || mid.split('-')[0];
                         return `<option value="${mid}" ${mid === (task.assigned_to || task.assignee) ? 'selected' : ''}>${escapeHtml(mname)}</option>`;
@@ -307,6 +343,7 @@ function renderTaskExpanded(task) {
             ${!isCompleted && !isVerified ? `<button class="btn-action" onclick="window._pdCompleteTask('${tid}')">Complete</button>` : ''}
             ${isCompleted && !isAssignee ? `<button class="btn-action" onclick="window._pdVerifyTask('${tid}')">Verify</button>` : ''}
             ${isCompleted && isAssignee ? `<button class="btn-action btn-disabled" disabled title="Cannot verify own task">Verify</button>` : ''}
+            ${isVerified ? `<button class="btn-action" onclick="window._pdArchiveTask('${tid}')">Archive</button>` : ''}
         </div>
     </div>`;
 }
@@ -315,7 +352,6 @@ function renderTeamSection(project) {
     const team = project.team || [];
     const isExpanded = expandedSections.has('team');
     const pmId = project.pm;
-    // Sort PM first
     const sorted = [...team].sort((a, b) => {
         const aid = typeof a === 'string' ? a : a.instanceId || a.id;
         const bid = typeof b === 'string' ? b : b.instanceId || b.id;
@@ -328,6 +364,9 @@ function renderTeamSection(project) {
     <div class="section-collapse" data-section="team">
         <div class="section-collapse-header" onclick="window._pdToggleSection('team')">
             <span class="chevron ${isExpanded ? 'expanded' : ''}">&rsaquo;</span> Team (${team.length})
+            <span class="section-header-actions">
+                <button class="section-add-btn" onclick="event.stopPropagation(); window._pdAddTeamMember(event)" title="Add team member">+</button>
+            </span>
         </div>
         <div class="section-collapse-body" style="display:${isExpanded ? 'block' : 'none'}">
             <div class="team-grid">
@@ -352,23 +391,24 @@ function renderTeamSection(project) {
 
 function renderDocumentsSection(projectId) {
     const isExpanded = expandedSections.has('documents');
-    const vitalDocs = state.currentProject?.vitalDocuments || [];
     return `
     <div class="section-collapse" data-section="documents">
         <div class="section-collapse-header" onclick="window._pdToggleSection('documents')">
             <span class="chevron ${isExpanded ? 'expanded' : ''}">&rsaquo;</span> Documents (${projectDocuments.length})
+            <span class="section-header-actions">
+                <button class="section-add-btn" onclick="event.stopPropagation(); window._pdCreateDocument('${projectId}')" title="Add document">+</button>
+            </span>
         </div>
         <div class="section-collapse-body" style="display:${isExpanded ? 'block' : 'none'}">
             ${projectDocuments.length > 0 ? projectDocuments.map(doc => {
                 const docName = typeof doc === 'string' ? doc : doc.name;
-                const isVital = vitalDocs.includes(docName);
+                const isVital = vitalDocuments.has(docName);
                 return `
-                <div class="document-item" data-doc="${escapeHtml(docName)}" onclick="window._pdViewDocument('${escapeHtml(docName)}')">
-                    ${isVital ? '<span class="vital-star" title="Vital document">&#9733;</span>' : '<span class="doc-icon">&#128196;</span>'}
-                    <span class="document-name">${escapeHtml(docName)}</span>
+                <div class="document-item" data-doc="${escapeHtml(docName)}">
+                    <span class="vital-star-toggle ${isVital ? 'vital' : ''}" onclick="event.stopPropagation(); window._pdToggleVital('${escapeHtml(docName)}')" title="${isVital ? 'Remove from vital' : 'Mark as vital'}">${isVital ? '\u2605' : '\u2606'}</span>
+                    <span class="document-name" onclick="window._pdViewDocument('${escapeHtml(docName)}')">${escapeHtml(docName)}</span>
                 </div>`;
             }).join('') : '<p class="empty-placeholder">No documents</p>'}
-            <button class="inline-form-btn" onclick="window._pdCreateDocument('${projectId}')">+ Add Document</button>
         </div>
     </div>`;
 }
@@ -395,7 +435,6 @@ function renderChatSection(project) {
 // ============================================================================
 
 function handleDetailClick(e) {
-    // Close priority popover on outside click
     const popover = document.querySelector('.priority-popover');
     if (popover && !e.target.closest('.priority-popover') && !e.target.classList.contains('priority-dot')) {
         popover.remove();
@@ -422,17 +461,7 @@ async function createInlineTask(title, listId, projectId, inputEl) {
         await api.createTask({ instanceId: state.instanceId, title, projectId, listId, priority: 'medium' });
         inputEl.value = '';
         showToast('Task created', 'success');
-        // Refresh tasks
-        const result = await api.listTasks(state.instanceId, { projectId, limit: 200, full_detail: true });
-        const tasks = result.tasks || [];
-        projectTasks = {};
-        tasks.forEach(t => {
-            const lid = t.listId || t.list || 'default';
-            if (!projectTasks[lid]) projectTasks[lid] = [];
-            projectTasks[lid].push(t);
-        });
-        renderProjectDetail(state.currentProject, tasks);
-        // Re-focus the input in the same list
+        await refreshProjectTasks();
         setTimeout(() => {
             const newInput = document.querySelector(`.task-create-input[data-list-id="${listId}"]`);
             if (newInput) newInput.focus();
@@ -442,65 +471,100 @@ async function createInlineTask(title, listId, projectId, inputEl) {
     }
 }
 
-// One-touch status cycling
-window._pdCycleStatus = async function(event, taskId) {
+// --- Item 11: Status dropdown (not cycle) ---
+window._pdStatusDropdown = function(event, taskId) {
     event.stopPropagation();
     const task = findTask(taskId);
     if (!task) return;
-    const currentIdx = STATUS_CYCLE.indexOf(task.status);
-    const newStatus = STATUS_CYCLE[(currentIdx + 1) % STATUS_CYCLE.length];
-    const oldStatus = task.status;
-
-    // Optimistic update
-    task.status = newStatus;
-    const badge = event.target;
-    badge.textContent = STATUS_LABELS[newStatus];
-    badge.className = `status-badge status-${newStatus}`;
-
-    try {
-        if (newStatus === 'completed') {
-            await api.markTaskComplete(state.instanceId, taskId);
-        } else {
-            await api.updateTask(state.instanceId, taskId, { status: newStatus });
+    const options = STATUSES.map(s => ({
+        value: s,
+        label: STATUS_LABELS[s],
+        icon: STATUS_ICONS[s] || '',
+        selected: s === task.status
+    }));
+    showDropdown(event.target, options, async (newStatus) => {
+        const oldStatus = task.status;
+        task.status = newStatus;
+        const badge = event.target;
+        badge.textContent = STATUS_LABELS[newStatus];
+        badge.className = `status-badge status-${newStatus}`;
+        badge.title = STATUS_LABELS[newStatus];
+        try {
+            if (newStatus === 'completed') {
+                await api.markTaskComplete(state.instanceId, taskId, state.currentProjectDetail);
+            } else if (newStatus === 'completed_verified') {
+                await api.markTaskVerified(state.instanceId, taskId, state.currentProjectDetail);
+            } else if (newStatus === 'archived') {
+                await api.archiveTask(state.instanceId, taskId, state.currentProjectDetail);
+            } else {
+                await api.updateTask(state.instanceId, taskId, { status: newStatus }, state.currentProjectDetail);
+            }
+        } catch (err) {
+            task.status = oldStatus;
+            badge.textContent = STATUS_LABELS[oldStatus];
+            badge.className = `status-badge status-${oldStatus}`;
+            badge.title = STATUS_LABELS[oldStatus];
+            showToast('Failed to update status: ' + err.message, 'error');
         }
-    } catch (err) {
-        task.status = oldStatus;
-        badge.textContent = STATUS_LABELS[oldStatus];
-        badge.className = `status-badge status-${oldStatus}`;
-        showToast('Failed to update status', 'error');
-    }
+    });
 };
 
-// Priority popover
+// --- Item 2: Assignee avatar click -> dropdown ---
+window._pdAssigneeDropdown = function(event, taskId) {
+    event.stopPropagation();
+    const task = findTask(taskId);
+    if (!task) return;
+    const team = state.currentProject?.team || [];
+    const currentAssignee = task.assigned_to || task.assignee || '';
+    const options = [
+        { value: '', label: 'Unassigned', selected: !currentAssignee },
+        ...team.map(m => {
+            const mid = typeof m === 'string' ? m : m.instanceId || m.id;
+            const mname = typeof m === 'string' ? m.split('-')[0] : m.name || mid.split('-')[0];
+            return { value: mid, label: mname, selected: mid === currentAssignee };
+        })
+    ];
+    showDropdown(event.target, options, async (value) => {
+        try {
+            if (value && value !== currentAssignee) {
+                await api.updateTask(state.instanceId, taskId, { assigned_to: value }, state.currentProjectDetail);
+                task.assigned_to = value;
+            } else if (!value) {
+                await api.updateTask(state.instanceId, taskId, { assigned_to: '' }, state.currentProjectDetail);
+                task.assigned_to = '';
+            }
+            showToast('Assignee updated', 'success');
+            refreshProjectTasks();
+        } catch (err) {
+            showToast('Failed to update assignee: ' + err.message, 'error');
+        }
+    });
+};
+
+// Priority popover (kept as dropdown)
 window._pdPriorityPopover = function(event, taskId) {
     event.stopPropagation();
-    document.querySelectorAll('.priority-popover').forEach(p => p.remove());
-    const rect = event.target.getBoundingClientRect();
-    const popover = document.createElement('div');
-    popover.className = 'priority-popover';
-    popover.style.position = 'fixed';
-    popover.style.left = rect.left + 'px';
-    popover.style.top = (rect.bottom + 4) + 'px';
-    popover.style.zIndex = '1000';
-    popover.innerHTML = PRIORITIES.map(p => `<div class="priority-option" data-priority="${p}" onclick="window._pdSetPriority('${taskId}','${p}')"><span class="priority-dot priority-dot-${p}"></span> ${p}</div>`).join('');
-    document.body.appendChild(popover);
-};
-
-window._pdSetPriority = async function(taskId, priority) {
-    document.querySelectorAll('.priority-popover').forEach(p => p.remove());
     const task = findTask(taskId);
     if (!task) return;
-    const old = task.priority;
-    task.priority = priority;
-    const dot = document.querySelector(`.priority-dot[data-task-id="${taskId}"]`);
-    if (dot) dot.className = `priority-dot priority-dot-${priority}`;
-    try {
-        await api.updateTask(state.instanceId, taskId, { priority });
-    } catch (err) {
-        task.priority = old;
-        if (dot) dot.className = `priority-dot priority-dot-${old}`;
-        showToast('Failed to update priority', 'error');
-    }
+    const options = PRIORITIES.map(p => ({
+        value: p,
+        label: p,
+        icon: `<span class="priority-dot priority-dot-${p}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PRIORITY_COLORS[p]}"></span>`,
+        selected: p === task.priority
+    }));
+    showDropdown(event.target, options, async (priority) => {
+        const old = task.priority;
+        task.priority = priority;
+        const dot = document.querySelector(`.priority-dot[data-task-id="${taskId}"]`);
+        if (dot) { dot.className = `priority-dot priority-dot-${priority}`; dot.title = priority; }
+        try {
+            await api.updateTask(state.instanceId, taskId, { priority }, state.currentProjectDetail);
+        } catch (err) {
+            task.priority = old;
+            if (dot) { dot.className = `priority-dot priority-dot-${old}`; dot.title = old; }
+            showToast('Failed to update priority', 'error');
+        }
+    });
 };
 
 window._pdExpandTask = function(taskId) {
@@ -509,9 +573,22 @@ window._pdExpandTask = function(taskId) {
     renderProjectDetail(state.currentProject, allTasks);
 };
 
+// --- Item 1: Save field (including title) ---
 window._pdSaveField = async function(taskId, field, value) {
     try {
-        await api.updateTask(state.instanceId, taskId, { [field]: value });
+        if (field === 'status') {
+            if (value === 'completed') {
+                await api.markTaskComplete(state.instanceId, taskId, state.currentProjectDetail);
+            } else if (value === 'completed_verified') {
+                await api.markTaskVerified(state.instanceId, taskId, state.currentProjectDetail);
+            } else if (value === 'archived') {
+                await api.archiveTask(state.instanceId, taskId, state.currentProjectDetail);
+            } else {
+                await api.updateTask(state.instanceId, taskId, { status: value }, state.currentProjectDetail);
+            }
+        } else {
+            await api.updateTask(state.instanceId, taskId, { [field]: value }, state.currentProjectDetail);
+        }
         const task = findTask(taskId);
         if (task) task[field] = value;
     } catch (err) {
@@ -521,7 +598,7 @@ window._pdSaveField = async function(taskId, field, value) {
 
 window._pdClaimTask = async function(taskId) {
     try {
-        await api.takeOnTask(state.instanceId, taskId);
+        await api.takeOnTask(state.instanceId, taskId, state.currentProjectDetail);
         showToast('Task claimed', 'success');
         refreshProjectTasks();
     } catch (err) { showToast('Failed to claim: ' + err.message, 'error'); }
@@ -529,7 +606,7 @@ window._pdClaimTask = async function(taskId) {
 
 window._pdCompleteTask = async function(taskId) {
     try {
-        await api.markTaskComplete(state.instanceId, taskId);
+        await api.markTaskComplete(state.instanceId, taskId, state.currentProjectDetail);
         showToast('Task completed', 'success');
         refreshProjectTasks();
     } catch (err) { showToast('Failed: ' + err.message, 'error'); }
@@ -537,8 +614,16 @@ window._pdCompleteTask = async function(taskId) {
 
 window._pdVerifyTask = async function(taskId) {
     try {
-        await api.markTaskVerified(state.instanceId, taskId);
+        await api.markTaskVerified(state.instanceId, taskId, state.currentProjectDetail);
         showToast('Task verified', 'success');
+        refreshProjectTasks();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._pdArchiveTask = async function(taskId) {
+    try {
+        await api.archiveTask(state.instanceId, taskId, state.currentProjectDetail);
+        showToast('Task archived', 'success');
         refreshProjectTasks();
     } catch (err) { showToast('Failed: ' + err.message, 'error'); }
 };
@@ -546,12 +631,8 @@ window._pdVerifyTask = async function(taskId) {
 window._pdToggleList = function(listId) {
     if (expandedLists.has(listId)) expandedLists.delete(listId);
     else expandedLists.add(listId);
-    const section = document.querySelector(`.task-list-section[data-list-id="${listId}"]`);
-    if (!section) return;
-    const body = section.querySelector('.task-list-body');
-    const chev = section.querySelector('.chevron');
-    if (body) body.style.display = expandedLists.has(listId) ? 'block' : 'none';
-    if (chev) chev.classList.toggle('expanded', expandedLists.has(listId));
+    const allTasks = Object.values(projectTasks).flat();
+    renderProjectDetail(state.currentProject, allTasks);
 };
 
 window._pdToggleSection = function(sectionName) {
@@ -566,55 +647,251 @@ window._pdToggleSection = function(sectionName) {
     if (sectionName === 'chat' && expandedSections.has('chat')) loadChatMessages();
 };
 
-window._pdToggleCompleted = function(btn, listId) {
-    const section = btn.closest('.task-list-body');
-    const container = section.querySelector('.task-list-completed');
-    if (container) {
-        const showing = container.style.display !== 'none';
-        container.style.display = showing ? 'none' : 'block';
-        btn.textContent = showing ? `Show completed` : 'Hide completed';
-    }
+// --- Item 6: Eye icon toggle for completed tasks ---
+window._pdToggleCompleted = function(listId) {
+    if (showCompletedLists.has(listId)) showCompletedLists.delete(listId);
+    else showCompletedLists.add(listId);
+    const allTasks = Object.values(projectTasks).flat();
+    renderProjectDetail(state.currentProject, allTasks);
 };
 
+// --- Items 16, 17, 23: New task list ---
 window._pdCreateList = async function(projectId) {
     const name = prompt('New list name:');
     if (!name || !name.trim()) return;
+    const listName = name.trim();
     try {
-        await api.createTaskList(state.instanceId, name.trim(), projectId);
+        await api.createTaskList(state.instanceId, listName, projectId);
         showToast('List created', 'success');
-        expandedLists.add(name.trim());
-        refreshProjectTasks();
-    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+        expandedLists.add(listName);
+        await refreshProjectTasks();
+    } catch (err) { showToast('Failed to create list: ' + err.message, 'error'); }
 };
 
-window._pdCycleProjectStatus = function(el) {
-    // Only for Executive role
-    showToast('Project status change not yet implemented', 'info');
+// --- Item 9: Project status dropdown ---
+window._pdProjectStatusDropdown = function(event) {
+    event.stopPropagation();
+    const project = state.currentProject;
+    if (!project) return;
+    const options = PROJECT_STATUSES.map(s => ({
+        value: s, label: s, selected: s === project.status
+    }));
+    showDropdown(event.target, options, (_val) => {
+        showToast('Project status update not yet supported by API', 'info');
+    });
+};
+
+// --- Item 10: Project priority dropdown ---
+window._pdProjectPriorityDropdown = function(event) {
+    event.stopPropagation();
+    const options = PRIORITIES.map(p => ({ value: p, label: p }));
+    showDropdown(event.target, options, (_val) => {
+        showToast('Project priority not yet supported by API', 'info');
+    });
+};
+
+// --- Item 8: PM clickable -> assign dropdown ---
+window._pdPMDropdown = async function(event) {
+    event.stopPropagation();
+    let instances = state.instances || [];
+    if (!instances.length) {
+        try {
+            const r = await api.getInstances(state.instanceId);
+            instances = r.instances || [];
+        } catch (_e) { /* ignore */ }
+    }
+    const options = instances.map(i => ({
+        value: i.instanceId,
+        label: (i.name || i.instanceId.split('-')[0]) + (i.role ? ` (${i.role})` : ''),
+        selected: i.instanceId === state.currentProjectPM?.instanceId
+    }));
+    showDropdown(event.target, options, (_val) => {
+        showToast('PM assignment not yet supported by API', 'info');
+    });
+};
+
+// --- Item 22: Project rename ---
+window._pdRenameProject = function(el) {
+    const current = el.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = current;
+    input.className = 'task-detail-title-input';
+    input.style.fontSize = '1.25rem';
+    el.replaceWith(input);
+    input.focus();
+    input.select();
+    const finish = () => {
+        const h2 = document.createElement('h2');
+        h2.className = 'pd-project-name';
+        h2.setAttribute('onclick', 'window._pdRenameProject(this)');
+        h2.title = 'Click to rename';
+        h2.textContent = input.value || current;
+        input.replaceWith(h2);
+        if (input.value !== current) {
+            showToast('Project rename not yet supported by API', 'info');
+        }
+    };
+    input.addEventListener('blur', finish);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = current; input.blur(); }
+    });
+};
+
+// --- Items 14, 18: Add team member ---
+window._pdAddTeamMember = async function(event) {
+    event.stopPropagation();
+    let instances = state.instances || [];
+    if (!instances.length) {
+        try {
+            const r = await api.getInstances(state.instanceId);
+            instances = r.instances || [];
+            state.instances = instances;
+        } catch (_e) { /* ignore */ }
+    }
+    const currentTeam = new Set((state.currentProject?.team || []).map(m => typeof m === 'string' ? m : m.instanceId || m.id));
+    const options = instances
+        .filter(i => !currentTeam.has(i.instanceId))
+        .map(i => ({
+            value: i.instanceId,
+            label: (i.name || i.instanceId.split('-')[0]) + (i.role ? ` (${i.role})` : '')
+        }));
+    if (!options.length) {
+        showToast('All instances are already team members', 'info');
+        return;
+    }
+    showDropdown(event.target, options, async (instanceId) => {
+        try {
+            await api.joinProject(instanceId, state.currentProjectDetail);
+            showToast('Team member added', 'success');
+            // Refresh project to get updated team
+            const result = await api.getProject(state.currentProjectDetail);
+            const project = result.project || result;
+            state.currentProject = project;
+            const allTasks = Object.values(projectTasks).flat();
+            renderProjectDetail(project, allTasks);
+        } catch (err) {
+            showToast('Failed to add member: ' + err.message, 'error');
+        }
+    });
 };
 
 window._pdShowInstance = function(instanceId) {
     if (window.showInstanceDetail) window.showInstanceDetail(instanceId);
 };
 
+// --- Item 10b: Document viewer with edit ---
 window._pdViewDocument = async function(docName) {
     const projectId = state.currentProjectDetail;
     try {
         const result = await api.readDocument(state.instanceId, docName, `project:${projectId}`);
         const content = result.content || result.document || 'Empty document';
-        // Show inline in a simple overlay
         const overlay = document.createElement('div');
         overlay.className = 'document-overlay';
         overlay.innerHTML = `
             <div class="document-viewer">
                 <div class="document-viewer-header">
                     <h3>${escapeHtml(docName)}</h3>
-                    <button onclick="this.closest('.document-overlay').remove()">&times;</button>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button class="btn-action pd-doc-edit-btn" onclick="window._pdEditDocument(this)">Edit</button>
+                        <button onclick="this.closest('.document-overlay').remove()">&times;</button>
+                    </div>
                 </div>
-                <pre class="document-viewer-content">${escapeHtml(content)}</pre>
+                <pre class="document-viewer-content" data-doc-name="${escapeHtml(docName)}">${escapeHtml(content)}</pre>
             </div>`;
         document.body.appendChild(overlay);
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     } catch (err) { showToast('Failed to load document: ' + err.message, 'error'); }
+};
+
+window._pdEditDocument = function(btn) {
+    const viewer = btn.closest('.document-viewer');
+    const pre = viewer.querySelector('.document-viewer-content');
+    const docName = pre.dataset.docName;
+    const content = pre.textContent;
+
+    // Replace pre with textarea
+    const textarea = document.createElement('textarea');
+    textarea.className = 'document-viewer-edit';
+    textarea.value = content;
+    pre.replaceWith(textarea);
+
+    // Replace Edit button with Save/Cancel
+    const headerActions = btn.parentElement;
+    headerActions.innerHTML = `
+        <button class="btn-action" onclick="window._pdSaveDocument('${escapeHtml(docName)}', this)">Save</button>
+        <button class="btn-action" onclick="window._pdCancelEditDocument(this)">Cancel</button>
+        <button onclick="this.closest('.document-overlay').remove()">&times;</button>
+    `;
+};
+
+window._pdSaveDocument = async function(docName, btn) {
+    const viewer = btn.closest('.document-viewer');
+    const textarea = viewer.querySelector('.document-viewer-edit');
+    const newContent = textarea.value;
+    const projectId = state.currentProjectDetail;
+    try {
+        // Use editDocument with replace mode - replace full content
+        await api.editDocument(state.instanceId, docName, 'replace', {
+            target: `project:${projectId}`,
+            search: '', // empty search = replace all
+            replacement: newContent
+        });
+        showToast('Document saved', 'success');
+        // Switch back to view mode
+        const pre = document.createElement('pre');
+        pre.className = 'document-viewer-content';
+        pre.dataset.docName = docName;
+        pre.textContent = newContent;
+        textarea.replaceWith(pre);
+        const headerActions = btn.parentElement;
+        headerActions.innerHTML = `
+            <button class="btn-action pd-doc-edit-btn" onclick="window._pdEditDocument(this)">Edit</button>
+            <button onclick="this.closest('.document-overlay').remove()">&times;</button>
+        `;
+    } catch (err) {
+        showToast('Failed to save document: ' + err.message, 'error');
+    }
+};
+
+window._pdCancelEditDocument = function(btn) {
+    const viewer = btn.closest('.document-viewer');
+    const textarea = viewer.querySelector('.document-viewer-edit');
+    // Re-fetch and show as pre
+    const docName = viewer.querySelector('h3').textContent;
+    const pre = document.createElement('pre');
+    pre.className = 'document-viewer-content';
+    pre.dataset.docName = docName;
+    pre.textContent = textarea.value; // keep current (unsaved)
+    textarea.replaceWith(pre);
+    const headerActions = btn.parentElement;
+    headerActions.innerHTML = `
+        <button class="btn-action pd-doc-edit-btn" onclick="window._pdEditDocument(this)">Edit</button>
+        <button onclick="this.closest('.document-overlay').remove()">&times;</button>
+    `;
+};
+
+// --- Item 20: Vital star toggle ---
+window._pdToggleVital = async function(docName) {
+    const projectId = state.currentProjectDetail;
+    const target = `project:${projectId}`;
+    try {
+        if (vitalDocuments.has(docName)) {
+            await api.removeFromVital(state.instanceId, docName, target);
+            vitalDocuments.delete(docName);
+            showToast('Removed from vital documents', 'success');
+        } else {
+            await api.addToVital(state.instanceId, docName, target);
+            vitalDocuments.add(docName);
+            showToast('Added to vital documents', 'success');
+        }
+        // Re-render documents section only
+        const allTasks = Object.values(projectTasks).flat();
+        renderProjectDetail(state.currentProject, allTasks);
+    } catch (err) {
+        showToast('Failed to toggle vital: ' + err.message, 'error');
+    }
 };
 
 window._pdCreateDocument = async function(projectId) {
@@ -672,7 +949,7 @@ async function loadChatMessages() {
 
 function findTask(taskId) {
     for (const tasks of Object.values(projectTasks)) {
-        const t = tasks.find(t => (t.taskId || t.id) === taskId);
+        const t = tasks.find(t => (t.id || t.taskId) === taskId);
         if (t) return t;
     }
     return null;
@@ -718,7 +995,6 @@ export function hideProjectDetail() {
 }
 
 export function renderProjectDetailTasks(tasks) {
-    // Legacy compat - called from app.js
     if (!state.currentProjectDetail || !state.currentProject) return;
     projectTasks = {};
     (tasks || []).forEach(t => {
