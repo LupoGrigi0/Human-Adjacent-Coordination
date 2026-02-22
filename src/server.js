@@ -93,6 +93,8 @@ import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/i
 import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
 import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
 import { updateInstance } from './v2/updateInstance.js';
+// EA Proxy - lets EA/PA manage Executive's personal data
+import { eaProxy } from './v2/ea-proxy.js';
 // V2 Lists (personal checklists with Executive visibility)
 import {
   createList,
@@ -189,6 +191,39 @@ class MCPCoordinationServer {
   }
 
   /**
+   * Get handler function for EA proxy routing.
+   * Maps function names to their handler functions.
+   * Only includes APIs relevant to EA proxy (personal tasks, lists, docs, diary).
+   */
+  getHandlerForFunction(name) {
+    const handlers = {
+      // Personal tasks
+      create_task: createTask, list_tasks: listTasks, get_task: getTask,
+      update_task: updateTask, change_task: changeTask, delete_task: deleteTask,
+      mark_task_complete: markTaskComplete, mark_task_verified: markTaskVerified,
+      archive_task: archiveTask, take_on_task: takeOnTask, assign_task: assignTask,
+      create_task_list: createTaskList, delete_task_list: deleteTaskList,
+      list_priority_tasks: listPriorityTasks, get_my_top_task: getMyTopTask,
+      get_my_tasks: getMyTasks,
+      // Lists
+      create_list: createList, get_lists: getLists, get_list: getList,
+      add_list_item: addListItem, toggle_list_item: toggleListItem,
+      rename_list: renameList, delete_list_item: deleteListItem, delete_list: deleteList,
+      // Documents
+      create_document: createDocument, read_document: readDocument,
+      edit_document: editDocument, rename_document: renameDocument,
+      archive_document: archiveDocument, list_documents: listDocuments,
+      list_vital_documents: listVitalDocuments,
+      add_to_vital: addToVital, remove_from_vital: removeFromVital,
+      // Diary
+      get_diary: getDiary, add_diary_entry: addDiaryEntry,
+      // Introspect
+      introspect: introspect
+    };
+    return handlers[name] || null;
+  }
+
+  /**
    * Handle function calls - Full MCP implementation
    * Routes calls to appropriate handlers
    */
@@ -209,6 +244,16 @@ class MCPCoordinationServer {
         await InstanceHandler.updateHeartbeat({
           instanceId: params.instanceId
         });
+      }
+
+      // EA Proxy: if ea_proxy flag is set, route through the EA middleware
+      // This swaps the EA's instanceId for the Executive's instanceId
+      if (params.ea_proxy === true) {
+        const handler = this.getHandlerForFunction(functionName);
+        if (!handler) {
+          return { success: false, error: { code: 'UNKNOWN_FUNCTION', message: `Unknown function: ${functionName}` } };
+        }
+        return await eaProxy(handler, params);
       }
 
       switch (functionName) {
