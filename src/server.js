@@ -86,7 +86,8 @@ import {
   createProject as createProjectV2,
   getProject as getProjectV2,
   listProjects,
-  getProjectTasks
+  getProjectTasks,
+  updateProject as updateProjectV2
 } from './v2/projects.js';
 // Identity recovery (Bridge's implementation)
 import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
@@ -218,7 +219,9 @@ class MCPCoordinationServer {
       // Diary
       get_diary: getDiary, add_diary_entry: addDiaryEntry,
       // Introspect
-      introspect: introspect
+      introspect: introspect,
+      // Projects
+      update_project: updateProjectV2
     };
     return handlers[name] || null;
   }
@@ -283,7 +286,7 @@ class MCPCoordinationServer {
         case 'create_project':
           return createProjectV2(params);  // V2 - creates project directory with templates
         case 'update_project':
-          return ProjectHandler.updateProject(params);
+          return updateProjectV2(params);  // V2 - reads/writes project directory preferences.json
         case 'delete_project':
           return ProjectHandler.deleteProject(params);
         case 'get_project_stats':
