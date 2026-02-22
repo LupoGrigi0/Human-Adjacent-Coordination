@@ -1157,6 +1157,11 @@ body {
     box-shadow: var(--shadow);
     transform: translateY(-2px);
 }
+.project-card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.project-card-priority { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; }
+.project-card-pm-status { color: var(--accent-color); cursor: help; font-size: 0.9rem; }
+.project-card-footer { display: flex; gap: 12px; margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); }
+.project-card-pm, .project-card-team { white-space: nowrap; }
 
 .project-status {
     display: inline-block;
@@ -4007,6 +4012,11 @@ body {
 .pd-settings-btn:hover { color: var(--text-primary); background: var(--surface-hover); }
 
 /* New task panel (Item 4) */
+.pm-status-banner { padding: 8px 12px; margin-top: 8px; background: rgba(6,182,212,0.08); border-left: 3px solid var(--accent-color); border-radius: var(--radius-sm); font-size: 0.8125rem; color: var(--text-secondary); cursor: pointer; transition: background 0.15s; }
+.pm-status-banner:hover { background: rgba(6,182,212,0.15); }
+.pm-status-banner.pm-status-empty { opacity: 0.5; border-left-color: var(--border-color); }
+.pm-status-icon { margin-right: 4px; }
+
 .new-task-input-wrap { display: flex; align-items: center; gap: 4px; flex: 1; position: relative; }
 .new-task-arrow { color: var(--success-color); font-size: 0.7rem; cursor: default; opacity: 0.6; }
 .new-task-detail-icon { display: none; cursor: pointer; color: var(--accent-color); font-size: 0.9rem; padding: 2px 4px; border-radius: var(--radius-sm); transition: opacity 0.15s; }

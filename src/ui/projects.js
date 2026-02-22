@@ -72,11 +72,22 @@ export function loadProjects() {
     }
     grid.innerHTML = state.projects.map(project => {
         const pid = project.projectId || project.id;
+        const pmName = project.pm ? (project.pm.split('-')[0] || 'PM') : 'No PM';
+        const teamCount = (project.team || []).length;
+        const hasPmStatus = !!project.pmStatus;
         return `
         <div class="project-card" data-project-id="${pid}">
-            <span class="project-status status-${project.status}">${project.status}</span>
+            <div class="project-card-top">
+                <span class="project-status status-${project.status}">${project.status}</span>
+                ${project.priority ? `<span class="project-card-priority" style="color:${PRIORITY_COLORS[project.priority] || '#3b82f6'}">${project.priority}</span>` : ''}
+                ${hasPmStatus ? `<span class="project-card-pm-status" title="${escapeHtml(project.pmStatus)}">&#9432;</span>` : ''}
+            </div>
             <div class="project-name">${escapeHtml(project.name)}</div>
             <div class="project-description">${escapeHtml(project.description || 'No description')}</div>
+            <div class="project-card-footer">
+                <span class="project-card-pm">PM: ${escapeHtml(pmName)}</span>
+                <span class="project-card-team">${teamCount} members</span>
+            </div>
         </div>`;
     }).join('');
     grid.querySelectorAll('.project-card').forEach(card => {
@@ -196,6 +207,7 @@ function renderProjectDetail(project, allTasks) {
             <span class="project-detail-progress">${completedCount}/${totalCount} done</span>
         </div>
         ${project.description ? `<div class="project-detail-description">${escapeHtml(project.description)}</div>` : ''}
+        ${project.pmStatus ? `<div class="pm-status-banner" onclick="window._pdEditPmStatus()" title="Click to edit PM status"><span class="pm-status-icon">&#9432;</span> ${escapeHtml(project.pmStatus)}</div>` : `<div class="pm-status-banner pm-status-empty" onclick="window._pdEditPmStatus()" title="Click to set PM status message"><span class="pm-status-icon">&#9432;</span> <em>No PM status</em></div>`}
     </div>
     <div class="project-detail-body">
         <div class="project-detail-main">
@@ -567,6 +579,22 @@ function showNewTaskPanel(title, listId, projectId, inputEl) {
         inputEl.focus();
     });
 }
+
+// --- Item 9: PM status message ---
+window._pdEditPmStatus = function() {
+    const project = state.currentProject;
+    if (!project) return;
+    const current = project.pmStatus || '';
+    const newStatus = prompt('PM Status Message:', current);
+    if (newStatus === null) return; // cancelled
+    const projectId = project.projectId || project.id;
+    api.updateProject(state.instanceId, projectId, { pmStatus: newStatus || '' }).then(() => {
+        project.pmStatus = newStatus;
+        showToast('PM status updated', 'success');
+        const allTasks = Object.values(projectTasks).flat();
+        renderProjectDetail(project, allTasks);
+    }).catch(err => showToast('Failed: ' + err.message, 'error'));
+};
 
 // --- Item 17: Detail icon for new task ---
 window._pdDetailIcon = function(iconEl) {

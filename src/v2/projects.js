@@ -709,14 +709,15 @@ export async function updateProject(params) {
     };
   }
 
-  // Only Executive, PA, COO can update projects (same as createProject)
+  // PM can update pmStatus on their own project; Executive/PA/COO can update anything
+  const isPMOnProject = instanceRole === 'PM' && callerPrefs.project === params.projectId;
   const authorized = await canRoleCallAPI(instanceRole, 'createProject');
-  if (!authorized) {
+  if (!authorized && !isPMOnProject) {
     return {
       success: false,
       error: {
         code: 'UNAUTHORIZED',
-        message: `Role '${instanceRole}' is not authorized to update projects. Required: Executive, PA, or COO.`
+        message: `Role '${instanceRole}' is not authorized to update projects. Required: Executive, PA, COO, or PM (own project).`
       },
       metadata
     };
@@ -735,7 +736,10 @@ export async function updateProject(params) {
   }
 
   // Apply only the allowed updatable fields
-  const allowedFields = ['name', 'description', 'status', 'priority', 'pm'];
+  // PM on own project can only update pmStatus; high-privilege can update everything
+  const allowedFields = isPMOnProject && !authorized
+    ? ['pmStatus']
+    : ['name', 'description', 'status', 'priority', 'pm', 'pmStatus'];
   let changed = false;
   const updated = { ...prefs };
 
@@ -769,6 +773,7 @@ export async function updateProject(params) {
       status: updated.status,
       priority: updated.priority,
       pm: updated.pm,
+      pmStatus: updated.pmStatus || null,
       team: updated.team,
       xmppRoom: updated.xmppRoom,
       created: updated.created,
