@@ -475,7 +475,7 @@ export async function editDocument(params) {
   if (params.mode === 'append' && params.content === undefined) {
     return { success: false, error: { code: 'MISSING_PARAMETERS', message: 'content is required for append mode' }, metadata };
   }
-  if (params.mode === 'replace' && (!params.search || params.replacement === undefined)) {
+  if (params.mode === 'replace' && (params.search === undefined || params.replacement === undefined)) {
     return { success: false, error: { code: 'MISSING_PARAMETERS', message: 'search and replacement are required for replace mode' }, metadata };
   }
 
@@ -758,6 +758,20 @@ export async function listDocuments(params) {
       .sort();
   } catch (err) {
     // Directory doesn't exist - return empty list
+  }
+
+  // For projects: also include .md files from project root (PROJECT_VISION.md, etc. live there)
+  if (context.type === 'project') {
+    try {
+      const projectRoot = path.dirname(context.workingDir);
+      const rootEntries = await fs.readdir(projectRoot, { withFileTypes: true });
+      const rootDocs = rootEntries
+        .filter(e => e.isFile() && e.name.endsWith('.md'))
+        .map(e => e.name);
+      const docSet = new Set(documents);
+      rootDocs.forEach(d => { if (!docSet.has(d)) documents.push(d); });
+      documents.sort();
+    } catch (_err) { /* ignore */ }
   }
 
   console.log(`[DOCUMENTS] Listed ${documents.length} documents in ${context.workingDir}`);

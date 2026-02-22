@@ -184,7 +184,7 @@ function renderProjectDetail(project, allTasks) {
             <div class="project-detail-header-title">
                 <h2 class="pd-project-name" onclick="window._pdRenameProject(this)" title="Click to rename">${escapeHtml(project.name)}</h2>
                 <span class="status-badge status-${project.status}" onclick="window._pdProjectStatusDropdown(event)" title="Click to change status">${project.status}</span>
-                <span class="status-badge" style="background:rgba(59,130,246,0.15);color:#3b82f6" onclick="window._pdProjectPriorityDropdown(event)" title="Click to set priority">priority</span>
+                <span class="status-badge" style="background:rgba(${(project.priority === 'high' || project.priority === 'critical' || project.priority === 'emergency') ? '239,68,68' : project.priority === 'low' || project.priority === 'whenever' ? '107,114,128' : '59,130,246'},0.15);color:${PRIORITY_COLORS[project.priority] || '#3b82f6'}" onclick="window._pdProjectPriorityDropdown(event)" title="Click to set priority">${project.priority || 'priority'}</span>
             </div>
             <button class="pd-settings-btn" onclick="window._pdShowSettings()" title="Project settings">&#9881;</button>
         </div>
@@ -265,7 +265,7 @@ function renderTaskList(listId, tasks, projectId) {
             <span class="task-list-progress-text">${completed}/${tasks.length}</span>
             <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
             <span class="completed-toggle-icon" onclick="event.stopPropagation(); window._pdToggleCompleted('${listId}')" title="${showCompleted ? 'Hide completed' : 'Show completed'}">${showCompleted ? '\uD83D\uDC41' : '\uD83D\uDC41\u200D\uD83D\uDDE8'}</span>
-            ${isExpanded ? `<input type="text" class="task-header-input task-create-input" placeholder="New task..." data-list-id="${listId}" data-project-id="${projectId}" onclick="event.stopPropagation()">` : ''}
+            ${isExpanded ? `<span class="new-task-input-wrap"><span class="new-task-arrow" title="Add with details" onclick="event.stopPropagation()">&#9654;</span><input type="text" class="task-header-input task-create-input" placeholder="New task..." data-list-id="${listId}" data-project-id="${projectId}" onclick="event.stopPropagation()"><span class="new-task-detail-icon" title="Add with details" onclick="event.stopPropagation(); window._pdDetailIcon(this)">&#9998;</span></span>` : ''}
         </div>
         <div class="task-list-body" style="display:${isExpanded ? 'block' : 'none'}">
             <div class="task-list-col-headers">
@@ -458,12 +458,12 @@ function handleDetailKeydown(e) {
         if (!title) return;
         const listId = e.target.dataset.listId;
         const projectId = e.target.dataset.projectId;
-        showNewTaskPanel(title, listId, projectId, e.target);
+        // Quick-create: Enter = create task immediately with defaults
+        quickCreateTask(title, listId, projectId, e.target);
     }
     if (e.key === 'Escape' && e.target.classList.contains('task-create-input')) {
         e.target.value = '';
         e.target.blur();
-        // Also close any open new-task panel
         const panel = e.target.closest('.task-list-section')?.querySelector('.new-task-panel');
         if (panel) panel.remove();
     }
@@ -473,6 +473,21 @@ function handleDetailKeydown(e) {
         const panel = e.target.closest('.new-task-panel');
         const btn = panel.querySelector('.new-task-create-btn');
         if (btn) btn.click();
+    }
+}
+
+async function quickCreateTask(title, listId, projectId, inputEl) {
+    try {
+        await api.createTask({ instanceId: state.instanceId, title, projectId, listId, priority: 'medium' });
+        inputEl.value = '';
+        showToast('Task created', 'success');
+        await refreshProjectTasks();
+        setTimeout(() => {
+            const newInput = document.querySelector(`.task-create-input[data-list-id="${listId}"]`);
+            if (newInput) newInput.focus();
+        }, 50);
+    } catch (err) {
+        showToast('Failed to create task: ' + err.message, 'error');
     }
 }
 
@@ -552,6 +567,18 @@ function showNewTaskPanel(title, listId, projectId, inputEl) {
         inputEl.focus();
     });
 }
+
+// --- Item 17: Detail icon for new task ---
+window._pdDetailIcon = function(iconEl) {
+    const wrap = iconEl.closest('.new-task-input-wrap');
+    const input = wrap?.querySelector('.task-create-input');
+    if (!input) return;
+    const title = input.value.trim();
+    if (!title) { input.focus(); return; }
+    const listId = input.dataset.listId;
+    const projectId = input.dataset.projectId;
+    showNewTaskPanel(title, listId, projectId, input);
+};
 
 // --- Item 11: Status dropdown (not cycle) ---
 window._pdStatusDropdown = function(event, taskId) {
@@ -745,9 +772,12 @@ window._pdCreateList = async function(projectId) {
     const listName = name.trim();
     try {
         await api.createTaskList(state.instanceId, listName, projectId);
-        showToast('List created', 'success');
+        showToast('Task list created', 'success');
+        // Add empty list to local state so it renders even without tasks
+        if (!projectTasks[listName]) projectTasks[listName] = [];
         expandedLists.add(listName);
-        await refreshProjectTasks();
+        const allTasks = Object.values(projectTasks).flat();
+        renderProjectDetail(state.currentProject, allTasks);
     } catch (err) { showToast('Failed to create list: ' + err.message, 'error'); }
 };
 
@@ -776,9 +806,26 @@ window._pdProjectStatusDropdown = function(event) {
 // --- Item 10: Project priority dropdown ---
 window._pdProjectPriorityDropdown = function(event) {
     event.stopPropagation();
-    const options = PRIORITIES.map(p => ({ value: p, label: p }));
-    showDropdown(event.target, options, (_val) => {
-        showToast('Project priority not yet supported by API', 'info');
+    const project = state.currentProject;
+    if (!project) return;
+    const projectId = project.projectId || project.id;
+    const currentPriority = project.priority || 'medium';
+    const options = PRIORITIES.map(p => ({
+        value: p, label: p,
+        icon: `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PRIORITY_COLORS[p]}"></span>`,
+        selected: p === currentPriority
+    }));
+    showDropdown(event.target, options, async (newPriority) => {
+        try {
+            await api.updateProject(state.instanceId, projectId, { priority: newPriority });
+            project.priority = newPriority;
+            event.target.textContent = newPriority;
+            event.target.style.background = `rgba(${newPriority === 'high' || newPriority === 'critical' || newPriority === 'emergency' ? '239,68,68' : newPriority === 'medium' ? '59,130,246' : '107,114,128'},0.15)`;
+            event.target.style.color = PRIORITY_COLORS[newPriority] || '#3b82f6';
+            showToast('Project priority updated', 'success');
+        } catch (err) {
+            showToast('Failed to update priority: ' + err.message, 'error');
+        }
     });
 };
 
@@ -797,8 +844,19 @@ window._pdPMDropdown = async function(event) {
         label: (i.name || i.instanceId.split('-')[0]) + (i.role ? ` (${i.role})` : ''),
         selected: i.instanceId === state.currentProjectPM?.instanceId
     }));
-    showDropdown(event.target, options, (_val) => {
-        showToast('PM assignment not yet supported by API', 'info');
+    showDropdown(event.target, options, async (newPmId) => {
+        try {
+            const projectId = state.currentProject?.projectId || state.currentProject?.id || state.currentProjectDetail;
+            await api.updateProject(state.instanceId, projectId, { pm: newPmId });
+            if (state.currentProject) state.currentProject.pm = newPmId;
+            const pmInst = instances.find(i => i.instanceId === newPmId);
+            state.currentProjectPM = { instanceId: newPmId, name: pmInst?.name || newPmId.split('-')[0], status: pmInst?.status || 'unknown' };
+            showToast('PM assigned', 'success');
+            const allTasks = Object.values(projectTasks).flat();
+            renderProjectDetail(state.currentProject, allTasks);
+        } catch (err) {
+            showToast('Failed to assign PM: ' + err.message, 'error');
+        }
     });
 };
 
@@ -1181,14 +1239,26 @@ async function refreshProjectTasks() {
     const projectId = state.currentProjectDetail;
     if (!projectId) return;
     try {
-        const result = await api.listTasks(state.instanceId, { projectId, limit: 200, full_detail: true });
-        const tasks = result.tasks || [];
+        const [tasksResult, projectResult] = await Promise.allSettled([
+            api.listTasks(state.instanceId, { projectId, limit: 200, full_detail: true }),
+            api.getProject(projectId)
+        ]);
+        const tasks = tasksResult.status === 'fulfilled' ? (tasksResult.value.tasks || []) : [];
         projectTasks = {};
         tasks.forEach(t => {
             const lid = t.listId || t.list || 'default';
             if (!projectTasks[lid]) projectTasks[lid] = [];
             projectTasks[lid].push(t);
         });
+        // Include empty task lists from project data
+        if (projectResult.status === 'fulfilled') {
+            const proj = projectResult.value.project || projectResult.value;
+            const taskLists = proj.task_lists || {};
+            Object.keys(taskLists).forEach(lid => {
+                if (!projectTasks[lid]) projectTasks[lid] = [];
+            });
+            if (proj) state.currentProject = proj;
+        }
         renderProjectDetail(state.currentProject, tasks);
     } catch (err) {
         showToast('Failed to refresh tasks', 'error');
