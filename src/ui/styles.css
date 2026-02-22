@@ -3994,3 +3994,41 @@ body {
 /* Project name editable */
 .pd-project-name { cursor: pointer; }
 .pd-project-name:hover { color: var(--accent-color); }
+
+/* Project description in header */
+.project-detail-description { font-size: 0.8125rem; color: var(--text-secondary); padding: 4px 16px 8px; line-height: 1.4; max-height: 60px; overflow-y: auto; }
+
+/* Settings gear button */
+.pd-settings-btn { background: none; border: 1px solid var(--border-color); color: var(--text-secondary); font-size: 1.1rem; padding: 4px 8px; border-radius: var(--radius); cursor: pointer; line-height: 1; }
+.pd-settings-btn:hover { color: var(--text-primary); background: var(--surface-hover); }
+
+/* New task panel (Item 4) */
+.new-task-panel { padding: 12px 16px; background: var(--surface-alt, rgba(255,255,255,0.03)); border: 1px solid var(--border-color); border-radius: var(--radius); margin: 4px 0; }
+.new-task-panel-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.new-task-panel .task-detail-field label { font-size: 0.7rem; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 2px; display: block; }
+.new-task-panel select, .new-task-panel textarea { width: 100%; padding: 6px 8px; font-size: 0.8125rem; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.new-task-panel textarea { resize: vertical; min-height: 40px; }
+.new-task-panel-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+
+/* Column headers (Items 14, 15) */
+.task-list-col-headers { display: flex; align-items: center; gap: 4px; padding: 4px 16px; border-bottom: 1px solid var(--border-color); user-select: none; }
+.col-header { font-size: 0.6875rem; text-transform: uppercase; color: var(--text-tertiary); cursor: pointer; letter-spacing: 0.5px; white-space: nowrap; }
+.col-header:hover { color: var(--text-primary); }
+.col-header-priority { width: 20px; text-align: center; flex-shrink: 0; }
+.col-header-title { flex: 1; min-width: 0; }
+.col-header-status { width: 80px; text-align: center; flex-shrink: 0; }
+.col-header-assignee { width: 32px; text-align: center; flex-shrink: 0; }
+.col-header-dates { width: 24px; text-align: center; flex-shrink: 0; }
+
+/* JSON viewer (Item 13) */
+.json-viewer { padding: 12px; font-family: var(--font-mono, 'SF Mono', monospace); font-size: 0.8125rem; max-height: 60vh; overflow-y: auto; }
+.json-viewer-row { padding: 2px 0; line-height: 1.5; }
+.json-viewer-toggle { cursor: pointer; display: inline-block; width: 16px; text-align: center; color: var(--text-tertiary); }
+.json-viewer-toggle:hover { color: var(--text-primary); }
+.json-viewer-key { color: #7dd3fc; }
+.json-viewer-value.string { color: #86efac; }
+.json-viewer-value.number { color: #fbbf24; }
+.json-viewer-value.boolean { color: #c084fc; }
+.json-viewer-value.null { color: var(--text-tertiary); font-style: italic; }
+.json-viewer-type { color: var(--text-tertiary); font-size: 0.75rem; }
+.json-viewer-children { padding-left: 20px; }

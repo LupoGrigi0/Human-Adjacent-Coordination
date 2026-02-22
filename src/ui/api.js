@@ -530,6 +530,29 @@ export async function editDocument(instanceId, name, mode, options = {}) {
 }
 
 /**
+ * Rename a document
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Current document name
+ * @param {string} newName - New document name
+ * @param {string} [target] - Target location
+ */
+export async function renameDocument(instanceId, name, newName, target) {
+  const params = { instanceId, name, newName };
+  if (target) params.target = target;
+  return rpcCall('rename_document', params);
+}
+
+/**
+ * Update a project (status, name, description, priority)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} projectId - Project ID
+ * @param {object} updates - Fields to update
+ */
+export async function updateProject(instanceId, projectId, updates) {
+  return rpcCall('update_project', { instanceId, projectId, ...updates });
+}
+
+/**
  * List vital documents for a target
  * @param {string} instanceId - Caller's instance ID
  * @param {string} [target] - Target location (e.g., "project:paula-book")
@@ -981,6 +1004,8 @@ export const api = {
   readDocument,
   createDocument,
   editDocument,
+  renameDocument,
+  updateProject,
   listVitalDocuments,
   addToVital,
   removeFromVital,
