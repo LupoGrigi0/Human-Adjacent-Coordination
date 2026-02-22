@@ -51,6 +51,7 @@ async function resolveEA(callerInstanceId) {
   }
 
   const role = callerPrefs.role;
+  // COO can also proxy, but may want to restrict later
   if (!['PA', 'EA', 'COO'].includes(role)) {
     return { allowed: false, error: `Role '${role}' is not authorized for EA proxy` };
   }
@@ -98,6 +99,17 @@ export async function eaProxy(handlerFn, params) {
   }
 
   delete proxiedParams.ea_proxy; // Don't pass flag downstream
+
+  // For task creation, append EA attribution to description
+  if (proxiedParams.description !== undefined || proxiedParams.title) {
+    const attribution = `\n\n---\nCreated by Executive's assistant [${params.instanceId}]`;
+    if (proxiedParams.description) {
+      proxiedParams.description += attribution;
+    } else if (proxiedParams.title && !proxiedParams.description) {
+      // Only add attribution field if this looks like a create operation
+      proxiedParams._ea_attribution = attribution;
+    }
+  }
 
   const result = await handlerFn(proxiedParams);
 
