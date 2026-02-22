@@ -187,7 +187,16 @@ export async function getAllInstances(params = {}) {
           predecessorId: prefs.predecessorId || null,
           successorId: prefs.successorId || null,
           // Description with friendly fallback
-          description: prefs.description || 'No description yet. Try /vacation then write one!'
+          description: prefs.description || 'No description yet. Try /vacation then write one!',
+          // ZeroClaw/interface info
+          interface: prefs.interface || null,
+          zeroclaw: prefs.zeroclaw ? {
+            enabled: prefs.zeroclaw.enabled || false,
+            ready: prefs.zeroclaw.ready || false,
+            webUrl: prefs.zeroclaw.webUrl || null,
+            provider: prefs.zeroclaw.provider || null,
+            model: prefs.zeroclaw.model || null
+          } : null
         });
       } catch (err) {
         // Skip directories without valid preferences.json

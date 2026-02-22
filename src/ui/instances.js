@@ -91,9 +91,19 @@ export async function loadInstances() {
                 actionButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation">Continue</button>`;
             }
 
+            // ZeroClaw status icons
+            const zc = instance.zeroclaw;
+            let zcIconHtml = '';
+            if (zc?.enabled) {
+                zcIconHtml = `<a class="zc-live-icon" href="${escapeHtml(zc.webUrl || '#')}" target="_blank" title="Live in ZeroClaw (${escapeHtml(zc.provider || '')}/${escapeHtml(zc.model || '')})" onclick="event.stopPropagation()">&#128640;</a>`;
+            } else if (zc?.ready || instance.interface === 'zeroclaw') {
+                zcIconHtml = `<span class="zc-ready-icon" title="ZeroClaw ready (not running)">&#129430;</span>`;
+            }
+
             return `
             <div class="instance-card" data-instance-id="${instance.instanceId || ''}">
                 <div class="instance-card-icons">
+                    ${zcIconHtml}
                     <span class="instance-info-icon instance-action-details" data-instance-id="${instance.instanceId}" title="View details">&#9432;</span>
                     <span class="instance-status-dot ${statusDotClass}" title="${statusTitle}"></span>
                 </div>

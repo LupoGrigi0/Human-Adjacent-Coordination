@@ -955,6 +955,34 @@ export async function generateRecoveryKey(instanceId, targetInstanceId) {
 // }
 
 // ============================================================================
+// ZEROCLAW APIs
+// ============================================================================
+
+/**
+ * Launch a ZeroClaw instance
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.targetInstanceId - Instance to launch
+ * @param {string} params.apiKey - Wake API key
+ * @param {string} [params.provider] - LLM provider (default: xai)
+ * @param {string} [params.model] - LLM model (default: grok-4)
+ * @param {string} [params.substrate] - Substrate type (default: zeroclaw)
+ */
+export async function launchInstance(params) {
+  return rpcCall('launch_instance', params);
+}
+
+/**
+ * Land (stop) a ZeroClaw instance
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.targetInstanceId - Instance to stop
+ */
+export async function landInstance(params) {
+  return rpcCall('land_instance', params);
+}
+
+// ============================================================================
 // CONVENIENCE EXPORTS
 // ============================================================================
 
@@ -1050,7 +1078,11 @@ export const api = {
   getRoles,
   getRoleDetails,
   getPersonalityDetails,
-  getInstanceDetails
+  getInstanceDetails,
+
+  // ZeroClaw
+  launchInstance,
+  landInstance
 };
 
 export default api;

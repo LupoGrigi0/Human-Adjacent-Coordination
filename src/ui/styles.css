@@ -1510,6 +1510,10 @@ body {
     gap: 0.4rem;
 }
 
+.zc-live-icon { font-size: 1rem; text-decoration: none; animation: zc-pulse 2s ease-in-out infinite; cursor: pointer; }
+.zc-ready-icon { font-size: 0.9rem; opacity: 0.4; }
+@keyframes zc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
 .instance-info-icon {
     font-size: 1rem;
     color: var(--text-muted);
