@@ -14,6 +14,7 @@
 import { state } from './state.js';
 import { escapeHtml, showToast, formatDateTime, getAvatarChar } from './utils.js';
 import { showInstanceDetail as showInstanceDetailModal } from './details.js';
+import { showInstanceDetail as showInstanceDetailPanel, hideInstanceDetail as hideInstanceDetailPanel } from './instance-detail.js';
 import api from './api.js';
 import * as uiConfig from './ui-config.js';
 
@@ -264,153 +265,18 @@ export async function loadInstances() {
 // ============================================================================
 
 /**
- * Show instance detail panel (in-page version)
+ * Show instance detail panel (delegates to instance-detail.js module)
  * @param {string} instanceId - Instance ID to show
  */
 export async function showInstanceDetail(instanceId) {
-    const instance = state.instances.find(i => i.instanceId === instanceId);
-    if (!instance) {
-        showToast('Instance not found', 'error');
-        return;
-    }
-
-    state.currentInstanceDetail = instanceId;
-
-    // Hide grid, show detail
-    document.getElementById('instances-grid').style.display = 'none';
-    document.querySelector('#tab-instances .page-header').style.display = 'none';
-    document.getElementById('instance-detail-view').style.display = 'block';
-
-    // Populate detail fields
-    const displayName = instance.name || instance.instanceId || 'Unknown';
-    document.getElementById('instance-detail-name').textContent = displayName;
-    document.getElementById('instance-detail-id').textContent = instance.instanceId || '-';
-    document.getElementById('instance-detail-role').textContent = instance.role || 'None';
-    document.getElementById('instance-detail-personality').textContent = instance.personality || 'None';
-    document.getElementById('instance-detail-status').textContent = instance.status || 'Unknown';
-    document.getElementById('instance-detail-home').textContent = instance.homeDirectory || '-';
-    document.getElementById('instance-detail-last-active').textContent =
-        instance.lastActiveAt ? new Date(instance.lastActiveAt).toLocaleString() : 'Never';
-    document.getElementById('instance-detail-instructions').textContent =
-        instance.instructions || 'No instructions set';
-
-    // Populate project dropdown
-    const projectSelect = document.getElementById('instance-detail-project-select');
-    const projectSaveBtn = document.getElementById('instance-detail-project-save');
-    const projectNames = state.projects.map(p => p.name || p.projectId);
-    projectSelect.innerHTML = '<option value="">No project</option>' +
-        projectNames.map(name =>
-            `<option value="${escapeHtml(name)}" ${instance.project === name ? 'selected' : ''}>${escapeHtml(name)}</option>`
-        ).join('');
-    projectSaveBtn.style.display = 'none';
-
-    // Handle project change
-    projectSelect.onchange = () => {
-        const newProject = projectSelect.value;
-        const changed = newProject !== (instance.project || '');
-        projectSaveBtn.style.display = changed ? 'inline-flex' : 'none';
-    };
-
-    // Handle project save
-    projectSaveBtn.onclick = async () => {
-        const newProject = projectSelect.value;
-        projectSaveBtn.disabled = true;
-        projectSaveBtn.textContent = 'Saving...';
-
-        console.log('[Instances] Saving project assignment from detail panel:', {
-            targetInstanceId: instance.instanceId,
-            project: newProject || '(none)'
-        });
-
-        try {
-            // Use joinProject API - it takes instanceId (the target) and project name
-            await api.joinProject(instance.instanceId, newProject || null);
-            // Update local state
-            instance.project = newProject || null;
-            showToast('Project updated', 'success');
-            projectSaveBtn.style.display = 'none';
-            loadInstances(); // Refresh the grid
-        } catch (error) {
-            console.error('[Instances] Error updating project:', {
-                targetInstanceId: instance.instanceId,
-                project: newProject,
-                error: error.message,
-                code: error.code
-            });
-            showToast('Failed to update project: ' + error.message, 'error');
-        } finally {
-            projectSaveBtn.disabled = false;
-            projectSaveBtn.textContent = 'Save';
-        }
-    };
-
-    // Update avatar
-    const avatarChar = displayName.charAt(0).toUpperCase();
-    document.getElementById('instance-detail-avatar').textContent = avatarChar;
-    document.getElementById('instance-detail-avatar').className =
-        `instance-avatar-large ${instance.status === 'active' ? 'online' : ''}`;
-
-    // Per CANVAS_WAKE_CONTINUE_GUIDE.md:
-    // - sessionId EXISTS → can use continue_conversation
-    // - sessionId NULL → must call wake_instance first
-    //
-    // KNOWN ISSUE: get_all_instances doesn't return sessionId
-    // Bridge should update API to include sessionId from preferences.json
-    const hasSession = !!instance.sessionId;
-    const hasRole = !!instance.role;
-    const isSelf = instance.instanceId === state.instanceId;
-
-    // Update buttons based on state
-    const chatBtn = document.getElementById('instance-chat-btn');
-    const wakeBtn = document.getElementById('instance-wake-btn');
-
-    if (isSelf) {
-        // Can't talk to yourself
-        chatBtn.style.display = 'none';
-        wakeBtn.style.display = 'none';
-    } else if (hasRole) {
-        // Instance has role - show Continue (will detect NO_SESSION on use)
-        chatBtn.style.display = 'inline-flex';
-        chatBtn.textContent = 'Continue';
-        chatBtn.title = 'Continue conversation';
-        // Also show Wake for manual control
-        wakeBtn.style.display = 'inline-flex';
-        wakeBtn.textContent = 'Wake';
-        wakeBtn.title = 'Wake instance (use if Continue fails)';
-    } else {
-        // Instance has no role - can't interact
-        chatBtn.style.display = 'none';
-        wakeBtn.style.display = 'none';
-    }
-
-    // Also show sessionId in the status if present
-    if (hasSession) {
-        document.getElementById('instance-detail-status').textContent =
-            `Active (Session: ${instance.sessionId.substring(0, 8)}...)`;
-    }
-
-    // Always show all instance data as preferences (we get the full data from API)
-    const prefsSection = document.getElementById('instance-preferences-section');
-    const prefsContent = document.getElementById('instance-detail-preferences');
-    // Show the full instance data we received
-    const displayData = instance.preferences || instance.raw || instance;
-    // Filter out sensitive fields
-    const safeData = { ...displayData };
-    delete safeData.authToken;
-    delete safeData.apiKey;
-    delete safeData.xmppPassword;
-    prefsContent.textContent = JSON.stringify(safeData, null, 2);
-    prefsSection.style.display = 'block';
+    showInstanceDetailPanel(instanceId);
 }
 
 /**
- * Hide instance detail, return to grid
+ * Hide instance detail, return to grid (delegates to instance-detail.js module)
  */
 export function hideInstanceDetail() {
-    document.getElementById('instance-detail-view').style.display = 'none';
-    document.getElementById('instances-grid').style.display = 'grid';
-    document.querySelector('#tab-instances .page-header').style.display = 'flex';
-    state.currentInstanceDetail = null;
+    hideInstanceDetailPanel();
 }
 
 /**
