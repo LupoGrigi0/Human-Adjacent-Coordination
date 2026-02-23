@@ -643,8 +643,10 @@ export async function getList(instanceId, listId, targetInstanceId) {
  * @param {string} name - List name
  * @param {string} [description]
  */
-export async function createList(instanceId, name, description) {
-  return rpcCall('create_list', { instanceId, name, description });
+export async function createList(instanceId, name, description, targetInstanceId) {
+  const params = { instanceId, name, description };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('create_list', params);
 }
 
 /**
@@ -672,8 +674,10 @@ export async function deleteList(instanceId, listId) {
  * @param {string} listId
  * @param {string} text - Item text
  */
-export async function addListItem(instanceId, listId, text) {
-  return rpcCall('add_list_item', { instanceId, listId, text });
+export async function addListItem(instanceId, listId, text, targetInstanceId) {
+  const params = { instanceId, listId, text };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('add_list_item', params);
 }
 
 /**
@@ -692,8 +696,10 @@ export async function toggleListItem(instanceId, listId, itemId) {
  * @param {string} listId
  * @param {string} itemId
  */
-export async function deleteListItem(instanceId, listId, itemId) {
-  return rpcCall('delete_list_item', { instanceId, listId, itemId });
+export async function deleteListItem(instanceId, listId, itemId, targetInstanceId) {
+  const params = { instanceId, listId, itemId };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('delete_list_item', params);
 }
 
 // ============================================================================

@@ -95,7 +95,7 @@ export async function showInstanceDetail(targetInstanceId) {
         api.getInstanceDetails(state.instanceId, targetInstanceId),
         api.listTasks(targetInstanceId, { limit: 200, full_detail: true }),
         api.getLists(state.instanceId, targetInstanceId),
-        api.listDocuments(targetInstanceId),
+        api.listDocuments(state.instanceId, `instance:${targetInstanceId}`),
         api.getRoles(),
         api.getPersonalities(),
         api.listProjects(),
@@ -620,7 +620,7 @@ window._idToggleItem = async function(listId, itemId) {
 
 window._idDelItem = async function(listId, itemId) {
     try {
-        await api.deleteListItem(state.instanceId, listId, itemId);
+        await api.deleteListItem(state.instanceId, listId, itemId, state.currentInstanceDetail);
         instanceListItems[listId] = (instanceListItems[listId] || []).filter(i => (i.id || i.itemId) !== itemId);
         reRenderLists();
     } catch (err) { showToast('Failed: ' + err.message, 'error'); }
@@ -628,7 +628,7 @@ window._idDelItem = async function(listId, itemId) {
 
 window._idAddItem = async function(listId, text) {
     try {
-        await api.addListItem(state.instanceId, listId, text);
+        await api.addListItem(state.instanceId, listId, text, state.currentInstanceDetail);
         const r = await api.getList(state.instanceId, listId, state.currentInstanceDetail);
         instanceListItems[listId] = r.items || r.list?.items || [];
         reRenderLists();
@@ -639,7 +639,7 @@ window._idNewList = async function() {
     const name = prompt('New checklist name:');
     if (!name?.trim()) return;
     try {
-        await api.createList(state.currentInstanceDetail, name.trim());
+        await api.createList(state.instanceId, name.trim(), undefined, state.currentInstanceDetail);
         const r = await api.getLists(state.instanceId, state.currentInstanceDetail);
         instanceLists = r.lists || [];
         showToast('Checklist created', 'success'); reRenderLists();
@@ -651,7 +651,7 @@ window._idNewList = async function() {
 window._idViewDoc = async function(docName) {
     const tid = state.currentInstanceDetail;
     try {
-        const r = await api.readDocument(tid, docName);
+        const r = await api.readDocument(state.instanceId, docName, `instance:${tid}`);
         const content = r.content || r.document || '';
         const overlay = document.createElement('div');
         overlay.className = 'document-overlay';
@@ -687,7 +687,7 @@ window._idSaveDoc = async function(btn) {
     if (!ta) return;
     const tid = state.currentInstanceDetail;
     try {
-        await api.editDocument(tid, ta.dataset.doc, 'replace', { search: '', replacement: ta.value });
+        await api.editDocument(state.instanceId, ta.dataset.doc, 'replace', { search: '', replacement: ta.value, target: `instance:${tid}` });
         showToast('Saved', 'success');
         const pre = document.createElement('pre');
         pre.className = 'document-viewer-content'; pre.dataset.doc = ta.dataset.doc; pre.textContent = ta.value;
@@ -701,10 +701,10 @@ window._idRenameDoc = async function(docName) {
     if (!newName || newName.trim() === docName) return;
     const tid = state.currentInstanceDetail;
     try {
-        await api.renameDocument(tid, docName, newName.trim());
+        await api.renameDocument(state.instanceId, docName, newName.trim(), `instance:${tid}`);
         showToast('Document renamed', 'success');
         document.querySelector('.document-overlay')?.remove();
-        const r = await api.listDocuments(tid);
+        const r = await api.listDocuments(state.instanceId, `instance:${tid}`);
         instanceDocuments = r.documents || [];
         const body = document.querySelector('[data-section="docs"] .section-collapse-body');
         if (body) body.innerHTML = renderDocsBody();
@@ -723,8 +723,8 @@ window._idNewDoc = async function() {
     if (!name?.trim()) return;
     const tid = state.currentInstanceDetail;
     try {
-        await api.createDocument(tid, name.trim(), `# ${name.trim()}\n\n`);
-        const r = await api.listDocuments(tid);
+        await api.createDocument(state.instanceId, name.trim(), `# ${name.trim()}\n\n`, `instance:${tid}`);
+        const r = await api.listDocuments(state.instanceId, `instance:${tid}`);
         instanceDocuments = r.documents || [];
         const body = document.querySelector('[data-section="docs"] .section-collapse-body');
         if (body) body.innerHTML = renderDocsBody();
