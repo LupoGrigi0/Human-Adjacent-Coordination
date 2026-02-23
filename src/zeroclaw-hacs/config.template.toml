@@ -37,6 +37,24 @@ block_high_risk_commands = false
 auto_approve = ["file_read", "file_write", "memory_recall", "shell_exec", "fetch" ]
 always_ask = []
 
+[http_request]
+enabled = true
+# No domain restriction — instances have full autonomy including shell curl.
+# Restricting http_request domains without restricting shell would be
+# security theater. Instances need to follow web_search results.
+allowed_domains = []
+max_response_size = 1048576
+timeout_secs = 30
+
+[web_search]
+enabled = true
+provider = "duckduckgo"
+max_results = 5
+timeout_secs = 15
+
+[identity]
+format = "openclaw"
+
 [memory]
 backend = "sqlite"
 auto_save = true
