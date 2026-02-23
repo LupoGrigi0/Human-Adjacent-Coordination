@@ -10,10 +10,12 @@ services:
     environment:
       HOME: /zeroclaw-data
       ZEROCLAW_WORKSPACE: /zeroclaw-data/workspace
-      # Provider API keys
+      # Provider API keys (passed through from .env)
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       # Allow bind inside container
       ZEROCLAW_ALLOW_PUBLIC_BIND: "true"
 
