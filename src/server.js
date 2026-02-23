@@ -113,6 +113,8 @@ import { getUiState, setUiState, updateUiState } from './v2/uiState.js';
 import { wakeInstance, getWakeScripts } from './v2/wakeInstance.js';
 // V2 Continue Conversation (communicate with woken instances)
 import { continueConversation, getConversationLog } from './v2/continueConversation.js';
+// V2 Launch/Land Instance (container lifecycle)
+import { launchInstance, landInstance } from './v2/launchInstance.js';
 
 /**
  * Simple server implementation for development and testing
@@ -560,6 +562,12 @@ class MCPCoordinationServer {
         case 'get_conversation_log':
           return getConversationLog(params);
 
+        // V2 Launch/Land Instance APIs (container lifecycle)
+        case 'launch_instance':
+          return launchInstance(params);
+        case 'land_instance':
+          return landInstance(params);
+
         default:
           return {
             success: false,
@@ -719,7 +727,10 @@ class MCPCoordinationServer {
       'get_wake_scripts',
       // Continue Conversation (communicate with woken instances)
       'continue_conversation',
-      'get_conversation_log'
+      'get_conversation_log',
+      // Launch/Land Instance (container lifecycle)
+      'launch_instance',
+      'land_instance'
     ];
   }
 

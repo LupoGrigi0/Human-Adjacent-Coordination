@@ -1,0 +1,53 @@
+# ZeroClaw HACS Instance Docker Compose Template
+# Placeholders: __INSTANCE_ID__, __INSTANCE_HOME__, __PORT__
+
+services:
+  zeroclaw-__INSTANCE_ID__:
+    image: zeroclaw-hacs:web-ui
+    container_name: zeroclaw-__INSTANCE_ID__
+    restart: unless-stopped
+
+    environment:
+      HOME: /zeroclaw-data
+      ZEROCLAW_WORKSPACE: /zeroclaw-data/workspace
+      # Provider API keys
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Allow bind inside container
+      ZEROCLAW_ALLOW_PUBLIC_BIND: "true"
+
+    volumes:
+      # ZeroClaw config and workspace (persistent)
+      - __INSTANCE_HOME__/zeroclaw/config:/zeroclaw-data/.zeroclaw
+      - __INSTANCE_HOME__/zeroclaw/workspace:/zeroclaw-data/workspace
+      # HACS data (read-only for memory/context)
+      - /mnt/coordinaton_mcp_data:/mnt/hacs-data:ro
+      # Logs
+      - __INSTANCE_HOME__/zeroclaw/logs:/zeroclaw-data/logs
+
+    ports:
+      # Bind to 127.0.0.1 only (NOT localhost — avoids IPv6 resolution failure)
+      # nginx proxies from internet
+      - "127.0.0.1:__PORT__:3000"
+      - "127.0.0.1:__WEB_PORT__:8080"
+
+    init: true
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 64M
+
+    healthcheck:
+      test: ["CMD", "zeroclaw", "status"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    command: ["daemon", "--port", "3000", "--host", "0.0.0.0"]

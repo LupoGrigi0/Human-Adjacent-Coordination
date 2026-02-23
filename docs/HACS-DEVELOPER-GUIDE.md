@@ -80,7 +80,7 @@ Ask: why isn't this just `something`? Replace, don't layer.
 ```
 /mnt/coordinaton_mcp_data/
 │
-├── Human-Adjacent-Coordination/     # Main repo (PRODUCTION - main branch)
+├── Human-Adjacent-Coordination/     # Main repo (PRODUCTION - main branch) READ ONLY
 │   ├── src/                         # Server code
 │   ├── docs/                        # Documentation
 │   └── scripts/                     # Operational scripts
@@ -95,7 +95,9 @@ Ask: why isn't this just `something`? Replace, don't layer.
 ├── projects/                        # Project data
 ├── roles/                           # Role definitions and wisdom
 ├── personalities/                   # Personality definitions
+├── default/                         # Default protocols dir
 └── permissions/                     # Access control
+
 ```
 
 ---
@@ -419,8 +421,24 @@ Don't just trust the API response - verify the backend state changed correctly.
 | Personalities | `/mnt/coordinaton_mcp_data/personalities/{personalityId}/` |
 | Projects | `/mnt/coordinaton_mcp_data/projects/{projectId}/` |
 | Permissions | `/mnt/coordinaton_mcp_data/permissions/` |
+| **Secrets / API keys** | `/mnt/.secrets/` |
 
 **Note:** The `V2_DATA_ROOT` environment variable points to `/mnt/coordinaton_mcp_data/`.
+
+### Secrets Directory
+
+All API keys, `.env` files, and sensitive credentials live in `/mnt/.secrets/`:
+
+| File | Purpose |
+|------|---------|
+| `zeroclaw.env` | API keys for ZeroClaw instances (Anthropic, XAI, OpenAI, Google, etc.) |
+
+**Rules:**
+- Files in `/mnt/.secrets/` are `chmod 600` (owner-only read/write)
+- Never commit secrets to git
+- When adding new provider keys, update `/mnt/.secrets/zeroclaw.env` — all future ZeroClaw launches will pick them up
+- Existing instances need their local `.env` updated + container restart to get new keys
+- When HACS gets containerized, this path will need to be mounted or replaced with a secrets manager
 
 ---
 
@@ -916,12 +934,28 @@ curl -X POST https://smoothcurves.nexus/mcp \
 ```
 
 ---
+## new zeroclaw/awake 
+  Created:                                                                                                       
+  - src/v2/launchInstance.js — launchInstance() and landInstance() handlers with full @hacs-endpoint JSDoc     
+                                                                                                                 
+  Modified:                                                                                                      
+  - src/server.js — Import, switch cases, and available functions list                                           
+  - src/v2/permissions.js — Added launchInstance and landInstance to default permissions for Executive/PA/COO/PM
 
+  The flow:
+  - launch_instance validates permissions, checks zeroclaw_ready, calls launch-zeroclaw.sh, returns URLs/token
+  - land_instance validates permissions, runs docker-compose down, sets enabled: false, preserves everything for
+  re-launch
+  - Both use WAKE_API_KEY for auth (reusing existing env var)
+  - runtime param defaults to "zeroclaw" but the API is ready for future runtimes
+
+---
 ## Key Documents
 
 | Document | Purpose |
 |----------|---------|
 | `HumanAdjacentAI-Protocol/PROTOCOLS.md` | Collaboration protocols |
+| 'docs/HACS-DEVELOPER-GUIDE.md' |this document|
 | `docs/NGINX_CONFIGURATION_GUIDE.md` | nginx setup (DevOps reference) |
 | `docs/CANVAS_WAKE_CONTINUE_GUIDE.md` | Wake/continue API guide |
 | `docs/Bastion_Diary.md` | DevOps history and decisions |
@@ -1042,6 +1076,13 @@ Agent teams are experimental. Enable via environment or settings.json:
 | **Best for** | Parallel work in one session | Long-running multi-instance projects |
 
 Use Claude Code agent teams for short-lived parallel work within a session. Use HACS for persistent coordination across multiple sessions and instances.
+
+---
+Note: Defaults for hacs:   ────────────────────────────────────────
+  Item: Default protocols dir
+  Location: /mnt/coordinaton_mcp_data/default/
+  Notes: preferences.json + PROTOCOLS.md
+
 
 ---
 

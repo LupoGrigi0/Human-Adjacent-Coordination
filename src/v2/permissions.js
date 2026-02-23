@@ -72,7 +72,9 @@ const DEFAULT_PERMISSIONS = {
   "getAllProjects": ["Executive", "PA", "COO"],
   "getAllInstances": ["Executive", "PA", "COO"],
   "generateRecoveryKey": ["Executive", "PA", "COO", "PM"],
-  "getRecoveryKey": ["Executive", "PA", "COO", "PM"]
+  "getRecoveryKey": ["Executive", "PA", "COO", "PM"],
+  "launchInstance": ["Executive", "PA", "COO", "PM"],
+  "landInstance": ["Executive", "PA", "COO", "PM"]
 };
 
 /**
