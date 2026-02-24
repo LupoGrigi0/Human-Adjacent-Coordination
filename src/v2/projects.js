@@ -452,6 +452,8 @@ export async function getProject(params) {
       name: prefs.name,
       description: prefs.description,
       status: prefs.status,
+      priority: prefs.priority || null,
+      pmStatus: prefs.pmStatus || null,
       pm: prefs.pm,
       team: prefs.team,
       xmppRoom: prefs.xmppRoom,
@@ -575,7 +577,10 @@ export async function listProjects(params = {}) {
           projects.push({
             projectId: prefs.id,
             name: prefs.name,
+            description: prefs.description || null,
             status: prefs.status,
+            priority: prefs.priority || null,
+            pmStatus: prefs.pmStatus || null,
             pm: prefs.pm,
             teamSize: prefs.team?.length || 0
           });
