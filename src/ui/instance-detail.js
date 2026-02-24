@@ -833,8 +833,10 @@ window._idLaunchZc = async function() {
 window._idLandZc = async function() {
     if (!confirm('Land ZeroClaw?')) return;
     const tid = state.currentInstanceDetail;
+    const apiKey = await ensureApiKey();
+    if (!apiKey) return;
     try {
-        await api.landInstance({ instanceId: state.instanceId, targetInstanceId: tid });
+        await api.landInstance({ instanceId: state.instanceId, targetInstanceId: tid, apiKey });
         showToast('ZeroClaw landed', 'success');
         showInstanceDetail(tid);
     } catch (err) { showToast('Land failed: ' + err.message, 'error'); }
