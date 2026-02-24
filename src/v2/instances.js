@@ -396,7 +396,13 @@ export async function getInstance(params = {}) {
         lineage: prefs.lineage || [],
         hasContext: !!(prefs.context && Object.keys(prefs.context).length > 0),
         context: prefs.context || null,
-        description: prefs.description || 'No description yet. Try /vacation then write one!'
+        description: prefs.description || 'No description yet. Try /vacation then write one!',
+        // ZeroClaw / runtime metadata
+        interface: prefs.interface || null,
+        zeroclaw_ready: prefs.zeroclaw_ready || false,
+        zeroclaw: prefs.zeroclaw || null,
+        // Full preferences for UI detail panels
+        preferences: prefs
       },
       metadata
     };
