@@ -40,6 +40,7 @@ export async function loadChart(container, apiKey) {
         <div class="chart-header">
             <span class="chart-title">Token Activity</span>
             <div class="chart-zoom">
+                <button id="chart-refresh" title="Refresh" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:2px 4px;">&#8635;</button>
                 <span id="chart-range-label">14d</span>
                 <input type="range" id="chart-range" min="0" max="2" value="1" />
             </div>
@@ -79,6 +80,20 @@ export async function loadChart(container, apiKey) {
             currentRange = ranges[idx];
             if (rangeLabel) rangeLabel.textContent = currentRange + 'd';
             render();
+        });
+
+        // Refresh button
+        document.getElementById('chart-refresh')?.addEventListener('click', async () => {
+            try {
+                const fresh = await fetchActivity(apiKey);
+                if (fresh && fresh.length > 0) {
+                    const newAgg = aggregateByDay(fresh);
+                    Object.assign(aggregated, newAgg);
+                    render();
+                }
+            } catch (e) {
+                console.error('[Chart] Refresh failed:', e);
+            }
         });
     } catch (error) {
         console.error('[Chart] Error:', error);

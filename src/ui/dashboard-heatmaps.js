@@ -89,7 +89,9 @@ function renderProjectHeatmap(container) {
 
     container.querySelectorAll('.hm-pill').forEach(el => {
         el.addEventListener('click', () => {
-            if (window.showProjectDetail) window.showProjectDetail(el.dataset.projectId);
+            const id = el.dataset.projectId;
+            if (window.switchTab) window.switchTab('projects');
+            if (window.showProjectDetail) window.showProjectDetail(id);
         });
     });
 }
@@ -144,6 +146,7 @@ async function renderTaskHeatmap(container, settings) {
 
         container.querySelectorAll('.th-dot').forEach(el => {
             el.addEventListener('click', () => {
+                if (window.switchTab) window.switchTab('tasks');
                 if (window.showTaskDetail) window.showTaskDetail(el.dataset.taskId, true);
             });
         });
@@ -209,7 +212,9 @@ function renderInstanceHeatmap(container) {
 
     container.querySelectorAll('.hm-pill').forEach(el => {
         el.addEventListener('click', () => {
-            if (window.showInstanceDetailPanel) window.showInstanceDetailPanel(el.dataset.instanceId);
+            const id = el.dataset.instanceId;
+            if (window.switchTab) window.switchTab('instances');
+            if (window.showInstanceDetailPanel) window.showInstanceDetailPanel(id);
         });
     });
 }

@@ -161,6 +161,7 @@ async function renderPMStatus() {
     container.querySelectorAll('.pm-item').forEach(el => {
         el.addEventListener('click', () => {
             const id = el.dataset.projectId;
+            if (window.switchTab) window.switchTab('projects');
             if (window.showProjectDetail) window.showProjectDetail(id);
         });
     });
@@ -264,6 +265,7 @@ async function loadMyLists() {
                 tasksList.querySelectorAll('.dash-task-row').forEach(el => {
                     el.addEventListener('click', () => {
                         const taskId = el.dataset.taskId;
+                        if (window.switchTab) window.switchTab('tasks');
                         if (window.showTaskDetail) window.showTaskDetail(taskId, true);
                     });
                 });
