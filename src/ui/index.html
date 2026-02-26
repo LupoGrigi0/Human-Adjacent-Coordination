@@ -125,46 +125,148 @@
 
             <!-- Dashboard Tab (Default) -->
             <div class="tab-content active" id="tab-dashboard">
-                <div class="container">
-                    <h1>Dashboard</h1>
-
-                    <!-- Overview Metrics -->
-                    <div class="overview-grid">
-                        <div class="metric-card">
-                            <div class="metric-value" id="metric-projects">-</div>
-                            <div class="metric-label">Projects</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value" id="metric-tasks">-</div>
-                            <div class="metric-label">My Tasks</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value" id="metric-messages">-</div>
-                            <div class="metric-label">Unread</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value" id="metric-instances">-</div>
-                            <div class="metric-label">Online</div>
-                        </div>
+                <div class="dash">
+                    <!-- Dashboard Header -->
+                    <div class="dash-header">
+                        <h1>Dashboard</h1>
+                        <span class="role-badge badge-exec" id="dash-role-badge">Executive</span>
+                        <div style="flex:1"></div>
+                        <button class="dash-settings-btn" id="dash-settings-btn" title="Dashboard Settings">&#9881;</button>
                     </div>
 
-                    <!-- Quick Actions -->
-                    <div class="card">
-                        <div class="card-title">Quick Actions</div>
-                        <div class="quick-actions">
-                            <button class="btn" id="bootstrap-btn">Bootstrap Instance</button>
-                            <button class="btn btn-secondary" id="refresh-btn">Refresh Data</button>
-                        </div>
-                    </div>
+                    <!-- Desktop: grid layout with main + chat aside -->
+                    <div class="dash-layout" id="dash-layout">
+                        <div class="dash-main">
+                            <!-- Activity Chart -->
+                            <div class="dash-section" id="dash-chart">
+                                <div class="loading-placeholder">Loading chart...</div>
+                            </div>
 
-                    <!-- Recent Activity -->
-                    <div class="card">
-                        <div class="card-title">Recent Activity</div>
-                        <div id="activity-feed" class="activity-feed">
-                            <div class="loading-placeholder">Loading activity...</div>
+                            <!-- World Info Strip -->
+                            <div class="world-strip" id="dash-world" style="display:none;"></div>
+
+                            <!-- Heatmaps (side-by-side) -->
+                            <div class="hm-sbs" id="dash-heatmaps">
+                                <div class="heatmap-section" id="hm-projects">
+                                    <div class="section-header">Projects</div>
+                                    <div class="heatmap-grid" id="hm-projects-grid"></div>
+                                </div>
+                                <div class="heatmap-section" id="hm-tasks">
+                                    <div class="section-header">Tasks</div>
+                                    <div id="hm-tasks-grid"></div>
+                                </div>
+                                <div class="heatmap-section" id="hm-instances">
+                                    <div class="section-header">Instances</div>
+                                    <div class="heatmap-grid" id="hm-instances-grid"></div>
+                                </div>
+                            </div>
+
+                            <!-- PM Status Scroll -->
+                            <div class="pm-scroll" id="dash-pm-status"></div>
+
+                            <!-- Task Lists + Personal Lists -->
+                            <div class="content-columns layout-tasks-lists" id="dash-lists">
+                                <div class="col-card" id="dash-tasks-col">
+                                    <div class="col-header">
+                                        <span>Tasks</span>
+                                        <span class="col-count" id="dash-tasks-count">0</span>
+                                    </div>
+                                    <div class="new-item-row">
+                                        <span class="ni-icon">&#9654;</span>
+                                        <input type="text" id="dash-new-task" placeholder="Add task..." />
+                                    </div>
+                                    <div id="dash-tasks-list"></div>
+                                </div>
+                                <div class="col-card" id="dash-personal-col">
+                                    <div class="col-header">
+                                        <span>Lists</span>
+                                        <span class="col-count" id="dash-lists-count">0</span>
+                                    </div>
+                                    <div id="dash-personal-lists"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PA Chat Aside -->
+                        <div class="dash-chat" id="dash-pa-chat">
+                            <div class="pa-chat">
+                                <div class="pa-chat-header">
+                                    <span class="online-dot"></span>
+                                    <span>Genevieve</span>
+                                    <span style="flex:1"></span>
+                                    <span style="font-size:10px;color:var(--text-muted)">PA</span>
+                                </div>
+                                <div class="pa-chat-msgs" id="pa-chat-msgs">
+                                    <div class="loading-placeholder" style="font-size:12px;">Loading messages...</div>
+                                </div>
+                                <div class="pa-chat-input">
+                                    <input type="text" id="pa-chat-input" placeholder="Message Genevieve..." />
+                                    <button id="pa-chat-send">Send</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Settings Dialog -->
+                <dialog class="dash-settings-dialog" id="dash-settings-dialog">
+                    <div class="dash-settings-content">
+                        <div class="dash-settings-header">
+                            <h3>Dashboard Settings</h3>
+                            <button class="dash-settings-close" id="dash-settings-close">&times;</button>
+                        </div>
+                        <div class="dash-settings-body">
+                            <div class="dash-setting-group">
+                                <label>Pill Size <span class="dash-setting-val" id="ds-pill-val">34</span>px</label>
+                                <input type="range" id="ds-pill-size" min="24" max="64" value="34" />
+                            </div>
+                            <div class="dash-setting-group">
+                                <label>Pill Gap <span class="dash-setting-val" id="ds-gap-val">3</span>px</label>
+                                <input type="range" id="ds-pill-gap" min="1" max="8" value="3" />
+                            </div>
+                            <div class="dash-setting-group">
+                                <label>Border Width <span class="dash-setting-val" id="ds-border-val">2</span>px</label>
+                                <input type="range" id="ds-border-width" min="1" max="5" value="2" />
+                            </div>
+                            <div class="dash-setting-group">
+                                <label>Max Task Dots <span class="dash-setting-val" id="ds-dots-val">5</span></label>
+                                <input type="range" id="ds-task-dots" min="3" max="12" value="5" />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>Activity Chart</span>
+                                <input type="checkbox" id="ds-show-chart" checked />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>World Info</span>
+                                <input type="checkbox" id="ds-show-world" />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>Task Heatmap</span>
+                                <input type="checkbox" id="ds-show-tasks" checked />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>Instance Heatmap</span>
+                                <input type="checkbox" id="ds-show-instances" checked />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>PM Status</span>
+                                <input type="checkbox" id="ds-show-pm" checked />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>Heatmaps Side-by-Side</span>
+                                <input type="checkbox" id="ds-hm-sbs" checked />
+                            </div>
+                            <div class="dash-setting-group">
+                                <label>OpenRouter Key</label>
+                                <input type="password" id="ds-openrouter-key" placeholder="sk-or-..." style="width:100%;padding:6px 8px;font-size:12px;background:var(--surface-hover);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);" />
+                            </div>
+                        </div>
+                        <div class="dash-settings-footer">
+                            <button class="btn btn-secondary" id="dash-settings-cancel">Cancel</button>
+                            <button class="btn" id="dash-settings-save">Save</button>
+                        </div>
+                    </div>
+                </dialog>
             </div>
 
             <!-- Projects Tab -->
