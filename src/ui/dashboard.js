@@ -232,45 +232,36 @@ async function renderWorldStrip() {
 // TASK LISTS + PERSONAL LISTS
 // ============================================================================
 
+// Track dashboard task/list state for interactivity
+let dashTasksByList = {};
+let dashExpandedLists = new Set(['default']);
+let dashShowCompleted = new Set();
+
+const PRIORITY_ORDER = { emergency: 0, critical: 1, high: 2, medium: 3, low: 4, whenever: 5 };
+const STATUS_LABELS = { not_started: 'Todo', in_progress: 'Active', blocked: 'Blocked', completed: 'Done', completed_verified: 'Verified', archived: 'Archived' };
+
 async function loadMyLists() {
     try {
         const [tasksResult, listsResult] = await Promise.allSettled([
-            api.getMyTasks(state.instanceId),
+            api.listTasks(state.instanceId, { limit: 200, full_detail: true }),
             api.getLists(state.instanceId)
         ]);
 
-        // Tasks column
-        const tasks = tasksResult.status === 'fulfilled' ? (tasksResult.value?.tasks || tasksResult.value || []) : [];
-        const allTasks = Array.isArray(tasks) ? tasks : [];
-        const pendingTasks = allTasks.filter(t => t.status !== 'completed' && t.status !== 'completed_verified' && t.status !== 'archived');
+        // Group tasks by list (same pattern as instance-detail.js)
+        dashTasksByList = {};
+        const rawTasks = tasksResult.status === 'fulfilled' ? (tasksResult.value?.tasks || []) : [];
+        rawTasks.forEach(t => {
+            const lid = t.listId || t.list || 'default';
+            if (!dashTasksByList[lid]) dashTasksByList[lid] = [];
+            dashTasksByList[lid].push(t);
+        });
 
-        const tasksCountEl = document.getElementById('dash-tasks-count');
-        if (tasksCountEl) tasksCountEl.textContent = pendingTasks.length;
+        // Sort each list by priority
+        Object.values(dashTasksByList).forEach(arr => {
+            arr.sort((a, b) => (PRIORITY_ORDER[a.priority] || 3) - (PRIORITY_ORDER[b.priority] || 3));
+        });
 
-        const tasksList = document.getElementById('dash-tasks-list');
-        if (tasksList) {
-            if (pendingTasks.length === 0) {
-                tasksList.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-muted)">No pending tasks</div>';
-            } else {
-                tasksList.innerHTML = pendingTasks.slice(0, 15).map(t => {
-                    const id = t.id || t.taskId;
-                    const assignee = t.assigned_to ? t.assigned_to.split('-')[0] : '';
-                    return `<div class="dash-task-row" data-task-id="${escapeHtml(id)}">
-                        <span class="pdot pdot-${t.priority || 'medium'}"></span>
-                        <span class="dash-task-text">${escapeHtml(t.title)}</span>
-                        ${assignee ? `<span class="dash-task-assignee">${escapeHtml(assignee)}</span>` : ''}
-                    </div>`;
-                }).join('');
-
-                tasksList.querySelectorAll('.dash-task-row').forEach(el => {
-                    el.addEventListener('click', () => {
-                        const taskId = el.dataset.taskId;
-                        if (window.switchTab) window.switchTab('tasks');
-                        if (window.showTaskDetail) window.showTaskDetail(taskId, true);
-                    });
-                });
-            }
-        }
+        renderDashTasks();
 
         // Personal lists column
         const lists = listsResult.status === 'fulfilled' ? (listsResult.value?.lists || listsResult.value || []) : [];
@@ -284,34 +275,36 @@ async function loadMyLists() {
             if (allLists.length === 0) {
                 personalLists.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-muted)">No lists</div>';
             } else {
-                // Show first 3 lists with item previews
                 const listPreviews = [];
-                for (const list of allLists.slice(0, 3)) {
+                for (const list of allLists.slice(0, 5)) {
                     try {
                         const detail = await api.getList(state.instanceId, list.id || list.listId);
-                        const items = detail?.items || [];
-                        listPreviews.push({ ...list, items });
+                        listPreviews.push({ ...list, items: detail?.items || [] });
                     } catch (e) {
                         listPreviews.push({ ...list, items: [] });
                     }
                 }
 
                 personalLists.innerHTML = listPreviews.map(list => {
-                    const header = `<div class="col-header" style="font-size:12px;padding:6px 12px;">
-                        <span>${escapeHtml(list.name || list.id)}</span>
-                        <span class="col-count">${list.items.length}</span>
+                    const listId = list.id || list.listId;
+                    const checked = list.items.filter(i => i.checked).length;
+                    const total = list.items.length;
+                    const pct = total > 0 ? Math.round(checked / total * 100) : 0;
+                    const header = `<div class="dash-list-header" data-list-id="${escapeHtml(listId)}">
+                        <span>${escapeHtml(list.name || listId)}</span>
+                        <span class="dash-list-progress">${checked}/${total}</span>
+                        <div class="progress-bar" style="flex:1;max-width:60px"><div class="progress-fill" style="width:${pct}%"></div></div>
                     </div>`;
-                    const items = list.items.slice(0, 5).map(item => {
-                        const checked = item.checked ? 'checked' : '';
-                        return `<div class="dash-list-item" data-list-id="${escapeHtml(list.id || list.listId)}" data-item-id="${escapeHtml(item.id)}">
-                            <span class="li-check ${checked}">${checked ? '\u2713' : ''}</span>
-                            <span class="li-text ${checked}">${escapeHtml(item.text)}</span>
+                    const items = list.items.map(item => {
+                        const ch = item.checked ? 'checked' : '';
+                        return `<div class="dash-list-item" data-list-id="${escapeHtml(listId)}" data-item-id="${escapeHtml(item.id)}">
+                            <span class="li-check ${ch}">${ch ? '\u2713' : ''}</span>
+                            <span class="li-text ${ch}">${escapeHtml(item.text)}</span>
                         </div>`;
                     }).join('');
                     return header + items;
                 }).join('');
 
-                // Toggle items on click
                 personalLists.querySelectorAll('.dash-list-item').forEach(el => {
                     el.addEventListener('click', async () => {
                         const listId = el.dataset.listId;
@@ -334,6 +327,85 @@ async function loadMyLists() {
     } catch (error) {
         console.error('[Dashboard] Error loading lists:', error);
     }
+}
+
+function renderDashTasks() {
+    const listIds = Object.keys(dashTasksByList);
+    if (!listIds.length) listIds.push('default');
+
+    const totalActive = Object.values(dashTasksByList).flat()
+        .filter(t => !['completed', 'completed_verified', 'archived'].includes(t.status)).length;
+
+    const tasksCountEl = document.getElementById('dash-tasks-count');
+    if (tasksCountEl) tasksCountEl.textContent = totalActive;
+
+    const tasksList = document.getElementById('dash-tasks-list');
+    if (!tasksList) return;
+
+    tasksList.innerHTML = listIds.map(lid => {
+        const tasks = dashTasksByList[lid] || [];
+        const active = tasks.filter(t => !['completed', 'completed_verified', 'archived'].includes(t.status));
+        const completed = tasks.filter(t => ['completed', 'completed_verified'].includes(t.status));
+        const pct = tasks.length > 0 ? Math.round(completed.length / tasks.length * 100) : 0;
+        const isExp = dashExpandedLists.has(lid);
+        const showDone = dashShowCompleted.has(lid);
+
+        return `<div class="dash-task-list-section">
+            <div class="dash-task-list-head" data-list-id="${escapeHtml(lid)}">
+                <span class="chevron ${isExp ? 'expanded' : ''}">\u203A</span>
+                <span class="dash-tl-name">${escapeHtml(lid)}</span>
+                <span class="dash-tl-progress">${completed.length}/${tasks.length}</span>
+                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+                ${completed.length > 0 ? `<span class="dash-tl-toggle-done" data-list-id="${escapeHtml(lid)}" title="${showDone ? 'Hide completed' : 'Show completed'}">${showDone ? '\uD83D\uDC41' : '\uD83D\uDC41\u200D\uD83D\uDDE8'}</span>` : ''}
+            </div>
+            <div class="dash-task-list-body" style="display:${isExp ? 'block' : 'none'}">
+                ${active.map(t => renderDashTaskRow(t)).join('')}
+                ${showDone ? completed.map(t => renderDashTaskRow(t)).join('') : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    // Bind events
+    tasksList.querySelectorAll('.dash-task-list-head').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target.classList.contains('dash-tl-toggle-done')) return;
+            const lid = el.dataset.listId;
+            if (dashExpandedLists.has(lid)) dashExpandedLists.delete(lid);
+            else dashExpandedLists.add(lid);
+            renderDashTasks();
+        });
+    });
+
+    tasksList.querySelectorAll('.dash-tl-toggle-done').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const lid = el.dataset.listId;
+            if (dashShowCompleted.has(lid)) dashShowCompleted.delete(lid);
+            else dashShowCompleted.add(lid);
+            renderDashTasks();
+        });
+    });
+
+    tasksList.querySelectorAll('.dash-task-row').forEach(el => {
+        el.addEventListener('click', () => {
+            if (window.switchTab) window.switchTab('tasks');
+            if (window.showTaskDetail) window.showTaskDetail(el.dataset.taskId, true);
+        });
+    });
+}
+
+function renderDashTaskRow(task) {
+    const id = task.id || task.taskId;
+    const p = task.priority || 'medium';
+    const s = task.status || 'not_started';
+    const isDone = ['completed', 'completed_verified'].includes(s);
+    const assignee = task.assigned_to ? task.assigned_to.split('-')[0] : '';
+    return `<div class="dash-task-row${isDone ? ' done' : ''}" data-task-id="${escapeHtml(id)}">
+        <span class="pdot pdot-${p}"></span>
+        <span class="dash-task-text${isDone ? ' done' : ''}">${escapeHtml(task.title)}</span>
+        <span class="status-badge status-${s}" style="font-size:9px;padding:1px 5px">${STATUS_LABELS[s] || s}</span>
+        ${assignee ? `<span class="dash-task-assignee">${escapeHtml(assignee)}</span>` : ''}
+    </div>`;
 }
 
 // ============================================================================

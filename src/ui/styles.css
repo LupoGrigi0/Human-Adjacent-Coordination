@@ -4443,6 +4443,47 @@ body {
 .dash-task-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dash-task-text.done { text-decoration: line-through; color: var(--text-muted); }
 .dash-task-assignee { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+.dash-task-row.done { opacity: 0.5; }
+
+/* Dashboard task list sections (collapsible, mirrors instance-detail) */
+.dash-task-list-section { border-bottom: 1px solid var(--border-color); }
+.dash-task-list-section:last-child { border-bottom: none; }
+
+.dash-task-list-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.1s;
+}
+.dash-task-list-head:hover { background: var(--surface-hover); }
+
+.dash-tl-name { font-weight: 600; }
+.dash-tl-progress { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+
+.dash-tl-toggle-done {
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 4px;
+    opacity: 0.6;
+}
+.dash-tl-toggle-done:hover { opacity: 1; }
+
+.dash-task-list-body { padding: 0; }
+
+/* Dashboard list headers */
+.dash-list-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+    font-weight: 600;
+}
+.dash-list-progress { font-size: 10px; color: var(--text-muted); margin-left: auto; }
 
 /* List items (checkbox style) */
 .dash-list-item {
