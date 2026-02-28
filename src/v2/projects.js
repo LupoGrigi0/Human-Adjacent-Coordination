@@ -324,7 +324,7 @@ export async function createProject(params) {
       xmppRoom: createdPrefs?.xmppRoom || `${params.projectId}@conference.smoothcurves.nexus`
     },
     message: `Project '${params.name}' created successfully`,
-    files: ['preferences.json', 'PROJECT_VISION.md', 'PROJECT_PLAN.md', 'README.md', 'tasks.json'],
+    files: ['preferences.json', 'PROJECT_VISION.md', 'PROJECT_PLAN.md', 'README.md', 'project_tasks.json'],
     metadata
   };
 }
@@ -791,7 +791,7 @@ export async function updateProject(params) {
 
 /**
  * Get tasks for a specific project
- * Simple document reader - reads tasks.json from project directory
+ * Simple document reader - reads project_tasks.json from project directory
  *
  * @param {object} params
  * @param {string} params.projectId - Project to get tasks for
@@ -815,7 +815,7 @@ export async function getProjectTasks(params) {
   }
 
   const projectDir = getProjectDir(params.projectId);
-  const tasksPath = path.join(projectDir, 'tasks.json');
+  const tasksPath = path.join(projectDir, 'project_tasks.json');
 
   try {
     const tasksData = await readJSON(tasksPath);

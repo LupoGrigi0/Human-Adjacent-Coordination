@@ -19,7 +19,7 @@ import * as XMPPHandler from './messaging.js';
  * Get path to project's task file
  */
 function getProjectTaskFile(projectId) {
-  return path.join(getProjectsDir(), projectId, 'tasks.json');
+  return path.join(getProjectsDir(), projectId, 'project_tasks.json');
 }
 
 /**

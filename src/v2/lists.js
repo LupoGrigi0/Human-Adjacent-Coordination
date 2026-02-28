@@ -41,15 +41,22 @@ async function initializeLists(instanceId) {
 
 /**
  * Check if caller can access target instance's lists
- * PM, COO, PA can access Executive's lists
+ * Executive and COO can access ANY instance's lists (except diary — that's sacred)
+ * PA can access Executive's lists (proxy pattern)
+ * PM can access Executive's lists
  *
  * @param {string} callerRole - Role of the calling instance
  * @param {string} targetRole - Role of the target instance
  * @returns {boolean} Whether access is permitted
  */
 function canAccessTargetLists(callerRole, targetRole) {
-  const privilegedRoles = ['PM', 'COO', 'PA'];
-  return privilegedRoles.includes(callerRole) && targetRole === 'Executive';
+  // Executive and COO can access ANY instance's lists
+  if (['Executive', 'COO'].includes(callerRole)) return true;
+  // PA can access Executive's lists (proxy pattern)
+  if (callerRole === 'PA' && targetRole === 'Executive') return true;
+  // PM can access Executive's lists
+  if (callerRole === 'PM' && targetRole === 'Executive') return true;
+  return false;
 }
 
 /**
@@ -75,8 +82,8 @@ async function resolveTargetInstance(params, metadata) {
     };
   }
 
-  // If no target specified, operate on caller's own lists
-  if (!targetInstanceId) {
+  // If no target specified OR target is self, operate on caller's own lists
+  if (!targetInstanceId || targetInstanceId === instanceId) {
     return {
       success: true,
       effectiveInstanceId: instanceId,

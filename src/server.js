@@ -12,7 +12,7 @@ import { logger } from './logger.js';
 
 // Import all handlers
 import * as ProjectHandler from './handlers/projects.js';
-import * as TaskHandler from './handlers/tasks-v2.js';
+// REMOVED: TaskHandler from './handlers/tasks-v2.js' (dead code - v1 task handler, never called, 2026-02-28)
 // REMOVED: MessageHandler (dead code - old non-XMPP message system, 2026-02-05)
 import * as InstanceHandler from './handlers/instances.js';
 // REMOVED: LessonHandlers and MetaRecursiveHandlers (dead code cleanup 2025-12-28)

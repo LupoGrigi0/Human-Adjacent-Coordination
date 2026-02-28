@@ -311,18 +311,26 @@ export async function joinProject(params) {
   const projectWisdom = await loadProjectWisdom(params.project);
   const readme = await loadProjectReadme(params.project);
 
-  // Load project tasks and filter to active
-  const tasksJsonPath = path.join(projectDir, 'tasks.json');
+  // Load project tasks and filter to active (v2 schema: task_lists.{listId}.tasks[])
+  const tasksJsonPath = path.join(projectDir, 'project_tasks.json');
   const tasksData = await readJSON(tasksJsonPath);
 
   let activeTasks = [];
-  if (tasksData && tasksData.tasks) {
-    activeTasks = tasksData.tasks.filter(task => task.status !== 'completed').map(task => ({
-      taskId: task.taskId,
-      title: task.title,
-      status: task.status,
-      assignee: task.assignedTo || null
-    }));
+  if (tasksData && tasksData.task_lists) {
+    for (const [listId, list] of Object.entries(tasksData.task_lists)) {
+      if (list.tasks) {
+        const active = list.tasks
+          .filter(task => task.status !== 'completed' && task.status !== 'completed_verified')
+          .map(task => ({
+            taskId: task.id,
+            title: task.title,
+            status: task.status,
+            assignee: task.assigned_to || null,
+            list: listId
+          }));
+        activeTasks.push(...active);
+      }
+    }
   }
 
   // Build team list

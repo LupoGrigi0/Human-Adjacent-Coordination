@@ -17,6 +17,7 @@
  */
 
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import { getInstanceDir, getProjectDir, getGlobalPreferencesPath } from './config.js';
 import { readJSON, writeJSON, ensureDir, readPreferences } from './data.js';
@@ -155,14 +156,34 @@ function parseTaskId(taskId, projectIdOverride = null) {
       return { type: 'project', projectId: projectIdOverride || parts[0], listId: parts[1] };
     }
     // Legacy format — projectId extraction breaks for hyphenated project IDs
+    const inner = taskId.substring(8); // e.g., "fix-project-detail-panel-default-mkkcqhjq9170"
     if (projectIdOverride) {
       // Strip known projectId from the inner string to extract listId
-      const inner = taskId.substring(8); // e.g., "fix-project-detail-panel-default-mkkcqhjq9170"
       const afterProject = inner.substring(projectIdOverride.length + 1); // e.g., "default-mkkcqhjq9170"
       const remainParts = afterProject.split('-');
       return { type: 'project', projectId: projectIdOverride, listId: remainParts[0] };
     }
-    const parts = taskId.substring(8).split('-');
+    // No override — try to find project by scanning known project directories
+    // The inner looks like "{projectId}-{listId}-{seq}" but projectId may contain hyphens
+    // Strategy: try matching against existing project directory names (longest match first)
+    try {
+      const projectsBaseDir = path.dirname(getProjectDir('_placeholder'));
+      const entries = fs.readdirSync(projectsBaseDir, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => d.name)
+        .sort((a, b) => b.length - a.length); // longest match first
+      for (const dirName of entries) {
+        if (inner.startsWith(dirName + '-')) {
+          const afterProject = inner.substring(dirName.length + 1);
+          const remainParts = afterProject.split('-');
+          return { type: 'project', projectId: dirName, listId: remainParts[0] };
+        }
+      }
+    } catch (e) {
+      // Fallback if directory scan fails
+    }
+    // Last resort: naive split (breaks for hyphenated project IDs)
+    const parts = inner.split('-');
     return { type: 'project', projectId: parts[0], listId: parts[1] };
   }
   return null;

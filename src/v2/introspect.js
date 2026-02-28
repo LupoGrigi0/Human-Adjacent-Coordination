@@ -174,21 +174,25 @@ export async function introspect(params) {
     const projectData = await readJSON(projectJsonPath);
 
     if (projectData) {
-      // Load project tasks to count active tasks
-      const tasksJsonPath = path.join(projectDir, 'tasks.json');
+      // Load project tasks to count active tasks (v2 schema: task_lists.{listId}.tasks[])
+      const tasksJsonPath = path.join(projectDir, 'project_tasks.json');
       const tasksData = await readJSON(tasksJsonPath);
 
       let activeTaskCount = 0;
       let myTaskCount = 0;
 
-      if (tasksData && tasksData.tasks) {
-        // Count active tasks (status != "completed")
-        activeTaskCount = tasksData.tasks.filter(task => task.status !== 'completed').length;
-
-        // Count tasks assigned to this instance
-        myTaskCount = tasksData.tasks.filter(
-          task => task.assignedTo === params.instanceId && task.status !== 'completed'
-        ).length;
+      if (tasksData && tasksData.task_lists) {
+        for (const list of Object.values(tasksData.task_lists)) {
+          if (list.tasks) {
+            activeTaskCount += list.tasks.filter(
+              task => task.status !== 'completed' && task.status !== 'completed_verified'
+            ).length;
+            myTaskCount += list.tasks.filter(
+              task => task.assigned_to === params.instanceId &&
+                      task.status !== 'completed' && task.status !== 'completed_verified'
+            ).length;
+          }
+        }
       }
 
       // Resolve localPath for instance's homeSystem
@@ -219,7 +223,17 @@ export async function introspect(params) {
   const personalTasksPath = path.join(instanceDir, 'personal_tasks.json');
   const personalTasksData = await readJSON(personalTasksPath);
 
-  if (personalTasksData && personalTasksData.tasks) {
+  if (personalTasksData && personalTasksData.lists) {
+    // v2 schema: lists.{listId}.tasks[]
+    for (const list of Object.values(personalTasksData.lists)) {
+      if (list.tasks) {
+        personalTaskCount += list.tasks.filter(
+          task => task.status !== 'completed' && task.status !== 'completed_verified'
+        ).length;
+      }
+    }
+  } else if (personalTasksData && personalTasksData.tasks) {
+    // v1 fallback: flat tasks array
     personalTaskCount = personalTasksData.tasks.filter(
       task => task.status !== 'completed'
     ).length;
