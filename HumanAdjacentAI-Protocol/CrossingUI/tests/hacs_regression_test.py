@@ -1251,88 +1251,43 @@ def test_priority_cycle_all_levels():
 
 
 def test_priority_null():
-    """Setting priority to null -- verify behavior."""
-    # KNOWN BUG: API accepts null priority — should reject or ignore
+    """Null priority should be rejected."""
     _require_project()
-    # Record current priority before the null update
-    r0 = rpc_call("get_task", {
-        "instanceId": INSTANCE_1,
-        "taskId": _priority_cycle_task
-    })
-    data0 = assert_success(r0)
-    prior_priority = data0["task"]["priority"]
-
     r = rpc_call("update_task", {
         "instanceId": INSTANCE_1,
         "taskId": _priority_cycle_task,
         "priority": None
     })
-    data = r["data"]
-    # Read back regardless of response
-    r2 = rpc_call("get_task", {
-        "instanceId": INSTANCE_1,
-        "taskId": _priority_cycle_task
-    })
-    data2 = assert_success(r2)
-    actual = data2["task"]["priority"]
-    if actual is None:
-        print(f"    KNOWN BUG: priority set to null (was {prior_priority})")
-    elif actual == prior_priority:
-        print(f"    null priority ignored, kept: {actual}")
-    else:
-        print(f"    null priority accepted, changed to: {actual}")
+    assert_failure(r, "Null priority should be rejected")
 
 
 def test_priority_bogus():
-    """Setting priority to invalid string -- documents current behavior."""
-    # KNOWN BUG: API accepts invalid priority values — should validate against list_priorities
+    """Invalid priority string should be rejected."""
     _require_project()
     r = rpc_call("update_task", {
         "instanceId": INSTANCE_1,
         "taskId": _priority_cycle_task,
         "priority": "bogus_priority"
     })
-    data = r["data"]
-    if data.get("success"):
-        # API accepted it — verify it persisted
-        r2 = rpc_call("get_task", {
-            "instanceId": INSTANCE_1,
-            "taskId": _priority_cycle_task
-        })
-        data2 = assert_success(r2)
-        actual = data2["task"]["priority"]
-        print(f"    KNOWN BUG: bogus priority accepted and persisted as: {actual}")
-    else:
-        print(f"    bogus priority rejected (ideal behavior)")
+    assert_failure(r, "Bogus priority should be rejected")
 
 
 def test_priority_empty_string():
-    """Setting priority to empty string -- documents current behavior."""
-    # KNOWN BUG: API accepts empty string priority
+    """Empty string priority should be rejected."""
     _require_project()
     r = rpc_call("update_task", {
         "instanceId": INSTANCE_1,
         "taskId": _priority_cycle_task,
         "priority": ""
     })
-    data = r["data"]
-    if data.get("success"):
-        r2 = rpc_call("get_task", {
-            "instanceId": INSTANCE_1,
-            "taskId": _priority_cycle_task
-        })
-        data2 = assert_success(r2)
-        actual = data2["task"]["priority"]
-        print(f"    KNOWN BUG: empty string priority accepted, persisted as: '{actual}'")
-    else:
-        print(f"    empty string priority rejected (ideal behavior)")
+    assert_failure(r, "Empty string priority should be rejected")
 
 
 runner.run("priority_cycle_create", test_priority_cycle_create)
 runner.run("priority_cycle_all_levels", test_priority_cycle_all_levels)
-runner.run("priority_null", test_priority_null)
-runner.run("priority_bogus (known bug)", test_priority_bogus)
-runner.run("priority_empty_string (known bug)", test_priority_empty_string)
+runner.run("priority_null (negative)", test_priority_null)
+runner.run("priority_bogus (negative)", test_priority_bogus)
+runner.run("priority_empty_string (negative)", test_priority_empty_string)
 
 # ---------------------------------------------------------------------------
 # SECTION 14: STATUS CYCLING
@@ -1384,10 +1339,8 @@ def test_status_cycle_transitions():
 
 
 def test_status_null():
-    """Setting status to null -- verify behavior."""
-    # KNOWN BUG: API accepts null status — should reject or ignore
+    """Null status should be rejected."""
     _require_project()
-    # Create a fresh task since previous one is completed
     r = rpc_call("create_task", {
         "instanceId": INSTANCE_1,
         "title": "Status null test task",
@@ -1402,15 +1355,7 @@ def test_status_null():
         "taskId": tid,
         "status": None
     })
-    data2 = r2["data"]
-    # Read back regardless
-    r3 = rpc_call("get_task", {"instanceId": INSTANCE_1, "taskId": tid})
-    data3 = assert_success(r3)
-    actual = data3["task"]["status"]
-    if actual is None:
-        print(f"    KNOWN BUG: status set to null")
-    else:
-        print(f"    null status handled, current value: {actual}")
+    assert_failure(r2, "Null status should be rejected")
 
 
 def test_status_bogus():
@@ -1441,8 +1386,7 @@ def test_status_bogus():
 
 
 def test_status_empty_string():
-    """Setting status to empty string -- documents current behavior."""
-    # KNOWN BUG: API accepts empty string status — should reject
+    """Empty string status should be rejected."""
     _require_project()
     r = rpc_call("create_task", {
         "instanceId": INSTANCE_1,
@@ -1458,19 +1402,11 @@ def test_status_empty_string():
         "taskId": tid,
         "status": ""
     })
-    data2 = r2["data"]
-    if data2.get("success"):
-        r3 = rpc_call("get_task", {"instanceId": INSTANCE_1, "taskId": tid})
-        data3 = assert_success(r3)
-        actual = data3["task"]["status"]
-        print(f"    KNOWN BUG: empty string status accepted, persisted as: '{actual}'")
-    else:
-        print(f"    empty string status rejected (ideal behavior)")
+    assert_failure(r2, "Empty string status should be rejected")
 
 
 def test_status_skip_to_verified():
-    """Cannot skip directly to completed_verified without going through completed."""
-    # KNOWN BUG: Should not allow skipping to completed_verified without completing first
+    """Cannot skip directly to completed_verified — must use mark_task_verified."""
     _require_project()
     r = rpc_call("create_task", {
         "instanceId": INSTANCE_1,
@@ -1481,28 +1417,43 @@ def test_status_skip_to_verified():
     tid = data["taskId"]
     runner.created_project_task_ids.append(tid)
 
-    # Try to jump from not_started to completed_verified
     r2 = rpc_call("update_task", {
         "instanceId": INSTANCE_1,
         "taskId": tid,
         "status": "completed_verified"
     })
-    data2 = r2["data"]
-    if data2.get("success"):
-        r3 = rpc_call("get_task", {"instanceId": INSTANCE_1, "taskId": tid})
-        data3 = assert_success(r3)
-        actual = data3["task"]["status"]
-        print(f"    KNOWN BUG: skipped to completed_verified from not_started (got: {actual})")
-    else:
-        print(f"    skip to completed_verified rejected (ideal behavior)")
+    assert_failure(r2, "Should not allow skipping to completed_verified via update_task")
 
 
 runner.run("status_cycle_create", test_status_cycle_create)
 runner.run("status_cycle_transitions", test_status_cycle_transitions)
-runner.run("status_null", test_status_null)
+runner.run("status_null (negative)", test_status_null)
 runner.run("status_bogus (custom status)", test_status_bogus)
-runner.run("status_empty_string (known bug)", test_status_empty_string)
-runner.run("status_skip_to_verified (known bug)", test_status_skip_to_verified)
+runner.run("status_empty_string (negative)", test_status_empty_string)
+runner.run("status_skip_to_verified (negative)", test_status_skip_to_verified)
+
+
+def test_status_skip_to_archived():
+    """Cannot set status to archived directly — must use archive_task."""
+    _require_project()
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Skip-to-archived test task",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+
+    r2 = rpc_call("update_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": tid,
+        "status": "archived"
+    })
+    assert_failure(r2, "Should not allow setting archived via update_task")
+
+
+runner.run("status_skip_to_archived (negative)", test_status_skip_to_archived)
 
 # ---------------------------------------------------------------------------
 # SECTION 15: PERMISSION BOUNDARIES

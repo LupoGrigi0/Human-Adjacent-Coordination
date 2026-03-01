@@ -442,9 +442,48 @@ export async function updateTask(params) {
   const changes = {};
   if (params.title !== undefined) changes.title = params.title;
   if (params.description !== undefined) changes.description = params.description;
-  if (params.priority !== undefined) changes.priority = params.priority;
-  if (params.status !== undefined) changes.status = params.status;
   if (params.assigned_to !== undefined) changes.assigned_to = params.assigned_to;
+
+  // Validate priority against global preferences (strict list)
+  if (params.priority !== undefined) {
+    const prefs = await loadGlobalPreferences();
+    const validPriorities = prefs.task_priorities;
+    if (!params.priority || !validPriorities.includes(params.priority)) {
+      return {
+        success: false,
+        error: { code: 'INVALID_PRIORITY', message: `Invalid priority "${params.priority}". Valid values: ${validPriorities.join(', ')}` },
+        metadata
+      };
+    }
+    changes.priority = params.priority;
+  }
+
+  // Validate status: reject null/empty, block lifecycle shortcuts
+  if (params.status !== undefined) {
+    if (!params.status || (typeof params.status === 'string' && !params.status.trim())) {
+      return {
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Status cannot be null or empty' },
+        metadata
+      };
+    }
+    // Lifecycle enforcement: completed_verified and archived must use dedicated endpoints
+    if (params.status === 'completed_verified') {
+      return {
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Cannot set status to completed_verified directly. Use mark_task_verified after completing the task.' },
+        metadata
+      };
+    }
+    if (params.status === 'archived') {
+      return {
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Cannot set status to archived directly. Use archive_task after task is verified.' },
+        metadata
+      };
+    }
+    changes.status = params.status;
+  }
 
   // Check permissions
   const permCheck = await checkTaskEditPermissions({
@@ -524,7 +563,10 @@ export async function createTask(params) {
   }
 
   const listId = params.listId || 'default';
-  const priority = ['critical', 'high', 'medium', 'low'].includes(params.priority)
+  // Validate priority against global preferences
+  const globalPrefs = await loadGlobalPreferences();
+  const validPriorities = globalPrefs.task_priorities;
+  const priority = validPriorities.includes(params.priority)
     ? params.priority
     : 'medium';
 
