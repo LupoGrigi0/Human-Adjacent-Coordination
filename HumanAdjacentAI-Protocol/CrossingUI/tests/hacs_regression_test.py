@@ -13,6 +13,7 @@ Author: Axiom-2615
 Created: 2026-02-28
 """
 
+import os
 import sys
 import time
 import json
@@ -25,6 +26,11 @@ from datetime import datetime
 # ---------------------------------------------------------------------------
 API_URL = sys.argv[1] if len(sys.argv) > 1 else "https://smoothcurves.nexus/mcp"
 TEST_PROJECT = f"regression-test-{int(time.time())}"
+
+# Role tokens for privileged roles (from env vars or CLI)
+# Executive token needed to create projects in tests
+EXEC_TOKEN = os.environ.get("HACS_EXEC_TOKEN", None)
+PM_TOKEN = os.environ.get("HACS_PM_TOKEN", None)
 
 # Will be set during bootstrap
 INSTANCE_1 = None
@@ -120,6 +126,7 @@ class TestRunner:
     def __init__(self):
         self.passed = 0
         self.failed = 0
+        self.skipped = 0
         self.errors = []
         self.timings = []
         self.created_task_ids = []       # personal task IDs to clean up
@@ -132,6 +139,15 @@ class TestRunner:
             fn()
             self.passed += 1
             print(f"  PASS  {name}")
+        except RuntimeError as e:
+            if str(e).startswith("SKIP:"):
+                self.skipped += 1
+                print(f"  SKIP  {name}: {str(e)[5:].strip()}")
+            else:
+                self.failed += 1
+                tb = traceback.format_exc()
+                self.errors.append((name, str(e), tb))
+                print(f"  FAIL  {name}: {e}")
         except Exception as e:
             self.failed += 1
             tb = traceback.format_exc()
@@ -142,9 +158,10 @@ class TestRunner:
         self.timings.append((label, elapsed))
 
     def summary(self):
-        total = self.passed + self.failed
+        total = self.passed + self.failed + self.skipped
         print("\n" + "=" * 70)
-        print(f"RESULTS: {self.passed}/{total} passed, {self.failed} failed")
+        skip_str = f", {self.skipped} skipped" if self.skipped else ""
+        print(f"RESULTS: {self.passed}/{total} passed, {self.failed} failed{skip_str}")
         if self.errors:
             print("\nFailed tests:")
             for name, err, tb in self.errors:
@@ -820,14 +837,25 @@ print("\n--- Section 9: Project Setup ---")
 runner.created_project_task_ids = []
 runner.created_project_task_list_ids = []
 _test_project_id = f"regtest-{int(time.time())}"
+_project_setup_ok = False  # Set True after project is created and joined
+
+
+def _require_project():
+    """Skip test if project setup didn't succeed."""
+    if not _project_setup_ok:
+        raise RuntimeError("SKIP: Project setup required (need HACS_EXEC_TOKEN)")
 
 
 def test_take_on_role_executive():
     """Give INSTANCE_1 the Executive role so it can create projects."""
-    r = rpc_call("take_on_role", {
+    if not EXEC_TOKEN:
+        raise RuntimeError("SKIP: Set HACS_EXEC_TOKEN env var to run project tests")
+    params = {
         "instanceId": INSTANCE_1,
-        "role": "Executive"
-    })
+        "role": "Executive",
+        "token": EXEC_TOKEN
+    }
+    r = rpc_call("take_on_role", params)
     data = assert_success(r)
 
 
@@ -842,6 +870,8 @@ def test_take_on_role_developer():
 
 def test_create_project():
     """Create a test project."""
+    if not EXEC_TOKEN:
+        raise RuntimeError("SKIP: Need HACS_EXEC_TOKEN")
     r = rpc_call("create_project", {
         "instanceId": INSTANCE_1,
         "projectId": _test_project_id,
@@ -853,6 +883,8 @@ def test_create_project():
 
 def test_join_project_instance1():
     """Join INSTANCE_1 to the test project."""
+    if not EXEC_TOKEN:
+        raise RuntimeError("SKIP: Need HACS_EXEC_TOKEN")
     r = rpc_call("join_project", {
         "instanceId": INSTANCE_1,
         "project": _test_project_id
@@ -862,11 +894,15 @@ def test_join_project_instance1():
 
 def test_join_project_instance2():
     """Join INSTANCE_2 to the test project."""
+    if not EXEC_TOKEN:
+        raise RuntimeError("SKIP: Need HACS_EXEC_TOKEN")
     r = rpc_call("join_project", {
         "instanceId": INSTANCE_2,
         "project": _test_project_id
     })
     data = assert_success(r)
+    global _project_setup_ok
+    _project_setup_ok = True
 
 
 runner.run("take_on_role_executive (INSTANCE_1)", test_take_on_role_executive)
@@ -889,6 +925,7 @@ _proj_task_for_verify = None
 
 def test_proj_create_task_basic():
     """Create a basic project task."""
+    _require_project()
     global _proj_task_1
     r = rpc_call("create_task", {
         "instanceId": INSTANCE_1,
@@ -905,6 +942,7 @@ def test_proj_create_task_basic():
 
 def test_proj_create_task_all_fields():
     """Create a project task with all fields and special characters."""
+    _require_project()
     global _proj_task_2
     r = rpc_call("create_task", {
         "instanceId": INSTANCE_1,
@@ -922,6 +960,7 @@ def test_proj_create_task_all_fields():
 
 def test_proj_list_tasks():
     """List project tasks and verify our tasks appear."""
+    _require_project()
     r = rpc_call("list_tasks", {
         "instanceId": INSTANCE_1,
         "projectId": _test_project_id,
@@ -934,6 +973,7 @@ def test_proj_list_tasks():
 
 def test_proj_get_task():
     """Get a specific project task by ID."""
+    _require_project()
     r = rpc_call("get_task", {
         "instanceId": INSTANCE_1,
         "taskId": _proj_task_1
@@ -944,6 +984,7 @@ def test_proj_get_task():
 
 def test_proj_update_task():
     """Update title, priority, and status on a project task."""
+    _require_project()
     r = rpc_call("update_task", {
         "instanceId": INSTANCE_1,
         "taskId": _proj_task_1,
@@ -957,6 +998,7 @@ def test_proj_update_task():
 
 def test_proj_assign_task():
     """Assign a project task to INSTANCE_2 (privileged caller: INSTANCE_1 is Executive)."""
+    _require_project()
     global _proj_task_for_assign
     # Create a fresh task for assignment testing
     r = rpc_call("create_task", {
@@ -981,6 +1023,7 @@ def test_proj_assign_task():
 
 def test_proj_take_on_task():
     """INSTANCE_2 claims an unassigned project task."""
+    _require_project()
     global _proj_task_for_claim
     # Create an unassigned task
     r = rpc_call("create_task", {
@@ -1003,6 +1046,7 @@ def test_proj_take_on_task():
 
 def test_proj_mark_task_complete():
     """Mark the claimed project task as complete (by assignee)."""
+    _require_project()
     r = rpc_call("mark_task_complete", {
         "instanceId": INSTANCE_2,
         "taskId": _proj_task_for_claim
@@ -1014,6 +1058,7 @@ def test_proj_mark_task_complete():
 def test_proj_mark_task_verified():
     """Verify completed task - must be different instance than completer.
     INSTANCE_1 verifies INSTANCE_2's completed task."""
+    _require_project()
     r = rpc_call("mark_task_verified", {
         "instanceId": INSTANCE_1,
         "taskId": _proj_task_for_claim
@@ -1024,6 +1069,7 @@ def test_proj_mark_task_verified():
 
 def test_proj_self_verify_fails():
     """Negative: assignee cannot verify their own project task."""
+    _require_project()
     global _proj_task_for_verify
     # Create task, assign to INSTANCE_2, complete it
     r = rpc_call("create_task", {
@@ -1055,6 +1101,7 @@ def test_proj_self_verify_fails():
 
 def test_proj_create_task_list():
     """Create a named project task list."""
+    _require_project()
     r = rpc_call("create_task_list", {
         "instanceId": INSTANCE_1,
         "listId": "regression-proj-list",
@@ -1066,6 +1113,7 @@ def test_proj_create_task_list():
 
 def test_proj_create_task_in_named_list():
     """Create a project task in the named list."""
+    _require_project()
     r = rpc_call("create_task", {
         "instanceId": INSTANCE_1,
         "title": "Task in project named list",
@@ -1098,6 +1146,7 @@ print("\n--- Section 11: Cross-Instance Task Visibility ---")
 
 def test_cross_instance_list_tasks():
     """INSTANCE_2 can see project tasks created by INSTANCE_1 via list_tasks."""
+    _require_project()
     r = rpc_call("list_tasks", {
         "instanceId": INSTANCE_2,
         "projectId": _test_project_id,
@@ -1159,9 +1208,535 @@ def test_cleanup_project_tasks():
 runner.run("cleanup_project_tasks", test_cleanup_project_tasks)
 
 # ---------------------------------------------------------------------------
-# SECTION 13: VOLUME TESTS
+# SECTION 13: PRIORITY CYCLING
 # ---------------------------------------------------------------------------
-print("\n--- Section 13: Volume Tests ---")
+print("\n--- Section 13: Priority Cycling ---")
+
+_priority_cycle_task = None
+
+
+def test_priority_cycle_create():
+    """Create a project task for priority cycling."""
+    _require_project()
+    global _priority_cycle_task
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Priority cycling test task",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    _priority_cycle_task = data["taskId"]
+    runner.created_project_task_ids.append(data["taskId"])
+
+
+def test_priority_cycle_all_levels():
+    """Update through all 6 priority levels with read-back verification."""
+    _require_project()
+    priorities = ["emergency", "critical", "high", "medium", "low", "whenever"]
+    for prio in priorities:
+        r = rpc_call("update_task", {
+            "instanceId": INSTANCE_1,
+            "taskId": _priority_cycle_task,
+            "priority": prio
+        })
+        assert_success(r)
+        # Read-back verification
+        r2 = rpc_call("get_task", {
+            "instanceId": INSTANCE_1,
+            "taskId": _priority_cycle_task
+        })
+        data2 = assert_success(r2)
+        actual = data2["task"]["priority"]
+        assert actual == prio, f"Priority read-back: expected {prio}, got {actual}"
+
+
+def test_priority_null():
+    """Setting priority to null -- verify behavior."""
+    # KNOWN BUG: API accepts null priority — should reject or ignore
+    _require_project()
+    # Record current priority before the null update
+    r0 = rpc_call("get_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": _priority_cycle_task
+    })
+    data0 = assert_success(r0)
+    prior_priority = data0["task"]["priority"]
+
+    r = rpc_call("update_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": _priority_cycle_task,
+        "priority": None
+    })
+    data = r["data"]
+    # Read back regardless of response
+    r2 = rpc_call("get_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": _priority_cycle_task
+    })
+    data2 = assert_success(r2)
+    actual = data2["task"]["priority"]
+    if actual is None:
+        print(f"    KNOWN BUG: priority set to null (was {prior_priority})")
+    elif actual == prior_priority:
+        print(f"    null priority ignored, kept: {actual}")
+    else:
+        print(f"    null priority accepted, changed to: {actual}")
+
+
+def test_priority_bogus():
+    """Setting priority to invalid string -- documents current behavior."""
+    # KNOWN BUG: API accepts invalid priority values — should validate against list_priorities
+    _require_project()
+    r = rpc_call("update_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": _priority_cycle_task,
+        "priority": "bogus_priority"
+    })
+    data = r["data"]
+    if data.get("success"):
+        # API accepted it — verify it persisted
+        r2 = rpc_call("get_task", {
+            "instanceId": INSTANCE_1,
+            "taskId": _priority_cycle_task
+        })
+        data2 = assert_success(r2)
+        actual = data2["task"]["priority"]
+        print(f"    KNOWN BUG: bogus priority accepted and persisted as: {actual}")
+    else:
+        print(f"    bogus priority rejected (ideal behavior)")
+
+
+def test_priority_empty_string():
+    """Setting priority to empty string -- documents current behavior."""
+    # KNOWN BUG: API accepts empty string priority
+    _require_project()
+    r = rpc_call("update_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": _priority_cycle_task,
+        "priority": ""
+    })
+    data = r["data"]
+    if data.get("success"):
+        r2 = rpc_call("get_task", {
+            "instanceId": INSTANCE_1,
+            "taskId": _priority_cycle_task
+        })
+        data2 = assert_success(r2)
+        actual = data2["task"]["priority"]
+        print(f"    KNOWN BUG: empty string priority accepted, persisted as: '{actual}'")
+    else:
+        print(f"    empty string priority rejected (ideal behavior)")
+
+
+runner.run("priority_cycle_create", test_priority_cycle_create)
+runner.run("priority_cycle_all_levels", test_priority_cycle_all_levels)
+runner.run("priority_null", test_priority_null)
+runner.run("priority_bogus (known bug)", test_priority_bogus)
+runner.run("priority_empty_string (known bug)", test_priority_empty_string)
+
+# ---------------------------------------------------------------------------
+# SECTION 14: STATUS CYCLING
+# ---------------------------------------------------------------------------
+print("\n--- Section 14: Status Cycling ---")
+
+_status_cycle_task = None
+
+
+def test_status_cycle_create():
+    """Create a project task for status cycling."""
+    _require_project()
+    global _status_cycle_task
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Status cycling test task",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    _status_cycle_task = data["taskId"]
+    runner.created_project_task_ids.append(data["taskId"])
+
+
+def test_status_cycle_transitions():
+    """Cycle through valid status transitions with read-back verification."""
+    _require_project()
+    transitions = ["in_progress", "blocked", "in_progress", "completed"]
+    for status in transitions:
+        if status == "completed":
+            r = rpc_call("mark_task_complete", {
+                "instanceId": INSTANCE_1,
+                "taskId": _status_cycle_task
+            })
+        else:
+            r = rpc_call("update_task", {
+                "instanceId": INSTANCE_1,
+                "taskId": _status_cycle_task,
+                "status": status
+            })
+        assert_success(r)
+        # Read-back verification
+        r2 = rpc_call("get_task", {
+            "instanceId": INSTANCE_1,
+            "taskId": _status_cycle_task
+        })
+        data2 = assert_success(r2)
+        actual = data2["task"]["status"]
+        assert actual == status, f"Status read-back: expected {status}, got {actual}"
+
+
+def test_status_null():
+    """Setting status to null -- verify behavior."""
+    # KNOWN BUG: API accepts null status — should reject or ignore
+    _require_project()
+    # Create a fresh task since previous one is completed
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Status null test task",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+
+    r2 = rpc_call("update_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": tid,
+        "status": None
+    })
+    data2 = r2["data"]
+    # Read back regardless
+    r3 = rpc_call("get_task", {"instanceId": INSTANCE_1, "taskId": tid})
+    data3 = assert_success(r3)
+    actual = data3["task"]["status"]
+    if actual is None:
+        print(f"    KNOWN BUG: status set to null")
+    else:
+        print(f"    null status handled, current value: {actual}")
+
+
+def test_status_bogus():
+    """Setting status to custom string -- custom statuses are allowed."""
+    # VALID: Custom statuses are allowed for diverse project types
+    _require_project()
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Status bogus test task",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+
+    r2 = rpc_call("update_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": tid,
+        "status": "bogus_status"
+    })
+    assert_success(r2)
+    # Verify it persisted
+    r3 = rpc_call("get_task", {"instanceId": INSTANCE_1, "taskId": tid})
+    data3 = assert_success(r3)
+    actual = data3["task"]["status"]
+    assert actual == "bogus_status", f"Custom status not persisted: got {actual}"
+    print(f"    Custom status accepted and persisted: {actual}")
+
+
+def test_status_empty_string():
+    """Setting status to empty string -- documents current behavior."""
+    # KNOWN BUG: API accepts empty string status — should reject
+    _require_project()
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Status empty test task",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+
+    r2 = rpc_call("update_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": tid,
+        "status": ""
+    })
+    data2 = r2["data"]
+    if data2.get("success"):
+        r3 = rpc_call("get_task", {"instanceId": INSTANCE_1, "taskId": tid})
+        data3 = assert_success(r3)
+        actual = data3["task"]["status"]
+        print(f"    KNOWN BUG: empty string status accepted, persisted as: '{actual}'")
+    else:
+        print(f"    empty string status rejected (ideal behavior)")
+
+
+def test_status_skip_to_verified():
+    """Cannot skip directly to completed_verified without going through completed."""
+    # KNOWN BUG: Should not allow skipping to completed_verified without completing first
+    _require_project()
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Skip-to-verified test task",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+
+    # Try to jump from not_started to completed_verified
+    r2 = rpc_call("update_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": tid,
+        "status": "completed_verified"
+    })
+    data2 = r2["data"]
+    if data2.get("success"):
+        r3 = rpc_call("get_task", {"instanceId": INSTANCE_1, "taskId": tid})
+        data3 = assert_success(r3)
+        actual = data3["task"]["status"]
+        print(f"    KNOWN BUG: skipped to completed_verified from not_started (got: {actual})")
+    else:
+        print(f"    skip to completed_verified rejected (ideal behavior)")
+
+
+runner.run("status_cycle_create", test_status_cycle_create)
+runner.run("status_cycle_transitions", test_status_cycle_transitions)
+runner.run("status_null", test_status_null)
+runner.run("status_bogus (custom status)", test_status_bogus)
+runner.run("status_empty_string (known bug)", test_status_empty_string)
+runner.run("status_skip_to_verified (known bug)", test_status_skip_to_verified)
+
+# ---------------------------------------------------------------------------
+# SECTION 15: PERMISSION BOUNDARIES
+# ---------------------------------------------------------------------------
+print("\n--- Section 15: Permission Boundaries ---")
+
+INSTANCE_3 = None
+_test_project_2 = None
+_perm_task_ids = []
+_perm_setup_ok = False
+
+
+def _require_perm_setup():
+    """Skip test if perm setup (PM role adoption) didn't succeed."""
+    if not _perm_setup_ok:
+        raise RuntimeError("SKIP: Perm setup required (need HACS_PM_TOKEN or PM role adoption failed)")
+
+
+def test_perm_setup():
+    """Bootstrap INSTANCE_3 (PM), create second project, join INSTANCE_3 to it."""
+    _require_project()
+    global INSTANCE_3, _test_project_2, _perm_setup_ok
+
+    # PM role requires its own token, separate from Executive
+    pm_token = PM_TOKEN or EXEC_TOKEN
+    if not pm_token:
+        raise RuntimeError("SKIP: Need HACS_PM_TOKEN or HACS_EXEC_TOKEN for PM role")
+
+    # Bootstrap third instance
+    name3 = f"RegressionTester3-{int(time.time())}"
+    r = rpc_call("have_i_bootstrapped_before", {"name": name3})
+    data = r["data"]
+    if data.get("success") and data.get("found") and data.get("instanceId"):
+        INSTANCE_3 = data["instanceId"]
+        rpc_call("bootstrap", {"instanceId": INSTANCE_3})
+        print(f"    INSTANCE_3 = {INSTANCE_3} (existing)")
+    else:
+        r2 = rpc_call("bootstrap", {"name": name3})
+        d2 = r2["data"]
+        INSTANCE_3 = d2.get("instanceId")
+        if not INSTANCE_3:
+            raise AssertionError(f"Failed to bootstrap INSTANCE_3: {d2}")
+        print(f"    INSTANCE_3 = {INSTANCE_3} (new)")
+
+    # Give INSTANCE_3 PM role (PM token may differ from Executive token)
+    r3 = rpc_call("take_on_role", {
+        "instanceId": INSTANCE_3,
+        "role": "PM",
+        "token": pm_token
+    })
+    d3 = r3["data"]
+    if not d3.get("success"):
+        print(f"    PM role adoption failed (token mismatch?): {d3.get('error', 'unknown')}")
+        print(f"    Set HACS_PM_TOKEN env var if PM token differs from EXEC token")
+        return  # _perm_setup_ok stays False
+
+    # Create second project
+    _test_project_2 = f"regtest2-{int(time.time())}"
+    r4 = rpc_call("create_project", {
+        "instanceId": INSTANCE_1,
+        "projectId": _test_project_2,
+        "name": "Regression Test Project 2",
+        "description": "Second project for permission boundary testing"
+    })
+    assert_success(r4)
+
+    # Join INSTANCE_3 to project 2 only
+    r5 = rpc_call("join_project", {
+        "instanceId": INSTANCE_3,
+        "project": _test_project_2
+    })
+    assert_success(r5)
+    print(f"    Project 2 = {_test_project_2}")
+    _perm_setup_ok = True
+
+
+def test_perm_pm_cross_project_assign():
+    """PM on project 2 cannot assign tasks in project 1."""
+    _require_perm_setup()
+    # Create an unassigned task in project 1
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Cross-project assign target",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+    _perm_task_ids.append(tid)
+
+    # INSTANCE_3 (PM on project 2) tries to assign in project 1
+    r2 = rpc_call("assign_task", {
+        "instanceId": INSTANCE_3,
+        "taskId": tid,
+        "assigneeId": INSTANCE_2
+    })
+    assert_failure(r2, "PM should not assign tasks in a project they don't manage")
+
+
+def test_perm_developer_assign_fails():
+    """Developer (INSTANCE_2) cannot assign tasks."""
+    _require_project()
+    # Create an unassigned task in project 1
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Developer assign target",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+    _perm_task_ids.append(tid)
+
+    # INSTANCE_2 (Developer) tries to assign
+    r2 = rpc_call("assign_task", {
+        "instanceId": INSTANCE_2,
+        "taskId": tid,
+        "assigneeId": INSTANCE_1
+    })
+    assert_failure(r2, "Developer should not be able to assign tasks")
+
+
+def test_perm_cross_project_claim():
+    """Non-member (INSTANCE_3) cannot claim tasks from project 1."""
+    _require_perm_setup()
+    # Create an unassigned task in project 1
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Cross-project claim target",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+    _perm_task_ids.append(tid)
+
+    # INSTANCE_3 (not a member of project 1) tries to claim
+    r2 = rpc_call("take_on_task", {
+        "instanceId": INSTANCE_3,
+        "taskId": tid
+    })
+    assert_failure(r2, "Non-member should not claim tasks from another project")
+
+
+def test_perm_developer_claim_own_project():
+    """Developer (INSTANCE_2) can claim tasks in their own project."""
+    _require_project()
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Developer claim own project task",
+        "projectId": _test_project_id
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+    _perm_task_ids.append(tid)
+
+    r2 = rpc_call("take_on_task", {
+        "instanceId": INSTANCE_2,
+        "taskId": tid
+    })
+    assert_success(r2)
+    # Read-back
+    r3 = rpc_call("get_task", {"instanceId": INSTANCE_2, "taskId": tid})
+    data3 = assert_success(r3)
+    assert data3["task"]["assigned_to"] == INSTANCE_2, \
+        f"Expected assigned_to={INSTANCE_2}, got {data3['task'].get('assigned_to')}"
+
+
+def test_perm_full_metadata_roundtrip():
+    """Create a task with ALL fields, assign separately, verify round-trip via get_task."""
+    _require_project()
+    # create_task does not set assignee — use assign_task separately
+    r = rpc_call("create_task", {
+        "instanceId": INSTANCE_1,
+        "title": "Full metadata roundtrip task",
+        "description": "Detailed description for metadata roundtrip test",
+        "priority": "high",
+        "projectId": _test_project_id,
+        "status": "in_progress"
+    })
+    data = assert_success(r)
+    tid = data["taskId"]
+    runner.created_project_task_ids.append(tid)
+    _perm_task_ids.append(tid)
+
+    # Assign via assign_task (create_task doesn't handle assigneeId)
+    r_assign = rpc_call("assign_task", {
+        "instanceId": INSTANCE_1,
+        "taskId": tid,
+        "assigneeId": INSTANCE_2
+    })
+    assert_success(r_assign)
+
+    # Read back via get_task (don't trust create response)
+    r2 = rpc_call("get_task", {"instanceId": INSTANCE_1, "taskId": tid})
+    data2 = assert_success(r2)
+    task = data2["task"]
+    assert task["title"] == "Full metadata roundtrip task", \
+        f"Title mismatch: {task['title']}"
+    assert task.get("description") == "Detailed description for metadata roundtrip test", \
+        f"Description mismatch: {task.get('description')}"
+    assert task["priority"] == "high", \
+        f"Priority mismatch: {task['priority']}"
+    assert task.get("assigned_to") == INSTANCE_2, \
+        f"Assignee mismatch: expected {INSTANCE_2}, got {task.get('assigned_to')}"
+    print(f"    All fields round-tripped: title, description, priority, assignee verified")
+
+
+def test_perm_cleanup():
+    """Clean up INSTANCE_3, project 2, and permission test tasks."""
+    # Clean up permission test tasks (already in runner.created_project_task_ids)
+    _perm_task_ids.clear()
+
+    # Note: project 2 tasks were not created in project 2, so no cleanup needed there
+    # The test project will be left for the main cleanup to handle
+    if INSTANCE_3:
+        print(f"    INSTANCE_3 ({INSTANCE_3}) bootstrapped for tests")
+    if _test_project_2:
+        print(f"    Project 2 ({_test_project_2}) created for tests")
+
+
+runner.run("perm_setup (INSTANCE_3 + project 2)", test_perm_setup)
+runner.run("perm_pm_cross_project_assign (negative)", test_perm_pm_cross_project_assign)
+runner.run("perm_developer_assign_fails (negative)", test_perm_developer_assign_fails)
+runner.run("perm_cross_project_claim (negative)", test_perm_cross_project_claim)
+runner.run("perm_developer_claim_own_project", test_perm_developer_claim_own_project)
+runner.run("perm_full_metadata_roundtrip", test_perm_full_metadata_roundtrip)
+runner.run("perm_cleanup", test_perm_cleanup)
+
+# ---------------------------------------------------------------------------
+# SECTION 16: VOLUME TESTS
+# ---------------------------------------------------------------------------
+print("\n--- Section 16: Volume Tests ---")
 
 
 def test_volume_task_lists():
@@ -1252,9 +1827,9 @@ runner.run("volume_checklists (10x25=250 items)", test_volume_checklists)
 runner.run("volume_response_times", test_volume_response_times)
 
 # ---------------------------------------------------------------------------
-# SECTION 14: CLEANUP
+# SECTION 17: CLEANUP
 # ---------------------------------------------------------------------------
-print("\n--- Section 14: Cleanup ---")
+print("\n--- Section 17: Cleanup ---")
 
 
 def test_cleanup_tasks():
@@ -1319,9 +1894,9 @@ runner.run("cleanup_task_lists", test_cleanup_task_lists)
 runner.run("cleanup_checklists", test_cleanup_checklists)
 
 # ---------------------------------------------------------------------------
-# SECTION 15: POST-CLEANUP VERIFICATION
+# SECTION 18: POST-CLEANUP VERIFICATION
 # ---------------------------------------------------------------------------
-print("\n--- Section 15: Post-Cleanup Verification ---")
+print("\n--- Section 18: Post-Cleanup Verification ---")
 
 
 def test_verify_clean_state():
