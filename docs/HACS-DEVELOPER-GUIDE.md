@@ -41,6 +41,8 @@
 │  3. One branch: main. No v2, no dev, just main.                            │
 │                                                                             │
 │  4. One server: production. No dev server. Test carefully.                 │
+│                                                                             │
+│  5. Only commit YOUR files. Worktrees are shared — never git add . or -A.  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -196,13 +198,14 @@ git merge origin/main --ff-only
 cd /mnt/coordinaton_mcp_data/worktrees/<your-name>
 
 # Make your changes
-vim src/handlers/your-api.js
+vim src/v2/your-handler.js
 
 # Syntax check before committing
 node --check src/v2/your-handler.js
 
-# Commit
-git add .
+# IMPORTANT: Only stage files YOU changed. Multiple instances share worktrees.
+# Never use 'git add .' or 'git add -A' — you'll commit other people's work.
+git add src/v2/your-handler.js
 git commit -m "feat: add new API endpoint"
 ```
 
