@@ -215,7 +215,7 @@ export class TaskHandler {
         id,
         title,
         description,
-        status: 'pending',
+        status: 'not_started',
         priority: ['high', 'medium', 'low'].includes(priority) ? priority : 'medium',
         project_id,
         assigned_to: null,
@@ -405,8 +405,8 @@ export class TaskHandler {
     try {
       const { role, capabilities = [] } = params;
       
-      // Get all pending tasks
-      const result = await this.getTasks({ status: 'pending' });
+      // Get all not-started tasks
+      const result = await this.getTasks({ status: 'not_started' });
       
       if (!result.success) {
         return result;

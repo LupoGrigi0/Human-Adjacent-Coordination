@@ -633,7 +633,7 @@ export async function addPersonalTask(params) {
     title: params.title,
     description: params.description || null,
     priority: ['critical', 'high', 'medium', 'low'].includes(params.priority) ? params.priority : 'medium',
-    status: 'pending',
+    status: 'not_started',
     created: now,
     updated: now
   };

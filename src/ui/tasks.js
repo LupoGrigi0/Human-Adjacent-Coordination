@@ -32,10 +32,10 @@ export async function loadTasks() {
         let allTasks = [];
         const result = await api.getMyTasks(state.instanceId);
         if (result.personalTasks) {
-            // Personal tasks may not have status field from API - default to 'pending'
+            // Personal tasks may not have status field from API - default to 'not_started'
             const personalWithStatus = result.personalTasks.map(task => ({
                 ...task,
-                status: task.status || 'pending',
+                status: task.status || 'not_started',
                 source: 'personal'
             }));
             allTasks = [...allTasks, ...personalWithStatus];
@@ -139,7 +139,7 @@ export async function showTaskDetail(taskId, source = 'tasks') {
             // Normalize personal tasks with default status
             const personalTasks = (result.personalTasks || []).map(t => ({
                 ...t,
-                status: t.status || 'pending',
+                status: t.status || 'not_started',
                 source: 'personal'
             }));
             const projectTasks = (result.projectTasks || []).map(t => ({
@@ -184,7 +184,7 @@ export async function showTaskDetail(taskId, source = 'tasks') {
     document.getElementById('task-detail-title').textContent = task.title;
     document.getElementById('task-detail-priority').textContent = task.priority || 'medium';
     document.getElementById('task-detail-priority').className = `priority-badge priority-${task.priority || 'medium'}`;
-    document.getElementById('task-detail-status').textContent = task.status || 'pending';
+    document.getElementById('task-detail-status').textContent = task.status || 'not_started';
     document.getElementById('task-detail-description').textContent = task.description || 'No description';
     document.getElementById('task-detail-project').textContent = task.project || task.project_id || 'Personal';
     document.getElementById('task-detail-assignee').textContent = task.assignee || task.claimed_by || 'Unassigned';

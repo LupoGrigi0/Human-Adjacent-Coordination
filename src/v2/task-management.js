@@ -632,7 +632,7 @@ export async function createTask(params) {
     title: params.title,
     description: params.description || null,
     priority,
-    status: 'pending',
+    status: 'not_started',
     assigned_to: taskType === 'project' ? 'unassigned' : null,
     created: now,
     updated: now

@@ -169,7 +169,7 @@ export async function showTaskDetail(taskId, addBreadcrumb = true, context = {})
                 <div class="task-detail-header">
                     <h2 class="task-title">${escapeHtml(task.title)}</h2>
                     <span class="task-priority ${getPriorityClass(task.priority)}">${task.priority || 'medium'}</span>
-                    <span class="task-status ${getStatusClass(task.status)}">${task.status || 'pending'}</span>
+                    <span class="task-status ${getStatusClass(task.status)}">${task.status || 'not_started'}</span>
                 </div>
 
                 <div class="task-detail-meta">
