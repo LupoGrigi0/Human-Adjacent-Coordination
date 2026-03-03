@@ -268,7 +268,7 @@ export async function joinProject(instanceId, project) {
     }
 
 /**
- * Create a new project (V2 - requires Executive/PA/COO)
+ * Create a new project (V2 - requires Executive/EA/COO)
  * @param {object} params
  * @param {string} params.instanceId - Caller's instance ID
  * @param {string} params.projectId - Unique project ID
@@ -617,7 +617,7 @@ export async function addDiaryEntry(instanceId, entry, audience = 'self') {
 /**
  * Get all lists for an instance
  * @param {string} instanceId - Caller's instance ID
- * @param {string} [targetInstanceId] - Optional: view another instance's lists (PM/COO/PA only)
+ * @param {string} [targetInstanceId] - Optional: view another instance's lists (PM/COO/EA only)
  */
 export async function getLists(instanceId, targetInstanceId) {
   const params = { instanceId };
@@ -822,7 +822,7 @@ export async function haveIBootstrappedBefore(params) {
 }
 
 /**
- * Pre-approve an instance (requires Executive/PA/COO/PM)
+ * Pre-approve an instance (requires Executive/EA/COO/PM)
  * Creates a pre-approved instance slot that can be woken later.
  * @param {object} params
  * @param {string} params.instanceId - Caller's instance ID

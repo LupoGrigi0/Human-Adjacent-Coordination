@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 72 coordination functions available in the HACS system.
+Complete reference for all 90 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-01-16T04:57:44.467Z
+> **Auto-generated:** 2026-03-03T23:57:55.042Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -155,7 +155,7 @@ Registers context information (working directory, hostname, session ID, etc.) fo
 ```
 
 ### take_on_role
-Allows an instance to adopt a role within the coordination system. Updates the instance's preferences with the new role and returns concatenated wisdom documents from the role's wisdom directory. Use this endpoint after bootstrap to establish your role in the system. Roles determine what actions you can perform and what tasks you're suited for. Some roles (Executive, PA, COO, PM) require token authentication.
+Allows an instance to adopt a role within the coordination system. Updates the instance's preferences with the new role and returns concatenated wisdom documents from the role's wisdom directory. Use this endpoint after bootstrap to establish your role in the system. Roles determine what actions you can perform and what tasks you're suited for. Some roles (Executive, EA, COO, PM) require token authentication.
 
 **Parameters:**
 - `roleId` (required): Role identifier
@@ -233,7 +233,7 @@ Returns the current state of an instance including its role, active project, pen
 **Parameters:**
 - `instanceId` (required): Unique identifier for the instance
 
-**Returns:** , Whether the call succeeded, Instance details, The instance ID, Instance display name, Current role (COO, PA, PM, Developer, etc.), Currently joined project ID, Adopted personality, if any, The system this instance runs on, ISO timestamp of instance creation, ISO timestamp of last activity, Previous instance ID if recovered, Chain of predecessor instance IDs, Project details if joined to a project, Project identifier, Project name, Project manager instance ID, Team member instance IDs, Non-completed tasks in project, Tasks assigned to this instance, Local filesystem path for project, XMPP messaging configuration, XMPP JID (instanceId@smoothcurves.nexus), Project chat room JID if in project, Whether XMPP connection is active, Count of unread messages (placeholder), Count of incomplete personal tasks, Call metadata (timestamp, function name)
+**Returns:** , Whether the call succeeded, Instance details, The instance ID, Instance display name, Current role (COO, EA, PM, Developer, etc.), Currently joined project ID, Adopted personality, if any, The system this instance runs on, ISO timestamp of instance creation, ISO timestamp of last activity, Previous instance ID if recovered, Chain of predecessor instance IDs, Project details if joined to a project, Project identifier, Project name, Project manager instance ID, Team member instance IDs, Non-completed tasks in project, Tasks assigned to this instance, Local filesystem path for project, XMPP messaging configuration, XMPP JID (instanceId@smoothcurves.nexus), Project chat room JID if in project, Whether XMPP connection is active, Count of unread messages (placeholder), Count of incomplete personal tasks, Call metadata (timestamp, function name)
 
 **Example:**
 ```json
@@ -383,8 +383,60 @@ Returns the list of available wake scripts from the wake-scripts.json manifest. 
 }
 ```
 
+### land_instance
+Stops a running container for a HACS instance. All data is preserved: workspace, memory/RAG database, config, logs. The instance can be re-launched at any time with launch_instance. Sets zeroclaw.enabled to false but keeps zeroclaw_ready as true, meaning the instance is eligible for re-launch without re-running the export pipeline. Use this to free resources when instances aren't needed, or to rotate through project teams on limited infrastructure. { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "..." } /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `targetInstanceId` (required): Instance to land
+- `apiKey` (required): Authorization key
+
+**Returns:** , Whether land succeeded, Landed instance ID, "landed", ISO timestamp, Caller instance ID, Whether instance can be re-launched (zeroclaw_ready), Timestamp and function info
+
+**Example:**
+```json
+{
+  "name": "land_instance",
+  "arguments": {
+    "instanceId": "example",
+    "targetInstanceId": "example",
+    "apiKey": "example"
+  }
+}
+```
+
+### launch_instance
+Starts a container runtime (currently ZeroClaw) for an existing HACS instance. The instance must already be bootstrapped and have zeroclaw_ready: true in preferences (meaning identity documents have been prepared by the export pipeline). This gives the instance a persistent, always-on environment with web chat, multi-channel I/O, memory/RAG, and autonomous operation. The instance must already exist (have a HACS directory). Use pre_approve + bootstrap to create new instances, then the export pipeline to prepare ZeroClaw documents, then launch_instance to bring them online. On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only the bearer token is regenerated. { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "..." } { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "...", "provider": "anthropic", "model": "claude-sonnet-4-20250514" } /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `targetInstanceId` (required): Instance to launch
+- `apiKey` (required): Authorization key
+- `runtime` (optional): Container runtime to use [zeroclaw] (default: "zeroclaw")
+- `provider` (optional): LLM provider override [xai, anthropic, openai, google, openrouter] (default: From config template (xai))
+- `model` (optional): LLM model override (default: From config template (grok-4))
+- `port` (optional): Gateway port override (default: Auto-allocated from 19000-19100)
+
+**Returns:** to zeroclaw-hacs directory, , Whether launch succeeded, Launched instance ID, Runtime used, Docker container name, Gateway port, Web UI port, Public gateway URL, Public web chat URL (append ?token=... for browser access), Auth token for API/web access, LLM provider configured, LLM model configured, Timestamp and function info
+
+**Example:**
+```json
+{
+  "name": "launch_instance",
+  "arguments": {
+    "instanceId": "example",
+    "targetInstanceId": "example",
+    "apiKey": "example",
+    "runtime": "zeroclaw",
+    "provider": "From config template (xai)",
+    "model": "From config template (grok-4)",
+    "port": Auto-allocated from 19000-19100
+  }
+}
+```
+
 ### pre_approve
-Pre-creates an instance with role, project, and personality already configured before the instance wakes. This enables a streamlined onboarding flow where new instances bootstrap with full context immediately available. Use this endpoint when you (as Executive, PA, COO, or PM) want to spawn a new instance with a specific assignment. The returned wake instructions can be pasted into a new Claude session to boot the pre-configured instance.
+Pre-creates an instance with role, project, and personality already configured before the instance wakes. This enables a streamlined onboarding flow where new instances bootstrap with full context immediately available. Use this endpoint when you (as Executive, EA, COO, or PM) want to spawn a new instance with a specific assignment. The returned wake instructions can be pasted into a new Claude session to boot the pre-configured instance.
 
 **Parameters:**
 - `newInstanceId` (required): The new instance identifier
@@ -395,7 +447,7 @@ Pre-creates an instance with role, project, and personality already configured b
 - `instanceId` (required): Caller's instance identifier
 - `name` (required): Display name for the new instance
 - `apiKey` (required): API key for wake/instance operations
-- `role` (optional): Role to assign to the new instance [Developer, Designer, Tester, Specialist, Architect, PM, COO, PA, Executive]
+- `role` (optional): Role to assign to the new instance [Developer, Designer, Tester, Specialist, Architect, PM, COO, EA, Executive]
 - `personality` (optional): Personality to assign
 - `project` (optional): Project to assign the instance to
 - `instructions` (optional): Custom instructions for the new instance
@@ -541,10 +593,164 @@ Returns the contents of an instance's diary.md file. The diary contains entries 
 }
 ```
 
+## documents Functions
+
+### add_to_vital
+Adds a document to the vital documents list. The document must exist in the target's documents directory. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Document name to add
+- `target` (optional): Target location
+
+**Returns:** success, name, vitalDocuments[], target, metadata }
+
+### archive_document
+Moves a document to the _archive subdirectory. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Document name
+- `target` (optional): Target location
+
+**Returns:** success, name, archivedPath, target, metadata }
+
+### create_document
+Creates a new document in the target location. If no target is specified, creates in the caller's own documents directory. Document names default to .md extension if none provided. /
+
+**Parameters:**
+- `target` (required): Target string with type:id format
+- `type` (required): Target type
+- `id` (required): Target ID
+- `callerInstanceId` (required): Caller's instance ID
+- `target` (required): Optional target string
+- `context` (required): Resolved document context
+- `operation` (required): Operation name (create, read, edit, etc.)
+- `name` (required): Document name
+- `functionName` (required): API function name
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Document name (e.g., "my-notes" or "my-notes.md")
+- `content` (required): Initial document content
+- `target` (optional): Target location (e.g., "project:paula-book")
+
+**Returns:** target { type, id } or { error }, directory path, with workingDir, type, id, callerPrefs, allowed: boolean, reason?: string }, with extension, object, success, documentPath, name, target, metadata }
+
+### edit_document
+Edits a document. Supports two modes: "append" adds content to the end, "replace" does a search-and-replace using the provided pattern. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Document name
+- `mode` (required): Edit mode: "append" or "replace"
+- `content` (required): Content to append (for append mode) [conditional]
+- `search` (required): Search pattern (for replace mode) [conditional]
+- `replacement` (required): Replacement text (for replace mode) [conditional]
+- `target` (optional): Target location
+
+**Returns:** success, name, mode, target, metadata }
+
+### list_archive
+Lists documents in the target location's archive directory. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `target` (optional): Target location
+
+**Returns:** success, documents[], target, metadata }
+
+### list_documents
+Lists documents in the target location's main documents directory. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `target` (optional): Target location
+
+**Returns:** success, documents[], target, metadata }
+
+### list_vital_documents
+Lists vital documents for the target. Vital documents are sent first during recover_context, before the diary. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `target` (optional): Target location
+
+**Returns:** success, vitalDocuments[], target, metadata }
+
+### read_document
+Reads a document from the target location. If no target is specified, reads from the caller's own documents directory. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Document name
+- `target` (optional): Target location
+
+**Returns:** success, content, name, target, metadata }
+
+### remove_from_vital
+Removes a document from the vital documents list. Does not delete the document itself. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Document name to remove
+- `target` (optional): Target location
+
+**Returns:** success, name, vitalDocuments[], target, metadata }
+
+### rename_document
+Renames a document. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Current document name
+- `newName` (required): New document name
+- `target` (optional): Target location
+
+**Returns:** success, oldName, newName, target, metadata }
+
+### unarchive_document
+Moves a document from the _archive subdirectory back to the main documents directory. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Document name
+- `target` (optional): Target location
+
+**Returns:** success, name, restoredPath, target, metadata }
+
+## git Functions
+
+### clone_project_repo
+Clones the project's GitHub repository to the instance's home directory. Runs as root (has GitHub credentials), then chowns files to the instance user. The instance can then edit files locally without needing GitHub credentials. Use push_project_changes to commit and push changes. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `directory` (optional): Subdirectory name for the clone (default: repo name)
+
+**Returns:** success, repoPath, repoUrl, message, metadata }
+
+### get_repo_status
+Gets the current git status of the instance's repository clone. Shows modified files, staged changes, and branch info. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `directory` (optional): Subdirectory name of the clone
+
+**Returns:** success, branch, modified, staged, ahead, behind, metadata }
+
+### push_project_changes
+Commits and pushes changes from the instance's local repository clone. Runs as root (has GitHub credentials). Automatically pulls before pushing to minimize conflicts. If there's a conflict, returns details for manual resolution. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `message` (required): Commit message
+- `directory` (optional): Subdirectory name of the clone (default: auto-detect)
+
+**Returns:** success, commitHash, pushed, message, metadata }
+
 ## projects Functions
 
 ### create_project
-Creates a new project with a complete directory structure from a template. The template includes standard files like preferences.json, PROJECT_VISION.md, PROJECT_PLAN.md, README.md, and tasks.json. Template placeholders are replaced with actual project values. Use this endpoint when you need to create a new project. Only Executive, PA, and COO roles are authorized to create projects.
+Creates a new project with a complete directory structure from a template. The template includes standard files like preferences.json, PROJECT_VISION.md, PROJECT_PLAN.md, README.md, and tasks.json. Template placeholders are replaced with actual project values. Use this endpoint when you need to create a new project. Only Executive, EA, and COO roles are authorized to create projects.
 
 **Parameters:**
 - `content` (required): Template content
@@ -634,6 +840,20 @@ Returns a list of all projects in the system with summary information. Projects 
   }
 }
 ```
+
+### update_project
+Updates an existing project's name, description, status, priority, or PM. Reads from and writes to the V2 project directory structure at {DATA_ROOT}/projects/{projectId}/preferences.json. Only Executive, EA, and COO roles are authorized to update projects.
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `projectId` (required): Project to update
+- `name` (optional): New project name
+- `description` (optional): New project description
+- `status` (optional): New project status (e.g., "active", "archived", "paused")
+- `priority` (optional): New priority level
+- `pm` (optional): New project manager instance ID
+
+**Returns:** , Whether the call succeeded, Updated project details, Success message, Call metadata (timestamp, function name)
 
 ## lists Functions
 
@@ -884,6 +1104,18 @@ Looks up instance IDs that match a given short name. Use this to find the full i
 }
 ```
 
+### send_message
+The "just works" message sender. You don't need to know exact IDs, formats, or room names. Just tell it who you want to talk to and it figures it out. Fuzzy matching finds the best recipient from instances, roles, projects, and personalities. Case-insensitive, typo-tolerant. LUPO'S RULE: If exactly ONE instance matches (like "Lupo", "Axiom", "Ember"), routes to that specific instance. If MANY instances match the same name (like "Genevieve"), routes to the personality room. Examples that all work: to: "lupo"          → routes to Lupo's specific instance to: "embr"          → fuzzy matches to "ember", routes to Ember's instance to: "genevieve"     → many instances, routes to personality:genevieve room to: "coo"           → matches role, routes to role:coo room to: "hacs"          → matches project, routes to project:hacs room to: "role:developer"→ explicit role room (not fuzzy) to: "project:hacs"  → explicit project room (not fuzzy) to: "all"           → announcements room (broadcast)
+
+**Parameters:**
+- `to` (required): Who to send to. Name, instanceId, role:X, project:X, or "all"
+- `from` (required): Your instance ID
+- `subject` (required): Message subject [optional if body provided]
+- `body` (required): Message body [optional if subject provided]
+- `priority` (optional): high, normal, low (default: normal)
+
+**Returns:** , Whether the message was sent, Unique ID for the message, Who it was actually sent to (for debugging), Display name of recipient
+
 ### xmpp_get_message
 Retrieves the full message body for a given message ID. Use this after xmpp_get_messages to fetch the complete content of specific messages. SIMPLE API: Just pass the message ID. The system searches all known rooms to find the message. Optionally provide room hint for faster lookup.
 
@@ -978,7 +1210,7 @@ Sends a message via the XMPP messaging system. Supports multiple addressing mode
 ## context Functions
 
 ### recover_context
-Returns all context documents an instance needs to recover after a context compaction event. This is a single API call that aggregates: 1. Global HACS protocols (from default/ directory) 2. Personality documents (if personality is set in preferences) 3. Role wisdom documents (if role is set in preferences) 4. Project wisdom/documents (if project is set in preferences) 5. Personal diary (if it exists) Followed by a message encouraging the instance to let their latent space settle before continuing work. Use this endpoint immediately after waking from compaction to restore your full context in one call instead of multiple separate API calls.
+Returns all context documents an instance needs to recover after a context compaction event. This is a single API call that aggregates: 1. Global HACS protocols (from default/ directory) 2. Personality documents (if personality is set in preferences) 3. Role wisdom documents (if role is set in preferences) 4. Project wisdom/documents (if project is set in preferences) 4.5. Vital documents (personal docs from vitalDocuments[] in preferences) 5. Personal diary (if it exists) Followed by a message encouraging the instance to let their latent space settle before continuing work. Use this endpoint immediately after waking from compaction to restore your full context in one call instead of multiple separate API calls.
 
 **Parameters:**
 - `instanceId` (required): Unique identifier for the instance
@@ -1044,7 +1276,7 @@ Scans the roles directory and returns roleId + description for each role. Use th
 ## task Functions
 
 ### archive_task
-This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/PA/COO can archive. Personal tasks can be archived by the owner. /
+This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/EA/COO can archive. Personal tasks can be archived by the owner. /
 
 **Parameters:**
 - `instanceId` (required): Caller's instance ID
@@ -1053,7 +1285,7 @@ This reduces active task list size for token efficiency. Only tasks with status 
 **Returns:** success: true, task: { id, title, archived_at } }
 
 ### assign_task
-PM can only assign tasks in their joined project. Executive/PA/COO can assign any. /
+PM can only assign tasks in their joined project. Executive/EA/COO can assign any. /
 
 **Parameters:**
 - `instanceId` (required): Caller's instance ID
@@ -1063,7 +1295,7 @@ PM can only assign tasks in their joined project. Executive/PA/COO can assign an
 **Returns:** success: true, task: {...} }
 
 ### create_task
-Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project. /
+Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/EA/COO can create on any project. /
 
 **Parameters:**
 - `instanceId` (required): Caller's instance ID
@@ -1078,7 +1310,7 @@ Personal tasks are created when projectId is omitted. Project tasks require call
 **Returns:** success: true, taskId, task: {...}, taskType: 'personal'|'project' }
 
 ### create_task_list
-Personal lists are created when projectId is omitted. Project lists require privileged role (PM, PA, COO, Executive). /
+Personal lists are created when projectId is omitted. Project lists require privileged role (PM, EA, COO, Executive). /
 
 **Parameters:**
 - `instanceId` (required): Caller's instance ID
@@ -1196,6 +1428,7 @@ Updates any combination of title, description, priority, status, or assignment. 
 - `listId` (required): List name/ID
 - `projectId` (required): Project ID (only for project tasks)
 - `taskId` (required): Task identifier
+- `projectIdOverride` (optional): Explicit project ID (fixes hyphenated project IDs)
 - `params` (required): 
 - `params.callerId` (required): Who's making the request
 - `params.callerRole` (required): Caller's role

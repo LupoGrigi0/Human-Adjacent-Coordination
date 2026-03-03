@@ -37,7 +37,7 @@ const DEFAULT_EXTENSION = '.md';
 // Roles that can access any documents
 const PRIVILEGED_ROLES = ['COO', 'Executive'];
 // Roles that can modify role/personality documents
-const ADMIN_ROLES = ['COO', 'PA', 'Executive'];
+const ADMIN_ROLES = ['COO', 'EA', 'Executive'];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -221,7 +221,7 @@ async function checkDocumentPermission(context, operation) {
     }
   }
 
-  // PA can modify role/personality documents
+  // EA can modify role/personality documents
   if (type === TARGET_TYPES.ROLE || type === TARGET_TYPES.PERSONALITY) {
     if (ADMIN_ROLES.includes(callerRole)) {
       console.log(`[DOCUMENTS] Permission GRANTED: admin role for ${type}`);

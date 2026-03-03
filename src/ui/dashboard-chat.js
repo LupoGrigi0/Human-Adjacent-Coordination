@@ -1,5 +1,5 @@
 /**
- * Dashboard PA Chat — Genevieve chat panel
+ * Dashboard EA Chat — Genevieve chat panel
  *
  * Fetches messages from XMPP, renders bubble list,
  * sends messages to Genevieve.

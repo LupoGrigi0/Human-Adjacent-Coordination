@@ -53,7 +53,7 @@ import { XMPP_CONFIG } from './messaging.js';
  * @returns {object} .instance - Instance details
  * @returns {string} .instance.instanceId - The instance ID
  * @returns {string} .instance.name - Instance display name
- * @returns {string} .instance.role - Current role (COO, PA, PM, Developer, etc.)
+ * @returns {string} .instance.role - Current role (COO, EA, PM, Developer, etc.)
  * @returns {string|null} .instance.project - Currently joined project ID
  * @returns {string|null} .instance.personality - Adopted personality, if any
  * @returns {string} .instance.homeSystem - The system this instance runs on

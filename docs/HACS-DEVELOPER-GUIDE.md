@@ -506,16 +506,16 @@ Permissions are in `/mnt/coordinaton_mcp_data/permissions/permissions.json`:
 
 ```json
 {
-  "createProject": ["Executive", "PA", "COO"],
-  "preApprove": ["Executive", "PA", "COO", "PM"],
-  "wakeInstance": ["Executive", "PA", "COO", "PM"]
+  "createProject": ["Executive", "EA", "COO"],
+  "preApprove": ["Executive", "EA", "COO", "PM"],
+  "wakeInstance": ["Executive", "EA", "COO", "PM"]
 }
 ```
 
 ### Privileged Roles (require tokens)
 
 - **Executive** - `EXECUTIVE_TOKEN`
-- **PA** - `PA_TOKEN`
+- **EA** - `EA_TOKEN`
 - **COO** - `COO_TOKEN`
 - **PM** - `PM_TOKEN`
 

@@ -184,7 +184,7 @@ async function executeInterface(command, workingDir, args, unixUser, timeout = 3
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions role:Executive|role:PA|role:COO|role:PM
+ * @permissions role:Executive|role:EA|role:COO|role:PM
  * @rateLimit 10/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ async function executeInterface(command, workingDir, args, unixUser, timeout = 3
  *   @recover Verify your own instanceId is correct. If new, call bootstrap first.
  *
  * @error UNAUTHORIZED - Caller's role cannot call wakeInstance
- *   @recover Only Executive, PA, COO, and PM roles can wake instances. Request
+ *   @recover Only Executive, EA, COO, and PM roles can wake instances. Request
  *            appropriate role from your manager or use preApprove flow.
  *
  * @error INSTANCE_NOT_FOUND - Target instance not found

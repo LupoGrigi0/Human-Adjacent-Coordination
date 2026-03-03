@@ -34,7 +34,7 @@ const STATUS_COLORS = {
 
 const ROLE_ICONS = {
     Executive: '\u2605',  // star
-    PA: '\u2665',         // heart
+    EA: '\u2665',         // heart
     COO: '\u2696',        // scales
     PM: '\u2731',         // compass-ish
     Developer: '\u2699',  // gear
@@ -44,7 +44,7 @@ const ROLE_ICONS = {
     Specialist: '\u2726'  // star-4
 };
 
-const PRIVILEGED_ROLES = ['Executive', 'PA', 'COO', 'PM'];
+const PRIVILEGED_ROLES = ['Executive', 'EA', 'COO', 'PM'];
 
 // ============================================================================
 // MAIN RENDER
@@ -233,7 +233,7 @@ function getInitials(name) {
 function getRoleColor(role) {
     const colors = {
         Executive: '#f0883e',
-        PA: '#bc8cff',
+        EA: '#bc8cff',
         COO: '#8b949e',
         PM: '#58a6ff',
         Developer: '#3fb950',

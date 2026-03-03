@@ -271,7 +271,7 @@ function findTaskInFile(taskData, taskId) {
  * Rules:
  * - Personal tasks: only owner can edit
  * - Project tasks:
- *   - Executive, PA, COO can edit any task in any project
+ *   - Executive, EA, COO can edit any task in any project
  *   - PM can only edit tasks in their joined project
  *   - Project members can edit their own assigned tasks
  *   - Assigning to someone else requires privileged role
@@ -289,7 +289,7 @@ function findTaskInFile(taskData, taskId) {
 async function checkTaskEditPermissions(params) {
   const { callerId, callerRole, callerProject, task, taskType, projectId, changes } = params;
 
-  const isHighPrivilege = ['Executive', 'PA', 'COO'].includes(callerRole);
+  const isHighPrivilege = ['Executive', 'EA', 'COO'].includes(callerRole);
   const isPM = callerRole === 'PM';
 
   // Personal tasks: only owner can edit
@@ -300,7 +300,7 @@ async function checkTaskEditPermissions(params) {
 
   // Project tasks
   if (taskType === 'project') {
-    // Executive, PA, COO can do anything in any project
+    // Executive, EA, COO can do anything in any project
     if (isHighPrivilege) {
       return { allowed: true };
     }
@@ -343,7 +343,7 @@ async function checkTaskEditPermissions(params) {
     if (isAssigningToOther) {
       return {
         allowed: false,
-        reason: 'Only privileged roles (Executive, PA, COO, PM) can assign tasks to others. Ask the PM to do this.'
+        reason: 'Only privileged roles (Executive, EA, COO, PM) can assign tasks to others. Ask the PM to do this.'
       };
     }
 
@@ -534,7 +534,7 @@ export async function updateTask(params) {
  * @description Creates a new task, either personal or on a project.
  * Personal tasks are created when projectId is omitted.
  * Project tasks require caller to be a member of the project (or have privileged role).
- * PM can only create tasks on their joined project. Executive/PA/COO can create on any project.
+ * PM can only create tasks on their joined project. Executive/EA/COO can create on any project.
  *
  * @param {string} instanceId - Caller's instance ID [required]
  * @param {string} title - Task title, short one-line description [required]
@@ -667,7 +667,7 @@ export async function createTask(params) {
  * @status stable
  * @description Creates a new named task list for personal or project tasks.
  * Personal lists are created when projectId is omitted.
- * Project lists require privileged role (PM, PA, COO, Executive).
+ * Project lists require privileged role (PM, EA, COO, Executive).
  *
  * @param {string} instanceId - Caller's instance ID [required]
  * @param {string} listId - Name for the new list [required]
@@ -850,7 +850,7 @@ export async function listTasks(params) {
  * @category task
  * @status stable
  * @description Assigns a project task to a specific instance. Privileged roles only.
- * PM can only assign tasks in their joined project. Executive/PA/COO can assign any.
+ * PM can only assign tasks in their joined project. Executive/EA/COO can assign any.
  *
  * @param {string} instanceId - Caller's instance ID [required]
  * @param {string} taskId - Task ID to assign [required]
@@ -1456,7 +1456,7 @@ export async function markTaskVerified(params) {
  * @description Archives a completed_verified task by moving it to TASK_ARCHIVE.json.
  * This reduces active task list size for token efficiency.
  * Only tasks with status 'completed_verified' can be archived.
- * For project tasks: only PM of that project, or Executive/PA/COO can archive.
+ * For project tasks: only PM of that project, or Executive/EA/COO can archive.
  * Personal tasks can be archived by the owner.
  * @param {string} instanceId - Caller's instance ID [required]
  * @param {string} taskId - Task ID to archive [required]
@@ -1505,9 +1505,9 @@ export async function archiveTask(params) {
     const projectPrefs = await readJSON(path.join(getProjectDir(parsed.projectId), 'project.json')) ||
                          await readJSON(path.join(getProjectDir(parsed.projectId), 'preferences.json'));
 
-    // Only PM of this project, or Executive/PA/COO can archive
+    // Only PM of this project, or Executive/EA/COO can archive
     const isPM = callerRole === 'PM';
-    const isHighPrivilege = ['Executive', 'PA', 'COO'].includes(callerRole);
+    const isHighPrivilege = ['Executive', 'EA', 'COO'].includes(callerRole);
     const isProjectPM = isPM && callerPrefs.project === parsed.projectId;
 
     if (!isProjectPM && !isHighPrivilege) {
@@ -1515,7 +1515,7 @@ export async function archiveTask(params) {
         success: false,
         error: {
           code: 'UNAUTHORIZED',
-          message: 'Only the project PM or Executive/PA/COO can archive project tasks'
+          message: 'Only the project PM or Executive/EA/COO can archive project tasks'
         },
         metadata
       };

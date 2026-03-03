@@ -1,12 +1,12 @@
 /**
  * EA Proxy - Executive Assistant acting as Executive
  *
- * Middleware that allows the EA/PA role to manage the Executive's
+ * Middleware that allows the EA role to manage the Executive's
  * personal tasks, lists, documents, and diary by swapping instanceIds.
  *
  * Usage: Any API call with { ea_proxy: true } will have the EA's
  * instanceId replaced with the Executive's instanceId after verifying
- * the caller has EA/PA role.
+ * the caller has EA role.
  *
  * @module ea-proxy
  * @author Ember <ember-75b6@smoothcurves.nexus>
@@ -42,7 +42,7 @@ export async function getExecutiveInstanceId() {
 }
 
 /**
- * Verify caller has EA/PA role and resolve the Executive's instanceId.
+ * Verify caller has EA role and resolve the Executive's instanceId.
  */
 async function resolveEA(callerInstanceId) {
   const callerPrefs = await readPreferences(callerInstanceId);
@@ -52,7 +52,7 @@ async function resolveEA(callerInstanceId) {
 
   const role = callerPrefs.role;
   // COO can also proxy, but may want to restrict later
-  if (!['PA', 'EA', 'COO'].includes(role)) {
+  if (!['EA', 'COO'].includes(role)) {
     return { allowed: false, error: `Role '${role}' is not authorized for EA proxy` };
   }
 

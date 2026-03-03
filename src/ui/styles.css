@@ -4513,7 +4513,7 @@ body {
 .li-text { flex: 1; }
 .li-text.checked { text-decoration: line-through; color: var(--text-muted); }
 
-/* ====== PA CHAT ====== */
+/* ====== EA CHAT ====== */
 .pa-chat {
     background: var(--surface-color);
     border: 1px solid var(--border-color);

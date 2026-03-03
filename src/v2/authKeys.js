@@ -122,7 +122,7 @@ function getRecoveryKeyPath(instanceId) {
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions role:Executive|role:PA|role:COO|role:PM
+ * @permissions role:Executive|role:EA|role:COO|role:PM
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ function getRecoveryKeyPath(instanceId) {
  *   @recover Specify which instance you're generating a key for
  *
  * @error UNAUTHORIZED - Caller's role cannot generate recovery keys
- *   @recover Only Executive, PA, COO, or PM can generate keys.
+ *   @recover Only Executive, EA, COO, or PM can generate keys.
  *            Contact someone with a privileged role.
  *
  * @error INVALID_TARGET - Target instance does not exist
@@ -197,14 +197,14 @@ export async function generateRecoveryKey(params) {
     };
   }
 
-  // Check permissions - only Executive, PA, COO, PM can generate keys
+  // Check permissions - only Executive, EA, COO, PM can generate keys
   const allowed = await canInstanceCallAPI(params.instanceId, 'generateRecoveryKey');
   if (!allowed) {
     return {
       success: false,
       error: {
         code: 'UNAUTHORIZED',
-        message: 'Only Executive, PA, COO, or PM can generate recovery keys',
+        message: 'Only Executive, EA, COO, or PM can generate recovery keys',
         suggestion: 'Contact an authorized role to generate this key'
       },
       metadata
@@ -314,7 +314,7 @@ export async function generateRecoveryKey(params) {
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions role:Executive|role:PA|role:COO|role:PM
+ * @permissions role:Executive|role:EA|role:COO|role:PM
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -324,7 +324,7 @@ export async function generateRecoveryKey(params) {
  *   @recover Include both instanceId and targetInstanceId in your request
  *
  * @error UNAUTHORIZED - Caller's role cannot access recovery keys
- *   @recover Only Executive, PA, COO, or PM can view key info.
+ *   @recover Only Executive, EA, COO, or PM can view key info.
  *            Contact someone with a privileged role.
  *
  * @error KEY_NOT_FOUND - No recovery key exists for the target instance
@@ -380,7 +380,7 @@ export async function getRecoveryKey(params) {
       success: false,
       error: {
         code: 'UNAUTHORIZED',
-        message: 'Only Executive, PA, COO, or PM can retrieve recovery keys'
+        message: 'Only Executive, EA, COO, or PM can retrieve recovery keys'
       },
       metadata
     };
@@ -533,7 +533,7 @@ export async function invalidateRecoveryKey(targetInstanceId) {
  * role keys are permanent passwords stored in plaintext files and can be
  * used multiple times.
  *
- * Role keys are required for privileged roles: Executive, PA, COO, PM.
+ * Role keys are required for privileged roles: Executive, EA, COO, PM.
  * The keys are stored in {AUTH_KEYS_DIR}/roles/{role}.key files.
  *
  * This is NOT exposed as an API endpoint - it's called internally by

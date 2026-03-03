@@ -447,7 +447,7 @@ async function buildCurrentContext(prefs) {
  *            fingerprint, or use a recovery key if you have one.
  *
  * @error INVALID_AUTH_KEY - Recovery key is invalid, expired, or already used
- *   @recover Contact an authorized role (COO, PA) to generate a new recovery key
+ *   @recover Contact an authorized role (COO, EA) to generate a new recovery key
  *            for your instance using generate_recovery_key endpoint.
  *
  * ───────────────────────────────────────────────────────────────────────────

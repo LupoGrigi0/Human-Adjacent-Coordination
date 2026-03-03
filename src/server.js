@@ -93,7 +93,7 @@ import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/i
 import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
 import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
 import { updateInstance } from './v2/updateInstance.js';
-// EA Proxy - lets EA/PA manage Executive's personal data
+// EA Proxy - lets EA manage Executive's personal data
 import { eaProxy } from './v2/ea-proxy.js';
 // V2 Lists (personal checklists with Executive visibility)
 import {

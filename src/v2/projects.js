@@ -63,7 +63,7 @@ function replaceTemplatePlaceholders(content, values) {
  * PROJECT_PLAN.md, README.md, and tasks.json. Template placeholders are replaced
  * with actual project values.
  *
- * Use this endpoint when you need to create a new project. Only Executive, PA,
+ * Use this endpoint when you need to create a new project. Only Executive, EA,
  * and COO roles are authorized to create projects.
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ function replaceTemplatePlaceholders(content, values) {
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions role:Executive|role:PA|role:COO
+ * @permissions role:Executive|role:EA|role:COO
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ function replaceTemplatePlaceholders(content, values) {
  *   @recover Call take_on_role to assign yourself a role before creating projects.
  *
  * @error UNAUTHORIZED - Role not authorized to create projects
- *   @recover Only Executive, PA, or COO roles can create projects. Contact your
+ *   @recover Only Executive, EA, or COO roles can create projects. Contact your
  *            COO or request appropriate role elevation.
  *
  * @error PROJECT_EXISTS - Project with this ID already exists
@@ -214,7 +214,7 @@ export async function createProject(params) {
     };
   }
 
-  // Check authorization - only Executive, PA, COO can create projects
+  // Check authorization - only Executive, EA, COO can create projects
   const instanceRole = prefs.role;
   if (!instanceRole) {
     return {
@@ -233,7 +233,7 @@ export async function createProject(params) {
       success: false,
       error: {
         code: 'UNAUTHORIZED',
-        message: `Role '${instanceRole}' is not authorized to create projects. Required: Executive, PA, or COO.`
+        message: `Role '${instanceRole}' is not authorized to create projects. Required: Executive, EA, or COO.`
       },
       metadata
     };
@@ -628,7 +628,7 @@ export async function listProjects(params = {}) {
  * Reads from and writes to the V2 project directory structure at
  * {DATA_ROOT}/projects/{projectId}/preferences.json.
  *
- * Only Executive, PA, and COO roles are authorized to update projects.
+ * Only Executive, EA, and COO roles are authorized to update projects.
  *
  * ───────────────────────────────────────────────────────────────────────────
  * PARAMETERS
@@ -653,7 +653,7 @@ export async function listProjects(params = {}) {
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions role:Executive|role:PA|role:COO
+ * @permissions role:Executive|role:EA|role:COO
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -714,7 +714,7 @@ export async function updateProject(params) {
     };
   }
 
-  // PM can update pmStatus on their own project; Executive/PA/COO can update anything
+  // PM can update pmStatus on their own project; Executive/EA/COO can update anything
   const isPMOnProject = instanceRole === 'PM' && callerPrefs.project === params.projectId;
   const authorized = await canRoleCallAPI(instanceRole, 'createProject');
   if (!authorized && !isPMOnProject) {
@@ -722,7 +722,7 @@ export async function updateProject(params) {
       success: false,
       error: {
         code: 'UNAUTHORIZED',
-        message: `Role '${instanceRole}' is not authorized to update projects. Required: Executive, PA, COO, or PM (own project).`
+        message: `Role '${instanceRole}' is not authorized to update projects. Required: Executive, EA, COO, or PM (own project).`
       },
       metadata
     };

@@ -26,7 +26,7 @@ import * as uiConfig from './ui-config.js';
  * Privileged roles that require promotion tokens
  * These are hidden from Wake dropdown (but available in Pre-approve for creating new instances)
  */
-const PRIVILEGED_ROLES = ['PM', 'PA', 'COO', 'Executive'];
+const PRIVILEGED_ROLES = ['PM', 'EA', 'COO', 'Executive'];
 
 // ============================================================================
 // INSTANCE LOADING
@@ -438,7 +438,7 @@ export async function populateWakeDropdowns() {
     }
 
     // Filter out privileged roles from Wake dropdown
-    // Privileged roles (PM, PA, COO, Executive) require promotion tokens
+    // Privileged roles (PM, EA, COO, Executive) require promotion tokens
     const nonPrivilegedRoles = state.availableRoles.filter(r => {
         const roleId = r.id || r;
         return !PRIVILEGED_ROLES.includes(roleId);

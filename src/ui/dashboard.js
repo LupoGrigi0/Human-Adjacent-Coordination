@@ -1,7 +1,7 @@
 /**
  * Dashboard v2 — Executive Dashboard
  *
- * Orchestrator module. Calls sub-modules for heatmaps, chart, and PA chat.
+ * Orchestrator module. Calls sub-modules for heatmaps, chart, and EA chat.
  * Settings persisted in localStorage('v2_dashboard').
  *
  * @module dashboard

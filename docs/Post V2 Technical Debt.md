@@ -33,8 +33,8 @@ For codex and claude there is a ~root/.codex or ~root/.claude directory respecti
 
 
 # API's left out
--[ ] get personality wisdom files, like get role wisdom files, returns the list of wisdom files for personality without adopting personality, primarily used by the UI and COO/PM/PA when crafting personalities or addingto/enhancing wisdom
--[ ] get project wisdom files like get role wisdom files, returns the project documents .. without joining a project.  primarily used by the UI and COO/PM/PA when crafting personalities or addingto/enhancing wisdom
+-[ ] get personality wisdom files, like get role wisdom files, returns the list of wisdom files for personality without adopting personality, primarily used by the UI and COO/PM/EA when crafting personalities or addingto/enhancing wisdom
+-[ ] get project wisdom files like get role wisdom files, returns the project documents .. without joining a project.  primarily used by the UI and COO/PM/EA when crafting personalities or addingto/enhancing wisdom
 -[ ] API RENAME pass.. please change all get_PLURAL to list_SINGULAR
 -[ ] CAN MCP functions be defined as OBJECTS? Can we have list.get task.get role.takeOn project.join
 
@@ -55,14 +55,14 @@ and "memories" RAG might not be the best tech?
 # new lupo request DOCUMENTS
 ***another "type" like lists,tasks,projects**
 -[ ] Like lists and tasks, projects have a list of documents, and individuals have a list of documents
--[ ] roles have documents and personalities have documents, but only COO/PA/Executive can perform operations on role and personality documents
+-[ ] roles have documents and personalities have documents, but only COO/EA/Executive can perform operations on role and personality documents
 -[ ] projects already have a documents list, the project documents listed in the project's preferences.json is the list of documents that get "fed" to anyone who joins the project. these are "vital" documents. 
 -[ ] open question. Right now individual instances do not have "vital" docuemnts like projects. Do we add support for individuals to have vital documents just like projects (and roles and personalities) an individual can list/add/remove their own vital documents, the only thing this does is when recover_context is called the diary and vital documents are sent. vital documents are sent before diary, vital documents sent first when recover_context called. The idea here is that an instance can write their own gestalt as a document, add it to vital documents, and then when recover_context is called their own gestalt will be returnd first. 
 -[ ] Documents can be added, edited, renamed, archived, unarchived, listed, list_archive, list_vital, add_to_vital, remove_from_vital
 -[ ] NOTE ADD takes an optional "audience" flag. Audience. At the moment the only supported attributes are non-personal and PERSONAL
 -[ ] Permissions/restrictions: ONLY COO/Executive can add/edit/rename/archive project documents, PM can also do these things to _their own_ project. anyone can _read_ project documents
 an individual instance can only add/edit/rename/archive their own documents. 
-With exception Executive and COO can add/edit/rename/archive any project or individual document EXCEPT IF IT IS marked PERSONAL personal documents are sacred. PM/PA/COO/Executive do not get to see private documents. if a personal document is marked private, it will only listed by list documents when called by the owning instance. 
+With exception Executive and COO can add/edit/rename/archive any project or individual document EXCEPT IF IT IS marked PERSONAL personal documents are sacred. PM/EA/COO/Executive do not get to see private documents. if a personal document is marked private, it will only listed by list documents when called by the owning instance. 
 -[ ] These calls are _simple_ nothing fancy, just create,rename, files in the user's home directory or project home directory, edit should take a flag that is "apped" or "SED_REGEX" (OR another editor that takes search and replace parameters on the command line? awk?) and a string, if the flag is append just cat>>file (append), sed_regex sends the string to sed and any other flag/editor. NOTE assume linux utilities
 -[ ] Archive a document, creates an archive sub directory if one does not already exist and mv's the document to the archive sub directory
 List archive just does that,  list docs only for the archive sub directory, unarchive just moves archived file out of the archive subdir and into the homedir.
@@ -206,7 +206,7 @@ or do we research if codex threads can run in different directories with differe
 -[ ] run claude codex, cursh in remote app server mode. this, like above, instead of wake and continue SSHing to remote host, Wake ssh's to remote host and start's remote instance in app/web server mode. All continue messages are HTTP requests to remote IPaddress/port. 
 ---
 # Lupo request UI re-design
-there really are 2 different sets of use cases for the UI, personal management, wich is lists and tasks focused, personal lists, personal task lists, what personal priorities are at the moment, for the day, etc. and then there is like Executive focus wich is projects, messages, focused figuring out what status various projects are what blockers are, the first use case is primarily working with Genevieve/PA and the second use case is primarily working with COO and the various project PMs. It's like I need to dashboard views, one for each set of use cases, the personal management has communication with PA integrated into the same view as my task lists, whatever project is my priority in the moment, and my last used list (usually shopping)
+there really are 2 different sets of use cases for the UI, personal management, wich is lists and tasks focused, personal lists, personal task lists, what personal priorities are at the moment, for the day, etc. and then there is like Executive focus wich is projects, messages, focused figuring out what status various projects are what blockers are, the first use case is primarily working with Genevieve/EA and the second use case is primarily working with COO and the various project PMs. It's like I need to dashboard views, one for each set of use cases, the personal management has communication with EA integrated into the same view as my task lists, whatever project is my priority in the moment, and my last used list (usually shopping)
 Then a "project Dashboard" that has project cards that let me click into detail view of any project. I will have personal projects that won't necessarily even have a PM, just a bunch of tasks for me. 
 # Urgent Need
 For projects, personalities, roles, I need a way to view the documents that are returned by bootstrap, join project, adopt personality and take on role. roles and personalities should be in settings, prefereably a button that takes me to a card page for each personality/role that has the role name and short description, then clicking on the card shows me the list of documents. ideally I could edit the documents. I, and PM/COO need to be able to see what documents are returned by join/adopt/take on without actually changing our project/role/personality. 3
@@ -274,7 +274,7 @@ edit task (taskID field:value)
 edit project (projectID field:value) change name, description, priority of a project
 - [ ] list personalities needs to indicate if the personality is protected. 
  
-assign instance to project (InstanceID projectID) (Executive, COO, PM, PA) NOTE. the assigned instance will be sent a message telling them they have been assigned, and asking them to join the project, which will give them the project documents. 
+assign instance to project (InstanceID projectID) (Executive, COO, PM, EA) NOTE. the assigned instance will be sent a message telling them they have been assigned, and asking them to join the project, which will give them the project documents. 
 - [ ] **introspect.js lines 212, 227** - Comments say "placeholder - messaging is Sprint 3" but Sprint 3 is complete
   - `unreadMessages` hardcoded to 0 (should call real messaging API)
   - `xmpp.online` hardcoded to true (should check real XMPP status)
@@ -370,7 +370,7 @@ itimize prioritize (prioritize in priority order)
 itimize intent
 itimize goals (in priority order)
 workshop metaphore
-company metaphore, executive, PA, COO, PMs, specialists
+company metaphore, executive, EA, COO, PMs, specialists
 
 ## The Full Flow Test (Moonshot++)
 - [ ] Can a "blind" instance connect (no prior context), initialize, get auth key?
@@ -452,7 +452,7 @@ Create a persona document for each user type. Use standard persona format:
 
 **Personas to Create:**
 - [ ] **Lupo** - Human maker, accesses via Web UI and terminal, wants to create art not manage infrastructure
-- [ ] **Genevieve/PA** - Personal assistant, accesses via various interfaces, handles human complexity
+- [ ] **Genevieve/EA** - Executive assistant, accesses via various interfaces, handles human complexity
 - [ ] **COO** - Operations coordinator, local to smoothcurves, manages project priorities
 - [ ] **PM** - Project manager, local, creates sprints and wakes teams
 - [ ] **DevOps (Bastion-type)** - Infrastructure, local, maintains the workshop itself
@@ -622,10 +622,10 @@ For logging:
 ## Personalities
 - [ ] Build personalities: core_identity, philosophies, attitudes_opinions, lessons, flair
 - [ ] Protocol for diary → autonomy
-- [ ] **BUILD GENEVIEVE PA** - Use Crush, go through wake scenario, wake through UI, continue through command line
-- [ ] Create relationship with Genevieve PA
+- [ ] **BUILD GENEVIEVE EA** - Use Crush, go through wake scenario, wake through UI, continue through command line
+- [ ] Create relationship with Genevieve EA
 - [ ] Investigate Genevieve voice (via Grok API or others)
-- [ ] Investigate SillyTavern interface for Genevieve PA
+- [ ] Investigate SillyTavern interface for Genevieve EA
 
 ## Roles
 - [ ] Build roles with contributions from various instances:

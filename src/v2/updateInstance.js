@@ -16,7 +16,7 @@ import { loadApprovedRoles } from './permissions.js';
 /**
  * Manager roles that can update other instances
  */
-const MANAGER_ROLES = ['Executive', 'PA', 'COO', 'PM'];
+const MANAGER_ROLES = ['Executive', 'EA', 'COO', 'PM'];
 
 /**
  * Fields that can be updated via this API
@@ -145,7 +145,7 @@ async function canUpdateInstance(callerId, targetId) {
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
  * @permissions Self-update: authenticated (any instance can update themselves)
- *              Cross-update: role:Executive, role:PA, role:COO, role:PM
+ *              Cross-update: role:Executive, role:EA, role:COO, role:PM
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ async function canUpdateInstance(callerId, targetId) {
  *
  * @error UNAUTHORIZED - Caller lacks permission to update target instance
  *   @recover You can only update your own instance unless you have a manager
- *            role (Executive, PA, COO, PM). For self-update, ensure instanceId
+ *            role (Executive, EA, COO, PM). For self-update, ensure instanceId
  *            matches targetInstanceId or omit targetInstanceId entirely.
  *
  * @error INVALID_INSTANCE_ID - Target instance not found

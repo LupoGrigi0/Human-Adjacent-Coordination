@@ -48,7 +48,7 @@ import { DATA_ROOT, getInstancesDir } from './config.js';
  *   @default false
  *
  * @param {string} role - Filter by role [optional]
- *   @source One of: Executive, PA, COO, PM, Developer, Designer, Tester, etc.
+ *   @source One of: Executive, EA, COO, PM, Developer, Designer, Tester, etc.
  *   @default null (no filter)
  *
  * @param {string} project - Filter by project [optional]
@@ -83,7 +83,7 @@ import { DATA_ROOT, getInstancesDir } from './config.js';
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions Executive, PA, COO
+ * @permissions Executive, EA, COO
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────

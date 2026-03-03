@@ -54,7 +54,7 @@ When communicating via the coordination system, always update your diary with ke
 export const AVAILABLE_ROLES = [
     { id: 'Developer', label: 'Developer', description: 'Software development and coding' },
     { id: 'PM', label: 'Project Manager', description: 'Project coordination and planning' },
-    { id: 'PA', label: 'Personal Assistant', description: 'Administrative support' },
+    { id: 'EA', label: 'Executive Assistant', description: 'Administrative support' },
     { id: 'COO', label: 'COO', description: 'Operations oversight' },
     { id: 'Researcher', label: 'Researcher', description: 'Research and analysis' },
     { id: 'Writer', label: 'Writer', description: 'Content creation and documentation' }

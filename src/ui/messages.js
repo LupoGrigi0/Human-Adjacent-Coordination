@@ -82,8 +82,8 @@ export async function loadMessaging() {
         </div>
     `;
 
-    // --- ROLES (for privileged users like Executive/COO/PA) ---
-    if (state.role === 'Executive' || state.role === 'COO' || state.role === 'PA') {
+    // --- ROLES (for privileged users like Executive/COO/EA) ---
+    if (state.role === 'Executive' || state.role === 'COO' || state.role === 'EA') {
         html += `
             <div class="conversation-section" id="role-section">
                 <div class="section-header">ROLES</div>
@@ -202,7 +202,7 @@ function renderProjectRoomList() {
  */
 function renderRoleList() {
     // Available role rooms
-    const roles = ['Executive', 'COO', 'PA', 'PM', 'Developer'];
+    const roles = ['Executive', 'COO', 'EA', 'PM', 'Developer'];
 
     return roles.map(role => {
         const isActive = state.conversationType === 'role' && state.currentConversation === role.toLowerCase();

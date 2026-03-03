@@ -80,7 +80,7 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  * before the instance wakes. This enables a streamlined onboarding flow where
  * new instances bootstrap with full context immediately available.
  *
- * Use this endpoint when you (as Executive, PA, COO, or PM) want to spawn a new
+ * Use this endpoint when you (as Executive, EA, COO, or PM) want to spawn a new
  * instance with a specific assignment. The returned wake instructions can be
  * pasted into a new Claude session to boot the pre-configured instance.
  *
@@ -89,7 +89,7 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  * ───────────────────────────────────────────────────────────────────────────
  * @param {string} instanceId - Caller's instance identifier [required]
  *   @source Your instanceId from bootstrap response or introspect. You must
- *           have a privileged role (Executive, PA, COO, PM) to call this.
+ *           have a privileged role (Executive, EA, COO, PM) to call this.
  *
  * @param {string} name - Display name for the new instance [required]
  *   @source Choose a name for the new instance (e.g., "DevKai", "NewPM").
@@ -103,7 +103,7 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  * @param {string} role - Role to assign to the new instance [optional]
  *   @source Choose from available roles: Developer, Designer, Tester, PM, COO, etc.
  *           See bootstrap response's availableRoles for full list.
- *   @enum Developer|Designer|Tester|Specialist|Architect|PM|COO|PA|Executive
+ *   @enum Developer|Designer|Tester|Specialist|Architect|PM|COO|EA|Executive
  *
  * @param {string} personality - Personality to assign [optional]
  *   @source Choose from available personalities. See bootstrap response's
@@ -142,7 +142,7 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions role:Executive|role:PA|role:COO|role:PM
+ * @permissions role:Executive|role:EA|role:COO|role:PM
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ function generateWakeInstructions(newInstanceId, role, project, personality, ins
  *   @recover Use takeOnRole to assign yourself a role before calling preApprove.
  *
  * @error UNAUTHORIZED - Caller's role lacks preApprove permission
- *   @recover Only Executive, PA, COO, and PM roles can pre-approve instances.
+ *   @recover Only Executive, EA, COO, and PM roles can pre-approve instances.
  *            Request role upgrade or ask someone with appropriate role.
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -326,7 +326,7 @@ export async function preApprove(params) {
       error: {
         code: 'UNAUTHORIZED',
         message: `Role "${callerRole}" does not have permission to call preApprove`,
-        suggestion: 'Only Executive, PA, COO, and PM roles can pre-approve instances'
+        suggestion: 'Only Executive, EA, COO, and PM roles can pre-approve instances'
       },
       metadata
     };

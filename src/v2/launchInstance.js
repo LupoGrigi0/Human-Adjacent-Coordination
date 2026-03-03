@@ -97,10 +97,10 @@ function getZeroClawScriptsDir() {
  * @returns {string} .model - LLM model configured
  * @returns {object} .metadata - Timestamp and function info
  *
- * @permissions role:Executive|role:PA|role:COO|role:PM
+ * @permissions role:Executive|role:EA|role:COO|role:PM
  *
  * @error UNAUTHORIZED - Caller lacks permission
- *   @recover Ensure caller has Executive, PA, COO, or PM role
+ *   @recover Ensure caller has Executive, EA, COO, or PM role
  * @error INVALID_API_KEY - API key doesn't match
  *   @recover Use the correct WAKE_API_KEY
  * @error INSTANCE_NOT_FOUND - Target instance doesn't exist
@@ -319,7 +319,7 @@ export async function launchInstance(params) {
  * @returns {boolean} .relaunchable - Whether instance can be re-launched (zeroclaw_ready)
  * @returns {object} .metadata - Timestamp and function info
  *
- * @permissions role:Executive|role:PA|role:COO|role:PM
+ * @permissions role:Executive|role:EA|role:COO|role:PM
  *
  * @error UNAUTHORIZED - Caller lacks permission
  * @error INVALID_API_KEY - API key doesn't match
