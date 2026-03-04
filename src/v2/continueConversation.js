@@ -326,6 +326,12 @@ async function logConversationTurn(instanceId, turn) {
  * @note Runs Claude as the target instance's Unix user for security isolation
  * @note Uses sudo to run as the instance-specific Unix user
  */
+
+// BUG #6 fix (Relay-5d00): Prevent concurrent calls to the same target instance.
+// Two simultaneous calls would race on preferences read-modify-write and could
+// corrupt Claude session state via concurrent --resume calls.
+const activeCalls = new Set();
+
 export async function continueConversation(params) {
   const metadata = {
     timestamp: new Date().toISOString(),
@@ -452,6 +458,19 @@ export async function continueConversation(params) {
       metadata
     };
   }
+
+  // BUG #6 fix: Reject if another call to this target is already in progress
+  if (activeCalls.has(params.targetInstanceId)) {
+    return {
+      success: false,
+      error: {
+        code: 'INSTANCE_BUSY',
+        message: `Instance ${params.targetInstanceId} is already processing a message. Wait for the current call to complete before sending another.`
+      },
+      metadata
+    };
+  }
+  activeCalls.add(params.targetInstanceId);
 
   // Determine working directory
   const workingDir = targetPrefs.workingDirectory ||
@@ -633,6 +652,9 @@ export async function continueConversation(params) {
       },
       metadata
     };
+  } finally {
+    // BUG #6 fix: Always release the concurrency guard
+    activeCalls.delete(params.targetInstanceId);
   }
 }
 

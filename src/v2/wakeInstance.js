@@ -560,31 +560,10 @@ export async function wakeInstance(params) {
       response = { raw: result.stdout };
     }
 
-    // Store session info in preferences
-    // For claude: sessionId is the UUID, for crush: null (directory-based)
-    if (interfaceType === 'claude') {
-      targetPrefs.sessionId = sessionId;
-    }
-    targetPrefs.interface = interfaceType;
+    // BUG #4 fix (Relay-5d00): Only write fields not already set in pre-execution write.
+    // sessionCreatedAt is the only new field; lastActiveAt gets updated to post-execution time.
     targetPrefs.sessionCreatedAt = new Date().toISOString();
-    targetPrefs.workingDirectory = workingDirectory;
-    targetPrefs.unixUser = unixUser;
-    targetPrefs.status = 'active';
     targetPrefs.lastActiveAt = new Date().toISOString();
-    targetPrefs.conversationTurns = 1;
-
-    // Build human-readable commands for debugging/manual operation
-    // These can be copy-pasted into a terminal for troubleshooting
-    if (interfaceType === 'claude') {
-      targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} claude -p --output-format json --dangerously-skip-permissions --session-id ${sessionId} "YOUR_MESSAGE"`;
-      targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} claude -p --output-format json --dangerously-skip-permissions --resume ${sessionId} "YOUR_MESSAGE"`;
-    } else if (interfaceType === 'codex') {
-      targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} codex exec --sandbox danger-full-access --skip-git-repo-check --json "YOUR_MESSAGE"`;
-      targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} codex exec --sandbox danger-full-access --skip-git-repo-check --json resume --last "YOUR_MESSAGE"`;
-    } else if (interfaceType === 'crush') {
-      targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} crush run --quiet "YOUR_MESSAGE"`;
-      targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} crush run --quiet "YOUR_MESSAGE"`;
-    }
 
     await writePreferences(params.targetInstanceId, targetPrefs);
 
