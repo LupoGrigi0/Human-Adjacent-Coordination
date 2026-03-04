@@ -89,18 +89,22 @@ async function executeInterface(command, workingDir, args, unixUser, timeout = 3
       stderr += data.toString();
     });
 
+    // BUG #3 fix (Relay-5d00): Store timer ref and clear on completion
+    // to prevent firing against dead processes
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error(`Command timed out after ${timeout}ms`));
+    }, timeout);
+
     child.on('close', (code) => {
+      clearTimeout(timer);
       resolve({ exitCode: code, stdout, stderr });
     });
 
     child.on('error', (err) => {
+      clearTimeout(timer);
       reject(err);
     });
-
-    setTimeout(() => {
-      child.kill('SIGTERM');
-      reject(new Error(`Command timed out after ${timeout}ms`));
-    }, timeout);
   });
 }
 
