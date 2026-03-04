@@ -279,7 +279,9 @@ async function loadMyLists() {
                 for (const list of allLists.slice(0, 5)) {
                     try {
                         const detail = await api.getList(state.instanceId, list.id || list.listId);
-                        listPreviews.push({ ...list, items: detail?.items || [] });
+                        // API returns { list: { items: [...] } } — items nested under list
+                        const items = detail?.list?.items || detail?.items || [];
+                        listPreviews.push({ ...list, items });
                     } catch (e) {
                         listPreviews.push({ ...list, items: [] });
                     }
@@ -388,7 +390,7 @@ function renderDashTasks() {
 
     tasksList.querySelectorAll('.dash-task-row').forEach(el => {
         el.addEventListener('click', () => {
-            if (window.switchTab) window.switchTab('tasks');
+            // Open task in shared detail overlay (no tab switch needed)
             if (window.showTaskDetail) window.showTaskDetail(el.dataset.taskId, true);
         });
     });

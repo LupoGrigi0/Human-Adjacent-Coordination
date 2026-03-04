@@ -105,9 +105,13 @@ async function renderTaskHeatmap(container, settings) {
 
     try {
         const result = await api.getMyTasks(state.instanceId);
-        const tasks = result?.tasks || result || [];
-        const allTasks = Array.isArray(tasks) ? tasks : [];
-        const pending = allTasks.filter(t => t.status !== 'completed' && t.status !== 'completed_verified' && t.status !== 'archived');
+        // getMyTasks returns { personalTasks: [...], projectTasks: [...] }
+        const allTasks = [
+            ...(result?.personalTasks || []),
+            ...(result?.projectTasks || [])
+        ];
+        // Personal tasks may lack status field — treat missing status as active
+        const pending = allTasks.filter(t => !t.status || (t.status !== 'completed' && t.status !== 'completed_verified' && t.status !== 'archived'));
 
         if (pending.length === 0) {
             container.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">No tasks</span>';
@@ -146,7 +150,7 @@ async function renderTaskHeatmap(container, settings) {
 
         container.querySelectorAll('.th-dot').forEach(el => {
             el.addEventListener('click', () => {
-                if (window.switchTab) window.switchTab('tasks');
+                // Open task in shared detail overlay (no tab switch needed)
                 if (window.showTaskDetail) window.showTaskDetail(el.dataset.taskId, true);
             });
         });
