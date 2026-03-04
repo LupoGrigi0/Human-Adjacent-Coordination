@@ -29,8 +29,6 @@
                     <button class="nav-dropdown-item" data-tab="dashboard">Dashboard</button>
                     <button class="nav-dropdown-item" data-tab="messages">Messages <span class="nav-badge" id="unread-count" style="display:none;">0</span></button>
                     <button class="nav-dropdown-item" data-tab="projects">Projects</button>
-                    <button class="nav-dropdown-item" data-tab="tasks">Tasks</button>
-                    <button class="nav-dropdown-item" data-tab="lists">Lists</button>
                     <button class="nav-dropdown-item" data-tab="instances">Instances</button>
                     <div class="nav-dropdown-divider"></div>
                     <button class="nav-dropdown-item" data-tab="settings">Settings</button>
@@ -308,150 +306,7 @@
                 </div>
             </div>
 
-            <!-- Tasks Tab -->
-            <div class="tab-content" id="tab-tasks">
-                <div class="container">
-                    <div class="page-header">
-                        <h1>Tasks</h1>
-                        <button class="btn" id="new-task-btn">New Task</button>
-                    </div>
-
-                    <!-- Task Filters -->
-                    <div class="task-filters">
-                        <select id="task-project-filter">
-                            <option value="">All Projects</option>
-                        </select>
-                        <select id="task-status-filter">
-                            <option value="">All Status</option>
-                            <option value="not_started">Not Started</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                        </select>
-                        <select id="task-priority-filter">
-                            <option value="">All Priorities</option>
-                            <option value="critical">Critical</option>
-                            <option value="high">High</option>
-                            <option value="medium">Medium</option>
-                            <option value="low">Low</option>
-                        </select>
-                    </div>
-
-                    <!-- Task Board -->
-                    <div class="task-board">
-                        <div class="task-column">
-                            <div class="column-header">
-                                <span>Pending</span>
-                                <span class="column-count" id="pending-count">0</span>
-                            </div>
-                            <div class="task-list" id="pending-tasks"></div>
-                        </div>
-                        <div class="task-column">
-                            <div class="column-header">
-                                <span>In Progress</span>
-                                <span class="column-count" id="progress-count">0</span>
-                            </div>
-                            <div class="task-list" id="progress-tasks"></div>
-                        </div>
-                        <div class="task-column">
-                            <div class="column-header">
-                                <span>Completed</span>
-                                <span class="column-count" id="completed-count">0</span>
-                            </div>
-                            <div class="task-list" id="completed-tasks"></div>
-                        </div>
-                    </div>
-
-                    <!-- Task Detail View (hidden by default) -->
-                    <div id="task-detail-view" class="detail-view" style="display: none;">
-                        <div class="detail-header">
-                            <button class="btn-back" id="task-back-btn">
-                                <span>&#8592;</span> <span id="task-back-text">Back to Tasks</span>
-                            </button>
-                            <h1 id="task-detail-title">Task Title</h1>
-                        </div>
-                        <div class="detail-meta">
-                            <span class="priority-badge" id="task-detail-priority">medium</span>
-                            <span class="detail-meta-item" id="task-detail-status-badge">
-                                <span>Status:</span>
-                                <span id="task-detail-status">pending</span>
-                            </span>
-                            <span class="detail-meta-item" id="task-detail-project-badge">
-                                <span>Project:</span>
-                                <span id="task-detail-project">Personal</span>
-                            </span>
-                        </div>
-                        <div class="detail-content">
-                            <div class="detail-section">
-                                <div class="detail-section-header">
-                                    <h3>Description</h3>
-                                    <button class="btn-save-edit" id="task-desc-save-btn">Save</button>
-                                </div>
-                                <div class="editable-field" id="task-desc-editable" data-field="description">
-                                    <p id="task-detail-description">No description</p>
-                                </div>
-                            </div>
-                            <div class="detail-section">
-                                <h3>Assignee</h3>
-                                <p id="task-detail-assignee">Unassigned</p>
-                            </div>
-                            <div class="detail-section">
-                                <h3>Created</h3>
-                                <p id="task-detail-created">-</p>
-                            </div>
-                        </div>
-                        <div class="detail-actions">
-                            <button class="btn" id="task-claim-btn">Claim Task</button>
-                            <button class="btn btn-secondary" id="task-complete-btn">Mark Complete</button>
-                            <button class="btn btn-secondary" id="task-edit-btn">Edit</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Lists Tab -->
-            <div class="tab-content" id="tab-lists">
-                <div class="lists-layout">
-                    <!-- Lists Sidebar -->
-                    <div class="lists-sidebar">
-                        <div class="page-header">
-                            <h1>Lists</h1>
-                            <button class="btn" id="new-list-btn">+ New List</button>
-                        </div>
-                        <div class="lists-grid" id="lists-grid">
-                            <div class="loading-placeholder">Loading lists...</div>
-                        </div>
-                    </div>
-
-                    <!-- List Detail Panel -->
-                    <div class="list-detail-panel" id="list-detail-panel" style="display: none;">
-                        <div class="list-detail-header">
-                            <button class="btn-back" id="list-back-btn">
-                                <span>&#8592;</span> Back to Lists
-                            </button>
-                            <div class="list-actions">
-                                <button class="btn btn-icon" id="list-rename-btn" title="Rename list">&#9998;</button>
-                                <button class="btn btn-icon btn-danger" id="list-delete-btn" title="Delete list">&#128465;</button>
-                            </div>
-                        </div>
-                        <div class="list-detail-content">
-                            <h2 class="list-detail-name" id="list-detail-name">List Name</h2>
-                            <p class="list-detail-description" id="list-detail-description">Description</p>
-
-                            <!-- Add Item Input -->
-                            <div class="add-item-form">
-                                <input type="text" id="new-item-input" placeholder="Add new item..." class="add-item-input">
-                                <button class="btn" id="add-item-btn">Add</button>
-                            </div>
-
-                            <!-- List Items -->
-                            <div class="list-items" id="list-items">
-                                <div class="empty-placeholder">No items yet. Add one above!</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+            <!-- Tasks and Lists tabs removed — functionality lives in Instance Detail Panel and Dashboard -->
             <!-- Instances Tab -->
             <div class="tab-content" id="tab-instances">
                 <div class="instances-layout">
@@ -1046,29 +901,6 @@
     </div>
 
     <!-- Create List Modal -->
-    <div class="modal" id="create-list-modal">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Create New List</h2>
-                <button class="modal-close" data-close>&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="list-name">List Name</label>
-                    <input type="text" id="list-name" placeholder="e.g., Shopping, Todo, Ideas...">
-                </div>
-                <div class="form-group">
-                    <label for="list-description">Description (optional)</label>
-                    <textarea id="list-description" rows="2" placeholder="What's this list for?"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" data-close>Cancel</button>
-                <button class="btn" id="create-list-submit">Create List</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Toast Notifications -->
     <div class="toast-container" id="toast-container"></div>
@@ -1088,10 +920,6 @@
             <span class="bottom-nav-icon">&#128193;</span>
             <span class="bottom-nav-label">Projects</span>
         </button>
-        <button class="bottom-nav-item" data-tab="tasks" title="Tasks">
-            <span class="bottom-nav-icon">&#9745;</span>
-            <span class="bottom-nav-label">Tasks</span>
-        </button>
         <button class="bottom-nav-item" id="more-menu-btn" title="More">
             <span class="bottom-nav-icon">&#8801;</span>
             <span class="bottom-nav-label">More</span>
@@ -1105,10 +933,6 @@
             <span>More</span>
             <button class="more-menu-close" id="more-menu-close">&times;</button>
         </div>
-        <button class="more-menu-item" data-tab="lists">
-            <span class="more-menu-icon">&#128203;</span>
-            <span>Lists</span>
-        </button>
         <button class="more-menu-item" data-tab="instances">
             <span class="more-menu-icon">&#129302;</span>
             <span>Instances</span>

@@ -13,30 +13,7 @@ import * as uiConfig from './ui-config.js';
 import { CONFIG, state } from './state.js';
 import { escapeHtml, showToast } from './utils.js';
 import { initTheme, setTheme, toggleTheme } from './settings.js';
-import {
-    loadLists,
-    showListDetail,
-    hideListDetail,
-    toggleListItem,
-    deleteListItem,
-    addListItem,
-    showCreateListModal,
-    closeCreateListModal,
-    createList,
-    deleteCurrentList,
-    renameCurrentList
-} from './lists.js';
 import { loadDashboard } from './dashboard.js';
-import {
-    loadTasks,
-    renderTaskBoard,
-    showTaskDetail,
-    hideTaskDetail,
-    claimCurrentTask,
-    completeCurrentTask,
-    updateTaskStatus,
-    updateTaskPriority
-} from './tasks.js';
 import {
     loadProjects,
     showProjectDetail,
@@ -68,6 +45,7 @@ import {
     pollMessages
 } from './messages.js';
 import {
+    showTaskDetail,
     showConversationTargetDetails,
     showEntityDetails,
     loadInstanceDetails,
@@ -307,8 +285,7 @@ function setupEventListeners() {
     document.getElementById('create-project-submit')?.addEventListener('click', createProject);
         document.getElementById('launch-project-btn')?.addEventListener('click', launchProject);
 
-    // Create Task
-    document.getElementById('new-task-btn')?.addEventListener('click', showCreateTaskModal);
+    // Create Task (from project detail panel)
     document.getElementById('create-task-submit')?.addEventListener('click', createTask);
 
     // Wake Instance
@@ -342,17 +319,6 @@ function setupEventListeners() {
     document.getElementById('instance-chat-btn')?.addEventListener('click', openInstanceConversation);
     document.getElementById('instance-wake-btn')?.addEventListener('click', wakeCurrentInstance);
     document.getElementById('instance-promote-btn')?.addEventListener('click', promoteCurrentInstance);
-
-    // Lists
-    document.getElementById('new-list-btn')?.addEventListener('click', showCreateListModal);
-    document.getElementById('create-list-submit')?.addEventListener('click', createList);
-    document.getElementById('list-back-btn')?.addEventListener('click', hideListDetail);
-    document.getElementById('list-delete-btn')?.addEventListener('click', deleteCurrentList);
-    document.getElementById('list-rename-btn')?.addEventListener('click', renameCurrentList);
-    document.getElementById('add-item-btn')?.addEventListener('click', addListItem);
-    document.getElementById('new-item-input')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') addListItem();
-    });
 
     // Project Detail - back button and actions
     document.getElementById('project-back-btn')?.addEventListener('click', hideProjectDetail);
@@ -405,11 +371,6 @@ function setupEventListeners() {
         }
     });
 
-    // Task Detail - back button and actions
-    document.getElementById('task-back-btn')?.addEventListener('click', hideTaskDetail);
-    document.getElementById('task-claim-btn')?.addEventListener('click', claimCurrentTask);
-    document.getElementById('task-complete-btn')?.addEventListener('click', completeCurrentTask);
-
     // Editable fields - Project description
     document.getElementById('project-desc-editable')?.addEventListener('click', (e) => {
         if (!e.target.closest('.editing')) {
@@ -447,12 +408,6 @@ function switchTab(tabName) {
     if (state.currentProjectDetail) {
         hideProjectDetail();
     }
-    if (state.currentTaskDetail) {
-        hideTaskDetail();
-    }
-    if (state.currentListId) {
-        hideListDetail();
-    }
     if (state.currentInstanceDetail) {
         hideInstanceDetail();
     }
@@ -477,12 +432,6 @@ function switchTab(tabName) {
             break;
         case 'projects':
             loadProjects();
-            break;
-        case 'tasks':
-            loadTasks();
-            break;
-        case 'lists':
-            loadLists();
             break;
         case 'instances':
             loadInstances();
@@ -1376,12 +1325,7 @@ async function createTask() {
             showToast(`Task "${title}" created (${taskType})!`, 'success');
             closeCreateTaskModal();
 
-            // Refresh tasks view
-            if (state.currentTab === 'tasks') {
-                loadTasks();
-            }
-
-            // Also refresh project detail if we're viewing a project
+            // Refresh project detail if we're viewing a project
             if (state.currentTab === 'projects' && state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
@@ -2323,6 +2267,7 @@ window.showEntityDetails = showEntityDetails;
 window.appState = state;
 window.api = api;
 window.switchTab = switchTab;
+window.showTaskDetail = showTaskDetail; // Wire details.js overlay for dashboard/heatmap clicks
 window.selectConversation = selectConversation;
 window.replyToMessage = replyToMessage;
 window.dismissQuote = dismissQuote;
