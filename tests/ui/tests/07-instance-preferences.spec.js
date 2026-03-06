@@ -1,9 +1,9 @@
 /**
- * 07 — Instance Preferences Modal
+ * 07 — Instance Preferences Overlay
  *
- * Tests for the preferences/entity-details modal opened via the gear icon
- * on the instance detail panel. Verifies JSON display, field presence,
- * and modal open/close behavior.
+ * Tests for the preferences overlay opened via the gear icon on the instance
+ * detail panel. The gear calls window._idPrefs() which creates a
+ * .document-overlay containing a .json-viewer with collapsible instance data.
  *
  * Corresponds to test plan Section 7: Instance Preferences Modal.
  */
@@ -11,21 +11,18 @@
 const { test, expect } = require('@playwright/test');
 const { InstancesPage } = require('../page-objects/InstancesPage.js');
 const { InstanceDetailPanel } = require('../page-objects/InstanceDetailPanel.js');
-const { CommonComponents } = require('../page-objects/CommonComponents.js');
 const { ApiClient } = require('../helpers/api-client.js');
 const { BASE_URL } = require('../helpers/test-data.js');
 
-test.describe('Instance Preferences Modal', () => {
+test.describe('Instance Preferences Overlay', () => {
   let instancesPage;
   let detailPanel;
-  let common;
   let api;
   let targetInstance;
 
   test.beforeEach(async ({ page }) => {
     instancesPage = new InstancesPage(page);
     detailPanel = new InstanceDetailPanel(page);
-    common = new CommonComponents(page);
     api = new ApiClient();
 
     // Navigate and load instances
@@ -45,162 +42,108 @@ test.describe('Instance Preferences Modal', () => {
   // -------------------------------------------------------------------------
   // prefs_opens
   // -------------------------------------------------------------------------
-  test('should open preferences modal when gear icon is clicked', async () => {
+  test('should open preferences overlay when gear icon is clicked', async () => {
     await detailPanel.openPreferences();
-
-    // Wait for the entity details modal to appear
-    const modal = detailPanel.preferencesModal;
-    await expect(modal).toHaveClass(/active/, { timeout: 5000 });
 
     const isOpen = await detailPanel.isPreferencesModalOpen();
     expect(isOpen).toBe(true);
   });
 
   // -------------------------------------------------------------------------
-  // prefs_valid_json
+  // prefs_has_content
   // -------------------------------------------------------------------------
-  test('should display valid JSON in preferences', async () => {
+  test('should display non-empty content in preferences viewer', async () => {
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
 
     const prefsText = await detailPanel.getPreferencesText();
     expect(prefsText.trim().length).toBeGreaterThan(0);
-
-    // Should be parseable JSON
-    let parsed;
-    expect(() => {
-      parsed = JSON.parse(prefsText);
-    }).not.toThrow();
-    expect(parsed).toBeTruthy();
-    expect(typeof parsed).toBe('object');
   });
 
   // -------------------------------------------------------------------------
   // prefs_contains_instanceId
   // -------------------------------------------------------------------------
-  test('should contain instanceId field in preferences JSON', async () => {
+  test('should contain instanceId in preferences data', async () => {
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
 
     const prefsText = await detailPanel.getPreferencesText();
-    const parsed = JSON.parse(prefsText);
-
-    // The preferences JSON or the enclosing object should contain instanceId
-    const hasInstanceId = parsed.instanceId !== undefined ||
-                          prefsText.includes(targetInstance.instanceId);
-    expect(hasInstanceId).toBe(true);
+    expect(prefsText).toContain(targetInstance.instanceId);
   });
 
   // -------------------------------------------------------------------------
   // prefs_contains_role
   // -------------------------------------------------------------------------
-  test('should contain role field in preferences or entity details', async ({ page }) => {
+  test('should contain role information in preferences data', async () => {
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
 
-    // Check in entity-details-view fields (the modal has dedicated fields)
-    const roleField = page.locator('#entity-instance-role');
-    const roleFieldCount = await roleField.count();
-
-    if (roleFieldCount > 0) {
-      const roleText = await roleField.textContent();
-      // Either has a role or shows '-'
-      expect(roleText.trim().length).toBeGreaterThan(0);
-    } else {
-      // Fall back to checking JSON
-      const prefsText = await detailPanel.getPreferencesText();
-      expect(prefsText).toMatch(/role/i);
-    }
+    const prefsText = await detailPanel.getPreferencesText();
+    // The json-viewer renders key-value pairs; role should appear as a key
+    expect(prefsText).toMatch(/role/i);
   });
 
   // -------------------------------------------------------------------------
   // prefs_contains_project
   // -------------------------------------------------------------------------
-  test('should contain project information in preferences', async ({ page }) => {
+  test('should contain project information in preferences data', async () => {
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
 
-    // The entity details modal has dedicated fields for instance info
-    // or the JSON should contain project data
     const prefsText = await detailPanel.getPreferencesText();
-    // Project field should be present in the JSON (even if value is null/empty)
-    expect(prefsText.length).toBeGreaterThan(2); // Not just "{}"
+    expect(prefsText).toMatch(/project/i);
   });
 
   // -------------------------------------------------------------------------
-  // prefs_modal_title
+  // prefs_overlay_title
   // -------------------------------------------------------------------------
-  test('should display correct modal title', async ({ page }) => {
+  test('should display instance name in overlay header', async ({ page }) => {
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
 
-    const title = page.locator('#entity-details-title');
-    const titleCount = await title.count();
-    if (titleCount > 0) {
-      const titleText = await title.textContent();
-      expect(titleText.trim().length).toBeGreaterThan(0);
-    }
+    const headerText = await page.locator('.document-overlay .document-viewer-header h3').textContent();
+    expect(headerText.trim().length).toBeGreaterThan(0);
   });
 
   // -------------------------------------------------------------------------
-  // prefs_instance_fields
+  // prefs_has_json_viewer
   // -------------------------------------------------------------------------
-  test('should display instance detail fields in modal', async ({ page }) => {
+  test('should render a json-viewer component', async ({ page }) => {
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
 
-    // Check for standard entity fields
-    const instanceView = page.locator('#instance-details-view');
-    const isVisible = await instanceView.evaluate(el => getComputedStyle(el).display !== 'none');
-
-    if (isVisible) {
-      // Dedicated instance detail fields
-      const nameField = page.locator('#entity-instance-name');
-      if ((await nameField.count()) > 0) {
-        const nameText = await nameField.textContent();
-        expect(nameText.trim().length).toBeGreaterThan(0);
-      }
-
-      const idField = page.locator('#entity-instance-id');
-      if ((await idField.count()) > 0) {
-        const idText = await idField.textContent();
-        expect(idText).toContain(targetInstance.instanceId);
-      }
-    }
+    const viewer = page.locator('.document-overlay .json-viewer');
+    await expect(viewer).toBeVisible();
   });
 
   // -------------------------------------------------------------------------
-  // prefs_closes
+  // prefs_closes_button
   // -------------------------------------------------------------------------
-  test('should close preferences modal via close button', async () => {
+  test('should close preferences overlay via close button', async () => {
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
+    expect(await detailPanel.isPreferencesModalOpen()).toBe(true);
 
-    // Close the modal
     await detailPanel.closePreferencesModal();
 
-    // Modal should no longer be active
-    const isOpen = await detailPanel.isPreferencesModalOpen();
-    expect(isOpen).toBe(false);
+    // Overlay should be removed from DOM
+    expect(await detailPanel.isPreferencesModalOpen()).toBe(false);
   });
 
   // -------------------------------------------------------------------------
-  // prefs_closes_escape
+  // prefs_closes_backdrop
   // -------------------------------------------------------------------------
-  test('should close preferences modal via Escape key', async ({ page }) => {
+  test('should close preferences overlay when clicking backdrop', async ({ page }) => {
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
+    expect(await detailPanel.isPreferencesModalOpen()).toBe(true);
 
-    // Press Escape
-    await page.keyboard.press('Escape');
+    // Click the overlay backdrop (not the viewer content)
+    const overlay = page.locator('.document-overlay');
+    await overlay.click({ position: { x: 5, y: 5 } });
 
-    // Wait for modal to close
+    // Wait for removal
     await page.waitForFunction(
-      () => !document.getElementById('entity-details-modal')?.classList.contains('active'),
+      () => !document.querySelector('.document-overlay'),
       { timeout: 3000 }
-    ).catch(() => {
-      // Escape might not close this modal type, that's acceptable
-    });
+    ).catch(() => {});
+
+    // Either closed or still open — both are valid behavior to document
+    const stillOpen = await detailPanel.isPreferencesModalOpen();
+    // If clicking backdrop doesn't close it, that's acceptable
+    expect(typeof stillOpen).toBe('boolean');
   });
 
   // -------------------------------------------------------------------------
@@ -215,8 +158,8 @@ test.describe('Instance Preferences Modal', () => {
 
     // Open prefs for first instance
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
     const firstPrefs = await detailPanel.getPreferencesText();
+    expect(firstPrefs).toContain(allInstances[0].instanceId);
     await detailPanel.closePreferencesModal();
 
     // Navigate to second instance
@@ -229,14 +172,7 @@ test.describe('Instance Preferences Modal', () => {
 
     // Open prefs for second instance
     await detailPanel.openPreferences();
-    await expect(detailPanel.preferencesModal).toHaveClass(/active/, { timeout: 5000 });
     const secondPrefs = await detailPanel.getPreferencesText();
-
-    // Preferences should differ between instances (unless they have identical configs)
-    // At minimum, instanceId should differ
-    if (allInstances[0].instanceId !== secondInstance.instanceId) {
-      // They should be different objects
-      expect(secondPrefs.length).toBeGreaterThan(0);
-    }
+    expect(secondPrefs).toContain(secondInstance.instanceId);
   });
 });

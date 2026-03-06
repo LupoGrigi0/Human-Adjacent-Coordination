@@ -64,7 +64,8 @@ class InstanceDetailPanel {
   }
 
   get instanceIdSpan() {
-    return this.detailView.locator('.project-detail-header-title span').first();
+    // The instance ID is inside a <div> sibling of the avatar, as a <span> after the <h2>
+    return this.detailView.locator('.project-detail-header-title div > span');
   }
 
   get roleBadge() {
@@ -236,23 +237,25 @@ class InstanceDetailPanel {
   }
 
   // ---------------------------------------------------------------------------
-  // PREFERENCES MODAL (gear icon opens entity-details-modal)
+  // PREFERENCES OVERLAY (gear icon creates a document-overlay with json-viewer)
   // ---------------------------------------------------------------------------
 
   async openPreferences() {
     await this.settingsGearButton.click();
+    // Wait for the overlay to appear
+    await this.page.waitForSelector('.document-overlay', { timeout: 5000 });
   }
 
   get preferencesModal() {
-    return this.page.locator('#entity-details-modal');
+    return this.page.locator('.document-overlay');
   }
 
   async isPreferencesModalOpen() {
-    return this.preferencesModal.evaluate(el => el.classList.contains('active'));
+    return (await this.preferencesModal.count()) > 0;
   }
 
   get preferencesJson() {
-    return this.page.locator('#entity-instance-prefs');
+    return this.page.locator('.document-overlay .json-viewer');
   }
 
   async getPreferencesText() {
@@ -260,7 +263,7 @@ class InstanceDetailPanel {
   }
 
   async closePreferencesModal() {
-    await this.preferencesModal.locator('.modal-close').click();
+    await this.page.locator('.document-overlay .document-viewer-header button').click();
   }
 
   // ---------------------------------------------------------------------------
