@@ -183,6 +183,23 @@ sudo -u "$UNIX_USER" bash -c "
 }
 
 log "Agent spawned: $AGENT_NAME"
+
+# ---------------------------------------------------------------------------
+# 6. Set up nginx reverse proxy
+# ---------------------------------------------------------------------------
+
+NGINX_SETUP="/usr/local/bin/claw-nginx-setup"
+if [ -x "$NGINX_SETUP" ]; then
+  log "Setting up nginx proxy for $INSTANCE_ID on port $PORT"
+  "$NGINX_SETUP" add "$INSTANCE_ID" "$PORT" --type openfang >> "$LOG_FILE" 2>&1 && {
+    log "nginx proxy configured"
+  } || {
+    log "WARNING: nginx proxy setup failed — dashboard may not be accessible via public URL"
+  }
+else
+  log "WARNING: claw-nginx-setup not found at $NGINX_SETUP — skipping nginx proxy"
+fi
+
 log "=== OpenFang launch complete ==="
 
 # ---------------------------------------------------------------------------
