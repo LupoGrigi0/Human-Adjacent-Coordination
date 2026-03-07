@@ -478,6 +478,24 @@
                             <small class="form-help">What should this instance know when it wakes up?</small>
                         </div>
 
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="wake-runtime">Runtime</label>
+                                <select id="wake-runtime">
+                                    <option value="">None (MCP only)</option>
+                                    <option value="openfang">&#129463; OpenFang</option>
+                                    <option value="zeroclaw">&#128640; ZeroClaw</option>
+                                </select>
+                                <small class="form-help">Give the instance an always-on body</small>
+                            </div>
+                            <div class="form-group" id="wake-launch-group" style="display: none;">
+                                <label class="checkbox-label" style="margin-top: 1.6rem;">
+                                    <input type="checkbox" id="wake-launch-immediately" checked>
+                                    <span>Launch immediately after creation</span>
+                                </label>
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             <label class="checkbox-label">
                                 <input type="checkbox" id="wake-specific-id">

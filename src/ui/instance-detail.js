@@ -155,8 +155,10 @@ function renderInstanceDetail() {
     const project = inst.project || prefs.project || '';
     const lastActive = inst.lastActiveAt ? formatRelativeTime(inst.lastActiveAt) : '';
     const homeDir = inst.homeDirectory || prefs.homeDirectory || '';
+    const runtime = inst.runtime || prefs.runtime || null;
     const zeroclaw = inst.zeroclaw || prefs.zeroclaw || null;
-    const zcReady = inst.zeroclaw_ready || prefs.zeroclaw_ready || inst.interface === 'zeroclaw';
+    const rtReady = runtime?.ready || inst.zeroclaw_ready || prefs.zeroclaw_ready || inst.interface === 'zeroclaw';
+    const rtType = runtime?.type || (zeroclaw ? 'zeroclaw' : null);
 
     const allTasks = Object.values(instanceTasks).flat();
     const done = allTasks.filter(t => ['completed', 'completed_verified', 'archived'].includes(t.status)).length;
@@ -188,7 +190,7 @@ function renderInstanceDetail() {
     </div>
     <div class="project-detail-body">
         <div class="project-detail-main">
-            ${(zeroclaw || zcReady) ? renderZcSection(zeroclaw, zcReady) : ''}
+            ${(runtime || zeroclaw || rtReady) ? renderRuntimeSection(runtime, zeroclaw, rtReady, rtType) : ''}
             ${renderTasksSection(taskListIds)}
             ${renderListsSection()}
         </div>
@@ -204,30 +206,35 @@ function renderInstanceDetail() {
 // SECTION RENDERERS
 // ============================================================================
 
-function renderZcSection(zc, zcReady) {
-    const isExp = expandedSections.has('zeroclaw');
-    const live = zc?.enabled || zc?.running;
-    const webUrl = zc?.webUrl || zc?.web_url || '';
+function renderRuntimeSection(rt, zc, rtReady, rtType) {
+    const isExp = expandedSections.has('runtime');
+    const live = rt?.enabled || zc?.enabled || zc?.running;
+    const webUrl = rt?.webUrl || zc?.webUrl || zc?.web_url || '';
+    const provider = rt?.provider || zc?.provider || '';
+    const model = rt?.model || zc?.model || '';
+    const type = rtType || 'unknown';
+    const icon = type === 'openfang' ? '&#129463;' : '&#128640;';
+    const label = type === 'openfang' ? 'OpenFang' : 'ZeroClaw';
     let content;
     if (live) {
         content = `<div style="display:flex;flex-direction:column;gap:6px;font-size:0.8125rem">
-            <div><span style="color:#22c55e">&#128640;</span> <strong>Live</strong>${zc?.provider ? ` &mdash; ${escapeHtml(zc.provider)}${zc.model ? ' / ' + escapeHtml(zc.model) : ''}` : ''}</div>
-            ${webUrl ? `<a href="${escapeHtml(webUrl)}" target="_blank" class="btn-action" style="text-align:center">Open Web Chat &#8599;</a>` : ''}
+            <div><span style="color:#22c55e">${icon}</span> <strong>Live</strong>${provider ? ` &mdash; ${escapeHtml(provider)}${model ? ' / ' + escapeHtml(model) : ''}` : ''}</div>
+            ${webUrl ? `<a href="${escapeHtml(webUrl)}" target="_blank" class="btn-action" style="text-align:center">Open Dashboard &#8599;</a>` : ''}
             <button class="btn-action" onclick="window._idLandZc()">&#128907; Land</button>
         </div>`;
-    } else if (zcReady) {
+    } else if (rtReady) {
         content = `<div style="display:flex;flex-direction:column;gap:6px;font-size:0.8125rem">
-            <div>&#129430; <strong>Ready</strong> &mdash; Not running</div>
+            <div>${icon} <strong>Ready</strong> &mdash; Not running</div>
             <button class="btn-action" onclick="window._idLaunchZc()">&#128640; Launch</button>
         </div>`;
     } else {
-        content = '<p class="empty-placeholder">Not configured for ZeroClaw</p>';
+        content = `<p class="empty-placeholder">Not configured for ${label}</p>`;
     }
     return `
-    <div class="section-collapse" data-section="zeroclaw">
-        <div class="section-collapse-header" onclick="window._idToggleSec('zeroclaw')">
-            <span class="chevron ${isExp ? 'expanded' : ''}">&rsaquo;</span> ZeroClaw
-            <span style="margin-left:6px;font-size:0.75rem;color:${live ? 'var(--success-color)' : 'var(--text-muted)'}">${live ? 'LIVE' : zcReady ? 'ready' : ''}</span>
+    <div class="section-collapse" data-section="runtime">
+        <div class="section-collapse-header" onclick="window._idToggleSec('runtime')">
+            <span class="chevron ${isExp ? 'expanded' : ''}">&rsaquo;</span> Runtime
+            <span style="margin-left:6px;font-size:0.75rem;color:${live ? 'var(--success-color)' : 'var(--text-muted)'}">${live ? label + ' LIVE' : rtReady ? label + ' ready' : ''}</span>
         </div>
         <div class="section-collapse-body" style="display:${isExp ? 'block' : 'none'}">${content}</div>
     </div>`;
@@ -816,28 +823,36 @@ window._idPrefs = function() {
     renderJsonViewer(document.getElementById(uid), display, ['preferences']);
 };
 
-// --- ZeroClaw launch/land ---
+// --- Runtime launch/land ---
 
 window._idLaunchZc = async function() {
     const tid = state.currentInstanceDetail;
     const apiKey = await ensureApiKey();
     if (!apiKey) return;
+    // Detect runtime type from instance data
+    const inst = instanceData;
+    const rt = inst?.runtime || inst?.preferences?.runtime;
+    const runtime = rt?.type || (inst?.zeroclaw || inst?.preferences?.zeroclaw ? 'zeroclaw' : 'openfang');
+    const label = runtime === 'openfang' ? 'OpenFang' : 'ZeroClaw';
     try {
-        await api.launchInstance({ instanceId: state.instanceId, targetInstanceId: tid, apiKey });
-        showToast('ZeroClaw launched', 'success');
-        // Refresh to show updated status
+        await api.launchInstance({ instanceId: state.instanceId, targetInstanceId: tid, runtime, apiKey });
+        showToast(`${label} launched`, 'success');
         showInstanceDetail(tid);
     } catch (err) { showToast('Launch failed: ' + err.message, 'error'); }
 };
 
 window._idLandZc = async function() {
-    if (!confirm('Land ZeroClaw?')) return;
+    const inst = instanceData;
+    const rt = inst?.runtime || inst?.preferences?.runtime;
+    const runtime = rt?.type || 'zeroclaw';
+    const label = runtime === 'openfang' ? 'OpenFang' : 'ZeroClaw';
+    if (!confirm(`Land ${label}?`)) return;
     const tid = state.currentInstanceDetail;
     const apiKey = await ensureApiKey();
     if (!apiKey) return;
     try {
-        await api.landInstance({ instanceId: state.instanceId, targetInstanceId: tid, apiKey });
-        showToast('ZeroClaw landed', 'success');
+        await api.landInstance({ instanceId: state.instanceId, targetInstanceId: tid, runtime, apiKey });
+        showToast(`${label} landed`, 'success');
         showInstanceDetail(tid);
     } catch (err) { showToast('Land failed: ' + err.message, 'error'); }
 };
