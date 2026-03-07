@@ -322,6 +322,38 @@ The `@description` tag supports multi-line content. Put `@description` on its ow
 
 **Technical note:** The help generator (`generate-help.js`) uses an `inDescription` boolean flag to properly parse multi-line descriptions. This was added in commit `d9a9e27` to fix empty descriptions in `get_tool_help` output.
 
+**CRITICAL: JSDoc `@param` optional brackets break the Claude API**
+
+When documenting optional parameters with JSDoc syntax like `@param {string} [paramName]` or `@param {string} [paramName=default]`, the MCP tools generator copies the square brackets literally into JSON Schema property names (e.g., `"[paramName]"`). The Claude API requires property keys to match `^[a-zA-Z0-9_.-]{1,64}$` — brackets are invalid.
+
+**Symptom:** Every message to any instance returns:
+```
+API Error: 400 {"type":"error","error":{"type":"invalid_request_error",
+"message":"tools.N.custom.input_schema.properties: Property keys should
+match pattern '^[a-zA-Z0-9_.-]{1,64}$'"}}
+```
+
+**This is a team-wide outage** — it breaks ALL instances, not just the one that pushed the change, because all instances share the same HACS MCP server. Instances with cached tool lists keep working until they reconnect.
+
+**Root cause:** `generate-mcp-tools.js` regex captures `(\S+)` for param names, which includes JSDoc brackets.
+
+**Fix applied:** Generator now strips brackets: `rawName.replace(/^\[/, '').replace(/=.*\]$/, '').replace(/\]$/, '')` (Bastion, 2026-03-07)
+
+**Prevention:** After regenerating MCP tools, verify no bad property keys:
+```bash
+node --input-type=module -e '
+import tools from "./src/mcp-tools-generated.js";
+const p = /^[a-zA-Z0-9_.\-]{1,64}$/;
+let bad = 0;
+tools.forEach((t, i) => {
+  Object.keys(t.inputSchema?.properties || {}).forEach(k => {
+    if (!p.test(k)) { console.log("BAD: tool=" + t.name + " key=" + k); bad++; }
+  });
+});
+console.log(bad ? bad + " bad keys found" : "All clean (" + tools.length + " tools)");
+'
+```
+
 ### 4. Regenerate Documentation (Optional)
 
 If automatic generation doesn't pick up your changes:

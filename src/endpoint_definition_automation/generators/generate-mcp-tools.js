@@ -123,7 +123,9 @@ function parseEndpointBlock(block) {
       finalizeCurrentContent();
       const paramMatch = trimmed.match(/@param\s+\{([^}]+)\}\s+(\S+)\s*-?\s*(.*)/);
       if (paramMatch) {
-        const [, type, name, desc] = paramMatch;
+        const [, type, rawName, desc] = paramMatch;
+        // Strip JSDoc optional param brackets: [paramName] or [paramName=default]
+        const name = rawName.replace(/^\[/, '').replace(/=.*\]$/, '').replace(/\]$/, '');
         const requiredMatch = desc.match(/\[(required|optional)\]/i);
         currentParam = {
           name: name,
