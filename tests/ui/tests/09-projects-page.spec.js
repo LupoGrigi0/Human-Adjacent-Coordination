@@ -10,6 +10,7 @@
 
 const { test, expect } = require('@playwright/test');
 const { ProjectsPage } = require('../page-objects/ProjectsPage.js');
+const { ProjectDetailPanel } = require('../page-objects/ProjectDetailPanel.js');
 const { CommonComponents } = require('../page-objects/CommonComponents.js');
 const { ApiClient } = require('../helpers/api-client.js');
 const { BASE_URL } = require('../helpers/test-data.js');
@@ -217,7 +218,8 @@ test.describe('Projects Page', () => {
     await projectsPage.clickProjectCard(projectId);
     await projectsPage.waitForDetailLoaded();
 
-    const detailName = projectsPage.detailProjectName;
+    const detailPanel = new ProjectDetailPanel(projectsPage.page);
+    const detailName = detailPanel.projectName;
     await expect(detailName).toBeVisible();
     const nameText = await detailName.textContent();
     expect(nameText.trim()).toBe(sampleProject.name);
