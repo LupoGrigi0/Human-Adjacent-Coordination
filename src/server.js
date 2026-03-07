@@ -12,8 +12,7 @@ import { logger } from './logger.js';
 
 // Import all handlers
 import * as ProjectHandler from './handlers/projects.js';
-import * as TaskHandler from './handlers/tasks-v2.js';
-import * as MessageHandler from './handlers/messages-v3.js';
+// REMOVED: MessageHandler (dead code - old non-XMPP message system, 2026-02-05)
 import * as InstanceHandler from './handlers/instances.js';
 // REMOVED: LessonHandlers and MetaRecursiveHandlers (dead code cleanup 2025-12-28)
 import { handlers as RoleHandlers } from './v2/roles.js';  // Moved from handlers/
@@ -30,6 +29,27 @@ import { adoptPersonality } from './v2/adoptPersonality.js';
 import { listPersonalities, getPersonality } from './v2/personalities.js';  // New: personality listing
 import { joinProject } from './v2/joinProject.js';
 import { addDiaryEntry, getDiary } from './v2/diary.js';
+import { recoverContext } from './v2/recoverContext.js';
+// V2 Documents (foundational type for document management)
+import {
+  createDocument,
+  readDocument,
+  editDocument,
+  renameDocument,
+  archiveDocument,
+  unarchiveDocument,
+  listDocuments,
+  listArchive,
+  listVitalDocuments,
+  addToVital,
+  removeFromVital
+} from './v2/documents.js';
+// V2 Git Operations (for team members working on project code)
+import {
+  cloneProjectRepo,
+  pushProjectChanges,
+  getRepoStatus
+} from './v2/git-operations.js';
 // Legacy V2 tasks (keeping for backward compatibility during transition)
 import {
   getMyTasks,
@@ -65,13 +85,16 @@ import {
   createProject as createProjectV2,
   getProject as getProjectV2,
   listProjects,
-  getProjectTasks
+  getProjectTasks,
+  updateProject as updateProjectV2
 } from './v2/projects.js';
 // Identity recovery (Bridge's implementation)
 import { registerContext, lookupIdentity, haveIBootstrappedBefore } from './v2/identity.js';
 import { generateRecoveryKey, getRecoveryKey } from './v2/authKeys.js';
 import { getAllInstances, getInstance as getInstanceV2 } from './v2/instances.js';
 import { updateInstance } from './v2/updateInstance.js';
+// EA Proxy - lets EA manage Executive's personal data
+import { eaProxy } from './v2/ea-proxy.js';
 // V2 Lists (personal checklists with Executive visibility)
 import {
   createList,
@@ -89,6 +112,8 @@ import { getUiState, setUiState, updateUiState } from './v2/uiState.js';
 import { wakeInstance, getWakeScripts } from './v2/wakeInstance.js';
 // V2 Continue Conversation (communicate with woken instances)
 import { continueConversation, getConversationLog } from './v2/continueConversation.js';
+// V2 Launch/Land Instance (container lifecycle)
+import { launchInstance, landInstance } from './v2/launchInstance.js';
 
 /**
  * Simple server implementation for development and testing
@@ -168,6 +193,41 @@ class MCPCoordinationServer {
   }
 
   /**
+   * Get handler function for EA proxy routing.
+   * Maps function names to their handler functions.
+   * Only includes APIs relevant to EA proxy (personal tasks, lists, docs, diary).
+   */
+  getHandlerForFunction(name) {
+    const handlers = {
+      // Personal tasks
+      create_task: createTask, list_tasks: listTasks, get_task: getTask,
+      update_task: updateTask, change_task: changeTask, delete_task: deleteTask,
+      mark_task_complete: markTaskComplete, mark_task_verified: markTaskVerified,
+      archive_task: archiveTask, take_on_task: takeOnTask, assign_task: assignTask,
+      create_task_list: createTaskList, delete_task_list: deleteTaskList,
+      list_priority_tasks: listPriorityTasks, get_my_top_task: getMyTopTask,
+      get_my_tasks: getMyTasks,
+      // Lists
+      create_list: createList, get_lists: getLists, get_list: getList,
+      add_list_item: addListItem, toggle_list_item: toggleListItem,
+      rename_list: renameList, delete_list_item: deleteListItem, delete_list: deleteList,
+      // Documents
+      create_document: createDocument, read_document: readDocument,
+      edit_document: editDocument, rename_document: renameDocument,
+      archive_document: archiveDocument, list_documents: listDocuments,
+      list_vital_documents: listVitalDocuments,
+      add_to_vital: addToVital, remove_from_vital: removeFromVital,
+      // Diary
+      get_diary: getDiary, add_diary_entry: addDiaryEntry,
+      // Introspect
+      introspect: introspect,
+      // Projects
+      update_project: updateProjectV2
+    };
+    return handlers[name] || null;
+  }
+
+  /**
    * Handle function calls - Full MCP implementation
    * Routes calls to appropriate handlers
    */
@@ -188,6 +248,16 @@ class MCPCoordinationServer {
         await InstanceHandler.updateHeartbeat({
           instanceId: params.instanceId
         });
+      }
+
+      // EA Proxy: if ea_proxy flag is set, route through the EA middleware
+      // This swaps the EA's instanceId for the Executive's instanceId
+      if (params.ea_proxy === true) {
+        const handler = this.getHandlerForFunction(functionName);
+        if (!handler) {
+          return { success: false, error: { code: 'UNKNOWN_FUNCTION', message: `Unknown function: ${functionName}` } };
+        }
+        return await eaProxy(handler, params);
       }
 
       switch (functionName) {
@@ -217,7 +287,7 @@ class MCPCoordinationServer {
         case 'create_project':
           return createProjectV2(params);  // V2 - creates project directory with templates
         case 'update_project':
-          return ProjectHandler.updateProject(params);
+          return updateProjectV2(params);  // V2 - reads/writes project directory preferences.json
         case 'delete_project':
           return ProjectHandler.deleteProject(params);
         case 'get_project_stats':
@@ -270,25 +340,10 @@ class MCPCoordinationServer {
         case 'list_priority_tasks':
           return listPriorityTasks(params);
 
-        // Message system functions
+        // XMPP Real-time Messaging
+        // NOTE: send_message is the friendly fuzzy wrapper, xmpp_send_message is the raw API
         case 'send_message':
-          return MessageHandler.sendMessage(params);
-        case 'get_messages':
-          return MessageHandler.getMessages(params);
-        case 'get_message':
-          return MessageHandler.getMessage(params);
-        case 'mark_message_read':
-          return MessageHandler.markMessageRead(params);
-        case 'archive_message':
-          return MessageHandler.archiveMessage(params);
-        case 'get_archived_messages':
-          return MessageHandler.getArchivedMessages(params);
-        case 'get_message_stats':
-          return MessageHandler.getMessageStats(params);
-        case 'delete_message':
-          return MessageHandler.deleteMessage(params);
-
-        // XMPP Real-time Messaging (V2)
+          return XMPPHandler.friendlySendMessage(params);
         case 'xmpp_send_message':
           return XMPPHandler.sendMessage(params);
         case 'xmpp_get_messages':
@@ -375,6 +430,41 @@ class MCPCoordinationServer {
           return addDiaryEntry(params);
         case 'get_diary':
           return getDiary(params);
+
+        case 'recover_context':
+          return recoverContext(params);
+
+        // V2 Document APIs
+        case 'create_document':
+          return createDocument(params);
+        case 'read_document':
+          return readDocument(params);
+        case 'edit_document':
+          return editDocument(params);
+        case 'rename_document':
+          return renameDocument(params);
+        case 'archive_document':
+          return archiveDocument(params);
+        case 'unarchive_document':
+          return unarchiveDocument(params);
+        case 'list_documents':
+          return listDocuments(params);
+        case 'list_archive':
+          return listArchive(params);
+        case 'list_vital_documents':
+          return listVitalDocuments(params);
+        case 'add_to_vital':
+          return addToVital(params);
+        case 'remove_from_vital':
+          return removeFromVital(params);
+
+        // V2 Git Operations
+        case 'clone_project_repo':
+          return cloneProjectRepo(params);
+        case 'push_project_changes':
+          return pushProjectChanges(params);
+        case 'get_repo_status':
+          return getRepoStatus(params);
 
         // V2 Task APIs
         case 'get_my_tasks':
@@ -470,6 +560,12 @@ class MCPCoordinationServer {
           return continueConversation(params);
         case 'get_conversation_log':
           return getConversationLog(params);
+
+        // V2 Launch/Land Instance APIs (container lifecycle)
+        case 'launch_instance':
+          return launchInstance(params);
+        case 'land_instance':
+          return landInstance(params);
 
         default:
           return {
@@ -575,6 +671,23 @@ class MCPCoordinationServer {
       'join_project',
       'add_diary_entry',
       'get_diary',
+      'recover_context',
+      // V2 Document APIs
+      'create_document',
+      'read_document',
+      'edit_document',
+      'rename_document',
+      'archive_document',
+      'unarchive_document',
+      'list_documents',
+      'list_archive',
+      'list_vital_documents',
+      'add_to_vital',
+      'remove_from_vital',
+      // V2 Git Operations
+      'clone_project_repo',
+      'push_project_changes',
+      'get_repo_status',
       'get_my_tasks',
       'get_next_task',
       'add_personal_task',
@@ -613,7 +726,10 @@ class MCPCoordinationServer {
       'get_wake_scripts',
       // Continue Conversation (communicate with woken instances)
       'continue_conversation',
-      'get_conversation_log'
+      'get_conversation_log',
+      // Launch/Land Instance (container lifecycle)
+      'launch_instance',
+      'land_instance'
     ];
   }
 

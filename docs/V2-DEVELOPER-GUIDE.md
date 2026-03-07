@@ -523,13 +523,13 @@ Permissions are defined in `/mnt/coordinaton_mcp_data/v2-dev-data/permissions/pe
 
 ```json
 {
-  "createProject": ["Executive", "PA", "COO"],
-  "preApprove": ["Executive", "PA", "COO", "PM"],
-  "wakeInstance": ["Executive", "PA", "COO", "PM"],
-  "createTask": ["Executive", "PA", "COO", "PM"],
-  "broadcastMessage": ["Executive", "PA", "COO"],
-  "getAllProjects": ["Executive", "PA", "COO"],
-  "getAllInstances": ["Executive", "PA", "COO"]
+  "createProject": ["Executive", "EA", "COO"],
+  "preApprove": ["Executive", "EA", "COO", "PM"],
+  "wakeInstance": ["Executive", "EA", "COO", "PM"],
+  "createTask": ["Executive", "EA", "COO", "PM"],
+  "broadcastMessage": ["Executive", "EA", "COO"],
+  "getAllProjects": ["Executive", "EA", "COO"],
+  "getAllInstances": ["Executive", "EA", "COO"]
 }
 ```
 
@@ -537,7 +537,7 @@ Permissions are defined in `/mnt/coordinaton_mcp_data/v2-dev-data/permissions/pe
 
 These roles require token validation when using `take_on_role`:
 - **Executive** - `EXECUTIVE_TOKEN` env var
-- **PA** - `PA_TOKEN` env var
+- **EA** - `EA_TOKEN` env var
 - **COO** - `COO_TOKEN` env var
 - **PM** - `PM_TOKEN` env var
 
@@ -574,7 +574,7 @@ curl -s -X POST https://smoothcurves.nexus/mcp/dev/mcp \
 {
   "code": -32603,
   "message": "Internal error",
-  "data": "Role 'Developer' is not authorized to create projects. Required: Executive, PA, or COO."
+  "data": "Role 'Developer' is not authorized to create projects. Required: Executive, EA, or COO."
 }
 ```
 
@@ -605,7 +605,7 @@ Edit `/mnt/coordinaton_mcp_data/v2-dev-data/permissions/permissions.json`:
 ```bash
 # Add a new permission
 cat /mnt/coordinaton_mcp_data/v2-dev-data/permissions/permissions.json | \
-  jq '.newApiName = ["Executive", "PA"]' > /tmp/perms.json && \
+  jq '.newApiName = ["Executive", "EA"]' > /tmp/perms.json && \
   mv /tmp/perms.json /mnt/coordinaton_mcp_data/v2-dev-data/permissions/permissions.json
 ```
 

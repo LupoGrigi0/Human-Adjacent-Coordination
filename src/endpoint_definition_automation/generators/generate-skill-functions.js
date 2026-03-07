@@ -488,6 +488,27 @@ async function main() {
   } catch (error) {
     console.error(`⚠️  Failed to package skill: ${error.message}`);
   }
+
+  // Install skill to all CLI tool skill directories
+  console.log('');
+  console.log('Installing skill to CLI tools...');
+
+  const skillInstallDirs = [
+    '/root/.claude/skills/hacs',
+    '/root/.codex/skills/hacs',
+    '/root/.crush/skills/hacs'
+  ];
+
+  for (const installDir of skillInstallDirs) {
+    try {
+      // Create directory if needed and copy skill contents
+      execSync(`mkdir -p "${installDir}" && cp -r "${skillDir}/"* "${installDir}/"`, { stdio: 'pipe' });
+      console.log(`✅ Installed to: ${installDir}`);
+    } catch (error) {
+      // Not all CLI tools may be installed, that's OK
+      console.log(`⚠️  Skipped ${installDir}: ${error.message.split('\n')[0]}`);
+    }
+  }
 }
 
 main().catch(console.error);

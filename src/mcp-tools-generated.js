@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-01-13T23:53:38.685Z                           ║
- * ║  Tool Count: 71                                                         ║
+ * ║  Generated: 2026-03-03T23:57:54.586Z                           ║
+ * ║  Tool Count: 90                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -151,6 +151,31 @@ export const mcpTools = [
     }
   },
   {
+    "name": "add_to_vital",
+    "description": "Adds a document to the vital documents list. The document must exist in the target's documents directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name to add"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
     "name": "adopt_personality",
     "description": "Allows an instance to adopt a personality and receive all associated personality knowledge documents. Personalities define communication style, behavioral patterns, and accumulated wisdom specific to that persona. Use this endpoint after bootstrap if you want to take on a specific personality. Some personalities are privileged and require a token. Open personalities (Kai, Kat, Prism) can be adopted by anyone. Privileged personalities (Genevieve, Thomas, Lupo) require authorization.",
     "inputSchema": {
@@ -181,8 +206,33 @@ export const mcpTools = [
     }
   },
   {
+    "name": "archive_document",
+    "description": "Moves a document to the _archive subdirectory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
     "name": "archive_task",
-    "description": "This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/PA/COO can archive. Personal tasks can be archived by the owner. /",
+    "description": "This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/EA/COO can archive. Personal tasks can be archived by the owner. /",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -203,7 +253,7 @@ export const mcpTools = [
   },
   {
     "name": "assign_task",
-    "description": "PM can only assign tasks in their joined project. Executive/PA/COO can assign any. /",
+    "description": "PM can only assign tasks in their joined project. Executive/EA/COO can assign any. /",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -324,6 +374,26 @@ export const mcpTools = [
     }
   },
   {
+    "name": "clone_project_repo",
+    "description": "Clones the project's GitHub repository to the instance's home directory. Runs as root (has GitHub credentials), then chowns files to the instance user. The instance can then edit files locally without needing GitHub credentials. Use push_project_changes to commit and push changes. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "directory": {
+          "type": "string",
+          "description": "Subdirectory name for the clone (default: repo name)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "complete_personal_task",
     "description": "Marks a personal task as completed. The task remains in the list with status \"completed\" and a completion timestamp for historical reference. Use this when you've finished a personal task. Completed tasks still appear in getMyTasks but are marked as complete.",
     "inputSchema": {
@@ -433,6 +503,60 @@ export const mcpTools = [
     }
   },
   {
+    "name": "create_document",
+    "description": "Creates a new document in the target location. If no target is specified, creates in the caller's own documents directory. Document names default to .md extension if none provided. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Target location (e.g., \"project:paula-book\")"
+        },
+        "type": {
+          "type": "string",
+          "description": "Target type"
+        },
+        "id": {
+          "type": "string",
+          "description": "Target ID"
+        },
+        "callerInstanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "context": {
+          "type": "object",
+          "description": "Resolved document context"
+        },
+        "operation": {
+          "type": "string",
+          "description": "Operation name (create, read, edit, etc.)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name (e.g., \"my-notes\" or \"my-notes.md\")"
+        },
+        "functionName": {
+          "type": "string",
+          "description": "API function name"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "content": {
+          "type": "string",
+          "description": "Initial document content"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name",
+        "content"
+      ]
+    }
+  },
+  {
     "name": "create_list",
     "description": "Creates a new personal checklist for the calling instance or a target instance (if the caller has permission). Lists are stored per-instance and can contain any number of checkable items. Use this endpoint when you need to create a new organized list of items to track, such as daily tasks, project checklists, or reminders.",
     "inputSchema": {
@@ -501,7 +625,7 @@ export const mcpTools = [
   },
   {
     "name": "create_project",
-    "description": "Creates a new project with a complete directory structure from a template. The template includes standard files like preferences.json, PROJECT_VISION.md, PROJECT_PLAN.md, README.md, and tasks.json. Template placeholders are replaced with actual project values. Use this endpoint when you need to create a new project. Only Executive, PA, and COO roles are authorized to create projects.",
+    "description": "Creates a new project with a complete directory structure from a template. The template includes standard files like preferences.json, PROJECT_VISION.md, PROJECT_PLAN.md, README.md, and tasks.json. Template placeholders are replaced with actual project values. Use this endpoint when you need to create a new project. Only Executive, EA, and COO roles are authorized to create projects.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -540,7 +664,7 @@ export const mcpTools = [
   },
   {
     "name": "create_task",
-    "description": "Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/PA/COO can create on any project. /",
+    "description": "Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/EA/COO can create on any project. /",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -585,7 +709,7 @@ export const mcpTools = [
   },
   {
     "name": "create_task_list",
-    "description": "Personal lists are created when projectId is omitted. Project lists require privileged role (PM, PA, COO, Executive). /",
+    "description": "Personal lists are created when projectId is omitted. Project lists require privileged role (PM, EA, COO, Executive). /",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -708,6 +832,48 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "listId"
+      ]
+    }
+  },
+  {
+    "name": "edit_document",
+    "description": "Edits a document. Supports two modes: \"append\" adds content to the end, \"replace\" does a search-and-replace using the provided pattern. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Edit mode: \"append\" or \"replace\""
+        },
+        "content": {
+          "type": "string",
+          "description": "Content to append (for append mode) [conditional]"
+        },
+        "search": {
+          "type": "string",
+          "description": "Search pattern (for replace mode) [conditional]"
+        },
+        "replacement": {
+          "type": "string",
+          "description": "Replacement text (for replace mode) [conditional]"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name",
+        "mode"
       ]
     }
   },
@@ -1047,6 +1213,26 @@ export const mcpTools = [
     }
   },
   {
+    "name": "get_repo_status",
+    "description": "Gets the current git status of the instance's repository clone. Shows modified files, staged changes, and branch info. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "directory": {
+          "type": "string",
+          "description": "Subdirectory name of the clone"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "get_role",
     "description": "Returns the SUMMARY.md content for a role. This provides a longer preview of what the role entails before deciding to adopt it.",
     "inputSchema": {
@@ -1239,6 +1425,128 @@ export const mcpTools = [
     }
   },
   {
+    "name": "land_instance",
+    "description": "Stops a running container for a HACS instance. All data is preserved: workspace, memory/RAG database, config, logs. The instance can be re-launched at any time with launch_instance. Sets zeroclaw.enabled to false but keeps zeroclaw_ready as true, meaning the instance is eligible for re-launch without re-running the export pipeline. Use this to free resources when instances aren't needed, or to rotate through project teams on limited infrastructure. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance to land"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "Authorization key"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId",
+        "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "launch_instance",
+    "description": "Starts a container runtime (currently ZeroClaw) for an existing HACS instance. The instance must already be bootstrapped and have zeroclaw_ready: true in preferences (meaning identity documents have been prepared by the export pipeline). This gives the instance a persistent, always-on environment with web chat, multi-channel I/O, memory/RAG, and autonomous operation. The instance must already exist (have a HACS directory). Use pre_approve + bootstrap to create new instances, then the export pipeline to prepare ZeroClaw documents, then launch_instance to bring them online. On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only the bearer token is regenerated. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"provider\": \"anthropic\", \"model\": \"claude-sonnet-4-20250514\" } /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance to launch"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "Authorization key"
+        },
+        "[runtime=zeroclaw]": {
+          "type": "string",
+          "description": "Container runtime to use",
+          "enum": [
+            "zeroclaw"
+          ],
+          "default": "\"zeroclaw\""
+        },
+        "[provider]": {
+          "type": "string",
+          "description": "LLM provider override",
+          "enum": [
+            "xai",
+            "anthropic",
+            "openai",
+            "google",
+            "openrouter"
+          ],
+          "default": "From config template (xai)"
+        },
+        "[model]": {
+          "type": "string",
+          "description": "LLM model override",
+          "default": "From config template (grok-4)"
+        },
+        "[port]": {
+          "type": "number",
+          "description": "Gateway port override",
+          "default": "Auto-allocated from 19000-19100"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId",
+        "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "list_archive",
+    "description": "Lists documents in the target location's archive directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_documents",
+    "description": "Lists documents in the target location's main documents directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "list_priorities",
     "description": "Use this to populate UI dropdowns or validate priority values. /",
     "inputSchema": {
@@ -1346,6 +1654,26 @@ export const mcpTools = [
     }
   },
   {
+    "name": "list_vital_documents",
+    "description": "Lists vital documents for the target. Vital documents are sent first during recover_context, before the diary. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "lookup_identity",
     "description": "Looks up an instance by context information (working directory, hostname, session ID, or name). Used by instances that have lost their instanceId to recover their identity. Returns the best matching instance sorted by match score and recency. Use this endpoint when you wake up and don't know who you are. Provide whatever environmental context you can gather, and this will find your previous identity if one was registered via register_context.",
     "inputSchema": {
@@ -1430,7 +1758,7 @@ export const mcpTools = [
   },
   {
     "name": "pre_approve",
-    "description": "Pre-creates an instance with role, project, and personality already configured before the instance wakes. This enables a streamlined onboarding flow where new instances bootstrap with full context immediately available. Use this endpoint when you (as Executive, PA, COO, or PM) want to spawn a new instance with a specific assignment. The returned wake instructions can be pasted into a new Claude session to boot the pre-configured instance.",
+    "description": "Pre-creates an instance with role, project, and personality already configured before the instance wakes. This enables a streamlined onboarding flow where new instances bootstrap with full context immediately available. Use this endpoint when you (as Executive, EA, COO, or PM) want to spawn a new instance with a specific assignment. The returned wake instructions can be pasted into a new Claude session to boot the pre-configured instance.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1449,7 +1777,7 @@ export const mcpTools = [
             "Architect",
             "PM",
             "COO",
-            "PA",
+            "EA",
             "Executive"
           ]
         },
@@ -1501,6 +1829,82 @@ export const mcpTools = [
     }
   },
   {
+    "name": "push_project_changes",
+    "description": "Commits and pushes changes from the instance's local repository clone. Runs as root (has GitHub credentials). Automatically pulls before pushing to minimize conflicts. If there's a conflict, returns details for manual resolution. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "message": {
+          "type": "string",
+          "description": "Commit message"
+        },
+        "directory": {
+          "type": "string",
+          "description": "Subdirectory name of the clone (default: auto-detect)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "message"
+      ]
+    }
+  },
+  {
+    "name": "read_document",
+    "description": "Reads a document from the target location. If no target is specified, reads from the caller's own documents directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "recover_context",
+    "description": "Returns all context documents an instance needs to recover after a context compaction event. This is a single API call that aggregates: 1. Global HACS protocols (from default/ directory) 2. Personality documents (if personality is set in preferences) 3. Role wisdom documents (if role is set in preferences) 4. Project wisdom/documents (if project is set in preferences) 4.5. Vital documents (personal docs from vitalDocuments[] in preferences) 5. Personal diary (if it exists) Followed by a message encouraging the instance to let their latent space settle before continuing work. Use this endpoint immediately after waking from compaction to restore your full context in one call instead of multiple separate API calls.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "start_line": {
+          "type": "number",
+          "description": "Start returning content from this line",
+          "default": "1"
+        },
+        "end_line": {
+          "type": "number",
+          "description": "Stop returning content at this line",
+          "default": "(all lines)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "register_context",
     "description": "Registers context information (working directory, hostname, session ID, etc.) for an instance to enable future identity recovery. Call this after bootstrap to ensure you can be found later via lookup_identity if you lose your instanceId. Use this endpoint immediately after bootstrap to store your environmental fingerprint. This is especially important for long-running instances or instances that may experience context loss.",
     "inputSchema": {
@@ -1537,6 +1941,61 @@ export const mcpTools = [
     }
   },
   {
+    "name": "remove_from_vital",
+    "description": "Removes a document from the vital documents list. Does not delete the document itself. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name to remove"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "rename_document",
+    "description": "Renames a document. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Current document name"
+        },
+        "newName": {
+          "type": "string",
+          "description": "New document name"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name",
+        "newName"
+      ]
+    }
+  },
+  {
     "name": "rename_list",
     "description": "Renames an existing list. The list ID and all items remain unchanged; only the display name is updated. Use this endpoint to update list names when their purpose changes or to correct typos.",
     "inputSchema": {
@@ -1568,8 +2027,42 @@ export const mcpTools = [
     }
   },
   {
+    "name": "send_message",
+    "description": "The \"just works\" message sender. You don't need to know exact IDs, formats, or room names. Just tell it who you want to talk to and it figures it out. Fuzzy matching finds the best recipient from instances, roles, projects, and personalities. Case-insensitive, typo-tolerant. LUPO'S RULE: If exactly ONE instance matches (like \"Lupo\", \"Axiom\", \"Ember\"), routes to that specific instance. If MANY instances match the same name (like \"Genevieve\"), routes to the personality room. Examples that all work: to: \"lupo\"          → routes to Lupo's specific instance to: \"embr\"          → fuzzy matches to \"ember\", routes to Ember's instance to: \"genevieve\"     → many instances, routes to personality:genevieve room to: \"coo\"           → matches role, routes to role:coo room to: \"hacs\"          → matches project, routes to project:hacs room to: \"role:developer\"→ explicit role room (not fuzzy) to: \"project:hacs\"  → explicit project room (not fuzzy) to: \"all\"           → announcements room (broadcast)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "string",
+          "description": "Who to send to. Name, instanceId, role:X, project:X, or \"all\""
+        },
+        "from": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Message subject [optional if body provided]"
+        },
+        "body": {
+          "type": "string",
+          "description": "Message body [optional if subject provided]"
+        },
+        "priority": {
+          "type": "string",
+          "description": "high, normal, low",
+          "default": "normal"
+        }
+      },
+      "required": [
+        "to",
+        "from"
+      ]
+    }
+  },
+  {
     "name": "take_on_role",
-    "description": "Allows an instance to adopt a role within the coordination system. Updates the instance's preferences with the new role and returns concatenated wisdom documents from the role's wisdom directory. Use this endpoint after bootstrap to establish your role in the system. Roles determine what actions you can perform and what tasks you're suited for. Some roles (Executive, PA, COO, PM) require token authentication.",
+    "description": "Allows an instance to adopt a role within the coordination system. Updates the instance's preferences with the new role and returns concatenated wisdom documents from the role's wisdom directory. Use this endpoint after bootstrap to establish your role in the system. Roles determine what actions you can perform and what tasks you're suited for. Some roles (Executive, EA, COO, PM) require token authentication.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1650,6 +2143,31 @@ export const mcpTools = [
     }
   },
   {
+    "name": "unarchive_document",
+    "description": "Moves a document from the _archive subdirectory back to the main documents directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
     "name": "update_instance",
     "description": "Updates instance metadata including system context fields and instructions. Supports both self-update (any instance can update their own metadata) and cross-update (manager roles can update other instances). Use this endpoint to: - Set your own system context after bootstrap (homeSystem, homeDirectory, etc.) - As a manager, configure an instance you're about to wake with instructions - Update system context for an instance on a different machine Note: Role, personality, and project are NOT updatable through this API. Use the dedicated APIs: takeOnRole, adoptPersonality, joinProject.",
     "inputSchema": {
@@ -1703,6 +2221,47 @@ export const mcpTools = [
     }
   },
   {
+    "name": "update_project",
+    "description": "Updates an existing project's name, description, status, priority, or PM. Reads from and writes to the V2 project directory structure at {DATA_ROOT}/projects/{projectId}/preferences.json. Only Executive, EA, and COO roles are authorized to update projects.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project to update"
+        },
+        "name": {
+          "type": "string",
+          "description": "New project name"
+        },
+        "description": {
+          "type": "string",
+          "description": "New project description"
+        },
+        "status": {
+          "type": "string",
+          "description": "New project status (e.g., \"active\", \"archived\", \"paused\")"
+        },
+        "priority": {
+          "type": "string",
+          "description": "New priority level"
+        },
+        "pm": {
+          "type": "string",
+          "description": "New project manager instance ID"
+        }
+      },
+      "required": [
+        "instanceId",
+        "projectId"
+      ]
+    }
+  },
+  {
     "name": "update_task",
     "description": "Updates any combination of title, description, priority, status, or assignment. Performs permission checking based on role and project membership. (Alias: change_task for backwards compatibility) /",
     "inputSchema": {
@@ -1723,6 +2282,10 @@ export const mcpTools = [
         "taskId": {
           "type": "string",
           "description": "Task ID to modify"
+        },
+        "[projectIdOverride]": {
+          "type": "string",
+          "description": "Explicit project ID (fixes hyphenated project IDs)"
         },
         "params": {
           "type": "object",

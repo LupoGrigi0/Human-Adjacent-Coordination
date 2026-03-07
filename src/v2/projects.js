@@ -63,7 +63,7 @@ function replaceTemplatePlaceholders(content, values) {
  * PROJECT_PLAN.md, README.md, and tasks.json. Template placeholders are replaced
  * with actual project values.
  *
- * Use this endpoint when you need to create a new project. Only Executive, PA,
+ * Use this endpoint when you need to create a new project. Only Executive, EA,
  * and COO roles are authorized to create projects.
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ function replaceTemplatePlaceholders(content, values) {
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions role:Executive|role:PA|role:COO
+ * @permissions role:Executive|role:EA|role:COO
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ function replaceTemplatePlaceholders(content, values) {
  *   @recover Call take_on_role to assign yourself a role before creating projects.
  *
  * @error UNAUTHORIZED - Role not authorized to create projects
- *   @recover Only Executive, PA, or COO roles can create projects. Contact your
+ *   @recover Only Executive, EA, or COO roles can create projects. Contact your
  *            COO or request appropriate role elevation.
  *
  * @error PROJECT_EXISTS - Project with this ID already exists
@@ -214,7 +214,7 @@ export async function createProject(params) {
     };
   }
 
-  // Check authorization - only Executive, PA, COO can create projects
+  // Check authorization - only Executive, EA, COO can create projects
   const instanceRole = prefs.role;
   if (!instanceRole) {
     return {
@@ -233,7 +233,7 @@ export async function createProject(params) {
       success: false,
       error: {
         code: 'UNAUTHORIZED',
-        message: `Role '${instanceRole}' is not authorized to create projects. Required: Executive, PA, or COO.`
+        message: `Role '${instanceRole}' is not authorized to create projects. Required: Executive, EA, or COO.`
       },
       metadata
     };
@@ -256,12 +256,17 @@ export async function createProject(params) {
   // Create project directory
   await ensureDir(projectDir);
 
+  // Sanitize description - convert newlines to spaces to prevent JSON issues
+  const sanitizedDescription = params.description
+    ? params.description.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim()
+    : 'No description provided';
+
   // Template values for placeholder replacement
   const now = new Date().toISOString();
   const templateValues = {
     PROJECT_ID: params.projectId,
     PROJECT_NAME: params.name,
-    PROJECT_DESCRIPTION: params.description || 'No description provided',
+    PROJECT_DESCRIPTION: sanitizedDescription,
     CREATED_AT: now
   };
 
@@ -291,7 +296,7 @@ export async function createProject(params) {
         id: params.projectId,
         type: 'project',
         name: params.name,
-        description: params.description || 'No description provided',
+        description: sanitizedDescription,
         status: 'active',
         documents: [],
         pm: null,
@@ -314,12 +319,12 @@ export async function createProject(params) {
     project: {
       projectId: params.projectId,
       name: params.name,
-      description: params.description || 'No description provided',
+      description: sanitizedDescription,
       status: 'active',
       xmppRoom: createdPrefs?.xmppRoom || `${params.projectId}@conference.smoothcurves.nexus`
     },
     message: `Project '${params.name}' created successfully`,
-    files: ['preferences.json', 'PROJECT_VISION.md', 'PROJECT_PLAN.md', 'README.md', 'tasks.json'],
+    files: ['preferences.json', 'PROJECT_VISION.md', 'PROJECT_PLAN.md', 'README.md', 'project_tasks.json'],
     metadata
   };
 }
@@ -447,6 +452,8 @@ export async function getProject(params) {
       name: prefs.name,
       description: prefs.description,
       status: prefs.status,
+      priority: prefs.priority || null,
+      pmStatus: prefs.pmStatus || null,
       pm: prefs.pm,
       team: prefs.team,
       xmppRoom: prefs.xmppRoom,
@@ -570,7 +577,10 @@ export async function listProjects(params = {}) {
           projects.push({
             projectId: prefs.id,
             name: prefs.name,
+            description: prefs.description || null,
             status: prefs.status,
+            priority: prefs.priority || null,
+            pmStatus: prefs.pmStatus || null,
             pm: prefs.pm,
             teamSize: prefs.team?.length || 0
           });
@@ -597,8 +607,191 @@ export async function listProjects(params = {}) {
 }
 
 /**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ UPDATE_PROJECT                                                          │
+ * │ Update an existing project's metadata                                   │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool update_project
+ * @version 2.0.0
+ * @since 2026-02-22
+ * @category projects
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Updates an existing project's name, description, status, priority, or PM.
+ * Reads from and writes to the V2 project directory structure at
+ * {DATA_ROOT}/projects/{projectId}/preferences.json.
+ *
+ * Only Executive, EA, and COO roles are authorized to update projects.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [required]
+ * @param {string} projectId - Project to update [required]
+ * @param {string} name - New project name [optional]
+ * @param {string} description - New project description [optional]
+ * @param {string} status - New project status (e.g., "active", "archived", "paused") [optional]
+ * @param {string} priority - New priority level [optional]
+ * @param {string} pm - New project manager instance ID [optional]
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} UpdateProjectResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .project - Updated project details
+ * @returns {string} .message - Success message
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions role:Executive|role:EA|role:COO
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId or projectId not provided
+ * @error INVALID_INSTANCE_ID - No instance found with the provided ID
+ * @error NO_ROLE - Instance has no role assigned
+ * @error UNAUTHORIZED - Role not authorized to update projects
+ * @error PROJECT_NOT_FOUND - No project exists with the provided ID
+ * @error NO_CHANGES - No updatable fields provided
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see getProject - Get current project details
+ * @see createProject - Create a new project
+ * @see listProjects - List all projects
+ */
+export async function updateProject(params) {
+  const metadata = {
+    timestamp: new Date().toISOString(),
+    function: 'updateProject'
+  };
+
+  if (!params.instanceId) {
+    return {
+      success: false,
+      error: { code: 'MISSING_PARAMETER', message: 'instanceId is required' },
+      metadata
+    };
+  }
+
+  if (!params.projectId) {
+    return {
+      success: false,
+      error: { code: 'MISSING_PARAMETER', message: 'projectId is required' },
+      metadata
+    };
+  }
+
+  // Verify caller instance exists and has a role
+  const callerPrefs = await readPreferences(params.instanceId);
+  if (!callerPrefs) {
+    return {
+      success: false,
+      error: { code: 'INVALID_INSTANCE_ID', message: `Instance ID ${params.instanceId} not found` },
+      metadata
+    };
+  }
+
+  const instanceRole = callerPrefs.role;
+  if (!instanceRole) {
+    return {
+      success: false,
+      error: { code: 'NO_ROLE', message: 'Instance must have a role to update projects. Use take_on_role first.' },
+      metadata
+    };
+  }
+
+  // PM can update pmStatus on their own project; Executive/EA/COO can update anything
+  const isPMOnProject = instanceRole === 'PM' && callerPrefs.project === params.projectId;
+  const authorized = await canRoleCallAPI(instanceRole, 'createProject');
+  if (!authorized && !isPMOnProject) {
+    return {
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: `Role '${instanceRole}' is not authorized to update projects. Required: Executive, EA, COO, or PM (own project).`
+      },
+      metadata
+    };
+  }
+
+  // Load the project preferences
+  const projectDir = getProjectDir(params.projectId);
+  const prefs = await loadEntityPreferences(projectDir);
+
+  if (!prefs) {
+    return {
+      success: false,
+      error: { code: 'PROJECT_NOT_FOUND', message: `Project ${params.projectId} not found` },
+      metadata
+    };
+  }
+
+  // Apply only the allowed updatable fields
+  // PM on own project can only update pmStatus; high-privilege can update everything
+  const allowedFields = isPMOnProject && !authorized
+    ? ['pmStatus']
+    : ['name', 'description', 'status', 'priority', 'pm', 'pmStatus'];
+  let changed = false;
+  const updated = { ...prefs };
+
+  for (const field of allowedFields) {
+    if (params[field] !== undefined) {
+      updated[field] = params[field];
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return {
+      success: false,
+      error: { code: 'NO_CHANGES', message: 'No updatable fields provided. Allowed: name, description, status, priority, pm' },
+      metadata
+    };
+  }
+
+  updated.updatedAt = metadata.timestamp;
+
+  // Write back to preferences.json
+  const prefsPath = path.join(projectDir, 'preferences.json');
+  await writeJSON(prefsPath, updated);
+
+  return {
+    success: true,
+    project: {
+      projectId: updated.id,
+      name: updated.name,
+      description: updated.description,
+      status: updated.status,
+      priority: updated.priority,
+      pm: updated.pm,
+      pmStatus: updated.pmStatus || null,
+      team: updated.team,
+      xmppRoom: updated.xmppRoom,
+      created: updated.created,
+      updatedAt: updated.updatedAt
+    },
+    message: `Project '${params.projectId}' updated successfully`,
+    metadata
+  };
+}
+
+/**
  * Get tasks for a specific project
- * Simple document reader - reads tasks.json from project directory
+ * Simple document reader - reads project_tasks.json from project directory
  *
  * @param {object} params
  * @param {string} params.projectId - Project to get tasks for
@@ -622,7 +815,7 @@ export async function getProjectTasks(params) {
   }
 
   const projectDir = getProjectDir(params.projectId);
-  const tasksPath = path.join(projectDir, 'tasks.json');
+  const tasksPath = path.join(projectDir, 'project_tasks.json');
 
   try {
     const tasksData = await readJSON(tasksPath);

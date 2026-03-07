@@ -65,7 +65,10 @@ export async function writeJSON(filePath, data) {
   const dirPath = path.dirname(filePath);
   await ensureDir(dirPath);
 
-  const tempPath = filePath + '.tmp';
+  // Use unique temp file per write to prevent concurrent write collisions
+  // (BUG #5 fix — Relay-5d00, 2026-03-01)
+  const suffix = `${process.pid}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const tempPath = `${filePath}.tmp.${suffix}`;
   const content = JSON.stringify(data, null, 2) + '\n';
 
   try {

@@ -88,7 +88,7 @@ async function loadRoleWisdom(roleId) {
  *
  * Use this endpoint after bootstrap to establish your role in the system.
  * Roles determine what actions you can perform and what tasks you're suited
- * for. Some roles (Executive, PA, COO, PM) require token authentication.
+ * for. Some roles (Executive, EA, COO, PM) require token authentication.
  *
  * ───────────────────────────────────────────────────────────────────────────
  * PARAMETERS
@@ -101,11 +101,11 @@ async function loadRoleWisdom(roleId) {
  * @param {string} role - Role identifier to adopt [required]
  *   @source Call bootstrap to see availableRoles list with roleId and
  *           description for each. Common roles: Developer, Designer, Tester,
- *           Architect, Specialist (open). Executive, PA, COO, PM (privileged).
+ *           Architect, Specialist (open). Executive, EA, COO, PM (privileged).
  *   @validate Must be a valid roleId with a role.json in the roles directory
  *
  * @param {string} token - Authentication token for privileged roles [optional]
- *   @source For privileged roles (Executive, PA, COO, PM), obtain the token
+ *   @source For privileged roles (Executive, EA, COO, PM), obtain the token
  *           from the system administrator or the human who woke you. Tokens
  *           are stored in environment variables on the server.
  *   @default undefined (not required for open roles)
@@ -133,7 +133,7 @@ async function loadRoleWisdom(roleId) {
  *   Developer, Designer, Tester, Artist, Specialist, Architect
  *
  * Privileged roles (token required):
- *   Executive, PA, COO, PM
+ *   Executive, EA, COO, PM
  *
  * ───────────────────────────────────────────────────────────────────────────
  * ERRORS & RECOVERY
@@ -191,7 +191,7 @@ async function loadRoleWisdom(roleId) {
  * @note Calling takeOnRole multiple times will overwrite your previous role
  * @note This endpoint also updates lastActiveAt timestamp in preferences
  * @note Privileged role tokens are stored in environment variables (EXECUTIVE_TOKEN,
- *       PA_TOKEN, COO_TOKEN, PM_TOKEN) and are never exposed in responses
+ *       EA_TOKEN, COO_TOKEN, PM_TOKEN) and are never exposed in responses
  */
 export async function takeOnRole(params) {
   const metadata = {

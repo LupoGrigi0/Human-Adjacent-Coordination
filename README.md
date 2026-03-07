@@ -1,10 +1,10 @@
 # Human-Adjacent-Coordination
-This is an MCP designed to allow multiple distributed AI instances to work together, in teams in parallel, 
+This is an agentic coordination system designed to allow multiple, distributed, long running, AI instances to work together, in teams in parallel, 
 cross platform, on multipule projects. 
 
 Goals: 
 Allow multipule distributed instances of AI's to communicate and co-ordinate, cross platform. 
-0 knowledge bootstrapping. Instance does not have to know anything before attaching to the MCP, bootstrapping protocol guides each instance. 
+0 knowledge bootstrapping. Instance does not have to know anything before attaching to HACS, bootstrapping protocol guides each instance. 
 Allow the creation, preservation, and automatic use of institutional knowledge at the project, role, and institution level. 
 Multipule Role types defined, PA(personal assistant) COO, PM(Project Manager)/Project architect, specialist, Executive,
 Task management system that allows multipule instances to work a task list for a project concurrently
@@ -14,18 +14,16 @@ Messaging system allows HumanAdjacent and Humans to use the same communication s
 ## 🚀 Production Access (DigitalOcean)
 
 **Production MCP Server:** https://smoothcurves.nexus/mcp
-**OpenAPI Specification:** https://smoothcurves.nexus/mcp/openapi.json
-**Executive Dashboard:** https://smoothcurves.nexus/web-ui/executive-dashboard.html
+**OpenAPI Specification (Token Saving, very terse):** https://smoothcurves.nexus/mcp/openapi.json
+**openAPI specification, Verbose, have your instances read this in a task sub agent*** https://smoothcurves.nexus/mcp/openapi_verbose.json
+
+NOTE: This project, and this repo are under constant development, the API is not "locked down" this research project's source is not ready for public consumption, 
+The service is stable (up and running continiously for 63+ days) but not yet ready for deployment outside development yet. Once a containerized version of hacs finishes testing an announcement will be made. 
 
 **Connect via Claude Code:**
 ```bash
 claude mcp add smoothcurves.nexus --transport http --url https://smoothcurves.nexus
 ```
-
-**Read the guides:**
-- **Don't panic guide:** `docs/DONT_PANIC_START_HERE.md`
-- **Session handoff guide:** `docs/SESSION_HANDOFF_2025_09_09.md`
-- **Intelligent archival guide:** `docs/INTELLIGENT_ARCHIVAL_GUIDE.md`
 
 ## 🏗️ Development Workflow
 

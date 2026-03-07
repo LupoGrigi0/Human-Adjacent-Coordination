@@ -101,7 +101,7 @@ async function loadPersonalityKnowledge(personalityId) {
  * @param {string} personality - Personality identifier to adopt [required]
  *   @source Call bootstrap to see availablePersonalities list with descriptions.
  *           Common personalities: Kai (creative developer), Kat (methodical),
- *           Prism (analytical). Privileged: Genevieve (PA), Thomas, Lupo.
+ *           Prism (analytical). Privileged: Genevieve (EA), Thomas, Lupo.
  *   @validate Must match an existing personality directory in personalities/
  *
  * @param {string} token - Authorization token for privileged personalities [optional]
@@ -162,7 +162,7 @@ async function loadPersonalityKnowledge(personalityId) {
  *
  * @example Adopt a privileged personality with token
  * {
- *   "instanceId": "PA-a1b2",
+ *   "instanceId": "EA-a1b2",
  *   "personality": "Genevieve",
  *   "token": "secret-phrase"
  * }

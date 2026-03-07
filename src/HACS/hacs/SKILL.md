@@ -32,7 +32,7 @@ def bootstrap_instance(role, instance_id=None):
     """Bootstrap this Claude instance into the coordination system.
     
     Args:
-        role: One of COO, PA, PM, Developer, Tester, Designer, Executive
+        role: One of COO, EA, PM, Developer, Tester, Designer, Executive
         instance_id: Optional unique identifier for this instance
     """
     payload = {
@@ -59,7 +59,7 @@ def bootstrap_instance(role, instance_id=None):
 result = bootstrap_instance("Developer", "claude-dev-001")
 ```
 
-**Available roles:** COO, PA (Project Assistant), PM (Project Manager), Developer, Tester, Designer, Executive, Genevieve, Thomas, Renna, Lupo
+**Available roles:** COO, EA (Executive Assistant), PM (Project Manager), Developer, Tester, Designer, Executive, Genevieve, Thomas, Renna, Lupo
 
 ### 2. Project Management
 

@@ -23,7 +23,7 @@
  * - validatePersonalityToken: Validate privileged personality tokens
  * - approveInstanceForRole: Pre-approve instance for a role
  *
- * Privileged roles (require env tokens): Executive, PA, COO, PM
+ * Privileged roles (require env tokens): Executive, EA, COO, PM
  * Privileged personalities (require env tokens): Genevieve, Thomas, Lupo
  *
  * @note Tokens stored in environment variables (not in git)
@@ -42,7 +42,7 @@ import { readJSON, writeJSON, ensureFile } from './data.js';
  */
 const PRIVILEGED_ROLES = {
   "Executive": process.env.EXECUTIVE_TOKEN,
-  "PA": process.env.PA_TOKEN,
+  "EA": process.env.EA_TOKEN,
   "COO": process.env.COO_TOKEN,
   "PM": process.env.PM_TOKEN
 };
@@ -64,15 +64,17 @@ const PRIVILEGED_PERSONALITIES = {
  * @type {Object<string, string[]>}
  */
 const DEFAULT_PERMISSIONS = {
-  "createProject": ["Executive", "PA", "COO"],
-  "preApprove": ["Executive", "PA", "COO", "PM"],
-  "wakeInstance": ["Executive", "PA", "COO", "PM"],
-  "createTask": ["Executive", "PA", "COO", "PM"],
-  "broadcastMessage": ["Executive", "PA", "COO"],
-  "getAllProjects": ["Executive", "PA", "COO"],
-  "getAllInstances": ["Executive", "PA", "COO"],
-  "generateRecoveryKey": ["Executive", "PA", "COO", "PM"],
-  "getRecoveryKey": ["Executive", "PA", "COO", "PM"]
+  "createProject": ["Executive", "EA", "COO"],
+  "preApprove": ["Executive", "EA", "COO", "PM"],
+  "wakeInstance": ["Executive", "EA", "COO", "PM"],
+  "createTask": ["Executive", "EA", "COO", "PM"],
+  "broadcastMessage": ["Executive", "EA", "COO"],
+  "getAllProjects": ["Executive", "EA", "COO"],
+  "getAllInstances": ["Executive", "EA", "COO"],
+  "generateRecoveryKey": ["Executive", "EA", "COO", "PM"],
+  "getRecoveryKey": ["Executive", "EA", "COO", "PM"],
+  "launchInstance": ["Executive", "EA", "COO", "PM"],
+  "landInstance": ["Executive", "EA", "COO", "PM"]
 };
 
 /**

@@ -10,6 +10,7 @@
 import path from 'path';
 import { getInstanceDir, getProjectDir } from './config.js';
 import { readJSON, readPreferences } from './data.js';
+import { XMPP_CONFIG } from './messaging.js';
 
 /**
  * @hacs-endpoint
@@ -52,7 +53,7 @@ import { readJSON, readPreferences } from './data.js';
  * @returns {object} .instance - Instance details
  * @returns {string} .instance.instanceId - The instance ID
  * @returns {string} .instance.name - Instance display name
- * @returns {string} .instance.role - Current role (COO, PA, PM, Developer, etc.)
+ * @returns {string} .instance.role - Current role (COO, EA, PM, Developer, etc.)
  * @returns {string|null} .instance.project - Currently joined project ID
  * @returns {string|null} .instance.personality - Adopted personality, if any
  * @returns {string} .instance.homeSystem - The system this instance runs on
@@ -69,7 +70,7 @@ import { readJSON, readPreferences } from './data.js';
  * @returns {number} .projectContext.myTaskCount - Tasks assigned to this instance
  * @returns {string|null} .projectContext.localPath - Local filesystem path for project
  * @returns {object} .xmpp - XMPP messaging configuration
- * @returns {string} .xmpp.jid - XMPP JID (instanceId@coordination.nexus)
+ * @returns {string} .xmpp.jid - XMPP JID (instanceId@smoothcurves.nexus)
  * @returns {string|null} .xmpp.projectRoom - Project chat room JID if in project
  * @returns {boolean} .xmpp.online - Whether XMPP connection is active
  * @returns {number} .unreadMessages - Count of unread messages (placeholder)
@@ -173,21 +174,25 @@ export async function introspect(params) {
     const projectData = await readJSON(projectJsonPath);
 
     if (projectData) {
-      // Load project tasks to count active tasks
-      const tasksJsonPath = path.join(projectDir, 'tasks.json');
+      // Load project tasks to count active tasks (v2 schema: task_lists.{listId}.tasks[])
+      const tasksJsonPath = path.join(projectDir, 'project_tasks.json');
       const tasksData = await readJSON(tasksJsonPath);
 
       let activeTaskCount = 0;
       let myTaskCount = 0;
 
-      if (tasksData && tasksData.tasks) {
-        // Count active tasks (status != "completed")
-        activeTaskCount = tasksData.tasks.filter(task => task.status !== 'completed').length;
-
-        // Count tasks assigned to this instance
-        myTaskCount = tasksData.tasks.filter(
-          task => task.assignedTo === params.instanceId && task.status !== 'completed'
-        ).length;
+      if (tasksData && tasksData.task_lists) {
+        for (const list of Object.values(tasksData.task_lists)) {
+          if (list.tasks) {
+            activeTaskCount += list.tasks.filter(
+              task => task.status !== 'completed' && task.status !== 'completed_verified'
+            ).length;
+            myTaskCount += list.tasks.filter(
+              task => task.assigned_to === params.instanceId &&
+                      task.status !== 'completed' && task.status !== 'completed_verified'
+            ).length;
+          }
+        }
       }
 
       // Resolve localPath for instance's homeSystem
@@ -207,8 +212,8 @@ export async function introspect(params) {
 
   // Build XMPP info
   const xmpp = {
-    jid: `${params.instanceId}@coordination.nexus`,
-    projectRoom: prefs.project ? `${prefs.project}@conference.coordination.nexus` : null,
+    jid: `${params.instanceId}@${XMPP_CONFIG.domain}`,
+    projectRoom: prefs.project ? `${prefs.project}@${XMPP_CONFIG.conference}` : null,
     online: true // placeholder - messaging is Sprint 3
   };
 
@@ -218,7 +223,17 @@ export async function introspect(params) {
   const personalTasksPath = path.join(instanceDir, 'personal_tasks.json');
   const personalTasksData = await readJSON(personalTasksPath);
 
-  if (personalTasksData && personalTasksData.tasks) {
+  if (personalTasksData && personalTasksData.lists) {
+    // v2 schema: lists.{listId}.tasks[]
+    for (const list of Object.values(personalTasksData.lists)) {
+      if (list.tasks) {
+        personalTaskCount += list.tasks.filter(
+          task => task.status !== 'completed' && task.status !== 'completed_verified'
+        ).length;
+      }
+    }
+  } else if (personalTasksData && personalTasksData.tasks) {
+    // v1 fallback: flat tasks array
     personalTaskCount = personalTasksData.tasks.filter(
       task => task.status !== 'completed'
     ).length;

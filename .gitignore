@@ -1,4 +1,17 @@
 
+# Secrets and credentials
+secrets.env
+*.env
+.env
+.env.*
+
+# Certificates and keys
+certs/
+*.key
+*.crt
+*.pem
+*.p12
+
 # Bastion's conversational exports (context recovery, not code)
 docs/bastion_*.txt
 docs/bastion_*.md

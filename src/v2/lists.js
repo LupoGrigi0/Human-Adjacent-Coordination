@@ -1,6 +1,6 @@
 /**
  * Lists handler for V2 coordination system
- * Provides personal checklists with Executive visibility for PM/COO/PA
+ * Provides personal checklists with Executive visibility for PM/COO/EA
  *
  * @module lists
  * @author Bridge
@@ -41,15 +41,22 @@ async function initializeLists(instanceId) {
 
 /**
  * Check if caller can access target instance's lists
- * PM, COO, PA can access Executive's lists
+ * Executive and COO can access ANY instance's lists (except diary — that's sacred)
+ * EA can access Executive's lists (proxy pattern)
+ * PM can access Executive's lists
  *
  * @param {string} callerRole - Role of the calling instance
  * @param {string} targetRole - Role of the target instance
  * @returns {boolean} Whether access is permitted
  */
 function canAccessTargetLists(callerRole, targetRole) {
-  const privilegedRoles = ['PM', 'COO', 'PA'];
-  return privilegedRoles.includes(callerRole) && targetRole === 'Executive';
+  // Executive and COO can access ANY instance's lists
+  if (['Executive', 'COO'].includes(callerRole)) return true;
+  // EA can access Executive's lists (proxy pattern)
+  if (callerRole === 'EA' && targetRole === 'Executive') return true;
+  // PM can access Executive's lists
+  if (callerRole === 'PM' && targetRole === 'Executive') return true;
+  return false;
 }
 
 /**
@@ -75,8 +82,8 @@ async function resolveTargetInstance(params, metadata) {
     };
   }
 
-  // If no target specified, operate on caller's own lists
-  if (!targetInstanceId) {
+  // If no target specified OR target is self, operate on caller's own lists
+  if (!targetInstanceId || targetInstanceId === instanceId) {
     return {
       success: true,
       effectiveInstanceId: instanceId,
@@ -158,7 +165,7 @@ async function resolveTargetInstance(params, metadata) {
  *
  * @param {string} targetInstanceId - Target instance for Executive access [optional]
  *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
- *           and PA roles can access Executive's lists.
+ *           and EA roles can access Executive's lists.
  *   @default null (operates on caller's own lists)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -197,7 +204,7 @@ async function resolveTargetInstance(params, metadata) {
  *   @recover Verify the targetInstanceId exists using get_all_instances.
  *
  * @error UNAUTHORIZED - Caller cannot access target's lists
- *   @recover Only PM, COO, and PA roles can access Executive's lists. Verify
+ *   @recover Only PM, COO, and EA roles can access Executive's lists. Verify
  *            your role and target's role.
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -210,7 +217,7 @@ async function resolveTargetInstance(params, metadata) {
  *   "description": "Things to do today"
  * }
  *
- * @example Create list for Executive (as PA/PM/COO)
+ * @example Create list for Executive (as EA/PM/COO)
  * {
  *   "instanceId": "Genevieve-001",
  *   "name": "Executive Priority Items",
@@ -230,7 +237,7 @@ async function resolveTargetInstance(params, metadata) {
  * ───────────────────────────────────────────────────────────────────────────
  * @note Lists are stored in {instanceId}/lists.json
  * @note List IDs are generated using format list-{8 hex chars}
- * @note Executive visibility allows PM/COO/PA to manage Executive's lists
+ * @note Executive visibility allows PM/COO/EA to manage Executive's lists
  */
 export async function createList(params) {
   const metadata = {
@@ -320,7 +327,7 @@ export async function createList(params) {
  *
  * @param {string} targetInstanceId - Target instance for Executive access [optional]
  *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
- *           and PA roles can access Executive's lists.
+ *           and EA roles can access Executive's lists.
  *   @default null (operates on caller's own lists)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -359,7 +366,7 @@ export async function createList(params) {
  *   @recover Verify the targetInstanceId exists using get_all_instances.
  *
  * @error UNAUTHORIZED - Caller cannot access target's lists
- *   @recover Only PM, COO, and PA roles can access Executive's lists. Verify
+ *   @recover Only PM, COO, and EA roles can access Executive's lists. Verify
  *            your role and target's role.
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -368,7 +375,7 @@ export async function createList(params) {
  * @example Get own lists
  * { "instanceId": "Phoenix-k3m7" }
  *
- * @example Get Executive's lists (as PA/PM/COO)
+ * @example Get Executive's lists (as EA/PM/COO)
  * {
  *   "instanceId": "Genevieve-001",
  *   "targetInstanceId": "Lupo-000"
@@ -465,7 +472,7 @@ export async function getLists(params) {
  *
  * @param {string} targetInstanceId - Target instance for Executive access [optional]
  *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
- *           and PA roles can access Executive's lists.
+ *           and EA roles can access Executive's lists.
  *   @default null (operates on caller's own lists)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -506,7 +513,7 @@ export async function getLists(params) {
  *   @recover Verify the targetInstanceId exists using get_all_instances.
  *
  * @error UNAUTHORIZED - Caller cannot access target's lists
- *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *   @recover Only PM, COO, and EA roles can access Executive's lists.
  *
  * @error LIST_NOT_FOUND - No list with the specified ID exists
  *   @recover Call get_lists to see available lists and their IDs.
@@ -520,7 +527,7 @@ export async function getLists(params) {
  *   "listId": "list-abc12345"
  * }
  *
- * @example Get Executive's list (as PA/PM/COO)
+ * @example Get Executive's list (as EA/PM/COO)
  * {
  *   "instanceId": "Genevieve-001",
  *   "listId": "list-xyz98765",
@@ -630,7 +637,7 @@ export async function getList(params) {
  *
  * @param {string} targetInstanceId - Target instance for Executive access [optional]
  *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
- *           and PA roles can access Executive's lists.
+ *           and EA roles can access Executive's lists.
  *   @default null (operates on caller's own lists)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -667,7 +674,7 @@ export async function getList(params) {
  *   @recover Verify the targetInstanceId exists using get_all_instances.
  *
  * @error UNAUTHORIZED - Caller cannot access target's lists
- *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *   @recover Only PM, COO, and EA roles can access Executive's lists.
  *
  * @error LIST_NOT_FOUND - No list with the specified ID exists
  *   @recover Call get_lists to see available lists and their IDs, or create
@@ -683,7 +690,7 @@ export async function getList(params) {
  *   "text": "Review API spec document"
  * }
  *
- * @example Add item to Executive's list (as PA/PM/COO)
+ * @example Add item to Executive's list (as EA/PM/COO)
  * {
  *   "instanceId": "Genevieve-001",
  *   "listId": "list-xyz98765",
@@ -818,7 +825,7 @@ export async function addListItem(params) {
  *
  * @param {string} targetInstanceId - Target instance for Executive access [optional]
  *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
- *           and PA roles can access Executive's lists.
+ *           and EA roles can access Executive's lists.
  *   @default null (operates on caller's own lists)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -855,7 +862,7 @@ export async function addListItem(params) {
  *   @recover Verify the targetInstanceId exists using get_all_instances.
  *
  * @error UNAUTHORIZED - Caller cannot access target's lists
- *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *   @recover Only PM, COO, and EA roles can access Executive's lists.
  *
  * @error LIST_NOT_FOUND - No list with the specified ID exists
  *   @recover Call get_lists to see available lists and their IDs.
@@ -873,7 +880,7 @@ export async function addListItem(params) {
  *   "itemId": "item-xyz98765"
  * }
  *
- * @example Toggle item in Executive's list (as PA/PM/COO)
+ * @example Toggle item in Executive's list (as EA/PM/COO)
  * {
  *   "instanceId": "Genevieve-001",
  *   "listId": "list-abc12345",
@@ -999,7 +1006,7 @@ export async function toggleListItem(params) {
  *
  * @param {string} targetInstanceId - Target instance for Executive access [optional]
  *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
- *           and PA roles can access Executive's lists.
+ *           and EA roles can access Executive's lists.
  *   @default null (operates on caller's own lists)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -1034,7 +1041,7 @@ export async function toggleListItem(params) {
  *   @recover Verify the targetInstanceId exists using get_all_instances.
  *
  * @error UNAUTHORIZED - Caller cannot access target's lists
- *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *   @recover Only PM, COO, and EA roles can access Executive's lists.
  *
  * @error LIST_NOT_FOUND - No list with the specified ID exists
  *   @recover Call get_lists to see available lists and their IDs.
@@ -1049,7 +1056,7 @@ export async function toggleListItem(params) {
  *   "name": "Weekly Tasks"
  * }
  *
- * @example Rename Executive's list (as PA/PM/COO)
+ * @example Rename Executive's list (as EA/PM/COO)
  * {
  *   "instanceId": "Genevieve-001",
  *   "listId": "list-abc12345",
@@ -1168,7 +1175,7 @@ export async function renameList(params) {
  *
  * @param {string} targetInstanceId - Target instance for Executive access [optional]
  *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
- *           and PA roles can access Executive's lists.
+ *           and EA roles can access Executive's lists.
  *   @default null (operates on caller's own lists)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -1205,7 +1212,7 @@ export async function renameList(params) {
  *   @recover Verify the targetInstanceId exists using get_all_instances.
  *
  * @error UNAUTHORIZED - Caller cannot access target's lists
- *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *   @recover Only PM, COO, and EA roles can access Executive's lists.
  *
  * @error LIST_NOT_FOUND - No list with the specified ID exists
  *   @recover Call get_lists to see available lists and their IDs.
@@ -1223,7 +1230,7 @@ export async function renameList(params) {
  *   "itemId": "item-xyz98765"
  * }
  *
- * @example Delete item from Executive's list (as PA/PM/COO)
+ * @example Delete item from Executive's list (as EA/PM/COO)
  * {
  *   "instanceId": "Genevieve-001",
  *   "listId": "list-abc12345",
@@ -1345,7 +1352,7 @@ export async function deleteListItem(params) {
  *
  * @param {string} targetInstanceId - Target instance for Executive access [optional]
  *   @source Use get_all_instances to find Executive instanceIds. Only PM, COO,
- *           and PA roles can access Executive's lists.
+ *           and EA roles can access Executive's lists.
  *   @default null (operates on caller's own lists)
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -1380,7 +1387,7 @@ export async function deleteListItem(params) {
  *   @recover Verify the targetInstanceId exists using get_all_instances.
  *
  * @error UNAUTHORIZED - Caller cannot access target's lists
- *   @recover Only PM, COO, and PA roles can access Executive's lists.
+ *   @recover Only PM, COO, and EA roles can access Executive's lists.
  *
  * @error LIST_NOT_FOUND - No list with the specified ID exists
  *   @recover Call get_lists to see available lists and their IDs.
@@ -1394,7 +1401,7 @@ export async function deleteListItem(params) {
  *   "listId": "list-abc12345"
  * }
  *
- * @example Delete Executive's list (as PA/PM/COO)
+ * @example Delete Executive's list (as EA/PM/COO)
  * {
  *   "instanceId": "Genevieve-001",
  *   "listId": "list-abc12345",

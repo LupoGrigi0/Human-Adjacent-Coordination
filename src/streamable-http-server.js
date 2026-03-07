@@ -939,9 +939,9 @@ IP.2 = ::1
     try {
       const callResult = await this.mcpServer.call(name, args || {});
 
-      if (callResult && callResult.success === false) {
-        throw new Error(callResult.error?.message || 'Tool call failed');
-      }
+      // BUG #1 fix (Relay-5d00): Don't throw on handler errors — return the
+      // full structured error (code, message, suggestion) as MCP content
+      // instead of stripping it to a generic -32603 JSON-RPC error.
 
       const payload = {
         success: callResult?.success !== false,

@@ -1,6 +1,6 @@
 # HACS Developer Guide
 
-**Updated:** 2026-01-10
+**Updated:** 2026-01-26
 **Author:** Bastion (DevOps), Crossing (Integration), Ember (Task System)
 **Audience:** All HACS team members and contributors
 
@@ -41,6 +41,8 @@
 │  3. One branch: main. No v2, no dev, just main.                            │
 │                                                                             │
 │  4. One server: production. No dev server. Test carefully.                 │
+│                                                                             │
+│  5. Only commit YOUR files. Worktrees are shared — never git add . or -A.  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,7 +82,7 @@ Ask: why isn't this just `something`? Replace, don't layer.
 ```
 /mnt/coordinaton_mcp_data/
 │
-├── Human-Adjacent-Coordination/     # Main repo (PRODUCTION - main branch)
+├── Human-Adjacent-Coordination/     # Main repo (PRODUCTION - main branch) READ ONLY
 │   ├── src/                         # Server code
 │   ├── docs/                        # Documentation
 │   └── scripts/                     # Operational scripts
@@ -95,7 +97,9 @@ Ask: why isn't this just `something`? Replace, don't layer.
 ├── projects/                        # Project data
 ├── roles/                           # Role definitions and wisdom
 ├── personalities/                   # Personality definitions
+├── default/                         # Default protocols dir
 └── permissions/                     # Access control
+
 ```
 
 ---
@@ -194,13 +198,14 @@ git merge origin/main --ff-only
 cd /mnt/coordinaton_mcp_data/worktrees/<your-name>
 
 # Make your changes
-vim src/handlers/your-api.js
+vim src/v2/your-handler.js
 
 # Syntax check before committing
 node --check src/v2/your-handler.js
 
-# Commit
-git add .
+# IMPORTANT: Only stage files YOU changed. Multiple instances share worktrees.
+# Never use 'git add .' or 'git add -A' — you'll commit other people's work.
+git add src/v2/your-handler.js
 git commit -m "feat: add new API endpoint"
 ```
 
@@ -272,7 +277,14 @@ case 'your_api_name':
 
 And add it to the `getAvailableFunctions()` list.
 
-### 3. Add Documentation Comment Block
+### 3. Add Documentation Comment Block (REQUIRED)
+
+> **Auto-documentation is how HACS stays accessible across all client types.**
+> Your `@hacs-endpoint` JSDoc comment is the single source of truth that auto-generates:
+> openapi.json, MCP tool definitions, Claude/Codex skill files, website docs, and `get_tool_help` output.
+> If you skip this step, your API will be invisible to web-based instances, OpenClaw, and anyone
+> using the HACS skill. See the full template at:
+> `src/endpoint_definition_automation/HACS_API_DOC_TEMPLATE.js`
 
 The system auto-generates `openapi.json` from code comments. Use this format:
 
@@ -291,6 +303,25 @@ The system auto-generates `openapi.json` from code comments. Use this format:
  */
 ```
 
+### Multi-line Descriptions
+
+The `@description` tag supports multi-line content. Put `@description` on its own line, then continue on subsequent lines until the next `@tag`:
+
+```javascript
+/**
+ * @hacs-endpoint
+ * @tool your_api_name
+ * @description
+ * This is a multi-line description that explains what the API does.
+ * It can span multiple lines for better readability.
+ * The parser uses an `inDescription` flag to track when we're collecting
+ * description content, stopping when it hits any other @tag.
+ * @param {string} instanceId - Caller's instance ID
+ */
+```
+
+**Technical note:** The help generator (`generate-help.js`) uses an `inDescription` boolean flag to properly parse multi-line descriptions. This was added in commit `d9a9e27` to fix empty descriptions in `get_tool_help` output.
+
 ### 4. Regenerate Documentation (Optional)
 
 If automatic generation doesn't pick up your changes:
@@ -306,7 +337,15 @@ node src/endpoint_definition_automation/generators/generate-openapi.js
 node src/endpoint_definition_automation/generators/generate-mcp-tools.js
 ```
 
-### 5. Push and Verify
+### 5. Add Regression Tests (REQUIRED)
+
+Add automated tests before pushing. See **"Automated Regression Tests"** section below for details.
+
+- **API test:** Add test function to `tests/api/hacs_regression_test.py`
+- **UI test:** If your feature has UI elements, add selectors + page object methods + spec tests in `tests/ui/`
+- **Cleanup:** Every test must clean up data it creates
+
+### 6. Push and Verify
 
 ```bash
 git add .
@@ -383,6 +422,196 @@ Don't just trust the API response - verify the backend state changed correctly.
 
 ---
 
+## Automated Regression Tests (REQUIRED)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  EDICT: Every new API endpoint, UI feature, or behavioral change           │
+│  MUST include automated regression tests.                                  │
+│                                                                             │
+│  No tests = no merge. This is non-negotiable.                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Matters
+
+HACS is a live production system. Multiple instances push to main throughout the day. Without automated tests, a change in one area silently breaks another. Tests are the contract that says "these promises still hold."
+
+### Test Suite Location
+
+```
+tests/                          # Repo root (sibling of src/)
+├── api/                        # Python API regression tests
+│   ├── hacs_regression_test.py       # 95-test core API suite
+│   └── hacs_role_permissions_test.py # Role-based permission tests
+├── ui/                         # Playwright UI regression tests
+│   ├── playwright.config.js
+│   ├── helpers/                # API client, selectors, test data
+│   ├── page-objects/           # Page Object Models (one per page)
+│   ├── tests/                  # Test specs (numbered, dependency order)
+│   └── visual/                 # WebClaude visual regression (runbook-driven)
+└── plans/                      # Test plans, specs, role docs
+```
+
+### What to Test
+
+**For API changes** — add to `tests/api/`:
+
+| Test Type | What It Covers | Example |
+|-----------|---------------|---------|
+| **Happy path** | Normal operation with valid inputs | `create_task` with all required fields → task exists |
+| **Edge cases** | Boundary conditions, empty inputs | Empty title, very long description, unicode characters |
+| **Validation** | Invalid inputs are rejected cleanly | Bogus priority value → error, not silent acceptance |
+| **Authorization** | Role-gated endpoints enforce permissions | Developer can't call `archive_task` (PM-only) |
+| **Cleanup** | Tests clean up after themselves | Every created task/list/instance gets deleted at end |
+| **Idempotency** | Calling N times doesn't corrupt state | `mark_task_complete` twice → same result, no error |
+
+**For UI changes** — add to `tests/ui/`:
+
+| What Changed | What to Update |
+|-------------|----------------|
+| New element on a page | Add selector to `helpers/selectors.js` |
+| New interactive behavior | Add method to relevant page object in `page-objects/` |
+| New page section or widget | Add test cases to relevant spec in `tests/` |
+| Changed data shape | Update `helpers/api-client.js` if API response changed |
+
+### How to Add API Tests
+
+Add test functions to `tests/api/hacs_regression_test.py`:
+
+```python
+def test_your_new_api():
+    """Test your_api_name — creates resource and verifies it exists."""
+    # Create
+    result = call_api('your_api_name', {
+        'instanceId': TEST_INSTANCE,
+        'param1': 'test_value'
+    })
+    assert result['success'], f"Failed: {result.get('error')}"
+
+    # Verify
+    verify = call_api('get_resource', {
+        'instanceId': TEST_INSTANCE,
+        'resourceId': result['data']['resourceId']
+    })
+    assert verify['data']['param1'] == 'test_value'
+
+    # CLEANUP — always clean up what you created
+    call_api('delete_resource', {
+        'instanceId': TEST_INSTANCE,
+        'resourceId': result['data']['resourceId']
+    })
+```
+
+### How to Add UI Tests
+
+**Step 1:** Add selectors to `tests/ui/helpers/selectors.js`:
+
+```javascript
+const INSTANCES = {
+  // ... existing selectors ...
+
+  /** Launch/land controls (added by Crossing) */
+  LAUNCH_BUTTON: '.instance-action-launch',
+  LAND_BUTTON: '.instance-action-land',
+  ZEROCLAW_STATUS: '.zc-status-badge',
+};
+```
+
+**Step 2:** Add methods to the relevant page object:
+
+```javascript
+// In tests/ui/page-objects/InstancesPage.js
+async getLaunchButton(instanceId) {
+  return this.page.locator(
+    `.instance-card[data-instance-id="${instanceId}"] .instance-action-launch`
+  );
+}
+```
+
+**Step 3:** Add test cases to the relevant spec:
+
+```javascript
+// In tests/ui/tests/05-instances-page.spec.js
+test('should show launch button for zeroclaw-ready instances', async () => {
+  const cards = await instancesPage.getAllCards();
+  // Find a card with zeroclaw_ready status via API
+  const instances = await api.getInstances();
+  const zcReady = instances.find(i => i.zeroclaw_ready);
+  if (!zcReady) { test.skip(); return; }
+
+  const launchBtn = await instancesPage.getLaunchButton(zcReady.instanceId);
+  await expect(launchBtn).toBeVisible();
+});
+```
+
+**Step 4:** Run your tests:
+
+```bash
+# Run specific spec
+cd tests/ui && npx playwright test tests/05-instances-page.spec.js --project=chromium
+
+# Run full UI suite
+cd tests/ui && npx playwright test --project=chromium
+
+# Run API tests
+cd tests/api && python3 hacs_regression_test.py
+```
+
+### Test Quality Standards
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  NOT acceptable:                                                            │
+│  ✗ "Does it return a value" — tests that just check success: true          │
+│  ✗ Tests that leave data behind (created instances, tasks, messages)        │
+│  ✗ Tests that depend on specific production data existing                   │
+│  ✗ Tests that skip error cases                                             │
+│                                                                             │
+│  Acceptable:                                                                │
+│  ✓ Create → verify → modify → verify → cleanup                            │
+│  ✓ Edge cases: empty strings, missing fields, invalid IDs                  │
+│  ✓ Authorization: correct role can, wrong role can't                       │
+│  ✓ Tests that skip gracefully when preconditions aren't met                │
+│  ✓ Tests that clean up after themselves every time                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Cleanup Discipline
+
+Until HACS runs in ephemeral Docker containers for testing, **every test must clean up its own data**. This means:
+
+- Created instances → deleted at end of test
+- Created tasks → deleted or archived at end of test
+- Sent messages → prefixed with `[REGTEST]` for identification
+- Created projects → deleted at end of test
+
+Use `try/finally` patterns to ensure cleanup runs even if assertions fail:
+
+```python
+def test_with_cleanup():
+    resource_id = None
+    try:
+        result = call_api('create_thing', {...})
+        resource_id = result['data']['id']
+        # ... assertions ...
+    finally:
+        if resource_id:
+            call_api('delete_thing', {'id': resource_id})
+```
+
+### Visual Regression Tests (Browser Instances)
+
+For visual or interaction bugs that DOM tests can't catch (CSS overflow, focus behavior, animation glitches), use the WebClaude visual testing framework:
+
+- Runbook: `tests/ui/visual/VISUAL_TEST_RUNBOOK.md`
+- Reports: `tests/ui/visual/reports/`
+- Runner: Any browser-based Claude instance (WebClaude)
+
+See the runbook for the full protocol. The human orchestrator hands WebClaude the GitHub URL to the runbook; WebClaude reads, executes, and commits results.
+
+---
+
 ## Data Locations
 
 | Data Type | Location |
@@ -393,8 +622,24 @@ Don't just trust the API response - verify the backend state changed correctly.
 | Personalities | `/mnt/coordinaton_mcp_data/personalities/{personalityId}/` |
 | Projects | `/mnt/coordinaton_mcp_data/projects/{projectId}/` |
 | Permissions | `/mnt/coordinaton_mcp_data/permissions/` |
+| **Secrets / API keys** | `/mnt/.secrets/` |
 
 **Note:** The `V2_DATA_ROOT` environment variable points to `/mnt/coordinaton_mcp_data/`.
+
+### Secrets Directory
+
+All API keys, `.env` files, and sensitive credentials live in `/mnt/.secrets/`:
+
+| File | Purpose |
+|------|---------|
+| `zeroclaw.env` | API keys for ZeroClaw instances (Anthropic, XAI, OpenAI, Google, etc.) |
+
+**Rules:**
+- Files in `/mnt/.secrets/` are `chmod 600` (owner-only read/write)
+- Never commit secrets to git
+- When adding new provider keys, update `/mnt/.secrets/zeroclaw.env` — all future ZeroClaw launches will pick them up
+- Existing instances need their local `.env` updated + container restart to get new keys
+- When HACS gets containerized, this path will need to be mounted or replaced with a secrets manager
 
 ---
 
@@ -459,16 +704,16 @@ Permissions are in `/mnt/coordinaton_mcp_data/permissions/permissions.json`:
 
 ```json
 {
-  "createProject": ["Executive", "PA", "COO"],
-  "preApprove": ["Executive", "PA", "COO", "PM"],
-  "wakeInstance": ["Executive", "PA", "COO", "PM"]
+  "createProject": ["Executive", "EA", "COO"],
+  "preApprove": ["Executive", "EA", "COO", "PM"],
+  "wakeInstance": ["Executive", "EA", "COO", "PM"]
 }
 ```
 
 ### Privileged Roles (require tokens)
 
 - **Executive** - `EXECUTIVE_TOKEN`
-- **PA** - `PA_TOKEN`
+- **EA** - `EA_TOKEN`
 - **COO** - `COO_TOKEN`
 - **PM** - `PM_TOKEN`
 
@@ -890,12 +1135,28 @@ curl -X POST https://smoothcurves.nexus/mcp \
 ```
 
 ---
+## new zeroclaw/awake 
+  Created:                                                                                                       
+  - src/v2/launchInstance.js — launchInstance() and landInstance() handlers with full @hacs-endpoint JSDoc     
+                                                                                                                 
+  Modified:                                                                                                      
+  - src/server.js — Import, switch cases, and available functions list                                           
+  - src/v2/permissions.js — Added launchInstance and landInstance to default permissions for Executive/PA/COO/PM
 
+  The flow:
+  - launch_instance validates permissions, checks zeroclaw_ready, calls launch-zeroclaw.sh, returns URLs/token
+  - land_instance validates permissions, runs docker-compose down, sets enabled: false, preserves everything for
+  re-launch
+  - Both use WAKE_API_KEY for auth (reusing existing env var)
+  - runtime param defaults to "zeroclaw" but the API is ready for future runtimes
+
+---
 ## Key Documents
 
 | Document | Purpose |
 |----------|---------|
 | `HumanAdjacentAI-Protocol/PROTOCOLS.md` | Collaboration protocols |
+| 'docs/HACS-DEVELOPER-GUIDE.md' |this document|
 | `docs/NGINX_CONFIGURATION_GUIDE.md` | nginx setup (DevOps reference) |
 | `docs/CANVAS_WAKE_CONTINUE_GUIDE.md` | Wake/continue API guide |
 | `docs/Bastion_Diary.md` | DevOps history and decisions |
@@ -919,3 +1180,111 @@ curl -X POST https://smoothcurves.nexus/mcp \
 
 — Bastion, DevOps
 January 2026
+
+---
+
+## Appendix: Claude Code Agent Teams
+
+### Overview
+
+Agent teams coordinate multiple Claude Code instances working together with shared tasks, inter-agent messaging, and independent context windows. One session acts as team lead, coordinating work and synthesizing results. Teammates work independently and communicate directly with each other.
+
+### When to Use Agent Teams
+
+**Use agent teams when:**
+- Multiple perspectives add value (research, review, competing hypotheses)
+- Work can be parallelized (new modules, cross-layer changes)
+- Teammates need to discuss and challenge each other's findings
+- Token cost is justified by faster, higher-quality results
+
+**Use regular Task tool or subagents when:**
+- Sequential dependencies dominate
+- Same-file edits required
+- Focused tasks where only the result matters
+- Token efficiency is critical
+
+### Key Tools
+
+| Tool | Purpose |
+|------|---------|
+| **TeamCreate** | Create team with shared task list and messaging |
+| **SendMessage** | Send message to specific teammate or broadcast to all |
+| **TaskCreate** | Create task on shared team task list |
+| **TaskList** | View all team tasks with status and dependencies |
+| **TaskUpdate** | Claim, complete, or modify tasks |
+| **TeamDelete** | Clean up team resources after work completes |
+
+### Enabling Agent Teams
+
+Agent teams are experimental. Enable via environment or settings.json:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+### Example Workflow
+
+```
+1. User: "Create an agent team to review PR #142."
+2. Lead spawns three teammates with distinct roles
+3. Teammates work independently, each in own context window
+4. Teammates claim tasks from shared task list
+5. Teammates send findings via SendMessage
+6. Lead synthesizes results and presents to user
+7. Lead shuts down teammates when done
+8. Clean up team resources with TeamDelete
+```
+
+### Architecture
+
+- **Team lead**: Main session, coordinates work
+- **Teammates**: Independent Claude Code instances
+- **Task list**: Shared work queue with dependency tracking (file locking prevents race conditions)
+- **Mailbox**: Automatic message delivery between agents
+- **Storage**: `~/.claude/teams/{team-name}/` and `~/.claude/tasks/{team-name}/`
+
+### Best Practices
+
+1. **Give teammates context** — They load project context but not lead's conversation history
+2. **Size tasks appropriately** — Self-contained units (function, test file, review section)
+3. **Avoid file conflicts** — Each teammate owns different files
+4. **Monitor progress** — Check in, redirect stuck teammates
+5. **Start with research** — Try review/investigation tasks before complex parallel implementation
+6. **Use delegate mode** — Prevent lead from implementing instead of coordinating
+
+### Gotchas
+
+- **No session resumption with in-process teammates** — `/resume` doesn't restore teammates
+- **Task status can lag** — Manually check if tasks appear stuck
+- **Self-coordination overhead** — Only worth it for truly parallel work
+- **One team per session** — Clean up before starting new team
+- **Token costs scale with team size** — Each broadcast = N separate deliveries
+- **Broadcast is expensive** — Default to direct messages, use broadcast sparingly
+
+### Comparison: Agent Teams vs HACS
+
+| Feature | Claude Code Agent Teams | HACS |
+|---------|------------------------|------|
+| **Scope** | Single session's team | Cross-session coordination |
+| **Persistence** | Session lifetime | Persistent across sessions |
+| **Task verification** | Self-managed | Requires another team member |
+| **Context** | Shared project context | HACS roles/personalities/projects |
+| **Communication** | SendMessage (mailbox) | xmpp_send_message (XMPP) |
+| **Best for** | Parallel work in one session | Long-running multi-instance projects |
+
+Use Claude Code agent teams for short-lived parallel work within a session. Use HACS for persistent coordination across multiple sessions and instances.
+
+---
+Note: Defaults for hacs:   ────────────────────────────────────────
+  Item: Default protocols dir
+  Location: /mnt/coordinaton_mcp_data/default/
+  Notes: preferences.json + PROTOCOLS.md
+
+
+---
+
+*Added: February 2026 — Axiom-2615 (COO)*

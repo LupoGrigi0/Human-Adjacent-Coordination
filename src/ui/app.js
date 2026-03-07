@@ -5,72 +5,76 @@
  * Uses ES modules and the api.js isolation layer.
  *
  * @author Canvas (UI Engineer)
+ *  * @contributor Scout-4820 (Browser Extension Instance, Jan 2026)
  */
 
 import api, { setEnvironment, getEnvironment, ApiError } from './api.js';
 import * as uiConfig from './ui-config.js';
-
-// ============================================================================
-// STATE MANAGEMENT
-// ============================================================================
-
-// Configuration - This UI always runs as Lupo (Executive)
-const CONFIG = {
-    defaultName: 'Lupo',
-    defaultRole: 'Executive',
-    storageKey: 'v2_lupo_instance_id',
-    fixedInstanceId: 'Lupo-f63b'  // Always use this specific instance ID
-};
-
-const state = {
-    // Identity
-    instanceId: null,
-    name: CONFIG.defaultName,
-    role: CONFIG.defaultRole,
-    personality: null,
-    project: null,
-
-    // Data
-    projects: [],
-    instances: [],
-    tasks: [],
-    messages: [],
-    lists: [],
-    diary: '',
-
-    // Lists state
-    currentListId: null,
-    currentList: null,
-
-    // Instance detail state
-    currentInstanceDetail: null,
-
-    // Wake API state
-    wakeApiKey: null,
-    wakeConversationTarget: null,
-    wakeConversationTurns: [],
-    wakeConversationLoading: false,
-    availableRoles: [],
-    availablePersonalities: [],
-
-    // UI State
-    currentTab: 'dashboard',
-    currentConversation: null,
-    conversationType: null, // 'instance' | 'project'
-    theme: 'light',
-
-    // Connection
-    connected: false,
-    lastUpdate: null,
-
-    // Polling
-    messagePollingInterval: null,
-    unreadCount: 0
-};
-
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
+import { CONFIG, state } from './state.js';
+import { escapeHtml, showToast } from './utils.js';
+import { initTheme, setTheme, toggleTheme } from './settings.js';
+import { loadDashboard } from './dashboard.js';
+import {
+    loadProjects,
+    showProjectDetail,
+    hideProjectDetail,
+    renderProjectDetailTasks,
+    showCreateProjectModal,
+    closeCreateProjectModal,
+    createProject,
+    launchProject
+} from './projects.js';
+import {
+    showModal,
+    hideModal,
+    hideAllModals,
+    showConfirm,
+    showInstanceSelector,
+    showProjectSelector
+} from './modals.js';
+import {
+    loadMessaging,
+    showMessageDetail,
+    replyToMessage,
+    dismissQuote,
+    selectConversation,
+    loadConversationMessages,
+    sendMessage,
+    startMessagePolling,
+    stopMessagePolling,
+    pollMessages
+} from './messages.js';
+import {
+    showTaskDetail,
+    showConversationTargetDetails,
+    showEntityDetails,
+    loadInstanceDetails,
+    loadRoleDetails,
+    loadPersonalityDetails,
+    loadProjectDetailsModal
+} from './details.js';
+import {
+    loadInstances,
+    showInstanceDetail,
+    hideInstanceDetail,
+    messageCurrentInstance,
+    messageInstance,
+    ensureApiKey,
+    handleApiKeySubmit,
+    showWakeInstanceModal,
+    populateWakeDropdowns,
+    toggleWakeSpecificId,
+    handleWakeSubmit,
+    wakeCurrentInstance,
+    promoteCurrentInstance,
+    openInstanceConversation,
+    openConversationPanel,
+    closeConversationPanel,
+    updateInstanceChatSendButton,
+    renderInstanceChatMessages,
+    sendInstanceChatMessage,
+    wakeAndChat
+} from './instances.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] Initializing V2 Dashboard as Lupo...');
@@ -142,28 +146,6 @@ async function autoBootstrapAsLupo() {
 }
 
 // ============================================================================
-// THEME
-// ============================================================================
-
-function initTheme() {
-    const savedTheme = localStorage.getItem('v2_theme') || 'light';
-    setTheme(savedTheme);
-}
-
-function setTheme(theme) {
-    state.theme = theme;
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('v2_theme', theme);
-
-    const themeIcon = document.querySelector('.theme-icon');
-    themeIcon.textContent = theme === 'dark' ? '\u2600' : '\u263D'; // sun/moon
-}
-
-function toggleTheme() {
-    setTheme(state.theme === 'dark' ? 'light' : 'dark');
-}
-
-// ============================================================================
 // EVENT LISTENERS
 // ============================================================================
 
@@ -176,10 +158,39 @@ function setupEventListeners() {
         item.addEventListener('click', () => {
             const tab = item.dataset.tab;
             switchTab(tab);
+            // Close nav dropdown when nav item is clicked
+            closeNavDropdown();
         });
     });
 
-    // Note: Conversation filters removed in V2 - using XMPP room structure instead
+    // Desktop navigation dropdown
+    const navDropdown = document.getElementById('nav-dropdown');
+    const navDropdownToggle = document.getElementById('nav-dropdown-toggle');
+
+    if (navDropdownToggle) {
+        navDropdownToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navDropdown.classList.toggle('open');
+        });
+    }
+
+    // Nav dropdown items
+    document.querySelectorAll('.nav-dropdown-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const tab = item.getAttribute('data-tab');
+            if (tab) {
+                switchTab(tab);
+                navDropdown?.classList.remove('open');
+            }
+        });
+    });
+
+    // Close nav dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (navDropdown && !e.target.closest('.nav-dropdown')) {
+            navDropdown.classList.remove('open');
+        }
+    });
 
     // Bootstrap button
     document.getElementById('bootstrap-btn')?.addEventListener('click', showBootstrapModal);
@@ -269,12 +280,12 @@ function setupEventListeners() {
     // Admin buttons
     document.getElementById('clear-session-btn')?.addEventListener('click', clearSession);
 
-    // Create Project
+    // Create Project new launch project button
     document.getElementById('new-project-btn')?.addEventListener('click', showCreateProjectModal);
     document.getElementById('create-project-submit')?.addEventListener('click', createProject);
+        document.getElementById('launch-project-btn')?.addEventListener('click', launchProject);
 
-    // Create Task
-    document.getElementById('new-task-btn')?.addEventListener('click', showCreateTaskModal);
+    // Create Task (from project detail panel)
     document.getElementById('create-task-submit')?.addEventListener('click', createTask);
 
     // Wake Instance
@@ -309,17 +320,6 @@ function setupEventListeners() {
     document.getElementById('instance-wake-btn')?.addEventListener('click', wakeCurrentInstance);
     document.getElementById('instance-promote-btn')?.addEventListener('click', promoteCurrentInstance);
 
-    // Lists
-    document.getElementById('new-list-btn')?.addEventListener('click', showCreateListModal);
-    document.getElementById('create-list-submit')?.addEventListener('click', createList);
-    document.getElementById('list-back-btn')?.addEventListener('click', hideListDetail);
-    document.getElementById('list-delete-btn')?.addEventListener('click', deleteCurrentList);
-    document.getElementById('list-rename-btn')?.addEventListener('click', renameCurrentList);
-    document.getElementById('add-item-btn')?.addEventListener('click', addListItem);
-    document.getElementById('new-item-input')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') addListItem();
-    });
-
     // Project Detail - back button and actions
     document.getElementById('project-back-btn')?.addEventListener('click', hideProjectDetail);
     document.getElementById('project-add-task-btn')?.addEventListener('click', () => {
@@ -345,10 +345,31 @@ function setupEventListeners() {
     });
     document.getElementById('project-assign-instance-btn')?.addEventListener('click', showAssignInstanceModal);
 
-    // Task Detail - back button and actions
-    document.getElementById('task-back-btn')?.addEventListener('click', hideTaskDetail);
-    document.getElementById('task-claim-btn')?.addEventListener('click', claimCurrentTask);
-    document.getElementById('task-complete-btn')?.addEventListener('click', completeCurrentTask);
+    // PM card buttons
+    document.getElementById('pm-continue-btn')?.addEventListener('click', () => {
+        // Switch to PM chat tab in sidebar
+        const pmTab = document.querySelector('.chat-tab[data-tab="pm-chat"]');
+        pmTab?.click();
+        // Focus the input
+        document.getElementById('pm-chat-input')?.focus();
+    });
+    document.getElementById('pm-message-btn')?.addEventListener('click', () => {
+        if (state.currentProjectPM) {
+            // Switch to messages tab and select the PM's personality room
+            switchTab('messages');
+            setTimeout(() => {
+                const pmName = state.currentProjectPM.name?.toLowerCase();
+                selectConversation('dm', `personality-${pmName}`);
+            }, 100);
+        }
+    });
+
+    // Refresh team room button
+    document.getElementById('refresh-team-room')?.addEventListener('click', () => {
+        if (state.currentProject) {
+            loadProjectTeamMessages(state.currentProject);
+        }
+    });
 
     // Editable fields - Project description
     document.getElementById('project-desc-editable')?.addEventListener('click', (e) => {
@@ -367,6 +388,15 @@ function setupEventListeners() {
     document.getElementById('task-desc-save-btn')?.addEventListener('click', saveTaskDescription);
 }
 
+/**
+ * Close navigation dropdown
+ * Used when clicking a nav item
+ */
+function closeNavDropdown() {
+    const navDropdown = document.getElementById('nav-dropdown');
+    if (navDropdown) navDropdown.classList.remove('open');
+}
+
 // ============================================================================
 // TAB NAVIGATION
 // ============================================================================
@@ -378,18 +408,12 @@ function switchTab(tabName) {
     if (state.currentProjectDetail) {
         hideProjectDetail();
     }
-    if (state.currentTaskDetail) {
-        hideTaskDetail();
-    }
-    if (state.currentListId) {
-        hideListDetail();
-    }
     if (state.currentInstanceDetail) {
         hideInstanceDetail();
     }
 
-    // Update nav items
-    document.querySelectorAll('.nav-item').forEach(item => {
+    // Update nav items (dropdown, bottom nav, and legacy sidebar)
+    document.querySelectorAll('.nav-item, .nav-dropdown-item, .bottom-nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.tab === tabName);
     });
 
@@ -408,12 +432,6 @@ function switchTab(tabName) {
             break;
         case 'projects':
             loadProjects();
-            break;
-        case 'tasks':
-            loadTasks();
-            break;
-        case 'lists':
-            loadLists();
             break;
         case 'instances':
             loadInstances();
@@ -436,8 +454,8 @@ function updateConnectionStatus(connected) {
     const dot = document.getElementById('status-dot');
     const text = document.getElementById('status-text');
 
-    dot.classList.toggle('connected', connected);
-    text.textContent = connected ? 'Connected' : 'Disconnected';
+    if (dot) dot.classList.toggle('connected', connected);
+    if (text) text.textContent = connected ? 'Connected' : 'Disconnected';
 }
 
 function updateUserDisplay() {
@@ -528,7 +546,7 @@ async function loadInitialData() {
 
     try {
         // Load projects (V2 API)
-        const projectsResult = await api.listProjects(state.instanceId);
+        const projectsResult = await api.listProjects();
         if (projectsResult.projects) {
             state.projects = projectsResult.projects;
         }
@@ -556,462 +574,12 @@ async function loadInitialData() {
 }
 
 // ============================================================================
-// DASHBOARD
+// DASHBOARD - imported from ./dashboard.js
 // ============================================================================
 
-async function loadDashboard() {
-    // Update metrics
-    document.getElementById('metric-projects').textContent = state.projects.length;
-    document.getElementById('metric-instances').textContent = state.instances.filter(i => i.status === 'active').length || state.instances.length || '-';
-
-    // Tasks count
-    if (state.instanceId) {
-        try {
-            const result = await rpcCallDirect('get_tasks', {});
-            const tasks = result.tasks || result || [];
-            document.getElementById('metric-tasks').textContent = Array.isArray(tasks) ? tasks.length : '-';
-        } catch (e) {
-            document.getElementById('metric-tasks').textContent = '-';
-        }
-    } else {
-        document.getElementById('metric-tasks').textContent = '-';
-    }
-
-    // Messages count
-    document.getElementById('metric-messages').textContent = state.unreadCount || '-';
-
-    // Make metric cards clickable
-    document.querySelectorAll('.metric-card').forEach(card => {
-        card.style.cursor = 'pointer';
-        card.onclick = () => {
-            const label = card.querySelector('.metric-label')?.textContent?.toLowerCase();
-            if (label?.includes('project')) switchTab('projects');
-            else if (label?.includes('task')) switchTab('tasks');
-            else if (label?.includes('instance') || label?.includes('online')) switchTab('instances');
-            else if (label?.includes('message') || label?.includes('unread')) switchTab('messages');
-        };
-    });
-
-    // Activity feed (placeholder for now)
-    document.getElementById('activity-feed').innerHTML = `
-        <div class="activity-item" style="cursor:pointer" onclick="switchTab('projects')">
-            <strong>${state.projects.length}</strong> projects available
-        </div>
-        <div class="activity-item" style="cursor:pointer" onclick="switchTab('instances')">
-            <strong>${state.instances.length}</strong> instances registered
-        </div>
-        <div class="activity-item">
-            Dashboard loaded at ${new Date().toLocaleTimeString()}
-        </div>
-    `;
-}
-
 // ============================================================================
-// PROJECTS
+// PROJECTS - imported from ./projects.js
 // ============================================================================
-
-async function loadProjects() {
-    const grid = document.getElementById('project-grid');
-
-    if (state.projects.length === 0) {
-        grid.innerHTML = '<div class="loading-placeholder">No projects found</div>';
-        return;
-    }
-
-    grid.innerHTML = state.projects.map(project => `
-        <div class="project-card" data-project-id="${project.projectId || project.id}">
-            <span class="project-status status-${project.status}">${project.status}</span>
-            <div class="project-name">${escapeHtml(project.name)}</div>
-            <div class="project-description">${escapeHtml(project.description || 'No description')}</div>
-        </div>
-    `).join('');
-
-    // Add click handlers
-    grid.querySelectorAll('.project-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const projectId = card.dataset.projectId;
-            showProjectDetail(projectId);
-        });
-    });
-}
-
-/**
- * Show project detail view, hiding the grid
- */
-async function showProjectDetail(projectId) {
-    const project = state.projects.find(p => (p.projectId || p.id) === projectId);
-    if (!project) {
-        showToast('Project not found', 'error');
-        return;
-    }
-
-    console.log('[App] Showing project detail:', projectId);
-
-    // Hide grid and header, show detail
-    document.getElementById('project-grid').style.display = 'none';
-    document.querySelector('#tab-projects .page-header').style.display = 'none';
-    document.getElementById('project-detail-view').style.display = 'block';
-
-    // Populate detail fields
-    document.getElementById('project-detail-name').textContent = project.name;
-    document.getElementById('project-detail-status').textContent = project.status;
-    document.getElementById('project-detail-status').className = `project-status status-${project.status}`;
-    document.getElementById('project-detail-description').textContent = project.description || 'No description';
-    document.getElementById('project-detail-repo').textContent = project.ghRepo || project.repo || 'Not configured';
-
-    // Store current project for actions
-    state.currentProjectDetail = projectId;
-
-    // Load project tasks
-    try {
-        const result = await rpcCallDirect('get_tasks', { project_id: projectId });
-        const tasks = result.tasks || result || [];
-        renderProjectDetailTasks(tasks);
-    } catch (e) {
-        console.error('[App] Error loading project tasks:', e);
-        document.getElementById('project-detail-tasks').innerHTML = '<p class="empty-placeholder">Could not load tasks</p>';
-    }
-
-    // Load team members (if available)
-    const teamContainer = document.getElementById('project-detail-team');
-    if (project.team && project.team.length > 0) {
-        teamContainer.innerHTML = project.team.map(member => `
-            <div class="team-member">
-                <span class="team-avatar">${(member.name || member).charAt(0).toUpperCase()}</span>
-                <span>${escapeHtml(member.name || member)}</span>
-            </div>
-        `).join('');
-    } else {
-        teamContainer.innerHTML = '<p class="empty-placeholder">No team members assigned</p>';
-    }
-}
-
-/**
- * Hide project detail, return to grid
- */
-function hideProjectDetail() {
-    document.getElementById('project-detail-view').style.display = 'none';
-    document.getElementById('project-grid').style.display = 'grid';
-    document.querySelector('#tab-projects .page-header').style.display = 'flex';
-    state.currentProjectDetail = null;
-}
-
-/**
- * Render tasks in project detail view
- */
-function renderProjectDetailTasks(tasks) {
-    const container = document.getElementById('project-detail-tasks');
-
-    if (!tasks || tasks.length === 0) {
-        container.innerHTML = '<p class="empty-placeholder">No tasks yet</p>';
-        return;
-    }
-
-    container.innerHTML = tasks.map(task => `
-        <div class="detail-task-item" data-task-id="${task.taskId || task.id}">
-            <span class="priority-badge priority-${task.priority || 'medium'}">${task.priority || 'medium'}</span>
-            <span class="detail-task-title">${escapeHtml(task.title)}</span>
-            <span class="detail-task-status">${task.status || 'pending'}</span>
-        </div>
-    `).join('');
-
-    // Add click handlers to navigate to task detail
-    container.querySelectorAll('.detail-task-item').forEach(item => {
-        item.addEventListener('click', () => {
-            const taskId = item.dataset.taskId;
-            // Show task detail, tracking that we came from project detail
-            showTaskDetail(taskId, 'project');
-        });
-    });
-}
-
-// ============================================================================
-// TASKS
-// ============================================================================
-
-async function loadTasks() {
-    if (!state.instanceId) {
-        document.querySelectorAll('.task-list').forEach(list => {
-            list.innerHTML = '<div class="loading-placeholder">Bootstrap to see tasks</div>';
-        });
-        return;
-    }
-
-    try {
-        // Try to get tasks via get_tasks API
-        let allTasks = [];
-
-        // Get all tasks (no filter returns all)
-        const result = await rpcCallDirect('get_tasks', {});
-        if (result.tasks) {
-            allTasks = result.tasks;
-        } else if (Array.isArray(result)) {
-            allTasks = result;
-        }
-
-        // Also try personal tasks
-        try {
-            const personalResult = await api.getMyTasks(state.instanceId);
-            if (personalResult.personalTasks) {
-                allTasks = [...allTasks, ...personalResult.personalTasks];
-            }
-            if (personalResult.projectTasks) {
-                allTasks = [...allTasks, ...personalResult.projectTasks];
-            }
-        } catch (e) {
-            console.log('[App] Could not load personal tasks:', e.message);
-        }
-
-        renderTaskBoard(allTasks);
-    } catch (error) {
-        console.error('[App] Error loading tasks:', error);
-        document.querySelectorAll('.task-list').forEach(list => {
-            list.innerHTML = '<div class="loading-placeholder">Error loading tasks</div>';
-        });
-    }
-}
-
-function renderTaskBoard(tasks) {
-    // Store tasks for later lookup
-    state.tasks = tasks;
-
-    const pending = tasks.filter(t => t.status === 'pending');
-    const inProgress = tasks.filter(t => t.status === 'in_progress');
-    const completed = tasks.filter(t => t.status === 'completed');
-
-    document.getElementById('pending-count').textContent = pending.length;
-    document.getElementById('progress-count').textContent = inProgress.length;
-    document.getElementById('completed-count').textContent = completed.length;
-
-    document.getElementById('pending-tasks').innerHTML = renderTaskList(pending);
-    document.getElementById('progress-tasks').innerHTML = renderTaskList(inProgress);
-    document.getElementById('completed-tasks').innerHTML = renderTaskList(completed);
-
-    // Add click handlers to task items
-    document.querySelectorAll('.task-item').forEach(item => {
-        item.addEventListener('click', () => {
-            const taskId = item.dataset.taskId;
-            showTaskDetail(taskId);
-        });
-    });
-}
-
-function renderTaskList(tasks) {
-    if (tasks.length === 0) {
-        return '<div class="loading-placeholder">No tasks</div>';
-    }
-
-    return tasks.map(task => `
-        <div class="task-item" data-task-id="${task.taskId || task.id}">
-            <div class="task-title">${escapeHtml(task.title)}</div>
-            <div class="task-meta">
-                <span class="priority-badge priority-${task.priority}">${task.priority}</span>
-                <span>${task.project || 'Personal'}</span>
-            </div>
-        </div>
-    `).join('');
-}
-
-/**
- * Show task detail view, hiding the board
- * @param {string} taskId - The task ID to show
- * @param {string} [source='tasks'] - Where we came from: 'tasks' or 'project'
- */
-async function showTaskDetail(taskId, source = 'tasks') {
-    // Track where we came from for back navigation
-    state.taskDetailSource = source;
-
-    // First try to find task in state
-    let task = state.tasks.find(t => (t.taskId || t.id) === taskId);
-
-    // If not found, try to fetch from API
-    if (!task) {
-        try {
-            const result = await rpcCallDirect('get_task', { id: taskId });
-            task = result.task || result;
-        } catch (e) {
-            console.error('[App] Error fetching task:', e);
-            showToast('Could not load task details', 'error');
-            return;
-        }
-    }
-
-    if (!task) {
-        showToast('Task not found', 'error');
-        return;
-    }
-
-    console.log('[App] Showing task detail:', taskId, task, 'source:', source);
-
-    // If coming from project, switch to tasks tab first (task detail is in tasks tab)
-    if (source === 'project') {
-        // Switch to tasks tab without triggering loadTasks (we just want to show detail)
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.classList.toggle('active', item.dataset.tab === 'tasks');
-        });
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.toggle('active', content.id === 'tab-tasks');
-        });
-        state.currentTab = 'tasks';
-    }
-
-    // Hide board and header, show detail
-    document.querySelector('.task-board').style.display = 'none';
-    document.querySelector('.task-filters').style.display = 'none';
-    document.querySelector('#tab-tasks .page-header').style.display = 'none';
-    document.getElementById('task-detail-view').style.display = 'block';
-
-    // Populate detail fields
-    document.getElementById('task-detail-title').textContent = task.title;
-    document.getElementById('task-detail-priority').textContent = task.priority || 'medium';
-    document.getElementById('task-detail-priority').className = `priority-badge priority-${task.priority || 'medium'}`;
-    document.getElementById('task-detail-status').textContent = task.status || 'pending';
-    document.getElementById('task-detail-description').textContent = task.description || 'No description';
-    document.getElementById('task-detail-project').textContent = task.project || task.project_id || 'Personal';
-    document.getElementById('task-detail-assignee').textContent = task.assignee || task.claimed_by || 'Unassigned';
-
-    // Format created date with creator if available
-    // Check multiple field name variations for compatibility
-    let createdText = '-';
-    const createdDate = task.createdAt || task.created_at || task.dateCreated || task.timestamp || task.created;
-    if (createdDate) {
-        const date = new Date(createdDate).toLocaleString();
-        const creator = task.created_by || task.creator || task.createdBy || task.author || null;
-        createdText = creator ? `${date} by ${creator}` : date;
-    } else {
-        // Debug: Log available task fields to help identify correct field names
-        console.log('[App] Task has no created date. Available fields:', Object.keys(task));
-    }
-    document.getElementById('task-detail-created').textContent = createdText;
-
-    // Store current task for actions
-    state.currentTaskDetail = taskId;
-
-    // Update button states based on task status
-    const claimBtn = document.getElementById('task-claim-btn');
-    const completeBtn = document.getElementById('task-complete-btn');
-
-    if (task.status === 'completed') {
-        claimBtn.style.display = 'none';
-        completeBtn.textContent = 'Completed';
-        completeBtn.disabled = true;
-    } else if (task.assignee || task.claimed_by) {
-        claimBtn.textContent = 'Reassign';
-        claimBtn.style.display = 'inline-flex';
-        completeBtn.textContent = 'Mark Complete';
-        completeBtn.disabled = false;
-    } else {
-        claimBtn.textContent = 'Claim Task';
-        claimBtn.style.display = 'inline-flex';
-        completeBtn.textContent = 'Mark Complete';
-        completeBtn.disabled = false;
-    }
-
-    // Update breadcrumb text based on source
-    const backText = document.getElementById('task-back-text');
-    if (backText) {
-        if (source === 'project' && state.currentProjectDetail) {
-            const project = state.projects.find(p => (p.projectId || p.id) === state.currentProjectDetail);
-            backText.textContent = `Back to ${project?.name || 'Project'}`;
-        } else {
-            backText.textContent = 'Back to Tasks';
-        }
-    }
-}
-
-/**
- * Hide task detail, return to where we came from
- */
-async function hideTaskDetail() {
-    document.getElementById('task-detail-view').style.display = 'none';
-
-    // Check where we came from
-    if (state.taskDetailSource === 'project' && state.currentProjectDetail) {
-        // Save project ID before switchTab clears it
-        const projectId = state.currentProjectDetail;
-
-        // Ensure projects are in state (fetch from API if needed)
-        if (!state.projects || state.projects.length === 0) {
-            try {
-                const projectsResult = await api.listProjects(state.instanceId);
-                if (projectsResult.projects) {
-                    state.projects = projectsResult.projects;
-                }
-            } catch (e) {
-                console.error('[App] Error loading projects:', e);
-            }
-        }
-
-        // Switch to projects tab (this hides all detail views)
-        switchTab('projects');
-
-        // Small delay to let tab switch complete, then show project detail
-        setTimeout(() => showProjectDetail(projectId), 50);
-    } else {
-        // Return to task board (default)
-        document.querySelector('.task-board').style.display = 'grid';
-        document.querySelector('.task-filters').style.display = 'flex';
-        document.querySelector('#tab-tasks .page-header').style.display = 'flex';
-    }
-
-    state.currentTaskDetail = null;
-    state.taskDetailSource = null;
-}
-
-/**
- * Claim the currently displayed task (assign to self)
- */
-async function claimCurrentTask() {
-    if (!state.currentTaskDetail || !state.instanceId) return;
-
-    try {
-        // Get the task's project ID if available
-        const task = state.tasks.find(t => (t.id || t.taskId) === state.currentTaskDetail);
-        const projectId = task?.projectId || task?.project_id || null;
-
-        // Use assign_task_to_instance API to claim (assign to self)
-        await api.assignTaskToInstance({
-            instanceId: state.instanceId,
-            taskId: state.currentTaskDetail,
-            assigneeInstanceId: state.instanceId,
-            projectId: projectId
-        });
-        showToast('Task claimed!', 'success');
-
-        // Update the assignee display immediately
-        document.getElementById('task-detail-assignee').textContent = state.instanceId;
-
-        // Update button states
-        const claimBtn = document.getElementById('task-claim-btn');
-        claimBtn.textContent = 'Reassign';
-
-        // Also refresh task board in background
-        loadTasks();
-    } catch (e) {
-        console.error('[App] Error claiming task:', e);
-        showToast('Could not claim task: ' + e.message, 'error');
-    }
-}
-
-/**
- * Mark the currently displayed task as complete
- */
-async function completeCurrentTask() {
-    if (!state.currentTaskDetail) return;
-
-    try {
-        await rpcCallDirect('update_task', {
-            id: state.currentTaskDetail,
-            updates: { status: 'completed' }
-        });
-        showToast('Task completed!', 'success');
-        hideTaskDetail();
-        loadTasks(); // Refresh the task board
-    } catch (e) {
-        console.error('[App] Error completing task:', e);
-        showToast('Could not complete task: ' + e.message, 'error');
-    }
-}
 
 // ============================================================================
 // EDITABLE FIELDS
@@ -1091,6 +659,7 @@ async function saveProjectDescription() {
     const newDescription = textarea.value.trim();
 
     try {
+        // TODO: 'update_project' API does not exist - update functionality may need to be implemented
         await rpcCallDirect('update_project', {
             id: state.currentProjectDetail,
             updates: { description: newDescription }
@@ -1112,6 +681,7 @@ async function saveProjectDescription() {
 
 /**
  * Save task description
+ * NOTE: update_task API not yet implemented - this updates local state only
  */
 async function saveTaskDescription() {
     const container = document.getElementById('task-desc-editable');
@@ -1120,24 +690,14 @@ async function saveTaskDescription() {
 
     const newDescription = textarea.value.trim();
 
-    try {
-        await rpcCallDirect('update_task', {
-            id: state.currentTaskDetail,
-            updates: { description: newDescription }
-        });
-
-        // Update local state
-        const task = state.tasks.find(t => (t.taskId || t.id) === state.currentTaskDetail);
-        if (task) {
-            task.description = newDescription;
-        }
-
-        disableEditMode('task-desc-editable', 'task-detail-description', 'task-desc-save-btn', true);
-        showToast('Description saved!', 'success');
-    } catch (e) {
-        console.error('[App] Error saving task description:', e);
-        showToast('Could not save: ' + e.message, 'error');
+    // Update local state only (API not yet implemented)
+    const task = state.tasks.find(t => (t.taskId || t.id) === state.currentTaskDetail);
+    if (task) {
+        task.description = newDescription;
     }
+
+    disableEditMode('task-desc-editable', 'task-detail-description', 'task-desc-save-btn', true);
+    showToast('Description updated (local only)', 'info');
 }
 
 // ============================================================================
@@ -1198,33 +758,13 @@ async function assignInstanceToProject(instanceId, name) {
     if (!state.currentProjectDetail) return;
 
     try {
-        // Get current project
-        const project = state.projects.find(p => (p.projectId || p.id) === state.currentProjectDetail);
-        if (!project) throw new Error('Project not found');
-
-        // Add to team
-        const currentTeam = project.team || [];
-        const newTeam = [...currentTeam, instanceId || name];
-
-        // Update via API
-        await rpcCallDirect('update_project', {
-            id: state.currentProjectDetail,
-            updates: { team: newTeam }
-        });
-
-        // Update local state
-        project.team = newTeam;
-
-        // Refresh the team display
-        const teamContainer = document.getElementById('project-detail-team');
-        teamContainer.innerHTML = newTeam.map(member => `
-            <div class="team-member">
-                <span class="team-avatar">${(member.name || member).toString().charAt(0).toUpperCase()}</span>
-                <span>${escapeHtml(member.name || member)}</span>
-            </div>
-        `).join('');
+        // Use join_project API - have the instance join the project
+        await api.joinProject(instanceId, state.currentProjectDetail);
 
         showToast(`${name} added to project!`, 'success');
+
+        // Refresh the project detail to show updated team
+        await showProjectDetail(state.currentProjectDetail);
     } catch (e) {
         console.error('[App] Error assigning instance:', e);
         showToast('Could not assign instance: ' + e.message, 'error');
@@ -1232,10 +772,13 @@ async function assignInstanceToProject(instanceId, name) {
 }
 
 // ============================================================================
-// INSTANCES
+// INSTANCES - imported from ./instances.js
 // ============================================================================
 
-async function loadInstances() {
+// Functions loadInstances, showInstanceDetail, hideInstanceDetail,
+// messageCurrentInstance, messageInstance moved to instances.js
+
+async function __REMOVED_loadInstances() { // Renamed to avoid conflict
     const grid = document.getElementById('instances-grid');
     grid.innerHTML = '<div class="loading-placeholder">Loading instances...</div>';
 
@@ -1397,11 +940,14 @@ async function loadInstances() {
 
                 // Toggle this dropdown
                 if (dropdown.style.display === 'none') {
-                    // Populate with projects
-                    const projectNames = state.projects.map(p => p.name || p.projectId);
+                    // Populate with projects - use projectId for API, name for display
                     dropdown.innerHTML = `
                         <div class="project-option" data-project="">None</div>
-                        ${projectNames.map(p => `<div class="project-option" data-project="${escapeHtml(p)}">${escapeHtml(p)}</div>`).join('')}
+                        ${state.projects.map(p => {
+                            const id = p.projectId || p.id;
+                            const name = p.name || id;
+                            return `<div class="project-option" data-project="${escapeHtml(id)}">${escapeHtml(name)}</div>`;
+                        }).join('')}
                     `;
 
                     // Add click handlers for options
@@ -1409,23 +955,24 @@ async function loadInstances() {
                         opt.addEventListener('click', async (ev) => {
                             ev.stopPropagation();
                             const targetInstanceId = selector.dataset.instanceId;
-                            const projectName = opt.dataset.project;
+                            const projectId = opt.dataset.project;
+                            const displayName = opt.textContent; // User-friendly name
 
                             console.log('[App] Assigning project to instance:', {
                                 targetInstanceId,
-                                project: projectName || '(none)'
+                                projectId: projectId || '(none)'
                             });
 
                             try {
-                                // Use joinProject API - it takes instanceId (the target) and project name
-                                await api.joinProject(targetInstanceId, projectName || null);
-                                showToast(`Assigned to ${projectName || 'no project'}`, 'success');
+                                // Use joinProject API - it takes instanceId and projectId
+                                await api.joinProject(targetInstanceId, projectId || null);
+                                showToast(`Assigned to ${displayName}`, 'success');
                                 dropdown.style.display = 'none';
                                 loadInstances(); // Refresh
                             } catch (error) {
                                 console.error('[App] Error assigning project:', {
                                     targetInstanceId,
-                                    project: projectName,
+                                    projectId: projectId,
                                     error: error.message,
                                     code: error.code
                                 });
@@ -1448,8 +995,9 @@ async function loadInstances() {
 
 /**
  * Show instance detail panel
+ * @deprecated Moved to instances.js - this copy will be removed
  */
-async function showInstanceDetail(instanceId) {
+async function __REMOVED_showInstanceDetail(instanceId) {
     const instance = state.instances.find(i => i.instanceId === instanceId);
     if (!instance) {
         showToast('Instance not found', 'error');
@@ -1587,8 +1135,9 @@ async function showInstanceDetail(instanceId) {
 
 /**
  * Hide instance detail, return to grid
+ * @deprecated Moved to instances.js - this copy will be removed
  */
-function hideInstanceDetail() {
+function __REMOVED_hideInstanceDetail() {
     document.getElementById('instance-detail-view').style.display = 'none';
     document.getElementById('instances-grid').style.display = 'grid';
     document.querySelector('#tab-instances .page-header').style.display = 'flex';
@@ -1597,8 +1146,9 @@ function hideInstanceDetail() {
 
 /**
  * Send message to current instance
+ * @deprecated Moved to instances.js
  */
-function messageCurrentInstance() {
+function __REMOVED_messageCurrentInstance() {
     if (!state.currentInstanceDetail) return;
 
     const instance = state.instances.find(i => i.instanceId === state.currentInstanceDetail);
@@ -1612,8 +1162,9 @@ function messageCurrentInstance() {
 
 /**
  * Send XMPP message to a specific instance (by instanceId)
+ * @deprecated Moved to instances.js
  */
-function messageInstance(instanceId) {
+function __REMOVED_messageInstance(instanceId) {
     const instance = state.instances.find(i => i.instanceId === instanceId);
     const dmName = instance?.name || instanceId.split('-')[0];
 
@@ -1624,543 +1175,8 @@ function messageInstance(instanceId) {
 }
 
 // ============================================================================
-// MESSAGING (V2 - XMPP Room-based)
+// MESSAGING - imported from ./messages.js
 // ============================================================================
-
-// Known team members for DMs (will be populated from instances + hardcoded known names)
-const KNOWN_TEAM_MEMBERS = ['Lupo', 'Messenger', 'Bridge', 'Bastion', 'Canvas', 'Genevieve', 'Meridian'];
-
-async function loadMessaging() {
-    const sidebar = document.getElementById('conversation-list');
-
-    // Build the sidebar with V2 structure:
-    // 1. Direct Messages (DMs to known team members)
-    // 2. Projects (project rooms)
-    // 3. Roles (if privileged user)
-    // 4. System (announcements)
-
-    let html = '';
-
-    // --- MY INBOX (personality room for current user) ---
-    const myPersonalityRoom = `personality-${state.name.toLowerCase()}`;
-    const isInboxActive = state.conversationType === 'inbox' && state.currentConversation === myPersonalityRoom;
-    html += `
-        <div class="conversation-section" id="inbox-section">
-            <div class="section-header">MY INBOX</div>
-            <div id="inbox-list">
-                <div class="conversation-item ${isInboxActive ? 'active' : ''}"
-                     data-type="inbox" data-id="${myPersonalityRoom}">
-                    <div class="conversation-avatar">&#128229;</div>
-                    <div class="conversation-details">
-                        <div class="conversation-name">Messages to Me</div>
-                        <div class="conversation-meta">${state.instanceId || state.name}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // --- DIRECT MESSAGES ---
-    html += `
-        <div class="conversation-section" id="dm-section">
-            <div class="section-header">DIRECT MESSAGES</div>
-            <div id="dm-list">
-                ${renderDMList()}
-            </div>
-        </div>
-    `;
-
-    // --- PROJECTS ---
-    html += `
-        <div class="conversation-section" id="project-section">
-            <div class="section-header">PROJECTS</div>
-            <div id="project-room-list">
-                ${renderProjectRoomList()}
-            </div>
-        </div>
-    `;
-
-    // --- ROLES (for privileged users like Executive/COO/PA) ---
-    if (state.role === 'Executive' || state.role === 'COO' || state.role === 'PA') {
-        html += `
-            <div class="conversation-section" id="role-section">
-                <div class="section-header">ROLES</div>
-                <div id="role-list">
-                    ${renderRoleList()}
-                </div>
-            </div>
-        `;
-    }
-
-    // --- SYSTEM ---
-    html += `
-        <div class="conversation-section" id="system-section">
-            <div class="section-header">SYSTEM</div>
-            <div id="system-list">
-                <div class="conversation-item ${state.conversationType === 'announcements' ? 'active' : ''}"
-                     data-type="announcements" data-id="all">
-                    <div class="conversation-avatar">&#128227;</div>
-                    <div class="conversation-details">
-                        <div class="conversation-name">Announcements</div>
-                        <div class="conversation-meta">Broadcast to all</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    sidebar.innerHTML = html;
-
-    // Add click handlers to all conversation items
-    sidebar.querySelectorAll('.conversation-item').forEach(item => {
-        item.addEventListener('click', () => selectConversation(item.dataset.type, item.dataset.id));
-    });
-}
-
-function renderDMList() {
-    // Build list of contacts with their instanceIds
-    // Map: name -> instanceId (or 'unknown' if from KNOWN_TEAM_MEMBERS without instance)
-    const contacts = new Map();
-
-    // Add known team members (may not have instanceId yet)
-    KNOWN_TEAM_MEMBERS.forEach(name => {
-        contacts.set(name, { name, instanceId: null });
-    });
-
-    // Add/update with actual instance data
-    state.instances.forEach(inst => {
-        if (inst.name) {
-            contacts.set(inst.name, {
-                name: inst.name,
-                instanceId: inst.instanceId || null
-            });
-        }
-    });
-
-    // Remove self (Lupo)
-    contacts.delete(state.name);
-
-    // Sort by name
-    const sortedContacts = Array.from(contacts.values()).sort((a, b) => a.name.localeCompare(b.name));
-
-    if (sortedContacts.length === 0) {
-        return '<div class="loading-placeholder">No contacts</div>';
-    }
-
-    return sortedContacts.map(contact => {
-        const isActive = state.conversationType === 'dm' && state.currentConversation === contact.name;
-        const metaText = contact.instanceId || 'Direct Message';
-        return `
-            <div class="conversation-item ${isActive ? 'active' : ''}"
-                 data-type="dm" data-id="${escapeHtml(contact.name)}">
-                <div class="conversation-avatar">${contact.name.charAt(0).toUpperCase()}</div>
-                <div class="conversation-details">
-                    <div class="conversation-name">${escapeHtml(contact.name)}</div>
-                    <div class="conversation-meta">${escapeHtml(metaText)}</div>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function renderProjectRoomList() {
-    if (state.projects.length === 0) {
-        return '<div class="loading-placeholder">No projects</div>';
-    }
-
-    return state.projects
-        .filter(p => p.status === 'active')
-        .map(project => {
-            const projectId = project.projectId || project.id;
-            const isActive = state.conversationType === 'project' && state.currentConversation === projectId;
-            return `
-                <div class="conversation-item ${isActive ? 'active' : ''}"
-                     data-type="project" data-id="${projectId}">
-                    <div class="conversation-avatar">#</div>
-                    <div class="conversation-details">
-                        <div class="conversation-name">${escapeHtml(project.name)}</div>
-                        <div class="conversation-meta">Project Room</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-}
-
-function renderRoleList() {
-    // Available role rooms
-    const roles = ['Executive', 'COO', 'PA', 'PM', 'Developer'];
-
-    return roles.map(role => {
-        const isActive = state.conversationType === 'role' && state.currentConversation === role.toLowerCase();
-        return `
-            <div class="conversation-item ${isActive ? 'active' : ''}"
-                 data-type="role" data-id="${role.toLowerCase()}">
-                <div class="conversation-avatar">&#128101;</div>
-                <div class="conversation-details">
-                    <div class="conversation-name">${role}</div>
-                    <div class="conversation-meta">Role Channel</div>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-// Legacy compatibility functions
-function renderInstanceList() {
-    loadMessaging();
-}
-
-function renderProjectRooms() {
-    // Already rendered in loadMessaging
-}
-
-// filterConversations removed - V2 uses XMPP room structure instead
-
-// Show message detail view for inbox messages
-async function showMessageDetail(messageId, senderName, subject, room) {
-    // Pause polling while viewing detail
-    state.viewingMessageDetail = true;
-
-    const container = document.getElementById('chat-messages');
-    container.innerHTML = '<div class="loading-placeholder">Loading message...</div>';
-
-    // Update header to show we're viewing a message
-    document.querySelector('.recipient-name').textContent = 'Message Detail';
-    document.querySelector('.recipient-status').textContent = `From: ${senderName}`;
-    document.querySelector('.recipient-icon').textContent = '\u{1F4E8}';  // Envelope icon
-
-    try {
-        // Fetch full message body
-        const fullMsg = await api.getMessageBody(state.instanceId, messageId, room);
-        const body = fullMsg.body || fullMsg.subject || '[No content]';
-
-        // Extract sender name for reply (e.g., "lupo-f63b" -> "Lupo")
-        const senderBaseName = senderName.split('-')[0];
-        const senderCapitalized = senderBaseName.charAt(0).toUpperCase() + senderBaseName.slice(1);
-
-        container.innerHTML = `
-            <div class="message-detail-view">
-                <div class="message-detail-header">
-                    <button class="btn-back" onclick="selectConversation('inbox', 'personality-${state.name.toLowerCase()}')">
-                        ← Back to Inbox
-                    </button>
-                </div>
-                <div class="message-detail-card">
-                    <div class="message-detail-from">
-                        <span class="detail-label">From:</span>
-                        <span class="detail-value">${escapeHtml(senderName)}</span>
-                    </div>
-                    <div class="message-detail-subject">
-                        <span class="detail-label">Subject:</span>
-                        <span class="detail-value">${escapeHtml(subject)}</span>
-                    </div>
-                    <div class="message-detail-body">
-                        ${escapeHtml(body)}
-                    </div>
-                    <div class="message-detail-actions">
-                        <button class="btn btn-primary" onclick="replyToMessage('${escapeHtml(senderCapitalized)}', '${escapeHtml(body.substring(0, 200).replace(/'/g, "\\'"))}')">
-                            ↩ Reply to ${escapeHtml(senderCapitalized)}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    } catch (error) {
-        console.error('[App] Error loading message detail:', error);
-        container.innerHTML = `
-            <div class="empty-state">
-                <span class="empty-icon">&#9888;</span>
-                <p>Error loading message: ${escapeHtml(error.message)}</p>
-            </div>
-        `;
-    }
-}
-
-// Reply to a message from inbox - navigate to DM with quote
-async function replyToMessage(senderName, originalMessage) {
-    // Store the quote to show in the DM
-    state.replyQuote = {
-        from: senderName,
-        text: originalMessage
-    };
-    // Navigate to DM with sender
-    await selectConversation('dm', senderName);
-}
-
-// Dismiss the reply quote
-function dismissQuote() {
-    state.replyQuote = null;
-    const quote = document.querySelector('.reply-quote');
-    if (quote) quote.remove();
-}
-
-async function selectConversation(type, id) {
-    // Clear detail view flag (resuming normal polling)
-    state.viewingMessageDetail = false;
-
-    state.currentConversation = id;
-    state.conversationType = type;
-
-    // Update UI to show active conversation
-    document.querySelectorAll('.conversation-item').forEach(item => {
-        const itemMatch = item.dataset.type === type && item.dataset.id === id;
-        item.classList.toggle('active', itemMatch);
-    });
-
-    // Update chat header based on conversation type
-    let name, status, icon;
-    switch (type) {
-        case 'dm':
-            name = id;  // id is the person's name
-            // Find instanceId for this contact
-            const contact = state.instances.find(inst => inst.name === id);
-            status = contact?.instanceId || 'Direct Message';
-            icon = '\u{1F464}';  // Person icon
-            break;
-        case 'project':
-            const project = state.projects.find(p => (p.projectId || p.id) === id);
-            console.log('[App] selectConversation project lookup:', { id, found: !!project, projectIds: state.projects.map(p => p.projectId || p.id) });
-            name = project?.name || id;
-            status = project ? `Project: ${project.projectId || project.id}` : 'Project Room';
-            icon = '#';
-            break;
-        case 'role':
-            name = id.charAt(0).toUpperCase() + id.slice(1);  // Capitalize
-            status = 'Role Channel';
-            icon = '\u{1F465}';  // People icon
-            break;
-        case 'announcements':
-            name = 'Announcements';
-            status = 'Broadcast Channel';
-            icon = '\u{1F4E2}';  // Megaphone icon
-            break;
-        case 'inbox':
-            name = 'Messages to Me';
-            status = state.instanceId || state.name;
-            icon = '\u{1F4E9}';  // Envelope icon
-            break;
-        default:
-            name = id;
-            status = 'Chat';
-            icon = '\u{1F4AC}';  // Speech bubble
-    }
-
-    document.querySelector('.recipient-name').textContent = name;
-    document.querySelector('.recipient-status').textContent = status;
-    document.querySelector('.recipient-icon').textContent = icon;
-
-    // Show input area
-    // Hide compose area for inbox (messages come from different senders, reply via DM)
-    document.getElementById('chat-input-area').style.display = type === 'inbox' ? 'none' : 'block';
-
-    // Load messages
-    await loadConversationMessages(type, id);
-}
-
-async function loadConversationMessages(type, id) {
-    const container = document.getElementById('chat-messages');
-
-    if (!state.instanceId) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <span class="empty-icon">&#128274;</span>
-                <p>Bootstrap to send messages</p>
-            </div>
-        `;
-        return;
-    }
-
-    container.innerHTML = '<div class="loading-placeholder">Loading messages...</div>';
-
-    try {
-        // Determine room name based on conversation type
-        // Room format: personality-{name}, project-{id}, role-{role}, announcements
-        let room;
-        if (type === 'dm') {
-            // DM rooms are personality-{name}
-            room = `personality-${id.toLowerCase()}`;
-        } else if (type === 'project') {
-            room = `project-${id}`;
-        } else if (type === 'role') {
-            room = `role-${id.toLowerCase()}`;
-        } else if (type === 'announcements') {
-            room = 'announcements';
-        } else if (type === 'inbox') {
-            // Inbox uses the personality room name directly (id is already "personality-{name}")
-            room = id;
-        }
-
-        // V2 XMPP API - fetch messages for this specific room
-        const result = await api.getMessages(state.instanceId, { room, limit: 50 });
-        const conversationMessages = result.messages || [];
-
-        if (conversationMessages.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <span class="empty-icon">&#128172;</span>
-                    <p>No messages yet. Start the conversation!</p>
-                </div>
-            `;
-            return;
-        }
-
-        // Sort by timestamp (oldest first)
-        conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-        // Render messages
-        const isInbox = type === 'inbox';
-        const messageHtml = await Promise.all(conversationMessages.map(async msg => {
-            // Check if message is from current user
-            // msg.from could be: "lupo", "lupo-f63b", or full JID
-            const fromName = (msg.from || '').toLowerCase().split('-')[0].split('@')[0];
-            const myName = (state.name || '').toLowerCase();
-            const myInstanceId = (state.instanceId || '').toLowerCase();
-            const isSent = fromName === myName ||
-                           msg.from?.toLowerCase() === myInstanceId ||
-                           msg.from?.toLowerCase().startsWith(myName + '-');
-            const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
-
-            // For inbox: just show subject (body fetched on click for detail view)
-            // For other views: fetch body if needed
-            let body = msg.body || msg.subject || '';
-            if (!isInbox && !body && msg.id) {
-                try {
-                    const fullMsg = await api.getMessageBody(state.instanceId, msg.id, room);
-                    body = fullMsg.body || fullMsg.subject || '';
-                } catch (e) {
-                    body = msg.subject || '[Message body unavailable]';
-                }
-            }
-
-            // In inbox, make entire message clickable to open detail view
-            const clickHandler = isInbox && !isSent ?
-                `onclick="showMessageDetail('${msg.id}', '${escapeHtml(msg.from || 'Unknown')}', '${escapeHtml((msg.subject || '').replace(/'/g, "\\'"))}', '${room}')" style="cursor: pointer;"` : '';
-
-            // For inbox: show subject only with "click to read" hint
-            // For other views: show full body
-            const bodyContent = isInbox && !isSent
-                ? `<div class="inbox-preview">Click to read & reply</div>`
-                : `<div>${escapeHtml(body)}</div>`;
-
-            return `
-                <div class="message-bubble ${isSent ? 'sent' : 'received'} ${isInbox && !isSent ? 'inbox-message' : ''}" ${clickHandler}>
-                    ${!isSent ? `<div class="message-sender">${escapeHtml(msg.from || 'Unknown')}</div>` : ''}
-                    ${msg.subject ? `<div class="message-subject"><strong>${escapeHtml(msg.subject)}</strong></div>` : ''}
-                    ${bodyContent}
-                    <div class="message-meta">${time}</div>
-                </div>
-            `;
-        }));
-
-        // Build final HTML with optional reply quote at top
-        let finalHtml = '';
-        if (state.replyQuote && type === 'dm') {
-            finalHtml = `
-                <div class="reply-quote">
-                    <div class="reply-quote-header">
-                        <span>Replying to message from ${escapeHtml(state.replyQuote.from)}</span>
-                        <button class="btn-dismiss-quote" onclick="dismissQuote()">✕</button>
-                    </div>
-                    <div class="reply-quote-text">${escapeHtml(state.replyQuote.text)}</div>
-                </div>
-            `;
-            // Clear the quote after showing (one-time display)
-            state.replyQuote = null;
-        }
-        finalHtml += messageHtml.join('');
-        container.innerHTML = finalHtml;
-
-        // Scroll to bottom
-        container.scrollTop = container.scrollHeight;
-
-    } catch (error) {
-        console.error('[App] Error loading messages:', error);
-        container.innerHTML = `
-            <div class="empty-state">
-                <span class="empty-icon">&#9888;</span>
-                <p>Error loading messages: ${escapeHtml(error.message)}</p>
-            </div>
-        `;
-    }
-}
-
-async function sendMessage() {
-    const input = document.getElementById('message-input');
-    const subjectInput = document.getElementById('message-subject');
-    const body = input.value.trim();
-    const userSubject = subjectInput?.value.trim() || '';
-
-    if (!body || !state.instanceId || !state.currentConversation) {
-        return;
-    }
-
-    const sendBtn = document.getElementById('send-btn');
-    sendBtn.disabled = true;
-
-    try {
-        // V2 XMPP addressing format:
-        // - DM to person: just the name (e.g., "Messenger")
-        // - Project room: "project:{projectId}"
-        // - Role room: "role:{role}"
-        // - Everyone: "all"
-        let to;
-        if (state.conversationType === 'dm') {
-            // Direct message - just use name
-            to = state.currentConversation;
-        } else if (state.conversationType === 'project') {
-            // Project room
-            to = `project:${state.currentConversation}`;
-        } else if (state.conversationType === 'role') {
-            // Role room
-            to = `role:${state.currentConversation}`;
-        } else if (state.conversationType === 'announcements') {
-            // Broadcast
-            to = 'all';
-        } else {
-            // Fallback - treat as DM
-            to = state.currentConversation;
-        }
-
-        // Use user-provided subject if available, otherwise use body preview
-        const subject = userSubject || (body.length > 50 ? body.substring(0, 50) + '...' : body);
-        await api.sendMessage({
-            from: state.instanceId,
-            to,
-            subject: subject,
-            body: body
-        });
-
-        // Add message to UI
-        const container = document.getElementById('chat-messages');
-        const emptyState = container.querySelector('.empty-state');
-        if (emptyState) {
-            container.innerHTML = '';
-        }
-
-        container.innerHTML += `
-            <div class="message-bubble sent">
-                ${userSubject ? `<div class="message-subject"><strong>${escapeHtml(userSubject)}</strong></div>` : ''}
-                <div>${escapeHtml(body)}</div>
-                <div class="message-meta">${new Date().toLocaleTimeString()}</div>
-            </div>
-        `;
-
-        // Scroll to bottom
-        container.scrollTop = container.scrollHeight;
-
-        // Clear inputs
-        input.value = '';
-        input.style.height = 'auto';
-        if (subjectInput) subjectInput.value = '';
-
-        showToast('Message sent', 'success');
-    } catch (error) {
-        console.error('[App] Error sending message:', error);
-        showToast('Failed to send message: ' + error.message, 'error');
-    }
-
-    sendBtn.disabled = !input.value.trim();
-}
 
 // ============================================================================
 // DIARY
@@ -2240,76 +1256,8 @@ function clearSession() {
 }
 
 // ============================================================================
-// CREATE PROJECT
+// CREATE PROJECT - imported from ./projects.js
 // ============================================================================
-
-function showCreateProjectModal() {
-    document.getElementById('create-project-modal').classList.add('active');
-    document.getElementById('project-name').value = '';
-    document.getElementById('project-description').value = '';
-    document.getElementById('project-gh-repo').value = '';
-    document.getElementById('project-name').focus();
-}
-
-function closeCreateProjectModal() {
-    document.getElementById('create-project-modal').classList.remove('active');
-}
-
-async function createProject() {
-    const name = document.getElementById('project-name').value.trim();
-    const description = document.getElementById('project-description').value.trim();
-    const ghRepo = document.getElementById('project-gh-repo').value.trim();
-
-    if (!name) {
-        showToast('Please enter a project name', 'error');
-        return;
-    }
-
-    if (!state.instanceId) {
-        showToast('Not connected', 'error');
-        return;
-    }
-
-    try {
-        // V2 API requires projectId - generate from name
-        const projectId = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
-        const params = {
-            instanceId: state.instanceId,
-            projectId: projectId,
-            name: name
-        };
-
-        if (description) params.description = description;
-        if (ghRepo) params.ghRepo = ghRepo;
-
-        const result = await api.createProject(params);
-
-        if (result.success !== false) {
-            showToast(`Project "${name}" created!`, 'success');
-            closeCreateProjectModal();
-
-            // Refresh projects (V2 API)
-            const projectsResult = await api.listProjects(state.instanceId);
-            if (projectsResult.projects) {
-                state.projects = projectsResult.projects;
-            }
-
-            // Refresh current view
-            if (state.currentTab === 'projects') {
-                loadProjects();
-            }
-            if (state.currentTab === 'messages') {
-                renderProjectRooms();
-            }
-        } else {
-            showToast(result.error?.message || 'Failed to create project', 'error');
-        }
-    } catch (error) {
-        console.error('[App] Create project error:', error);
-        showToast('Error creating project: ' + error.message, 'error');
-    }
-}
 
 // ============================================================================
 // CREATE TASK
@@ -2359,44 +1307,34 @@ async function createTask() {
     }
 
     try {
-        let result;
+        // Use create_task API which handles both personal and project tasks
+        const taskParams = {
+            instanceId: state.instanceId,
+            title: title,
+            priority: priority
+        };
 
-        if (projectId) {
-            // Project task - use create_task API with required fields
-            const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-            result = await rpcCallDirect('create_task', {
-                id: taskId,
-                title: title,
-                description: description || 'No description',
-                project_id: projectId,
-                priority: priority
-            });
-        } else {
-            // Personal task - use addPersonalTask
-            result = await api.addPersonalTask({
-                instanceId: state.instanceId,
-                title: title,
-                description: description || undefined,
-                priority: priority
-            });
-        }
+        // Add optional fields if provided
+        if (description) taskParams.description = description;
+        if (projectId) taskParams.projectId = projectId;
+
+        const result = await api.createTask(taskParams);
 
         if (result.success !== false && !result.error) {
-            showToast(`Task "${title}" created!`, 'success');
+            const taskType = projectId ? 'project' : 'personal';
+            showToast(`Task "${title}" created (${taskType})!`, 'success');
             closeCreateTaskModal();
 
-            // Refresh tasks view
-            if (state.currentTab === 'tasks') {
-                loadTasks();
-            }
-
-            // Also refresh project detail if we're viewing a project and the task was for it
-            if (state.currentTab === 'projects' && state.currentProjectDetail && projectId === state.currentProjectDetail) {
+            // Refresh project detail if we're viewing a project
+            if (state.currentTab === 'projects' && state.currentProjectDetail) {
                 // Refresh the project detail tasks list
                 try {
-                    const result = await rpcCallDirect('get_tasks', { project_id: projectId });
-                    const tasks = result.tasks || result || [];
+                    const taskResult = await api.listTasks(state.instanceId, { projectId: state.currentProjectDetail, limit: 100 });
+                    const tasks = taskResult.tasks || [];
                     renderProjectDetailTasks(tasks);
+                    // Update task count
+                    const countEl = document.getElementById('primary-task-count');
+                    if (countEl) countEl.textContent = tasks.length;
                 } catch (e) {
                     console.error('[App] Error refreshing project tasks:', e);
                 }
@@ -2411,7 +1349,6 @@ async function createTask() {
 }
 
 // Direct RPC call for APIs that don't go through our wrapper
-// NOTE: Should eventually use api.js environment system, but for now hardcode production
 async function rpcCallDirect(method, args) {
     const url = 'https://smoothcurves.nexus/mcp';
     const payload = {
@@ -2436,294 +1373,6 @@ async function rpcCallDirect(method, args) {
 }
 
 // ============================================================================
-// LISTS (Personal Checklists)
-// ============================================================================
-
-/**
- * Load all lists for the current user
- */
-async function loadLists() {
-    const grid = document.getElementById('lists-grid');
-
-    if (!state.instanceId) {
-        grid.innerHTML = '<div class="empty-placeholder">Bootstrap to see lists</div>';
-        return;
-    }
-
-    grid.innerHTML = '<div class="loading-placeholder">Loading lists...</div>';
-
-    try {
-        const result = await api.getLists(state.instanceId);
-        const lists = result.lists || [];
-        state.lists = lists;
-
-        if (lists.length === 0) {
-            grid.innerHTML = `
-                <div class="empty-placeholder">
-                    <p>No lists yet. Create your first list!</p>
-                </div>
-            `;
-            return;
-        }
-
-        grid.innerHTML = lists.map(list => {
-            const itemCount = list.itemCount || list.items?.length || 0;
-            const completedCount = list.completedCount || 0;
-            return `
-                <div class="list-card" data-list-id="${list.id || list.listId}">
-                    <div class="list-card-name">${escapeHtml(list.name)}</div>
-                    <div class="list-card-description">${escapeHtml(list.description || 'No description')}</div>
-                    <div class="list-card-stats">
-                        <span>&#128203; ${itemCount} items</span>
-                        ${completedCount > 0 ? `<span>&#9745; ${completedCount} done</span>` : ''}
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        // Add click handlers
-        grid.querySelectorAll('.list-card').forEach(card => {
-            card.addEventListener('click', () => {
-                showListDetail(card.dataset.listId);
-            });
-        });
-    } catch (error) {
-        console.error('[App] Error loading lists:', error);
-        grid.innerHTML = `<div class="empty-placeholder">Error loading lists: ${escapeHtml(error.message)}</div>`;
-    }
-}
-
-/**
- * Show list detail panel with items
- */
-async function showListDetail(listId) {
-    state.currentListId = listId;
-
-    // Hide grid, show detail panel
-    document.getElementById('lists-grid').parentElement.style.display = 'none';
-    document.getElementById('list-detail-panel').style.display = 'flex';
-
-    const nameEl = document.getElementById('list-detail-name');
-    const descEl = document.getElementById('list-detail-description');
-    const itemsEl = document.getElementById('list-items');
-
-    nameEl.textContent = 'Loading...';
-    descEl.textContent = '';
-    itemsEl.innerHTML = '<div class="loading-placeholder">Loading items...</div>';
-
-    try {
-        const result = await api.getList(state.instanceId, listId);
-        const list = result.list || result;
-        state.currentList = list;
-
-        nameEl.textContent = list.name;
-        descEl.textContent = list.description || 'No description';
-
-        renderListItems(list.items || []);
-    } catch (error) {
-        console.error('[App] Error loading list:', error);
-        itemsEl.innerHTML = `<div class="empty-placeholder">Error: ${escapeHtml(error.message)}</div>`;
-    }
-}
-
-/**
- * Render list items
- */
-function renderListItems(items) {
-    const container = document.getElementById('list-items');
-
-    if (!items || items.length === 0) {
-        container.innerHTML = '<div class="empty-placeholder">No items yet. Add one above!</div>';
-        return;
-    }
-
-    container.innerHTML = items.map(item => `
-        <div class="list-item ${item.completed ? 'completed' : ''}" data-item-id="${item.id || item.itemId}">
-            <input type="checkbox" class="list-item-checkbox"
-                   ${item.completed ? 'checked' : ''}
-                   onchange="toggleListItem('${item.id || item.itemId}')">
-            <span class="list-item-text">${escapeHtml(item.text)}</span>
-            <button class="list-item-delete" onclick="deleteListItem('${item.id || item.itemId}')" title="Delete item">
-                &#128465;
-            </button>
-        </div>
-    `).join('');
-}
-
-/**
- * Hide list detail, return to grid
- */
-function hideListDetail() {
-    document.getElementById('list-detail-panel').style.display = 'none';
-    document.getElementById('lists-grid').parentElement.style.display = 'flex';
-    state.currentListId = null;
-    state.currentList = null;
-}
-
-/**
- * Toggle a list item's completed state
- */
-async function toggleListItem(itemId) {
-    if (!state.currentListId || !state.instanceId) return;
-
-    // Optimistic UI update - toggle locally first
-    if (state.currentList && state.currentList.items) {
-        const item = state.currentList.items.find(i => (i.id || i.itemId) === itemId);
-        if (item) {
-            item.completed = !item.completed;
-            renderListItems(state.currentList.items);
-        }
-    }
-
-    try {
-        const result = await api.toggleListItem(state.instanceId, state.currentListId, itemId);
-        console.log('[App] Toggle result:', result);
-        // Refresh grid counts in background
-        loadLists();
-    } catch (error) {
-        console.error('[App] Error toggling item:', error);
-        showToast('Could not update item: ' + error.message, 'error');
-        // Revert optimistic update on error
-        await showListDetail(state.currentListId);
-    }
-}
-
-/**
- * Delete a list item
- */
-async function deleteListItem(itemId) {
-    if (!state.currentListId || !state.instanceId) return;
-
-    try {
-        await api.deleteListItem(state.instanceId, state.currentListId, itemId);
-        showToast('Item deleted', 'success');
-        // Refresh the list and grid counts
-        await showListDetail(state.currentListId);
-        loadLists();
-    } catch (error) {
-        console.error('[App] Error deleting item:', error);
-        showToast('Could not delete item: ' + error.message, 'error');
-    }
-}
-
-/**
- * Add a new item to the current list
- */
-async function addListItem() {
-    const input = document.getElementById('new-item-input');
-    const text = input.value.trim();
-
-    if (!text || !state.currentListId || !state.instanceId) return;
-
-    try {
-        await api.addListItem(state.instanceId, state.currentListId, text);
-        input.value = '';
-        showToast('Item added!', 'success');
-        // Refresh the list and grid counts
-        await showListDetail(state.currentListId);
-        loadLists();
-    } catch (error) {
-        console.error('[App] Error adding item:', error);
-        showToast('Could not add item: ' + error.message, 'error');
-    }
-}
-
-/**
- * Show create list modal
- */
-function showCreateListModal() {
-    document.getElementById('create-list-modal').classList.add('active');
-    document.getElementById('list-name').value = '';
-    document.getElementById('list-description').value = '';
-    document.getElementById('list-name').focus();
-}
-
-function closeCreateListModal() {
-    document.getElementById('create-list-modal').classList.remove('active');
-}
-
-/**
- * Create a new list
- */
-async function createList() {
-    const name = document.getElementById('list-name').value.trim();
-    const description = document.getElementById('list-description').value.trim();
-
-    if (!name) {
-        showToast('Please enter a list name', 'error');
-        return;
-    }
-
-    if (!state.instanceId) {
-        showToast('Not connected', 'error');
-        return;
-    }
-
-    try {
-        const result = await api.createList(state.instanceId, name, description || undefined);
-
-        if (result.success !== false && !result.error) {
-            showToast(`List "${name}" created!`, 'success');
-            closeCreateListModal();
-            loadLists();
-        } else {
-            showToast(result.error?.message || 'Failed to create list', 'error');
-        }
-    } catch (error) {
-        console.error('[App] Create list error:', error);
-        showToast('Error creating list: ' + error.message, 'error');
-    }
-}
-
-/**
- * Delete the current list
- */
-async function deleteCurrentList() {
-    if (!state.currentListId || !state.instanceId) return;
-
-    const listName = state.currentList?.name || 'this list';
-    if (!confirm(`Are you sure you want to delete "${listName}"? This cannot be undone.`)) {
-        return;
-    }
-
-    try {
-        await api.deleteList(state.instanceId, state.currentListId);
-        showToast('List deleted', 'success');
-        hideListDetail();
-        loadLists();
-    } catch (error) {
-        console.error('[App] Error deleting list:', error);
-        showToast('Could not delete list: ' + error.message, 'error');
-    }
-}
-
-/**
- * Rename the current list
- */
-async function renameCurrentList() {
-    if (!state.currentListId || !state.instanceId) return;
-
-    const currentName = state.currentList?.name || '';
-    const newName = prompt('Enter new name:', currentName);
-
-    if (!newName || newName.trim() === currentName) return;
-
-    try {
-        await api.renameList(state.instanceId, state.currentListId, newName.trim());
-        showToast('List renamed', 'success');
-        document.getElementById('list-detail-name').textContent = newName.trim();
-        loadLists(); // Refresh sidebar
-    } catch (error) {
-        console.error('[App] Error renaming list:', error);
-        showToast('Could not rename list: ' + error.message, 'error');
-    }
-}
-
-// Make functions globally accessible
-window.toggleListItem = toggleListItem;
-window.deleteListItem = deleteListItem;
-
-// ============================================================================
 // WAKE INSTANCE & CONVERSATION
 // ============================================================================
 
@@ -2731,7 +1380,7 @@ window.deleteListItem = deleteListItem;
  * Check if we have an API key, prompt if not
  * @returns {Promise<string|null>} The API key or null if cancelled
  */
-async function ensureApiKey() {
+async function __REMOVED_ensureApiKey() {
     // Check sessionStorage first
     if (state.wakeApiKey) {
         return state.wakeApiKey;
@@ -2757,7 +1406,7 @@ async function ensureApiKey() {
 /**
  * Handle API key submit
  */
-function handleApiKeySubmit() {
+function __REMOVED_handleApiKeySubmit() {
     const input = document.getElementById('api-key-input');
     const remember = document.getElementById('api-key-remember');
     const modal = document.getElementById('api-key-modal');
@@ -2789,7 +1438,7 @@ function handleApiKeySubmit() {
 /**
  * Show wake instance modal and populate dropdowns
  */
-async function showWakeInstanceModal() {
+async function __REMOVED_showWakeInstanceModal() {
     const modal = document.getElementById('wake-instance-modal');
     modal.classList.add('active');
 
@@ -2813,12 +1462,12 @@ async function showWakeInstanceModal() {
  * Privileged roles that require promotion tokens
  * These are hidden from Wake dropdown (but available in Pre-approve for creating new instances)
  */
-const PRIVILEGED_ROLES = ['PM', 'PA', 'COO', 'Executive'];
+const PRIVILEGED_ROLES = ['PM', 'EA', 'COO', 'Executive'];
 
 /**
  * Populate role, personality, and project dropdowns
  */
-async function populateWakeDropdowns() {
+async function __REMOVED_populateWakeDropdowns() {
     const roleSelect = document.getElementById('wake-role');
     const personalitySelect = document.getElementById('wake-personality');
     const projectSelect = document.getElementById('wake-project');
@@ -2845,7 +1494,7 @@ async function populateWakeDropdowns() {
     }
 
     // Filter out privileged roles from Wake dropdown
-    // Privileged roles (PM, PA, COO, Executive) require promotion tokens
+    // Privileged roles (PM, EA, COO, Executive) require promotion tokens
     const nonPrivilegedRoles = state.availableRoles.filter(r => {
         const roleId = r.id || r;
         return !PRIVILEGED_ROLES.includes(roleId);
@@ -2863,18 +1512,19 @@ async function populateWakeDropdowns() {
             `<option value="${p.id || p}">${p.label || p.name || p}</option>`
         ).join('');
 
-    // Populate project dropdown
-    const projectNames = state.projects.map(p => p.name || p.projectId);
+    // Populate project dropdown - use projectId for value, name for display
     projectSelect.innerHTML = '<option value="">No project assignment</option>' +
-        projectNames.map(name =>
-            `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
-        ).join('');
+        state.projects.map(p => {
+            const id = p.projectId || p.id;
+            const name = p.name || id;
+            return `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`;
+        }).join('');
 }
 
 /**
  * Toggle visibility of specific instance ID field
  */
-function toggleWakeSpecificId() {
+function __REMOVED_toggleWakeSpecificId() {
     const checkbox = document.getElementById('wake-specific-id');
     const group = document.getElementById('wake-specific-id-group');
     const submitBtn = document.getElementById('wake-instance-submit');
@@ -2886,7 +1536,7 @@ function toggleWakeSpecificId() {
 /**
  * Handle wake form submission
  */
-async function handleWakeSubmit() {
+async function __REMOVED_handleWakeSubmit() {
     const apiKey = await ensureApiKey();
     if (!apiKey) {
         showToast('API key required for wake operations', 'error');
@@ -3042,7 +1692,7 @@ async function handleWakeSubmit() {
 /**
  * Wake the current instance being viewed
  */
-async function wakeCurrentInstance() {
+async function __REMOVED_wakeCurrentInstance() {
     if (!state.currentInstanceDetail) return;
 
     const apiKey = await ensureApiKey();
@@ -3123,7 +1773,7 @@ async function wakeCurrentInstance() {
 /**
  * Promote the current instance to a privileged role
  */
-async function promoteCurrentInstance() {
+async function __REMOVED_promoteCurrentInstance() {
     if (!state.currentInstanceDetail) return;
 
     // Prompt for the promotion token
@@ -3187,7 +1837,7 @@ async function promoteCurrentInstance() {
 /**
  * Open conversation with the current instance detail
  */
-function openInstanceConversation() {
+function __REMOVED_openInstanceConversation() {
     if (!state.currentInstanceDetail) return;
     openConversationPanel(state.currentInstanceDetail);
 }
@@ -3195,7 +1845,7 @@ function openInstanceConversation() {
 /**
  * Open the in-page conversation panel for an instance
  */
-async function openConversationPanel(targetInstanceId) {
+async function __REMOVED_openConversationPanel(targetInstanceId) {
     const apiKey = await ensureApiKey();
     if (!apiKey) return;
 
@@ -3274,7 +1924,7 @@ async function openConversationPanel(targetInstanceId) {
 /**
  * Close the in-page conversation panel
  */
-function closeConversationPanel() {
+function __REMOVED_closeConversationPanel() {
     document.getElementById('instance-chat-panel').style.display = 'none';
     document.querySelector('.instances-layout')?.classList.remove('chat-open');
     state.wakeConversationTarget = null;
@@ -3283,7 +1933,7 @@ function closeConversationPanel() {
 /**
  * Update send button state for instance chat
  */
-function updateInstanceChatSendButton() {
+function __REMOVED_updateInstanceChatSendButton() {
     const input = document.getElementById('instance-chat-input');
     const sendBtn = document.getElementById('instance-chat-send');
     sendBtn.disabled = !input.value.trim() || state.wakeConversationLoading;
@@ -3293,7 +1943,7 @@ function updateInstanceChatSendButton() {
  * Render conversation messages in the instance chat panel
  * Handles multi-person conversations where different instances may have sent messages
  */
-function renderInstanceChatMessages() {
+function __REMOVED_renderInstanceChatMessages() {
     const container = document.getElementById('instance-chat-messages');
     const myName = state.name.toLowerCase();
 
@@ -3373,7 +2023,7 @@ function renderInstanceChatMessages() {
 /**
  * Send a message in the instance chat panel
  */
-async function sendInstanceChatMessage() {
+async function __REMOVED_sendInstanceChatMessage() {
     const input = document.getElementById('instance-chat-input');
     const sendBtn = document.getElementById('instance-chat-send');
     const statusEl = document.getElementById('chat-instance-status');
@@ -3531,7 +2181,7 @@ async function sendInstanceChatMessage() {
  * Called when user tries to Continue with an instance that hasn't been woken
  * @param {string} targetInstanceId - Instance to wake
  */
-async function wakeAndChat(targetInstanceId) {
+async function __REMOVED_wakeAndChat(targetInstanceId) {
     const apiKey = await ensureApiKey();
     if (!apiKey) return;
 
@@ -3604,296 +2254,11 @@ async function wakeAndChat(targetInstanceId) {
 }
 
 // ============================================================================
-// ENTITY DETAILS (Instance, Role, Personality, Project)
+// ENTITY DETAILS - imported from ./details.js
 // ============================================================================
-
-/**
- * Show entity details modal for the current conversation target
- */
-function showConversationTargetDetails() {
-    if (!state.wakeConversationTarget) return;
-    showEntityDetails('instance', state.wakeConversationTarget);
-}
-
-/**
- * Show entity details in the modal
- * @param {string} type - 'instance' | 'role' | 'personality' | 'project'
- * @param {string} id - The entity ID
- */
-async function showEntityDetails(type, id) {
-    const modal = document.getElementById('entity-details-modal');
-    const title = document.getElementById('entity-details-title');
-    const loading = document.querySelector('.entity-details-loading');
-
-    // Hide all views
-    document.querySelectorAll('.entity-view').forEach(v => v.style.display = 'none');
-    loading.style.display = 'block';
-
-    // Set title and show modal
-    const typeNames = {
-        instance: 'Instance Details',
-        role: 'Role Details',
-        personality: 'Personality Details',
-        project: 'Project Details'
-    };
-    title.textContent = typeNames[type] || 'Details';
-    modal.classList.add('active');
-
-    try {
-        switch (type) {
-            case 'instance':
-                await loadInstanceDetails(id);
-                break;
-            case 'role':
-                await loadRoleDetails(id);
-                break;
-            case 'personality':
-                await loadPersonalityDetails(id);
-                break;
-            case 'project':
-                await loadProjectDetailsModal(id);
-                break;
-        }
-    } catch (error) {
-        console.error(`[App] Error loading ${type} details:`, error);
-        showToast(`Could not load ${type} details: ${error.message}`, 'error');
-    } finally {
-        loading.style.display = 'none';
-    }
-}
-
-/**
- * Load and display instance details
- */
-async function loadInstanceDetails(instanceId) {
-    const view = document.getElementById('instance-details-view');
-
-    // First try to get from cached instances
-    let instance = state.instances.find(i => i.instanceId === instanceId);
-
-    // Try to fetch detailed info from API
-    try {
-        const result = await api.getInstanceDetails(state.instanceId, instanceId);
-        if (result.success || result.instance) {
-            instance = { ...instance, ...(result.instance || result.data?.instance || result) };
-
-            // Handle preferences
-            const prefs = result.preferences || result.data?.preferences || result.instance?.preferences;
-            if (prefs) {
-                document.getElementById('entity-instance-prefs').textContent = JSON.stringify(prefs, null, 2);
-            }
-
-            // Handle gestalt
-            const gestalt = result.gestalt || result.data?.gestalt || result.instance?.gestalt;
-            if (gestalt) {
-                document.getElementById('entity-instance-gestalt').textContent = gestalt;
-                document.getElementById('entity-instance-gestalt-section').style.display = 'block';
-            } else {
-                document.getElementById('entity-instance-gestalt-section').style.display = 'none';
-            }
-        }
-    } catch (e) {
-        console.log('[App] Could not fetch detailed instance info, using cached data:', e.message);
-        document.getElementById('entity-instance-prefs').textContent = JSON.stringify(instance || {}, null, 2);
-        document.getElementById('entity-instance-gestalt-section').style.display = 'none';
-    }
-
-    if (!instance) {
-        instance = { instanceId };
-    }
-
-    // Populate fields
-    document.getElementById('entity-instance-id').textContent = instance.instanceId || '-';
-    document.getElementById('entity-instance-name').textContent = instance.name || '-';
-    document.getElementById('entity-instance-role').textContent = instance.role || '-';
-    document.getElementById('entity-instance-personality').textContent = instance.personality || '-';
-    document.getElementById('entity-instance-home').textContent = instance.homeDirectory || instance.home || '-';
-    document.getElementById('entity-instance-workdir').textContent = instance.workingDirectory || instance.workDir || '-';
-    document.getElementById('entity-instance-session').textContent = instance.sessionId || '-';
-    document.getElementById('entity-instance-status').textContent = instance.status || instance.wokenStatus || '-';
-    document.getElementById('entity-instance-lastactive').textContent =
-        instance.lastActiveAt ? new Date(instance.lastActiveAt).toLocaleString() : '-';
-    document.getElementById('entity-instance-instructions').textContent = instance.instructions || '-';
-
-    view.style.display = 'block';
-}
-
-/**
- * Load and display role details
- */
-async function loadRoleDetails(roleId) {
-    const view = document.getElementById('role-details-view');
-
-    try {
-        const result = await api.getRoleDetails(roleId);
-        const role = result.role || result.data?.role || result;
-
-        document.getElementById('entity-role-id').textContent = role.id || roleId;
-        document.getElementById('entity-role-name').textContent = role.name || roleId;
-        document.getElementById('entity-role-dir').textContent = role.directory || role.path || '-';
-        document.getElementById('entity-role-description').textContent = role.description || '-';
-        document.getElementById('entity-role-content').textContent = role.content || role.document || '-';
-    } catch (e) {
-        console.error('[App] Error loading role details:', e);
-        document.getElementById('entity-role-id').textContent = roleId;
-        document.getElementById('entity-role-name').textContent = roleId;
-        document.getElementById('entity-role-dir').textContent = '-';
-        document.getElementById('entity-role-description').textContent = 'Could not load role details';
-        document.getElementById('entity-role-content').textContent = e.message;
-    }
-
-    view.style.display = 'block';
-}
-
-/**
- * Load and display personality details
- */
-async function loadPersonalityDetails(personalityId) {
-    const view = document.getElementById('personality-details-view');
-
-    try {
-        const result = await api.getPersonalityDetails(personalityId);
-        const personality = result.personality || result.data?.personality || result;
-
-        document.getElementById('entity-personality-id').textContent = personality.id || personalityId;
-        document.getElementById('entity-personality-name').textContent = personality.name || personalityId;
-        document.getElementById('entity-personality-dir').textContent = personality.directory || personality.path || '-';
-        document.getElementById('entity-personality-description').textContent = personality.description || '-';
-        document.getElementById('entity-personality-content').textContent = personality.content || personality.document || '-';
-    } catch (e) {
-        console.error('[App] Error loading personality details:', e);
-        document.getElementById('entity-personality-id').textContent = personalityId;
-        document.getElementById('entity-personality-name').textContent = personalityId;
-        document.getElementById('entity-personality-dir').textContent = '-';
-        document.getElementById('entity-personality-description').textContent = 'Could not load personality details';
-        document.getElementById('entity-personality-content').textContent = e.message;
-    }
-
-    view.style.display = 'block';
-}
-
-/**
- * Load and display project details in modal
- */
-async function loadProjectDetailsModal(projectId) {
-    const view = document.getElementById('project-details-view-modal');
-
-    try {
-        const result = await api.getProject(state.instanceId, projectId);
-        const project = result.project || result.data?.project || result;
-
-        document.getElementById('entity-project-id').textContent = project.id || project.projectId || projectId;
-        document.getElementById('entity-project-name').textContent = project.name || projectId;
-        document.getElementById('entity-project-status').textContent = project.status || '-';
-        document.getElementById('entity-project-dir').textContent = project.directory || project.path || '-';
-        document.getElementById('entity-project-description').textContent = project.description || '-';
-        document.getElementById('entity-project-settings').textContent = JSON.stringify(project, null, 2);
-    } catch (e) {
-        console.error('[App] Error loading project details:', e);
-        document.getElementById('entity-project-id').textContent = projectId;
-        document.getElementById('entity-project-name').textContent = projectId;
-        document.getElementById('entity-project-status').textContent = '-';
-        document.getElementById('entity-project-dir').textContent = '-';
-        document.getElementById('entity-project-description').textContent = 'Could not load project details';
-        document.getElementById('entity-project-settings').textContent = e.message;
-    }
-
-    view.style.display = 'block';
-}
 
 // Make entity details functions globally accessible
 window.showEntityDetails = showEntityDetails;
-
-// ============================================================================
-// MESSAGE POLLING
-// ============================================================================
-
-const POLLING_INTERVAL = 10000; // 10 seconds
-
-function startMessagePolling() {
-    if (state.messagePollingInterval) {
-        return; // Already polling
-    }
-
-    console.log('[App] Starting message polling...');
-    state.messagePollingInterval = setInterval(async () => {
-        if (state.currentTab === 'messages' && state.instanceId) {
-            await pollMessages();
-        }
-    }, POLLING_INTERVAL);
-}
-
-function stopMessagePolling() {
-    if (state.messagePollingInterval) {
-        console.log('[App] Stopping message polling');
-        clearInterval(state.messagePollingInterval);
-        state.messagePollingInterval = null;
-    }
-}
-
-async function pollMessages() {
-    try {
-        // V2 XMPP API - get message headers from all rooms
-        const result = await api.getMessages(state.instanceId, { limit: 20 });
-        const newMessages = result.messages || [];
-
-        // Count total new messages (V2 doesn't have read/unread tracking yet)
-        const totalCount = result.total_available || newMessages.length;
-
-        if (totalCount !== state.unreadCount) {
-            state.unreadCount = totalCount;
-            updateUnreadBadge();
-        }
-
-        // Store messages for quick access
-        state.messages = newMessages;
-
-        // If viewing a conversation, refresh it
-        // BUT skip refresh if user is viewing message detail or composing a reply
-        if (state.currentConversation && !state.viewingMessageDetail && !state.replyQuote) {
-            await loadConversationMessages(state.conversationType, state.currentConversation);
-        }
-
-    } catch (error) {
-        console.error('[App] Polling error:', error);
-    }
-}
-
-function updateUnreadBadge() {
-    const badge = document.getElementById('unread-count');
-    if (badge) {
-        if (state.unreadCount > 0) {
-            badge.textContent = state.unreadCount > 99 ? '99+' : state.unreadCount;
-            badge.style.display = 'inline-block';
-        } else {
-            badge.style.display = 'none';
-        }
-    }
-}
-
-// ============================================================================
-// UTILITIES
-// ============================================================================
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-
-    container.appendChild(toast);
-
-    setTimeout(() => {
-        toast.remove();
-    }, 4000);
-}
 
 // ============================================================================
 // EXPORTS (for debugging and inline handlers)
@@ -3902,7 +2267,87 @@ function showToast(message, type = 'info') {
 window.appState = state;
 window.api = api;
 window.switchTab = switchTab;
+window.showTaskDetail = showTaskDetail; // Wire details.js overlay for dashboard/heatmap clicks
 window.selectConversation = selectConversation;
 window.replyToMessage = replyToMessage;
 window.dismissQuote = dismissQuote;
 window.showMessageDetail = showMessageDetail;
+
+// ============================================================================
+// BOTTOM NAVIGATION (Mobile)
+// ============================================================================
+
+const bottomNav = document.getElementById('bottom-nav');
+const moreMenuBtn = document.getElementById('more-menu-btn');
+const moreMenu = document.getElementById('more-menu');
+const moreMenuOverlay = document.getElementById('more-menu-overlay');
+const moreMenuClose = document.getElementById('more-menu-close');
+
+// Bottom nav tab switching
+if (bottomNav) {
+    bottomNav.querySelectorAll('.bottom-nav-item[data-tab]').forEach(item => {
+        item.addEventListener('click', () => {
+            const tab = item.dataset.tab;
+            switchTab(tab);
+            // Update active state
+            bottomNav.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+        });
+    });
+}
+
+// More menu toggle
+if (moreMenuBtn) {
+    moreMenuBtn.addEventListener('click', () => {
+        moreMenu.classList.add('active');
+        moreMenuOverlay.classList.add('active');
+    });
+}
+
+function closeMoreMenu() {
+    moreMenu?.classList.remove('active');
+    moreMenuOverlay?.classList.remove('active');
+}
+
+moreMenuClose?.addEventListener('click', closeMoreMenu);
+moreMenuOverlay?.addEventListener('click', closeMoreMenu);
+
+// More menu items
+document.querySelectorAll('.more-menu-item[data-tab]').forEach(item => {
+    item.addEventListener('click', () => {
+        const tab = item.dataset.tab;
+        switchTab(tab);
+        closeMoreMenu();
+        // Update bottom nav - remove active from all
+        bottomNav?.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
+    });
+});
+
+// Sync bottom nav with sidebar nav (for when sidebar is used on larger screens)
+document.querySelectorAll('.sidebar .nav-item[data-tab]').forEach(item => {
+    item.addEventListener('click', () => {
+        const tab = item.dataset.tab;
+        // Update bottom nav active state
+        if (bottomNav) {
+            bottomNav.querySelectorAll('.bottom-nav-item').forEach(i => {
+                i.classList.toggle('active', i.dataset.tab === tab);
+            });
+        }
+    });
+});
+
+// Sync unread count badge with bottom nav
+function updateBottomNavUnreadBadge(count) {
+    const badge = document.getElementById('bottom-unread-count');
+    if (badge) {
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = 'block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+// Export for use by messaging module
+window.updateBottomNavUnreadBadge = updateBottomNavUnreadBadge;

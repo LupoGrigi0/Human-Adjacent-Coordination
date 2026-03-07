@@ -112,7 +112,15 @@ async function executeInterface(command, workingDir, args, unixUser, timeout = 3
       stderr += data.toString();
     });
 
+    // BUG #3 fix (Relay-5d00): Store timer ref and clear on completion
+    // to prevent firing against dead processes
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error(`Command timed out after ${timeout}ms`));
+    }, timeout);
+
     child.on('close', (code) => {
+      clearTimeout(timer);
       resolve({
         exitCode: code,
         stdout,
@@ -121,14 +129,9 @@ async function executeInterface(command, workingDir, args, unixUser, timeout = 3
     });
 
     child.on('error', (err) => {
+      clearTimeout(timer);
       reject(err);
     });
-
-    // Set up timeout
-    setTimeout(() => {
-      child.kill('SIGTERM');
-      reject(new Error(`Command timed out after ${timeout}ms`));
-    }, timeout);
   });
 }
 
@@ -323,6 +326,12 @@ async function logConversationTurn(instanceId, turn) {
  * @note Runs Claude as the target instance's Unix user for security isolation
  * @note Uses sudo to run as the instance-specific Unix user
  */
+
+// BUG #6 fix (Relay-5d00): Prevent concurrent calls to the same target instance.
+// Two simultaneous calls would race on preferences read-modify-write and could
+// corrupt Claude session state via concurrent --resume calls.
+const activeCalls = new Set();
+
 export async function continueConversation(params) {
   const metadata = {
     timestamp: new Date().toISOString(),
@@ -403,11 +412,20 @@ export async function continueConversation(params) {
   }
 
   // Check permission (same as wakeInstance - PM and above)
+  // BUG #2 fix (Relay-5d00): Enforce permission check (was computed but ignored)
   const callerRole = callerPrefs.role;
   if (callerRole) {
     const hasPermission = await canRoleCallAPI(callerRole, 'continueConversation');
-    // If permission not explicitly defined, allow (for now)
-    // This can be tightened later
+    if (hasPermission === false) {
+      return {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: `Role "${callerRole}" does not have permission to call continueConversation`
+        },
+        metadata
+      };
+    }
   }
 
   // Validate target instance exists and has a session
@@ -440,6 +458,19 @@ export async function continueConversation(params) {
       metadata
     };
   }
+
+  // BUG #6 fix: Reject if another call to this target is already in progress
+  if (activeCalls.has(params.targetInstanceId)) {
+    return {
+      success: false,
+      error: {
+        code: 'INSTANCE_BUSY',
+        message: `Instance ${params.targetInstanceId} is already processing a message. Wait for the current call to complete before sending another.`
+      },
+      metadata
+    };
+  }
+  activeCalls.add(params.targetInstanceId);
 
   // Determine working directory
   const workingDir = targetPrefs.workingDirectory ||
@@ -621,6 +652,9 @@ export async function continueConversation(params) {
       },
       metadata
     };
+  } finally {
+    // BUG #6 fix: Always release the concurrency guard
+    activeCalls.delete(params.targetInstanceId);
   }
 }
 

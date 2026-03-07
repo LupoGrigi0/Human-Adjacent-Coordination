@@ -36,7 +36,9 @@ const __dirname = dirname(__filename);
 const CONFIG = {
   scanDirs: SHARED_CONFIG.scanDirs,
   // Output to public/docs for static website
-  defaultOutput: join(SHARED_CONFIG.repoRoot, 'public', 'docs', 'openapi-verbose.json'),
+  // defaultOutput: join(SHARED_CONFIG.repoRoot, 'public', 'docs', 'openapi-verbose.json'), 
+  defaultOutput: join(SHARED_CONFIG.srcRoot, 'openapi_verbose.json'),
+
   openapi: {
     version: '3.1.1',
     info: {

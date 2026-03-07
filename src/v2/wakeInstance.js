@@ -89,18 +89,22 @@ async function executeInterface(command, workingDir, args, unixUser, timeout = 3
       stderr += data.toString();
     });
 
+    // BUG #3 fix (Relay-5d00): Store timer ref and clear on completion
+    // to prevent firing against dead processes
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error(`Command timed out after ${timeout}ms`));
+    }, timeout);
+
     child.on('close', (code) => {
+      clearTimeout(timer);
       resolve({ exitCode: code, stdout, stderr });
     });
 
     child.on('error', (err) => {
+      clearTimeout(timer);
       reject(err);
     });
-
-    setTimeout(() => {
-      child.kill('SIGTERM');
-      reject(new Error(`Command timed out after ${timeout}ms`));
-    }, timeout);
   });
 }
 
@@ -184,7 +188,7 @@ async function executeInterface(command, workingDir, args, unixUser, timeout = 3
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions role:Executive|role:PA|role:COO|role:PM
+ * @permissions role:Executive|role:EA|role:COO|role:PM
  * @rateLimit 10/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -210,7 +214,7 @@ async function executeInterface(command, workingDir, args, unixUser, timeout = 3
  *   @recover Verify your own instanceId is correct. If new, call bootstrap first.
  *
  * @error UNAUTHORIZED - Caller's role cannot call wakeInstance
- *   @recover Only Executive, PA, COO, and PM roles can wake instances. Request
+ *   @recover Only Executive, EA, COO, and PM roles can wake instances. Request
  *            appropriate role from your manager or use preApprove flow.
  *
  * @error INSTANCE_NOT_FOUND - Target instance not found
@@ -529,6 +533,19 @@ export async function wakeInstance(params) {
   targetPrefs.status = 'active';
   targetPrefs.lastActiveAt = new Date().toISOString();
   targetPrefs.conversationTurns = 1;
+
+  // Build human-readable commands for debugging/manual operation (pre-set for timeout debugging)
+  if (interfaceType === 'claude') {
+    targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} claude -p --output-format json --dangerously-skip-permissions --session-id ${sessionId} "YOUR_MESSAGE"`;
+    targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} claude -p --output-format json --dangerously-skip-permissions --resume ${sessionId} "YOUR_MESSAGE"`;
+  } else if (interfaceType === 'codex') {
+    targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} codex exec --sandbox danger-full-access --skip-git-repo-check --json "YOUR_MESSAGE"`;
+    targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} codex exec --sandbox danger-full-access --skip-git-repo-check --json resume --last "YOUR_MESSAGE"`;
+  } else if (interfaceType === 'crush') {
+    targetPrefs.wakeCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} crush run --quiet "YOUR_MESSAGE"`;
+    targetPrefs.continueCommand = `cd "${workingDirectory}" && sudo -u ${unixUser} crush run --quiet "YOUR_MESSAGE"`;
+  }
+
   await writePreferences(params.targetInstanceId, targetPrefs);
   console.log(`[WAKE] Pre-set session fields for ${params.targetInstanceId} (status: active)`);
 
@@ -543,18 +560,11 @@ export async function wakeInstance(params) {
       response = { raw: result.stdout };
     }
 
-    // Store session info in preferences
-    // For claude: sessionId is the UUID, for crush: null (directory-based)
-    if (interfaceType === 'claude') {
-      targetPrefs.sessionId = sessionId;
-    }
-    targetPrefs.interface = interfaceType;
+    // BUG #4 fix (Relay-5d00): Only write fields not already set in pre-execution write.
+    // sessionCreatedAt is the only new field; lastActiveAt gets updated to post-execution time.
     targetPrefs.sessionCreatedAt = new Date().toISOString();
-    targetPrefs.workingDirectory = workingDirectory;
-    targetPrefs.unixUser = unixUser;
-    targetPrefs.status = 'active';
     targetPrefs.lastActiveAt = new Date().toISOString();
-    targetPrefs.conversationTurns = 1;
+
     await writePreferences(params.targetInstanceId, targetPrefs);
 
     return {

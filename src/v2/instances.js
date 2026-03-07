@@ -48,7 +48,7 @@ import { DATA_ROOT, getInstancesDir } from './config.js';
  *   @default false
  *
  * @param {string} role - Filter by role [optional]
- *   @source One of: Executive, PA, COO, PM, Developer, Designer, Tester, etc.
+ *   @source One of: Executive, EA, COO, PM, Developer, Designer, Tester, etc.
  *   @default null (no filter)
  *
  * @param {string} project - Filter by project [optional]
@@ -83,7 +83,7 @@ import { DATA_ROOT, getInstancesDir } from './config.js';
  * ───────────────────────────────────────────────────────────────────────────
  * PERMISSIONS & LIMITS
  * ───────────────────────────────────────────────────────────────────────────
- * @permissions Executive, PA, COO
+ * @permissions Executive, EA, COO
  * @rateLimit 60/minute
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -187,7 +187,16 @@ export async function getAllInstances(params = {}) {
           predecessorId: prefs.predecessorId || null,
           successorId: prefs.successorId || null,
           // Description with friendly fallback
-          description: prefs.description || 'No description yet. Try /vacation then write one!'
+          description: prefs.description || 'No description yet. Try /vacation then write one!',
+          // ZeroClaw/interface info
+          interface: prefs.interface || null,
+          zeroclaw: prefs.zeroclaw ? {
+            enabled: prefs.zeroclaw.enabled || false,
+            ready: prefs.zeroclaw.ready || false,
+            webUrl: prefs.zeroclaw.webUrl || null,
+            provider: prefs.zeroclaw.provider || null,
+            model: prefs.zeroclaw.model || null
+          } : null
         });
       } catch (err) {
         // Skip directories without valid preferences.json
@@ -387,7 +396,13 @@ export async function getInstance(params = {}) {
         lineage: prefs.lineage || [],
         hasContext: !!(prefs.context && Object.keys(prefs.context).length > 0),
         context: prefs.context || null,
-        description: prefs.description || 'No description yet. Try /vacation then write one!'
+        description: prefs.description || 'No description yet. Try /vacation then write one!',
+        // ZeroClaw / runtime metadata
+        interface: prefs.interface || null,
+        zeroclaw_ready: prefs.zeroclaw_ready || false,
+        zeroclaw: prefs.zeroclaw || null,
+        // Full preferences for UI detail panels
+        preferences: prefs
       },
       metadata
     };

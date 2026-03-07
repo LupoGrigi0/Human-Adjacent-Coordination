@@ -17,6 +17,7 @@
  */
 
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import { getInstanceDir, getProjectDir, getGlobalPreferencesPath } from './config.js';
 import { readJSON, writeJSON, ensureDir, readPreferences } from './data.js';
@@ -122,23 +123,67 @@ function generateSuffix() {
 function generateTaskId(type, listId, projectId = null) {
   const seq = Date.now().toString(36) + generateSuffix();
   if (type === 'personal') {
-    return `ptask-${listId}-${seq}`;
+    return `ptask-${listId}::${seq}`;
   } else {
-    return `prjtask-${projectId}-${listId}-${seq}`;
+    // Use :: separator to handle hyphenated project IDs
+    return `prjtask-${projectId}::${listId}::${seq}`;
   }
 }
 
 /**
  * Parse task ID to extract type and context
+ * Supports both new :: separator and legacy - separator formats.
+ * For legacy format with hyphenated project IDs, projectId may be wrong —
+ * callers should pass explicit projectId parameter as override.
  * @param {string} taskId - Task identifier
+ * @param {string} [projectIdOverride] - Explicit project ID (fixes hyphenated project IDs)
  * @returns {object} { type: 'personal'|'project', listId, projectId? }
  */
-function parseTaskId(taskId) {
+function parseTaskId(taskId, projectIdOverride = null) {
   if (taskId.startsWith('ptask-')) {
+    // Personal: ptask-{listId}::{seq} (new) or ptask-{listId}-{seq} (legacy)
+    if (taskId.includes('::')) {
+      const parts = taskId.substring(6).split('::');
+      return { type: 'personal', listId: parts[0] };
+    }
     const parts = taskId.substring(6).split('-');
     return { type: 'personal', listId: parts[0] };
   } else if (taskId.startsWith('prjtask-')) {
-    const parts = taskId.substring(8).split('-');
+    // Project: prjtask-{projectId}::{listId}::{seq} (new) or prjtask-{projectId}-{listId}-{seq} (legacy)
+    if (taskId.includes('::')) {
+      const inner = taskId.substring(8);
+      const parts = inner.split('::');
+      return { type: 'project', projectId: projectIdOverride || parts[0], listId: parts[1] };
+    }
+    // Legacy format — projectId extraction breaks for hyphenated project IDs
+    const inner = taskId.substring(8); // e.g., "fix-project-detail-panel-default-mkkcqhjq9170"
+    if (projectIdOverride) {
+      // Strip known projectId from the inner string to extract listId
+      const afterProject = inner.substring(projectIdOverride.length + 1); // e.g., "default-mkkcqhjq9170"
+      const remainParts = afterProject.split('-');
+      return { type: 'project', projectId: projectIdOverride, listId: remainParts[0] };
+    }
+    // No override — try to find project by scanning known project directories
+    // The inner looks like "{projectId}-{listId}-{seq}" but projectId may contain hyphens
+    // Strategy: try matching against existing project directory names (longest match first)
+    try {
+      const projectsBaseDir = path.dirname(getProjectDir('_placeholder'));
+      const entries = fs.readdirSync(projectsBaseDir, { withFileTypes: true })
+        .filter(d => d.isDirectory())
+        .map(d => d.name)
+        .sort((a, b) => b.length - a.length); // longest match first
+      for (const dirName of entries) {
+        if (inner.startsWith(dirName + '-')) {
+          const afterProject = inner.substring(dirName.length + 1);
+          const remainParts = afterProject.split('-');
+          return { type: 'project', projectId: dirName, listId: remainParts[0] };
+        }
+      }
+    } catch (e) {
+      // Fallback if directory scan fails
+    }
+    // Last resort: naive split (breaks for hyphenated project IDs)
+    const parts = inner.split('-');
     return { type: 'project', projectId: parts[0], listId: parts[1] };
   }
   return null;
@@ -226,7 +271,7 @@ function findTaskInFile(taskData, taskId) {
  * Rules:
  * - Personal tasks: only owner can edit
  * - Project tasks:
- *   - Executive, PA, COO can edit any task in any project
+ *   - Executive, EA, COO can edit any task in any project
  *   - PM can only edit tasks in their joined project
  *   - Project members can edit their own assigned tasks
  *   - Assigning to someone else requires privileged role
@@ -244,7 +289,7 @@ function findTaskInFile(taskData, taskId) {
 async function checkTaskEditPermissions(params) {
   const { callerId, callerRole, callerProject, task, taskType, projectId, changes } = params;
 
-  const isHighPrivilege = ['Executive', 'PA', 'COO'].includes(callerRole);
+  const isHighPrivilege = ['Executive', 'EA', 'COO'].includes(callerRole);
   const isPM = callerRole === 'PM';
 
   // Personal tasks: only owner can edit
@@ -255,7 +300,7 @@ async function checkTaskEditPermissions(params) {
 
   // Project tasks
   if (taskType === 'project') {
-    // Executive, PA, COO can do anything in any project
+    // Executive, EA, COO can do anything in any project
     if (isHighPrivilege) {
       return { allowed: true };
     }
@@ -298,7 +343,7 @@ async function checkTaskEditPermissions(params) {
     if (isAssigningToOther) {
       return {
         allowed: false,
-        reason: 'Only privileged roles (Executive, PA, COO, PM) can assign tasks to others. Ask the PM to do this.'
+        reason: 'Only privileged roles (Executive, EA, COO, PM) can assign tasks to others. Ask the PM to do this.'
       };
     }
 
@@ -354,7 +399,7 @@ export async function updateTask(params) {
   }
 
   // Parse task ID to determine type
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -397,9 +442,48 @@ export async function updateTask(params) {
   const changes = {};
   if (params.title !== undefined) changes.title = params.title;
   if (params.description !== undefined) changes.description = params.description;
-  if (params.priority !== undefined) changes.priority = params.priority;
-  if (params.status !== undefined) changes.status = params.status;
   if (params.assigned_to !== undefined) changes.assigned_to = params.assigned_to;
+
+  // Validate priority against global preferences (strict list)
+  if (params.priority !== undefined) {
+    const prefs = await loadGlobalPreferences();
+    const validPriorities = prefs.task_priorities;
+    if (!params.priority || !validPriorities.includes(params.priority)) {
+      return {
+        success: false,
+        error: { code: 'INVALID_PRIORITY', message: `Invalid priority "${params.priority}". Valid values: ${validPriorities.join(', ')}` },
+        metadata
+      };
+    }
+    changes.priority = params.priority;
+  }
+
+  // Validate status: reject null/empty, block lifecycle shortcuts
+  if (params.status !== undefined) {
+    if (!params.status || (typeof params.status === 'string' && !params.status.trim())) {
+      return {
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Status cannot be null or empty' },
+        metadata
+      };
+    }
+    // Lifecycle enforcement: completed_verified and archived must use dedicated endpoints
+    if (params.status === 'completed_verified') {
+      return {
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Cannot set status to completed_verified directly. Use mark_task_verified after completing the task.' },
+        metadata
+      };
+    }
+    if (params.status === 'archived') {
+      return {
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Cannot set status to archived directly. Use archive_task after task is verified.' },
+        metadata
+      };
+    }
+    changes.status = params.status;
+  }
 
   // Check permissions
   const permCheck = await checkTaskEditPermissions({
@@ -450,7 +534,7 @@ export async function updateTask(params) {
  * @description Creates a new task, either personal or on a project.
  * Personal tasks are created when projectId is omitted.
  * Project tasks require caller to be a member of the project (or have privileged role).
- * PM can only create tasks on their joined project. Executive/PA/COO can create on any project.
+ * PM can only create tasks on their joined project. Executive/EA/COO can create on any project.
  *
  * @param {string} instanceId - Caller's instance ID [required]
  * @param {string} title - Task title, short one-line description [required]
@@ -479,7 +563,10 @@ export async function createTask(params) {
   }
 
   const listId = params.listId || 'default';
-  const priority = ['critical', 'high', 'medium', 'low'].includes(params.priority)
+  // Validate priority against global preferences
+  const globalPrefs = await loadGlobalPreferences();
+  const validPriorities = globalPrefs.task_priorities;
+  const priority = validPriorities.includes(params.priority)
     ? params.priority
     : 'medium';
 
@@ -545,7 +632,7 @@ export async function createTask(params) {
     title: params.title,
     description: params.description || null,
     priority,
-    status: 'pending',
+    status: 'not_started',
     assigned_to: taskType === 'project' ? 'unassigned' : null,
     created: now,
     updated: now
@@ -580,7 +667,7 @@ export async function createTask(params) {
  * @status stable
  * @description Creates a new named task list for personal or project tasks.
  * Personal lists are created when projectId is omitted.
- * Project lists require privileged role (PM, PA, COO, Executive).
+ * Project lists require privileged role (PM, EA, COO, Executive).
  *
  * @param {string} instanceId - Caller's instance ID [required]
  * @param {string} listId - Name for the new list [required]
@@ -763,7 +850,7 @@ export async function listTasks(params) {
  * @category task
  * @status stable
  * @description Assigns a project task to a specific instance. Privileged roles only.
- * PM can only assign tasks in their joined project. Executive/PA/COO can assign any.
+ * PM can only assign tasks in their joined project. Executive/EA/COO can assign any.
  *
  * @param {string} instanceId - Caller's instance ID [required]
  * @param {string} taskId - Task ID to assign [required]
@@ -786,7 +873,7 @@ export async function assignTask(params) {
   }
 
   // Verify task is a project task
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed || parsed.type !== 'project') {
     return {
       success: false,
@@ -889,7 +976,7 @@ export async function getTask(params) {
     };
   }
 
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -955,7 +1042,7 @@ export async function deleteTask(params) {
     };
   }
 
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -1263,7 +1350,7 @@ export async function markTaskVerified(params) {
   }
 
   // Parse task ID
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -1369,7 +1456,7 @@ export async function markTaskVerified(params) {
  * @description Archives a completed_verified task by moving it to TASK_ARCHIVE.json.
  * This reduces active task list size for token efficiency.
  * Only tasks with status 'completed_verified' can be archived.
- * For project tasks: only PM of that project, or Executive/PA/COO can archive.
+ * For project tasks: only PM of that project, or Executive/EA/COO can archive.
  * Personal tasks can be archived by the owner.
  * @param {string} instanceId - Caller's instance ID [required]
  * @param {string} taskId - Task ID to archive [required]
@@ -1387,7 +1474,7 @@ export async function archiveTask(params) {
   }
 
   // Parse task ID
-  const parsed = parseTaskId(params.taskId);
+  const parsed = parseTaskId(params.taskId, params.projectId);
   if (!parsed) {
     return {
       success: false,
@@ -1418,9 +1505,9 @@ export async function archiveTask(params) {
     const projectPrefs = await readJSON(path.join(getProjectDir(parsed.projectId), 'project.json')) ||
                          await readJSON(path.join(getProjectDir(parsed.projectId), 'preferences.json'));
 
-    // Only PM of this project, or Executive/PA/COO can archive
+    // Only PM of this project, or Executive/EA/COO can archive
     const isPM = callerRole === 'PM';
-    const isHighPrivilege = ['Executive', 'PA', 'COO'].includes(callerRole);
+    const isHighPrivilege = ['Executive', 'EA', 'COO'].includes(callerRole);
     const isProjectPM = isPM && callerPrefs.project === parsed.projectId;
 
     if (!isProjectPM && !isHighPrivilege) {
@@ -1428,7 +1515,7 @@ export async function archiveTask(params) {
         success: false,
         error: {
           code: 'UNAUTHORIZED',
-          message: 'Only the project PM or Executive/PA/COO can archive project tasks'
+          message: 'Only the project PM or Executive/EA/COO can archive project tasks'
         },
         metadata
       };

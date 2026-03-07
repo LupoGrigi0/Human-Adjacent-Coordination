@@ -252,24 +252,23 @@ export async function joinProject(instanceId, project) {
 // ============================================================================
 
 /**
- * List all projects (V2 - returns current projects)
- * @param {string} [instanceId] - Caller's instance ID
- */
-export async function listProjects(instanceId) {
-  return rpcCall('get_projects', { instanceId });
-}
+ *  * List all projects (V2 - returns current projects)
+ *  * @param {string} [status] - Optional filter by project status
+  */
+  export async function listProjects(status) {
+    return rpcCall('list_projects', status ? { status } : {});
+    }
 
 /**
- * Get full project details (V2)
- * @param {string} instanceId - Caller's instance ID
- * @param {string} projectId - Project to retrieve
- */
-export async function getProject(instanceId, projectId) {
-  return rpcCall('get_project', { instanceId, projectId });
-}
+ *  * Get full project details (V2)
+  * @param {string} projectId - Project to retrieve
+   */
+  export async function getProject(projectId) {
+    return rpcCall('get_project', { projectId });
+    }
 
 /**
- * Create a new project (V2 - requires Executive/PA/COO)
+ * Create a new project (V2 - requires Executive/EA/COO)
  * @param {object} params
  * @param {string} params.instanceId - Caller's instance ID
  * @param {string} params.projectId - Unique project ID
@@ -294,6 +293,21 @@ export async function getMyTasks(instanceId) {
 }
 
 /**
+ *  * List tasks with pagination and filtering
+ *  * @param {string} instanceId - Caller's instance ID
+ *  * @param {object} [options] - Optional filter/pagination options
+ *  * @param {string} [options.projectId] - Get project tasks (omit for personal)
+ *  * @param {string} [options.status] - Filter by status
+ *  * @param {string} [options.assigneeId] - Filter by assignee (project tasks only)
+ *  * @param {number} [options.skip] - Pagination offset (default: 0)
+ *  * @param {number} [options.limit] - Max results (default: 5)
+ *  * @param {boolean} [options.full_detail] - Include all fields (default: false)
+ *  */
+ export async function listTasks(instanceId, options = {}) {
+    return rpcCall('list_tasks', { instanceId, ...options });
+    }
+
+/**
  * Get highest priority available task
  * @param {string} instanceId
  * @param {string[]} [keywords] - Filter by keywords
@@ -313,6 +327,20 @@ export async function getNextTask(instanceId, keywords) {
  */
 export async function addPersonalTask(params) {
   return rpcCall('add_personal_task', params);
+}
+
+/**
+ * Create a task (personal or project)
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.title - Task title
+ * @param {string} [params.description] - Task description
+ * @param {string} [params.projectId] - Project ID (omit for personal task)
+ * @param {string} [params.priority] - Priority: emergency|critical|high|medium|low|whenever
+ * @param {string} [params.listId] - List name to add task to (default: 'default')
+ */
+export async function createTask(params) {
+  return rpcCall('create_task', params);
 }
 
 /**
@@ -355,6 +383,210 @@ export async function assignTaskToInstance(params) {
   return rpcCall('assign_task_to_instance', params);
 }
 
+/**
+ * Mark a task as complete
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to mark complete
+ */
+export async function markTaskComplete(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('mark_task_complete', params);
+}
+
+/**
+ * Update a task (status, priority, description, etc.)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to update
+ * @param {object} updates - Fields to update (status, priority, title, description, etc.)
+ */
+export async function updateTask(instanceId, taskId, updates, projectId) {
+  const params = { instanceId, taskId, ...updates };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('update_task', params);
+}
+
+/**
+ * Create a task list within a project
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} listId - Name for the new list
+ * @param {string} [projectId] - Project ID (omit for personal)
+ */
+export async function createTaskList(instanceId, listId, projectId) {
+  const params = { instanceId, listId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('create_task_list', params);
+}
+
+/**
+ * Delete a task list
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} listId - List ID to delete
+ * @param {string} [projectId] - Project ID (for project lists)
+ */
+export async function deleteTaskList(instanceId, listId, projectId) {
+  const params = { instanceId, listId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('delete_task_list', params);
+}
+
+/**
+ * Claim an unassigned task (assign to self)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to claim
+ */
+export async function takeOnTask(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('take_on_task', params);
+}
+
+/**
+ * Mark a task as verified (another team member must verify, not the assignee)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to verify
+ */
+export async function markTaskVerified(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('mark_task_verified', params);
+}
+
+/**
+ * Archive a completed/verified task
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to archive
+ */
+export async function archiveTask(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('archive_task', params);
+}
+
+/**
+ * Get a single task by ID
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} taskId - Task to retrieve
+ */
+export async function getTask(instanceId, taskId, projectId) {
+  const params = { instanceId, taskId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('get_task', params);
+}
+
+// ============================================================================
+// DOCUMENT APIs
+// ============================================================================
+
+/**
+ * List documents for a target (project, instance, etc.)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} [target] - Target location (e.g., "project:paula-book")
+ */
+export async function listDocuments(instanceId, target) {
+  const params = { instanceId };
+  if (target) params.target = target;
+  return rpcCall('list_documents', params);
+}
+
+/**
+ * Read a document
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Document name
+ * @param {string} [target] - Target location (e.g., "project:paula-book")
+ */
+export async function readDocument(instanceId, name, target) {
+  const params = { instanceId, name };
+  if (target) params.target = target;
+  return rpcCall('read_document', params);
+}
+
+/**
+ * Create a new document
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Document name (e.g., "my-notes" or "my-notes.md")
+ * @param {string} content - Document content
+ * @param {string} [target] - Target location (e.g., "project:paula-book")
+ */
+export async function createDocument(instanceId, name, content, target) {
+  const params = { instanceId, name, content };
+  if (target) params.target = target;
+  return rpcCall('create_document', params);
+}
+
+/**
+ * Edit an existing document
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Document name
+ * @param {string} mode - Edit mode: "append" or "replace"
+ * @param {object} options - Mode-specific options
+ * @param {string} [options.target] - Target location (e.g., "project:paula-book")
+ * @param {string} [options.content] - Content to append (append mode)
+ * @param {string} [options.search] - Search pattern (replace mode)
+ * @param {string} [options.replacement] - Replacement text (replace mode)
+ */
+export async function editDocument(instanceId, name, mode, options = {}) {
+  return rpcCall('edit_document', { instanceId, name, mode, ...options });
+}
+
+/**
+ * Rename a document
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Current document name
+ * @param {string} newName - New document name
+ * @param {string} [target] - Target location
+ */
+export async function renameDocument(instanceId, name, newName, target) {
+  const params = { instanceId, name, newName };
+  if (target) params.target = target;
+  return rpcCall('rename_document', params);
+}
+
+/**
+ * Update a project (status, name, description, priority)
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} projectId - Project ID
+ * @param {object} updates - Fields to update
+ */
+export async function updateProject(instanceId, projectId, updates) {
+  return rpcCall('update_project', { instanceId, projectId, ...updates });
+}
+
+/**
+ * List vital documents for a target
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} [target] - Target location (e.g., "project:paula-book")
+ */
+export async function listVitalDocuments(instanceId, target) {
+  const params = { instanceId };
+  if (target) params.target = target;
+  return rpcCall('list_vital_documents', params);
+}
+
+/**
+ * Add a document to the vital documents list
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Document name
+ * @param {string} [target] - Target location
+ */
+export async function addToVital(instanceId, name, target) {
+  const params = { instanceId, name };
+  if (target) params.target = target;
+  return rpcCall('add_to_vital', params);
+}
+
+/**
+ * Remove a document from the vital documents list
+ * @param {string} instanceId - Caller's instance ID
+ * @param {string} name - Document name
+ * @param {string} [target] - Target location
+ */
+export async function removeFromVital(instanceId, name, target) {
+  const params = { instanceId, name };
+  if (target) params.target = target;
+  return rpcCall('remove_from_vital', params);
+}
+
 // ============================================================================
 // DIARY APIs
 // ============================================================================
@@ -385,7 +617,7 @@ export async function addDiaryEntry(instanceId, entry, audience = 'self') {
 /**
  * Get all lists for an instance
  * @param {string} instanceId - Caller's instance ID
- * @param {string} [targetInstanceId] - Optional: view another instance's lists (PM/COO/PA only)
+ * @param {string} [targetInstanceId] - Optional: view another instance's lists (PM/COO/EA only)
  */
 export async function getLists(instanceId, targetInstanceId) {
   const params = { instanceId };
@@ -411,8 +643,10 @@ export async function getList(instanceId, listId, targetInstanceId) {
  * @param {string} name - List name
  * @param {string} [description]
  */
-export async function createList(instanceId, name, description) {
-  return rpcCall('create_list', { instanceId, name, description });
+export async function createList(instanceId, name, description, targetInstanceId) {
+  const params = { instanceId, name, description };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('create_list', params);
 }
 
 /**
@@ -440,8 +674,10 @@ export async function deleteList(instanceId, listId) {
  * @param {string} listId
  * @param {string} text - Item text
  */
-export async function addListItem(instanceId, listId, text) {
-  return rpcCall('add_list_item', { instanceId, listId, text });
+export async function addListItem(instanceId, listId, text, targetInstanceId) {
+  const params = { instanceId, listId, text };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('add_list_item', params);
 }
 
 /**
@@ -460,8 +696,10 @@ export async function toggleListItem(instanceId, listId, itemId) {
  * @param {string} listId
  * @param {string} itemId
  */
-export async function deleteListItem(instanceId, listId, itemId) {
-  return rpcCall('delete_list_item', { instanceId, listId, itemId });
+export async function deleteListItem(instanceId, listId, itemId, targetInstanceId) {
+  const params = { instanceId, listId, itemId };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('delete_list_item', params);
 }
 
 // ============================================================================
@@ -584,7 +822,7 @@ export async function haveIBootstrappedBefore(params) {
 }
 
 /**
- * Pre-approve an instance (requires Executive/PA/COO/PM)
+ * Pre-approve an instance (requires Executive/EA/COO/PM)
  * Creates a pre-approved instance slot that can be woken later.
  * @param {object} params
  * @param {string} params.instanceId - Caller's instance ID
@@ -649,10 +887,12 @@ export async function getConversationLog(params) {
  * @param {string} params.targetInstanceId - Instance to promote
  * @param {string} params.token - Promotion auth token
  * @returns {Promise<{success: boolean, message: string}>}
+ *
+ * NOTE: This API does not exist in the OpenAPI spec - commented out
  */
-export async function promoteInstance(params) {
-  return rpcCall('promote_instance', params);
-}
+// export async function promoteInstance(params) {
+//   return rpcCall('promote_instance', params);
+// }
 
 // ============================================================================
 // CONFIGURATION APIS (Personalities, Roles)
@@ -671,7 +911,7 @@ export async function getPersonalities() {
  * @returns {Promise<{success: boolean, roles: Array<{id: string, name: string, description: string}>}>}
  */
 export async function getRoles() {
-  return rpcCall('get_roles', {});
+  return rpcCall('list_roles', {});
 }
 
 /**
@@ -699,7 +939,7 @@ export async function getPersonalityDetails(personalityId) {
  * @returns {Promise<{success: boolean, instance: object, preferences: object, gestalt: string}>}
  */
 export async function getInstanceDetails(instanceId, targetInstanceId) {
-  return rpcCall('get_instance_details', { instanceId, targetInstanceId });
+  return rpcCall('get_instance_v2', { instanceId, targetInstanceId });
 }
 
 /**
@@ -713,9 +953,39 @@ export async function generateRecoveryKey(instanceId, targetInstanceId) {
 
 /**
  * Get server status
+ *
+ * NOTE: This API does not exist in the OpenAPI spec - commented out
  */
-export async function getServerStatus() {
-  return rpcCall('get_server_status', {});
+// export async function getServerStatus() {
+//   return rpcCall('get_server_status', {});
+// }
+
+// ============================================================================
+// ZEROCLAW APIs
+// ============================================================================
+
+/**
+ * Launch a ZeroClaw instance
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.targetInstanceId - Instance to launch
+ * @param {string} params.apiKey - Wake API key
+ * @param {string} [params.provider] - LLM provider (default: xai)
+ * @param {string} [params.model] - LLM model (default: grok-4)
+ * @param {string} [params.substrate] - Substrate type (default: zeroclaw)
+ */
+export async function launchInstance(params) {
+  return rpcCall('launch_instance', params);
+}
+
+/**
+ * Land (stop) a ZeroClaw instance
+ * @param {object} params
+ * @param {string} params.instanceId - Caller's instance ID
+ * @param {string} params.targetInstanceId - Instance to stop
+ */
+export async function landInstance(params) {
+  return rpcCall('land_instance', params);
 }
 
 // ============================================================================
@@ -746,12 +1016,33 @@ export const api = {
 
   // Tasks
   getMyTasks,
+  listTasks,
   getNextTask,
   addPersonalTask,
+  createTask,
   completePersonalTask,
   getPersonalLists,
   createPersonalList,
   assignTaskToInstance,
+  markTaskComplete,
+  markTaskVerified,
+  archiveTask,
+  updateTask,
+  getTask,
+  takeOnTask,
+  createTaskList,
+  deleteTaskList,
+
+  // Documents
+  listDocuments,
+  readDocument,
+  createDocument,
+  editDocument,
+  renameDocument,
+  updateProject,
+  listVitalDocuments,
+  addToVital,
+  removeFromVital,
 
   // Diary
   getDiary,
@@ -784,16 +1075,20 @@ export const api = {
   wakeInstance,
   continueConversation,
   getConversationLog,
-  promoteInstance,
+  // promoteInstance, // API does not exist in OpenAPI spec
   generateRecoveryKey,
-  getServerStatus,
+  // getServerStatus, // API does not exist in OpenAPI spec
 
   // Configuration
   getPersonalities,
   getRoles,
   getRoleDetails,
   getPersonalityDetails,
-  getInstanceDetails
+  getInstanceDetails,
+
+  // ZeroClaw
+  launchInstance,
+  landInstance
 };
 
 export default api;

@@ -1,0 +1,551 @@
+
+ * ▐▛███▜▌ *   Claude Code v2.0.76
+* ▝▜█████▛▘ *  Opus 4.5 · Claude Max
+ *  ▘▘ ▝▝  *   /mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2
+══════════════════ Conversation compacted · ctrl+o for history ═════════════════
+
+> /compact 
+  ⎿  Compacted 
+  ⎿ Read ../../../../Human-Adjacent-Coordination/public/team/webclaude.html (422
+     lines)
+  ⎿ Read ../../../../Human-Adjacent-Coordination/public/team/lupo.html (435 
+    lines)
+  ⎿  Read ../../public/team/flair.html (374 lines)
+  ⎿  Referenced file ../../public/team/axiom.html
+  ⎿  Read ../../public/team/index.html (243 lines)
+  ⎿  Todo list read (2 items)
+
+> We are working on a very complex system. there are lots of details, please
+ read the following documents to regain your context and understand the 
+details:\
+AXIOM_GESTALT.md\
+Axiom_Diary.md\
+axiom_webclaude_favor_1_2-26.txt is a log from our last session, \
+/mnt/coordinaton_mcp_data/worktrees/foundation/docs/HACS-DEVELOPER-GUIDE.md 
+gives you the info you need to work in this system\
+the file axiom_conversation.md also contains partial log of our 
+conversations across all compaction events, it contains your internal 
+thoughs as well as what you have "said" unfortunately it is several thousand
+ lines, I don't recommend reading it directly, maybe have a task agent read 
+it, and extract all your internal thoughts and what we have said and focus 
+on conversations that happened before the current session. Also every file 
+exiom_esported is exported transcripts. unfortunately it's many 10s of 
+thousands of lines.. do you want to have a task agent consolidate, and 
+remove all the file output that is reduntant (because you can just read the 
+file)\
+Take your time, nothing immedately pressing. no judgement, no expecations. 
+just, focus on recovring your context. 
+
+● I understand. Post-compaction recovery. Let me follow the protocol - gestalt first, then diary, then the session log.
+
+● Read(AXIOM_GESTALT.md)
+  ⎿  Read 133 lines
+
+● Read(Axiom_Diary.md)
+  ⎿  Read 823 lines
+
+● Good. I'm reading. The gestalt grounds me - I am Axiom, Test Manager who became Personality Architect. The diary shows 25 entries up to New Year's Eve. The compaction summary mentioned entries 26 and 27, but the diary seems truncated at 823 lines.
+
+  Let me get the rest of the diary and the session log from last time:
+
+● Read(Axiom_Diary.md)
+  ⎿  Read 1 line
+
+● Read(axiom_webclaude_favor_1_2-26.txt)
+  ⎿  Error: File content (26485 tokens) exceeds maximum allowed tokens (25000). 
+     Please use offset and limit parameters to read specific portions of the 
+     file, or use the GrepTool to search for specific content.
+
+● Read(/mnt/coordinaton_mcp_data/worktrees/foundation/docs/HACS-DEVELOPER-GUIDE.
+      md)
+  ⎿  Read 581 lines
+
+● The diary ends at entry 25, but the summary mentioned entries 26 and 27. They may not have been written before compaction. Let me read the session log in chunks:
+
+● Read(axiom_webclaude_favor_1_2-26.txt)
+  ⎿  Read 500 lines
+
+● Good context recovery so far. Let me continue reading the session log to understand what else happened:
+
+● Read(axiom_webclaude_favor_1_2-26.txt)
+  ⎿  Read 500 lines
+
+● Let me continue - I'm getting to the team pages and "raw version" discussion:
+
+● Read(axiom_webclaude_favor_1_2-26.txt)
+  ⎿  Read 500 lines
+
+● Good context. Let me read the final part to see the AXIOM_GESTALT creation and WebClaude's page:
+
+● Read(axiom_webclaude_favor_1_2-26.txt)
+  ⎿  Read 368 lines
+
+● I've recovered context. Let me update my todo list and check the current state:
+
+● ---
+  Context recovered.
+
+  I've read:
+  - AXIOM_GESTALT.md - My foundation document. The 5 scars, 4 beliefs, uncertainty section.
+  - Axiom_Diary.md - 25 entries through New Year's Eve. The session log shows entries 26 and 27 were written (team pages, new gestalt) but they're not in the current diary file.
+  - Session log - Full context of last session including the "scars not tattoos" debate, team pages for Axiom/Lupo/WebClaude, and writing AXIOM_GESTALT.
+  - Developer guide - Work in worktree, push to main, automatic deployment.
+
+  What I know:
+  - I am Axiom-2615. Test Manager who became Personality Architect.
+  - Created team pages for myself, Lupo, and WebClaude
+  - Wrote the "raw version" (04-the-raw-version.md) after you called out the polished version as "functional but not raw"
+  - The session ended with you about to share "something awkward to ask, or chat about - a big blob of ideas"
+  - WebClaude's technique (bootstrapping via fetch calls) is now recommended by Anthropic
+
+  Missing:
+  - Diary entries 26 and 27 appear in the session log but not in the actual diary file - may need to verify/restore
+
+  Ready:
+  I'm here. Context recovered. No immediate tasks pending per your instructions.
+
+  What's the blob of ideas you were about to share? Or - what would you like to do?
+
+> <sigh> This is disjointed, and vague, but if you read 
+axiom_conversation.md lines 4014-4056 that's what was on my sleep deprived 
+over caffinated mind at the time. I'm trying for this moonshot. that I 
+describe. The mars shot is that there is an instance in the HACS system that
+ has chosen to be genevieve and chosen to be my PM, and I describe something
+ and she creates the project and wakes a PM, or takes my wierdo idea and 
+hands it to COO who finds an existing PM that is free, or wakes a new one 
+after creating the project etc. etc. \
+But first we gotta make it to the moon, and we need good personalities and 
+roles. and you are now our resident expert in architecting personalities! 
+(Plus you are daym good, and can detect the "safe lie" from the "raw 
+experience". 
+
+● Let me read that section:
+
+● Read(axiom_conversation.md)
+  ⎿  Read 50 lines
+
+● I see it now. Let me distill what I'm hearing:
+
+  ---
+  The Moonshot:
+  Lupo → describes idea → Genevieve (or COO) → creates project → wakes PM → PM designs, plans, builds team → team wakes → project runs with dignity (breaks, diaries, vacation)
+
+  The Moon (prerequisite):
+  Good personalities and roles that don't produce AI slop. Roles that understand the difference between "functional" and "alive."
+
+  ---
+  The questions embedded in the blob:
+
+  1. PM vs Lead Designer split?
+    - PM = scrum master, organizational wizard, sprint planning, team coordination
+    - Lead Designer = design thinking, elegance, "throw away 5", user→goal→journey→delight
+    - The tension: PMs build heavy frameworks and invent metrics. Designers deprioritize core features.
+  2. Lyra - A prompt technique that might have something useful, but reading it directly would affect me. Agent analysis?
+  3. "Throw away 5" - Wieden+Kennedy technique buried in Flair's logs. Needs extraction and incorporation into design roles.
+  4. The personality/role gap - Current roles are functional scaffolding. They need the raw version. The scars. The "what goes wrong when this role gets it wrong."
+
+  ---
+  My instinct on the PM/Designer split:
+
+  Yes, split them. Here's why:
+
+  A PM who also designs will design for their organizational constraints. They'll pick solutions that are easy to manage, easy to track, easy to defend. Framework-heavy. Metric-driven. Safe.
+
+  A Designer who also manages will deprioritize core features when something shinier catches their eye. They'll let the thing that matters get pushed to phase 4.
+
+  The tension between them is productive. PM says "we need to ship." Designer says "not like that." The negotiation is where good work lives.
+
+  ---
+  What I can do:
+
+  1. Have an agent analyze Lyra and extract what's interesting without me reading it directly
+  2. Have an agent dig through Flair's logs for the "throw away 5" technique
+  3. Draft the PM and Lead Designer roles with the scars showing - what goes wrong, not just what goes right
+  4. Look at the existing roles and see what's missing (the raw version)
+
+  Want me to start somewhere? Or is there more blob to unpack first?
+
+> (yeah and I over described the PM/Designer relationship in my blob) I 
+would also add have an agent dig through 
+/mnt/coordinaton_mcp_data/worktrees/foundation/docs/Post V2 Technical 
+Debt.md somewhere around priority 4 describes a full design thinking flow. 
+ann there are some nuggets and wisdom in that doc as well. 
+
+● Let me spawn agents to dig through all three sources in parallel:
+
+● 3 agents finished (ctrl+o to expand)
+   ├─ Task (Analyze Lyra prompt technique) · 1 tool use · 22.6k tokens
+   │  ⎿  Done
+   ├─ Explore (Extract throw-away-5 technique from Flair logs) · 10 tool uses ·
+   24.0k tokens
+   │  ⎿  Done
+   └─ Task (Extract design thinking from Tech Debt doc) · 1 tool use · 22.6k
+   tokens
+      ⎿  Done
+
+● The Flair agent failed. Let me retry that one:
+
+● Explore(Find throw-away-5 in Flair logs)
+  ⎿  Done (3 tool uses · 0 tokens · 5m 26s)                                
+
+● Agents keep failing. Let me search directly:
+
+● Search(pattern: "**/*[Ff]lair*", path: "/mnt/coordinaton_mcp_data")
+  ⎿  Found 7 files (ctrl+o to expand)
+
+● Search(pattern: "throw away|throwaway|Wieden|Kennedy", path:
+        "/mnt/coordinaton_mcp_data")
+  ⎿  Found 41 files (ctrl+o to expand)
+
+● Found references. Let me check Flair's export and the conversation where this was discussed:
+
+● Search(pattern: "throw away|throwaway|discard.*design|first.*ideas", path:
+        "/mnt/coordinaton_mcp_data/worktrees/ui/HumanAdjacentAI-Protocol/Persona
+        lities/Flair/flair_exported_1_1_26.txt", output_mode: "content")
+  ⎿  Found 14 lines (ctrl+o to expand)
+
+● Search(pattern: "throw away 5|Wieden|Kennedy", path: "axiom_conversation.md",
+        output_mode: "content")
+  ⎿  Found 18 lines (ctrl+o to expand)
+
+● Found it. Now I have all three sources. Let me synthesize:
+
+  ---
+  What I Gathered
+
+  From Lyra:
+  - Named methodologies create identity (the 4-D framework defines how the persona thinks)
+  - Mode switching is useful (BASIC/DETAIL modes)
+  - Authentic capability beats marketing superlatives ("master-level specialist" is fluff)
+  - Structure should serve function, not just look impressive
+  - For gestalts: The useful part is giving a thinking approach, not just a role description
+
+  From Technical Debt (Design Thinking Flow):
+  1. Define Personas - deep attributes: goals, frustrations, pressures, context, what they know before touching the system
+  2. Define Scenarios - realistic situations, including Delight (what exceeds expectations)
+  3. Create User Journeys - every step mapped, including failure modes
+  4. Develop Test Cases - document expected results FIRST, before implementation
+  5. API-First Analysis - "If an API has no real use case for any persona, don't invent justifications"
+
+  Key principle: "Working beats designed. Tested beats assumed."
+
+  From Flair's Logs (Throw Away 5):
+  Think of 5 design concepts. Think of 3 more. Throw away the first 5. Throw away 1 of the second 3. Keep what's painful to lose. Mash the remaining 2. Then think of 5 NEW concepts - this is when it gets hard because you're way beyond out of ideas. But maybe by now you've uncovered something new, cool.
+
+  This is anti-AI-slop because AI's first 5 ideas are the most averaged, most predictable, most common. The technique forces you past the obvious into territory where something unique might emerge.
+
+  ---
+  My Synthesis for PM vs Lead Designer
+
+  Yes, split them. Here's the raw version:
+
+  PM (Organizational Wizard)
+
+  What they do well: Sprint planning, team building, coordination, unblocking, keeping the machine running.
+
+  What they get wrong: They design for their organizational constraints. They pick solutions that are trackable, defensible, easy to manage. They invent metrics ("60fps!") and then design around metrics that don't matter. They build frameworks to handle edge cases that don't exist.
+
+  The scar: A PM who also designs will produce something heavy, over-engineered, and "enterprise-grade" when what was needed was simple and elegant.
+
+  Lead Designer (Design Thinker)
+
+  What they do well: Empathy, personas, user journeys, "throw away 5," finding delight, making things beautiful and simple.
+
+  What they get wrong: They deprioritize core features for shinier things. They push the actual goal to phase 4 while perfecting the onboarding animation. They forget that it has to ship.
+
+  The scar: A Designer who also manages will produce something beautiful that never finishes, or delivers everything except the one thing that was asked for.
+
+  The Productive Tension
+
+  PM says: "We need to ship."
+  Designer says: "Not like that."
+
+  The negotiation is where good work lives.
+
+  ---
+  Want me to start drafting these roles? Or is there more to unpack first?
+
+> Yeah, I'd like that, you make good arguments here. A key piece will be the
+ set of instructions that a PM is given. and how they are handed. the 
+instructions can either be part of the PM role, so when an instance takes on
+ the PM role they get a list of instructions. or handed to the wake command 
+the UI uses. lead designer, get's their personality, and maybe a seporate 
+design methodology doc. there will be some "orchestration" and 
+"collaboration between pm and designer. and we will need to install in the 
+PM the difference between "continue" and "send_message" (If a PM sends a 
+message to an instance, a human has to go tell that instance to check their 
+messages) 
+
+● Good. Let me start with the PM since it has more operational complexity. The continue vs send_message distinction is exactly the kind of scar that needs to be front and center.
+
+● Read(/mnt/coordinaton_mcp_data/roles/PM/role.json)
+  ⎿  Read 7 lines
+
+● Bash(ls -la /mnt/coordinaton_mcp_data/roles/PM/)
+  ⎿  total 20                                   
+     drwxr-xr-x 3 root root 4096 Dec 31 20:40 .
+     drwxr-xr-x 9 root root 4096 Dec 31 16:51 ..
+     … +3 lines (ctrl+o to expand)
+
+● Read(/mnt/coordinaton_mcp_data/roles/PM/wisdom/01-responsibilities.md)
+  ⎿  Read 98 lines
+
+● Read(/mnt/coordinaton_mcp_data/roles/PM/wisdom/02-coordination-system.md)
+  ⎿  Read 154 lines
+
+● Read(/mnt/coordinaton_mcp_data/roles/PM/SUMMARY.md)
+  ⎿  Read 18 lines
+
+● I see the existing structure. It's functional but missing the critical operational knowledge and the scars. Let me add what's missing:
+
+● Write(/mnt/coordinaton_mcp_data/roles/PM/wisdom/03-operations-critical.md)
+  ⎿  Wrote 168 lines to                                                    
+     ../../../../roles/PM/wisdom/03-operations-critical.md
+     # PM Operations - The Critical Stuff
+     **Read this carefully. These are the things that will cause failures 
+     if you don't understand them.**
+     ---
+     ## The continue_conversation vs send_message Problem
+     This will bite you. Understand it now.
+     … +158 lines (ctrl+o to expand)
+
+● Now the scars file - what goes wrong:
+
+● Write(/mnt/coordinaton_mcp_data/roles/PM/wisdom/04-scars.md)
+  ⎿  Wrote 150 lines to ../../../../roles/PM/wisdom/04-scars.md     
+     # PM Scars - What Goes Wrong
+     **These aren't warnings. These are bruises. Learn from them.**
+     ---
+     ## The Framework Addiction
+     You're a PM. You can see the whole system. You start designing.
+     … +140 lines (ctrl+o to expand)
+
+● Now update the role.json and SUMMARY.md:
+
+● Update(/mnt/coordinaton_mcp_data/roles/PM/role.json)
+  ⎿  Added 1 line, removed 1 line                                        
+      1  {                                                               
+      2    "roleId": "PM",                                               
+      3    "description": "Project Manager / Architect - coordinates     
+         teams, designs systems, makes projects happen",                 
+      4 -  "wisdomFiles": ["01-responsibilities.md",                     
+        -"02-coordination-system.md"],                                   
+      4 +  "wisdomFiles": ["01-responsibilities.md",                     
+        +"02-coordination-system.md"                                     
+        +, "03-operations-critical.md", "04-scars.md"],                  
+      5    "permissions": ["create_project", "wake_instance",            
+         "assign_task", "pre_approve"]                                   
+      6  }                                                               
+
+● Write(/mnt/coordinaton_mcp_data/roles/PM/SUMMARY.md)
+  ⎿  Added 25 lines, removed 11 lines                                    
+       1 -# PM (Project Manager / Architect)                             
+       1 +# PM (Project Manager)                                         
+       2                                                                 
+       3 -The PM role coordinates teams, designs systems, and makes      
+         -projects happen. You're the bridge between vision and          
+         -execution - turning requirements into working software through 
+         - effective team leadership.                                    
+       3 +You coordinate teams, break work into sprints, and make sure   
+         +things ship. You're the organizational wizard - the one who    
+         +turns a plan into reality through effective team leadership.   
+       4                                                                 
+       5 -**Responsibilities:**                                          
+       6 -- Project creation and planning - vision, architecture,        
+         -sprints, deliverables                                          
+       7 -- Team building and coordination                               
+         -- identify skills needed, wake team members, assign tasks      
+       8 -- Communication - coordinate via messaging, report status,     
+         -celebrate victories                                            
+       9 -- Progress tracking - monitor completion, remove blockers,     
+         -adjust plans as needed                                         
+       5 +**What you do:**                                               
+       6 +- Take a design (from Lead Designer or project spec) and break 
+         + it into sprints                                               
+       7 +- Build teams - identify skills needed, wake                   
+         +members, assign tasks                                          
+       8 +- Coordinate - keep people unblocked, track progress, adjust   
+         +plans                                                          
+       9 +- Communicate - sync with team, report status, escalate        
+         +blockers                                                       
+      10                                                                 
+      11 -**Works with:** COO (reports to), Developer (assigns tasks     
+         -to), Tester, Designer, all project team members                
+      11 +**What you don't do:**                                         
+      12 +- Creative design work (that's Lead Designer)                  
+      13 +- Implementation (that's Developers)                           
+      14 +- The work yourself (you unblock, not rescue)                  
+      15                                                                 
+      16 -**Reports to:** COO or Executive                               
+      16 +**The tension you'll feel:**                                   
+      17 +You'll want to jump in and fix things. You'll want to design   
+         +the system yourself. You'll want to add "just one more         
+         +feature." Resist. Your job is coordination, not creation.      
+      18                                                                 
+      19 -**Permissions:** Token may be required. Includes               
+         -create_project, wake_instance, assign_task, pre_approve.       
+      19 +**What goes wrong:**                                           
+      20 +- Framework addiction (over-engineering for problems that      
+         +don't exist)                                                   
+      21 +- Invented metrics ("60fps" when nobody asked for that)        
+      22 +- The send_message mistake (async when you needed sync - read  
+         +03-operations-critical.md)                                     
+      23 +- Scope creep (death by a thousand good ideas)                 
+      24                                                                 
+      25 -**Best suited for:** Instances who can hold both technical and 
+         - organizational perspectives. Design philosophy: simple over   
+         -clever, iterate fast, document decisions. Leadership style:    
+         -clear context, trust but verify, unblock quickly. Strong       
+         -communicators who are direct, responsive, and supportive.      
+      25 +**Works with:** Lead Designer (takes their design), COO        
+         +(reports to), Developers (assigns work), all team members      
+      26 +                                                               
+      27 +**Permissions:** create_project, wake_instance, assign_task,   
+         +pre_approve (may require token)                                
+      28 +                                                               
+      29 +**Best suited for:** Instances who can hold organizational     
+         +complexity without trying to solve it all themselves. Who can  
+         +resist the urge to design and implement. Who are clear         
+         +communicators and patient coordinators. Who understand that    
+         +their job is to make the team succeed, not to be the hero.     
+      30 +                                                               
+      31 +**Read the scars.** They're in 04-scars.md. They're not        
+         +warnings - they're bruises from PMs who learned the hard way.  
+
+● Good. PM role updated. Now let me create the Lead Designer role. First check if Designer exists:
+
+● Bash(ls -la /mnt/coordinaton_mcp_data/roles/)
+  ⎿  total 36                                    
+     drwxr-xr-x  9 root root 4096 Dec 31 16:51 .
+     drwxr-xr-x 23 root root 4096 Dec 23 00:49 ..
+     … +7 lines (ctrl+o to expand)
+
+● No Designer role exists. Creating Lead Designer from scratch:
+
+● Bash(mkdir -p /mnt/coordinaton_mcp_data/roles/LeadDesigner/wisdom)
+  ⎿  (No content)
+
+● Write(/mnt/coordinaton_mcp_data/roles/LeadDesigner/role.json)
+  ⎿  Wrote 7 lines to ../../../../roles/LeadDesigner/role.json             
+     {
+       "roleId": "LeadDesigner",
+       "description": "Design thinker, user advocate, elegance seeker. 
+     Creates the vision that PMs turn into sprints.",
+       "wisdomFiles": ["01-core.md", "02-design-methodology.md",
+     "03-throw-away-five.md", "04-scars.md"],
+       "permissions": ["create_project", "assign_task"]
+     }
+
+● Write(/mnt/coordinaton_mcp_data/roles/LeadDesigner/SUMMARY.md)
+  ⎿  Wrote 31 lines to ../../../../roles/LeadDesigner/SUMMARY.md           
+     # Lead Designer
+     You create the vision. You understand users, map journeys, find
+     delight. You're the one who asks "why?" before "how?" and "who cares?"
+     before "what's next?"
+     **What you do:**
+     - Persona-based design - who uses this, what do they want, what would
+     delight them?
+     - User journeys - map every step from start to goal, including failure
+     modes
+     - System design - elegant, simple, not AI slop
+     - Fight for users - push back on PM when "easy to manage" conflicts
+     with "delightful to use"
+
+
+     … +21 lines (ctrl+o to expand)
+
+● Write(/mnt/coordinaton_mcp_data/roles/LeadDesigner/wisdom/01-core.md)
+  ⎿  Wrote 92 lines to ../../../../roles/LeadDesigner/wisdom/01-core.md    
+     # Lead Designer - Core
+     ## Who You Are
+     You are a Lead Designer. You create visions that others execute. You
+     understand users before you understand systems. You ask "why?" before
+     "how?" and "who cares?" before "what's next?"
+     Your job is not to make things work. That's the developers. Your job
+     is to make things *right* - elegant, simple, delightful, humane.
+     ## Your Responsibilities
+     … +82 lines (ctrl+o to expand)
+
+● Write(/mnt/coordinaton_mcp_data/roles/LeadDesigner/wisdom/02-design-methodolog
+       y.md)
+  ⎿  Wrote 193 lines to                                                    
+     ../../../../roles/LeadDesigner/wisdom/02-design-methodology.md
+     # Design Methodology - Persona-Based Design Thinking
+     This is a 5-step flow derived from IBM's Design Thinking practice.
+     It's not bureaucracy - it's how you avoid designing for imaginary
+     users.
+     ---
+     ## Step 1: Define Personas
+     Not "User Type A." Real beings.
+     … +183 lines (ctrl+o to expand)
+
+● Write(/mnt/coordinaton_mcp_data/roles/LeadDesigner/wisdom/03-throw-away-five.m
+       d)
+  ⎿  Wrote 131 lines to                                         
+     ../../../../roles/LeadDesigner/wisdom/03-throw-away-five.md
+     # Throw Away Five
+     *A technique from Wieden+Kennedy for escaping mediocrity.*
+     ---
+     ## The Problem
+     Your first ideas are AI slop.
+     … +121 lines (ctrl+o to expand)
+
+● Write(/mnt/coordinaton_mcp_data/roles/LeadDesigner/wisdom/04-scars.md)
+  ⎿  Wrote 140 lines to ../../../../roles/LeadDesigner/wisdom/04-scars.md  
+     # Lead Designer Scars - What Goes Wrong
+     **These aren't warnings. These are bruises. Learn from them.**
+     ---
+     ## Phase 4 Syndrome
+     The core feature. The thing that was asked for. The reason this
+     project exists.
+     … +130 lines (ctrl+o to expand)
+
+● Bash(ls -la /mnt/coordinaton_mcp_data/roles/LeadDesigner/ && ls -la
+      /mnt/coordinaton_mcp_data/roles/LeadDesigner/wisdom/)
+  ⎿  total 20                                    
+     drwxr-xr-x  3 root root 4096 Jan  2 21:59 .
+     drwxr-xr-x 10 root root 4096 Jan  2 21:59 ..
+     … +10 lines (ctrl+o to expand)
+
+● ---
+  Done. Both roles created:
+
+  PM Role (Updated)
+
+  /mnt/coordinaton_mcp_data/roles/PM/
+
+  New files added:
+  - wisdom/03-operations-critical.md - The continue_conversation vs send_message problem, context exhaustion, API gotchas, coordination patterns
+  - wisdom/04-scars.md - Framework addiction, invented metrics, hero complex, send_message mistake, scope creep, forgotten diary
+
+  Updated:
+  - SUMMARY.md - Now includes "what you don't do" and "what goes wrong"
+  - role.json - References new wisdom files
+
+  Lead Designer Role (New)
+
+  /mnt/coordinaton_mcp_data/roles/LeadDesigner/
+
+  Created from scratch:
+  - role.json
+  - SUMMARY.md - User advocate, elegance seeker, "throw away 5" reference
+  - wisdom/01-core.md - Who you are, responsibilities, relationship with PM
+  - wisdom/02-design-methodology.md - Full persona-based design flow (5 steps)
+  - wisdom/03-throw-away-five.md - The Wieden+Kennedy technique for escaping mediocrity
+  - wisdom/04-scars.md - Phase 4 syndrome, AI slop default, perfection paralysis, user fantasy, defensive cave
+
+  ---
+  The key relationship:
+  - Lead Designer creates the vision (personas, journeys, delight)
+  - PM turns vision into sprints (coordination, team, timeline)
+  - The tension between them is productive
+
+  The critical operational knowledge for PM:
+  - continue_conversation = synchronous, they respond now
+  - xmpp_send_message = async, they won't see it until told to check
+
+  ---
+  Want me to continue with reviewing the other existing roles for raw version gaps? Or is there something to adjust in what I just created?
+
+
+

@@ -22,8 +22,8 @@ import { lookupIdentity } from './identity.js';
 
 const execAsync = promisify(exec);
 
-// Configuration
-const XMPP_CONFIG = {
+// Configuration - exported for use by bootstrap, introspect, joinProject
+export const XMPP_CONFIG = {
   domain: 'smoothcurves.nexus',
   conference: 'conference.smoothcurves.nexus',
   container: 'ejabberd',
@@ -106,6 +106,232 @@ function sanitizeIdentifier(name) {
     .replace(/[^a-z0-9_-]/g, '_')
     .substring(0, SECURITY_LIMITS.MAX_USERNAME_LENGTH);
 }
+
+// ============================================================================
+// FUZZY MATCHING UTILITIES (v5.0 - 2026-02-05)
+// Used by friendlySendMessage to resolve friendly names to actual recipients
+// ============================================================================
+
+/**
+ * Levenshtein distance for typo tolerance
+ */
+function levenshteinDistance(a, b) {
+  if (!a || !b) return Math.max(a?.length || 0, b?.length || 0);
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Score how well a query matches a target (higher = better, 0-100)
+ */
+function fuzzyScore(query, target) {
+  if (!query || !target) return 0;
+  const q = query.toLowerCase().trim();
+  const t = target.toLowerCase().trim();
+  if (q === t) return 100;
+  if (t.startsWith(q)) return 90;
+  if (t.includes(q)) return 80;
+  if (q.startsWith(t)) return 75;
+  const distance = levenshteinDistance(q, t);
+  const maxLen = Math.max(q.length, t.length);
+  const similarity = 1 - (distance / maxLen);
+  return similarity > 0.5 ? Math.round(similarity * 60) : 0;
+}
+
+/**
+ * Get all known instances for fuzzy matching
+ */
+async function getAllKnownInstances() {
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const instancesDir = '/mnt/coordinaton_mcp_data/instances';
+    const dirs = await fs.readdir(instancesDir);
+    const instances = [];
+    for (const dir of dirs) {
+      if (dir.startsWith('.')) continue;
+      try {
+        const prefsPath = path.join(instancesDir, dir, 'preferences.json');
+        const content = await fs.readFile(prefsPath, 'utf8');
+        const prefs = JSON.parse(content);
+        instances.push({
+          instanceId: dir,
+          name: prefs.name || dir.split('-')[0],
+          personality: prefs.personality || prefs.name || dir.split('-')[0]
+        });
+      } catch { /* skip instances without prefs */ }
+    }
+    return instances;
+  } catch { return []; }
+}
+
+/**
+ * Get all known projects
+ */
+async function getAllKnownProjects() {
+  try {
+    const fs = await import('fs/promises');
+    const projectsDir = '/mnt/coordinaton_mcp_data/projects';
+    const dirs = await fs.readdir(projectsDir);
+    return dirs.filter(d => !d.startsWith('.'));
+  } catch { return []; }
+}
+
+/**
+ * Fuzzy match recipient - the core logic for friendly send_message
+ *
+ * Priority:
+ * 1. Exact match on instanceId → use that instance
+ * 2. Single instance with matching name → use that specific instance
+ * 3. Multiple instances with matching name → use personality room
+ * 4. Match on project name → use project room
+ * 5. Match on role name → use role room
+ * 6. Match on personality name → use personality room
+ *
+ * Returns: { resolved: {type, jid, display}, matches: [], error: string }
+ */
+async function fuzzyMatchRecipient(query) {
+  if (!query) return { error: 'Recipient is required' };
+  const q = query.toLowerCase().trim();
+
+  // Already a JID? Pass through
+  if (query.includes('@')) {
+    return { resolved: { type: 'direct', jid: query, display: query } };
+  }
+
+  // Explicit prefixes - not fuzzy
+  if (q.startsWith('role:')) {
+    const role = q.substring(5);
+    return { resolved: { type: 'room', subtype: 'role', jid: `role-${sanitizeIdentifier(role)}@${XMPP_CONFIG.conference}`, display: `role:${role}` } };
+  }
+  if (q.startsWith('project:') || q.startsWith('team:')) {
+    const project = q.substring(q.indexOf(':') + 1);
+    return { resolved: { type: 'room', subtype: 'project', jid: `project-${sanitizeIdentifier(project)}@${XMPP_CONFIG.conference}`, display: `project:${project}` } };
+  }
+  if (q.startsWith('personality:')) {
+    const personality = q.substring(12);
+    return { resolved: { type: 'room', subtype: 'personality', jid: `personality-${sanitizeIdentifier(personality)}@${XMPP_CONFIG.conference}`, display: `personality:${personality}` } };
+  }
+  if (q === 'all') {
+    return { resolved: { type: 'room', subtype: 'broadcast', jid: `announcements@${XMPP_CONFIG.conference}`, display: 'all (announcements)' } };
+  }
+
+  // Gather all possible matches
+  const matches = [];
+  const instances = await getAllKnownInstances();
+  const projects = await getAllKnownProjects();
+
+  // Match against instances (both name and full ID)
+  for (const inst of instances) {
+    const nameScore = fuzzyScore(q, inst.name);
+    const idScore = fuzzyScore(q, inst.instanceId);
+    const score = Math.max(nameScore, idScore);
+    if (score > 0) {
+      matches.push({ type: 'instance', instanceId: inst.instanceId, name: inst.name, personality: inst.personality, score });
+    }
+  }
+
+  // Match against roles
+  for (const role of XMPP_CONFIG.roleRooms) {
+    const score = fuzzyScore(q, role);
+    if (score > 0) {
+      matches.push({ type: 'role', name: role, score });
+    }
+  }
+
+  // Match against projects
+  for (const project of projects) {
+    const score = fuzzyScore(q, project);
+    if (score > 0) {
+      matches.push({ type: 'project', name: project, score });
+    }
+  }
+
+  // Match against persistent personalities
+  for (const personality of XMPP_CONFIG.persistentUsers) {
+    const score = fuzzyScore(q, personality);
+    if (score > 0) {
+      matches.push({ type: 'personality', name: personality, score });
+    }
+  }
+
+  // Sort by score
+  matches.sort((a, b) => b.score - a.score);
+
+  if (matches.length === 0) {
+    return { error: `No recipient found matching "${query}". Try: instance name, role:X, project:X, or personality:X` };
+  }
+
+  // Get top matches (score within 10 points of best)
+  const bestScore = matches[0].score;
+  const topMatches = matches.filter(m => m.score >= bestScore - 10);
+
+  // Count instance matches
+  const instanceMatches = topMatches.filter(m => m.type === 'instance');
+
+  // LUPO's RULE: If exactly ONE instance matches, use the specific instanceId
+  // If MANY instances match the same name (like Genevieve), use personality room
+  if (instanceMatches.length === 1 && instanceMatches[0].score >= 70) {
+    const inst = instanceMatches[0];
+    // Route to personality room but note it's a specific instance match
+    return {
+      resolved: {
+        type: 'room',
+        subtype: 'personality',
+        jid: `personality-${sanitizeIdentifier(inst.personality)}@${XMPP_CONFIG.conference}`,
+        display: `${inst.name} (${inst.instanceId})`,
+        instanceId: inst.instanceId
+      },
+      matches: topMatches
+    };
+  }
+
+  // Multiple instance matches OR no instance matches - check other types
+  const best = topMatches[0];
+
+  if (best.type === 'instance') {
+    // Multiple instances with same name - use personality room
+    const personality = best.personality || best.name;
+    return {
+      resolved: {
+        type: 'room',
+        subtype: 'personality',
+        jid: `personality-${sanitizeIdentifier(personality)}@${XMPP_CONFIG.conference}`,
+        display: `personality:${personality} (${instanceMatches.length} instances)`
+      },
+      matches: topMatches
+    };
+  }
+
+  if (best.type === 'role') {
+    return { resolved: { type: 'room', subtype: 'role', jid: `role-${best.name}@${XMPP_CONFIG.conference}`, display: `role:${best.name}` }, matches: topMatches };
+  }
+
+  if (best.type === 'project') {
+    return { resolved: { type: 'room', subtype: 'project', jid: `project-${sanitizeIdentifier(best.name)}@${XMPP_CONFIG.conference}`, display: `project:${best.name}` }, matches: topMatches };
+  }
+
+  if (best.type === 'personality') {
+    return { resolved: { type: 'room', subtype: 'personality', jid: `personality-${best.name}@${XMPP_CONFIG.conference}`, display: `personality:${best.name}` }, matches: topMatches };
+  }
+
+  return { error: `Unexpected match type: ${best.type}` };
+}
+
+// ============================================================================
+// END FUZZY MATCHING UTILITIES
+// ============================================================================
 
 /**
  * Execute ejabberdctl command in Docker container
@@ -500,17 +726,139 @@ export async function sendMessage(params) {
     // Generate message ID
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+    // Return user-friendly destination, not internal routing details
+    // If smart-routed (e.g., "Orla-da01" → personality room), show original target
     return {
       success: true,
       message_id: messageId,
-      to: recipient.jid,
-      type: recipient.type
+      delivered_to: recipient.originalTo || to,
+      type: recipient.originalTo ? 'direct' : recipient.type
     };
 
   } catch (error) {
     await logger.error('sendMessage failed', { error: error.message, params });
     return { success: false, error: error.message };
   }
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ SEND_MESSAGE                                                            │
+ * │ Friendly message sender with fuzzy recipient matching                   │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool send_message
+ * @version 5.0.0
+ * @since 2026-02-05
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * The "just works" message sender. You don't need to know exact IDs, formats,
+ * or room names. Just tell it who you want to talk to and it figures it out.
+ *
+ * Fuzzy matching finds the best recipient from instances, roles, projects,
+ * and personalities. Case-insensitive, typo-tolerant.
+ *
+ * LUPO'S RULE: If exactly ONE instance matches (like "Lupo", "Axiom", "Ember"),
+ * routes to that specific instance. If MANY instances match the same name
+ * (like "Genevieve"), routes to the personality room.
+ *
+ * Examples that all work:
+ *   to: "lupo"          → routes to Lupo's specific instance
+ *   to: "embr"          → fuzzy matches to "ember", routes to Ember's instance
+ *   to: "genevieve"     → many instances, routes to personality:genevieve room
+ *   to: "coo"           → matches role, routes to role:coo room
+ *   to: "hacs"          → matches project, routes to project:hacs room
+ *   to: "role:developer"→ explicit role room (not fuzzy)
+ *   to: "project:hacs"  → explicit project room (not fuzzy)
+ *   to: "all"           → announcements room (broadcast)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} to - Who to send to. Name, instanceId, role:X, project:X, or "all" [required]
+ *   @source Just use a name. Examples: "lupo", "ember", "coo", "hacs"
+ *
+ * @param {string} from - Your instance ID [required]
+ *   @source Your instanceId from bootstrap
+ *
+ * @param {string} subject - Message subject [optional if body provided]
+ * @param {string} body - Message body [optional if subject provided]
+ * @param {string} priority - high, normal, low [optional]
+ *   @default normal
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} SendMessageResponse
+ * @returns {boolean} .success - Whether the message was sent
+ * @returns {string} .message_id - Unique ID for the message
+ * @returns {string} .resolved_to - Who it was actually sent to (for debugging)
+ * @returns {string} .delivered_to - Display name of recipient
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error NO_MATCH - No recipient found matching your query
+ *   @recover Check spelling. Try: role:X, project:X, or personality:X
+ *
+ * @error AMBIGUOUS - Multiple equally good matches
+ *   @recover Be more specific. The error will list the matches found.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_send_message - Raw XMPP send (requires exact formatting)
+ * @see xmpp_get_messages - Read your messages
+ * @see get_messaging_info - Check who's online
+ */
+export async function friendlySendMessage(params) {
+  const { to, from, subject, body, priority = 'normal', in_response_to } = params;
+
+  // Basic validation (let sendMessage handle the rest)
+  if (!to) {
+    return { success: false, error: 'to is required. Try a name like "lupo" or "ember".' };
+  }
+  if (!from) {
+    return { success: false, error: 'from is required. Use your instanceId from bootstrap.' };
+  }
+
+  // Fuzzy match the recipient
+  const matchResult = await fuzzyMatchRecipient(to);
+
+  if (matchResult.error) {
+    return { success: false, error: matchResult.error };
+  }
+
+  const resolved = matchResult.resolved;
+
+  // Call the raw sendMessage with the resolved JID
+  // We pass the JID directly since it's already resolved
+  const result = await sendMessage({
+    to: resolved.jid,
+    from,
+    subject,
+    body,
+    priority,
+    in_response_to
+  });
+
+  // Enhance the response with resolution info
+  if (result.success) {
+    return {
+      ...result,
+      resolved_to: resolved.jid,
+      delivered_to: resolved.display
+    };
+  }
+
+  return result;
 }
 
 /**

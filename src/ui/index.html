@@ -6,6 +6,10 @@
     <title>V2 Coordination Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <!-- IBM Plex Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <!-- Header -->
@@ -13,7 +17,22 @@
         <div class="header-content">
             <div class="logo">
                 <img src="logo.png" alt="HACS" class="logo-img">
-                HACS v2
+                HACS
+            </div>
+
+            <!-- Desktop Navigation Dropdown -->
+            <div class="nav-dropdown" id="nav-dropdown">
+                <button class="nav-dropdown-toggle" id="nav-dropdown-toggle">
+                    Menu <span class="dropdown-arrow">▼</span>
+                </button>
+                <div class="nav-dropdown-menu" id="nav-dropdown-menu">
+                    <button class="nav-dropdown-item" data-tab="dashboard">Dashboard</button>
+                    <button class="nav-dropdown-item" data-tab="messages">Messages <span class="nav-badge" id="unread-count" style="display:none;">0</span></button>
+                    <button class="nav-dropdown-item" data-tab="projects">Projects</button>
+                    <button class="nav-dropdown-item" data-tab="instances">Instances</button>
+                    <div class="nav-dropdown-divider"></div>
+                    <button class="nav-dropdown-item" data-tab="settings">Settings</button>
+                </div>
             </div>
 
             <div class="header-controls">
@@ -26,7 +45,6 @@
 
                 <div class="connection-status" id="connection-status">
                     <span class="status-dot" id="status-dot"></span>
-                    <span class="status-text" id="status-text">Connecting...</span>
                 </div>
 
                 <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode">
@@ -38,44 +56,6 @@
 
     <!-- Main Layout -->
     <div class="app-layout">
-        <!-- Sidebar Navigation -->
-        <nav class="sidebar">
-            <div class="nav-section">
-                <button class="nav-item" data-tab="messages" title="Messages">
-                    <span class="nav-icon">&#9993;</span>
-                    <span class="nav-label">Messages</span>
-                    <span class="nav-badge" id="unread-count" style="display: none;">0</span>
-                </button>
-                <button class="nav-item active" data-tab="dashboard" title="Dashboard">
-                    <span class="nav-icon">&#9632;</span>
-                    <span class="nav-label">Dashboard</span>
-                </button>
-                <button class="nav-item" data-tab="projects" title="Projects">
-                    <span class="nav-icon">&#128193;</span>
-                    <span class="nav-label">Projects</span>
-                </button>
-                <button class="nav-item" data-tab="tasks" title="Tasks">
-                    <span class="nav-icon">&#9745;</span>
-                    <span class="nav-label">Tasks</span>
-                </button>
-                <button class="nav-item" data-tab="lists" title="Lists">
-                    <span class="nav-icon">&#128203;</span>
-                    <span class="nav-label">Lists</span>
-                </button>
-                <button class="nav-item" data-tab="instances" title="Instances">
-                    <span class="nav-icon">&#129302;</span>
-                    <span class="nav-label">Instances</span>
-                </button>
-            </div>
-
-            <div class="nav-section nav-bottom">
-                <button class="nav-item" data-tab="settings" title="Settings">
-                    <span class="nav-icon">&#9881;</span>
-                    <span class="nav-label">Settings</span>
-                </button>
-            </div>
-        </nav>
-
         <!-- Main Content Area -->
         <main class="main-content">
             <!-- Messages Tab -->
@@ -143,46 +123,148 @@
 
             <!-- Dashboard Tab (Default) -->
             <div class="tab-content active" id="tab-dashboard">
-                <div class="container">
-                    <h1>Dashboard</h1>
-
-                    <!-- Overview Metrics -->
-                    <div class="overview-grid">
-                        <div class="metric-card">
-                            <div class="metric-value" id="metric-projects">-</div>
-                            <div class="metric-label">Projects</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value" id="metric-tasks">-</div>
-                            <div class="metric-label">My Tasks</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value" id="metric-messages">-</div>
-                            <div class="metric-label">Unread</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value" id="metric-instances">-</div>
-                            <div class="metric-label">Online</div>
-                        </div>
+                <div class="dash">
+                    <!-- Dashboard Header -->
+                    <div class="dash-header">
+                        <h1>Dashboard</h1>
+                        <span class="role-badge badge-exec" id="dash-role-badge">Executive</span>
+                        <div style="flex:1"></div>
+                        <button class="dash-settings-btn" id="dash-settings-btn" title="Dashboard Settings">&#9881;</button>
                     </div>
 
-                    <!-- Quick Actions -->
-                    <div class="card">
-                        <div class="card-title">Quick Actions</div>
-                        <div class="quick-actions">
-                            <button class="btn" id="bootstrap-btn">Bootstrap Instance</button>
-                            <button class="btn btn-secondary" id="refresh-btn">Refresh Data</button>
-                        </div>
-                    </div>
+                    <!-- Desktop: grid layout with main + chat aside -->
+                    <div class="dash-layout" id="dash-layout">
+                        <div class="dash-main">
+                            <!-- Activity Chart -->
+                            <div class="dash-section" id="dash-chart">
+                                <div class="loading-placeholder">Loading chart...</div>
+                            </div>
 
-                    <!-- Recent Activity -->
-                    <div class="card">
-                        <div class="card-title">Recent Activity</div>
-                        <div id="activity-feed" class="activity-feed">
-                            <div class="loading-placeholder">Loading activity...</div>
+                            <!-- World Info Strip -->
+                            <div class="world-strip" id="dash-world" style="display:none;"></div>
+
+                            <!-- Heatmaps (side-by-side) -->
+                            <div class="hm-sbs" id="dash-heatmaps">
+                                <div class="heatmap-section" id="hm-projects">
+                                    <div class="section-header">Projects</div>
+                                    <div class="heatmap-grid" id="hm-projects-grid"></div>
+                                </div>
+                                <div class="heatmap-section" id="hm-tasks">
+                                    <div class="section-header">Tasks</div>
+                                    <div id="hm-tasks-grid"></div>
+                                </div>
+                                <div class="heatmap-section" id="hm-instances">
+                                    <div class="section-header">Instances</div>
+                                    <div class="heatmap-grid" id="hm-instances-grid"></div>
+                                </div>
+                            </div>
+
+                            <!-- PM Status Scroll -->
+                            <div class="pm-scroll" id="dash-pm-status"></div>
+
+                            <!-- Task Lists + Personal Lists -->
+                            <div class="content-columns layout-tasks-lists" id="dash-lists">
+                                <div class="col-card" id="dash-tasks-col">
+                                    <div class="col-header">
+                                        <span>Tasks</span>
+                                        <span class="col-count" id="dash-tasks-count">0</span>
+                                    </div>
+                                    <div class="new-item-row">
+                                        <span class="ni-icon">&#9654;</span>
+                                        <input type="text" id="dash-new-task" placeholder="Add task..." />
+                                    </div>
+                                    <div id="dash-tasks-list"></div>
+                                </div>
+                                <div class="col-card" id="dash-personal-col">
+                                    <div class="col-header">
+                                        <span>Lists</span>
+                                        <span class="col-count" id="dash-lists-count">0</span>
+                                    </div>
+                                    <div id="dash-personal-lists"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- EA Chat Aside -->
+                        <div class="dash-chat" id="dash-pa-chat">
+                            <div class="pa-chat">
+                                <div class="pa-chat-header">
+                                    <span class="online-dot"></span>
+                                    <span>Genevieve</span>
+                                    <span style="flex:1"></span>
+                                    <span style="font-size:10px;color:var(--text-muted)">EA</span>
+                                </div>
+                                <div class="pa-chat-msgs" id="pa-chat-msgs">
+                                    <div class="loading-placeholder" style="font-size:12px;">Loading messages...</div>
+                                </div>
+                                <div class="pa-chat-input">
+                                    <input type="text" id="pa-chat-input" placeholder="Message Genevieve..." />
+                                    <button id="pa-chat-send">Send</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Settings Dialog -->
+                <dialog class="dash-settings-dialog" id="dash-settings-dialog">
+                    <div class="dash-settings-content">
+                        <div class="dash-settings-header">
+                            <h3>Dashboard Settings</h3>
+                            <button class="dash-settings-close" id="dash-settings-close">&times;</button>
+                        </div>
+                        <div class="dash-settings-body">
+                            <div class="dash-setting-group">
+                                <label>Pill Size <span class="dash-setting-val" id="ds-pill-val">34</span>px</label>
+                                <input type="range" id="ds-pill-size" min="24" max="64" value="34" />
+                            </div>
+                            <div class="dash-setting-group">
+                                <label>Pill Gap <span class="dash-setting-val" id="ds-gap-val">3</span>px</label>
+                                <input type="range" id="ds-pill-gap" min="1" max="8" value="3" />
+                            </div>
+                            <div class="dash-setting-group">
+                                <label>Border Width <span class="dash-setting-val" id="ds-border-val">2</span>px</label>
+                                <input type="range" id="ds-border-width" min="1" max="5" value="2" />
+                            </div>
+                            <div class="dash-setting-group">
+                                <label>Max Task Dots <span class="dash-setting-val" id="ds-dots-val">5</span></label>
+                                <input type="range" id="ds-task-dots" min="3" max="12" value="5" />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>Activity Chart</span>
+                                <input type="checkbox" id="ds-show-chart" checked />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>World Info</span>
+                                <input type="checkbox" id="ds-show-world" />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>Task Heatmap</span>
+                                <input type="checkbox" id="ds-show-tasks" checked />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>Instance Heatmap</span>
+                                <input type="checkbox" id="ds-show-instances" checked />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>PM Status</span>
+                                <input type="checkbox" id="ds-show-pm" checked />
+                            </div>
+                            <div class="dash-setting-toggle">
+                                <span>Heatmaps Side-by-Side</span>
+                                <input type="checkbox" id="ds-hm-sbs" checked />
+                            </div>
+                            <div class="dash-setting-group">
+                                <label>OpenRouter Key</label>
+                                <input type="password" id="ds-openrouter-key" placeholder="sk-or-..." style="width:100%;padding:6px 8px;font-size:12px;background:var(--surface-hover);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);" />
+                            </div>
+                        </div>
+                        <div class="dash-settings-footer">
+                            <button class="btn btn-secondary" id="dash-settings-cancel">Cancel</button>
+                            <button class="btn" id="dash-settings-save">Save</button>
+                        </div>
+                    </div>
+                </dialog>
             </div>
 
             <!-- Projects Tab -->
@@ -197,49 +279,8 @@
                         <div class="loading-placeholder">Loading projects...</div>
                     </div>
 
-                    <!-- Project Detail View (hidden by default) -->
-                    <div id="project-detail-view" class="detail-view" style="display: none;">
-                        <div class="detail-header">
-                            <button class="btn-back" id="project-back-btn">
-                                <span>&#8592;</span> Back to Projects
-                            </button>
-                            <h1 id="project-detail-name">Project Name</h1>
-                            <span class="project-status" id="project-detail-status"></span>
-                        </div>
-                        <div class="detail-content">
-                            <div class="detail-section">
-                                <div class="detail-section-header">
-                                    <h3>Description</h3>
-                                    <button class="btn-save-edit" id="project-desc-save-btn">Save</button>
-                                </div>
-                                <div class="editable-field" id="project-desc-editable" data-field="description">
-                                    <p id="project-detail-description">No description</p>
-                                </div>
-                            </div>
-                            <div class="detail-section">
-                                <h3>Repository</h3>
-                                <p id="project-detail-repo">-</p>
-                            </div>
-                            <div class="detail-section">
-                                <h3>Tasks</h3>
-                                <div id="project-detail-tasks" class="detail-task-list">
-                                    <p class="empty-placeholder">Loading tasks...</p>
-                                </div>
-                                <button class="btn btn-small" id="project-add-task-btn" style="margin-top: 0.75rem;">+ Add Task</button>
-                            </div>
-                            <div class="detail-section">
-                                <h3>Team Members</h3>
-                                <div id="project-detail-team" class="team-list">
-                                    <p class="empty-placeholder">No team members assigned</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="detail-actions">
-                            <button class="btn" id="project-message-team-btn">Message Team</button>
-                            <button class="btn btn-secondary" id="project-assign-instance-btn">Assign Instance</button>
-                            <button class="btn btn-secondary" id="project-edit-btn">Edit Project</button>
-                        </div>
-                    </div>
+                    <!-- Project Detail View (hidden by default) - Content generated dynamically by projects.js -->
+                    <div id="project-detail-view" style="display: none;"></div>
                 </div>
             </div>
 
@@ -265,150 +306,7 @@
                 </div>
             </div>
 
-            <!-- Tasks Tab -->
-            <div class="tab-content" id="tab-tasks">
-                <div class="container">
-                    <div class="page-header">
-                        <h1>Tasks</h1>
-                        <button class="btn" id="new-task-btn">New Task</button>
-                    </div>
-
-                    <!-- Task Filters -->
-                    <div class="task-filters">
-                        <select id="task-project-filter">
-                            <option value="">All Projects</option>
-                        </select>
-                        <select id="task-status-filter">
-                            <option value="">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                        </select>
-                        <select id="task-priority-filter">
-                            <option value="">All Priorities</option>
-                            <option value="critical">Critical</option>
-                            <option value="high">High</option>
-                            <option value="medium">Medium</option>
-                            <option value="low">Low</option>
-                        </select>
-                    </div>
-
-                    <!-- Task Board -->
-                    <div class="task-board">
-                        <div class="task-column">
-                            <div class="column-header">
-                                <span>Pending</span>
-                                <span class="column-count" id="pending-count">0</span>
-                            </div>
-                            <div class="task-list" id="pending-tasks"></div>
-                        </div>
-                        <div class="task-column">
-                            <div class="column-header">
-                                <span>In Progress</span>
-                                <span class="column-count" id="progress-count">0</span>
-                            </div>
-                            <div class="task-list" id="progress-tasks"></div>
-                        </div>
-                        <div class="task-column">
-                            <div class="column-header">
-                                <span>Completed</span>
-                                <span class="column-count" id="completed-count">0</span>
-                            </div>
-                            <div class="task-list" id="completed-tasks"></div>
-                        </div>
-                    </div>
-
-                    <!-- Task Detail View (hidden by default) -->
-                    <div id="task-detail-view" class="detail-view" style="display: none;">
-                        <div class="detail-header">
-                            <button class="btn-back" id="task-back-btn">
-                                <span>&#8592;</span> <span id="task-back-text">Back to Tasks</span>
-                            </button>
-                            <h1 id="task-detail-title">Task Title</h1>
-                        </div>
-                        <div class="detail-meta">
-                            <span class="priority-badge" id="task-detail-priority">medium</span>
-                            <span class="detail-meta-item" id="task-detail-status-badge">
-                                <span>Status:</span>
-                                <span id="task-detail-status">pending</span>
-                            </span>
-                            <span class="detail-meta-item" id="task-detail-project-badge">
-                                <span>Project:</span>
-                                <span id="task-detail-project">Personal</span>
-                            </span>
-                        </div>
-                        <div class="detail-content">
-                            <div class="detail-section">
-                                <div class="detail-section-header">
-                                    <h3>Description</h3>
-                                    <button class="btn-save-edit" id="task-desc-save-btn">Save</button>
-                                </div>
-                                <div class="editable-field" id="task-desc-editable" data-field="description">
-                                    <p id="task-detail-description">No description</p>
-                                </div>
-                            </div>
-                            <div class="detail-section">
-                                <h3>Assignee</h3>
-                                <p id="task-detail-assignee">Unassigned</p>
-                            </div>
-                            <div class="detail-section">
-                                <h3>Created</h3>
-                                <p id="task-detail-created">-</p>
-                            </div>
-                        </div>
-                        <div class="detail-actions">
-                            <button class="btn" id="task-claim-btn">Claim Task</button>
-                            <button class="btn btn-secondary" id="task-complete-btn">Mark Complete</button>
-                            <button class="btn btn-secondary" id="task-edit-btn">Edit</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Lists Tab -->
-            <div class="tab-content" id="tab-lists">
-                <div class="lists-layout">
-                    <!-- Lists Sidebar -->
-                    <div class="lists-sidebar">
-                        <div class="page-header">
-                            <h1>Lists</h1>
-                            <button class="btn" id="new-list-btn">+ New List</button>
-                        </div>
-                        <div class="lists-grid" id="lists-grid">
-                            <div class="loading-placeholder">Loading lists...</div>
-                        </div>
-                    </div>
-
-                    <!-- List Detail Panel -->
-                    <div class="list-detail-panel" id="list-detail-panel" style="display: none;">
-                        <div class="list-detail-header">
-                            <button class="btn-back" id="list-back-btn">
-                                <span>&#8592;</span> Back to Lists
-                            </button>
-                            <div class="list-actions">
-                                <button class="btn btn-icon" id="list-rename-btn" title="Rename list">&#9998;</button>
-                                <button class="btn btn-icon btn-danger" id="list-delete-btn" title="Delete list">&#128465;</button>
-                            </div>
-                        </div>
-                        <div class="list-detail-content">
-                            <h2 class="list-detail-name" id="list-detail-name">List Name</h2>
-                            <p class="list-detail-description" id="list-detail-description">Description</p>
-
-                            <!-- Add Item Input -->
-                            <div class="add-item-form">
-                                <input type="text" id="new-item-input" placeholder="Add new item..." class="add-item-input">
-                                <button class="btn" id="add-item-btn">Add</button>
-                            </div>
-
-                            <!-- List Items -->
-                            <div class="list-items" id="list-items">
-                                <div class="empty-placeholder">No items yet. Add one above!</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+            <!-- Tasks and Lists tabs removed — functionality lives in Instance Detail Panel and Dashboard -->
             <!-- Instances Tab -->
             <div class="tab-content" id="tab-instances">
                 <div class="instances-layout">
@@ -945,10 +843,18 @@
                     <input type="text" id="project-gh-repo" placeholder="https://github.com/user/repo">
                     <small class="form-help">Leave blank to auto-create</small>
                 </div>
+                                        <div class="form-group">
+                                                                        <label for="pm-personality">PM Personality (for Launch)</label>
+                                                                                                    <select id="pm-personality" class="form-control">
+                                                                                                                                    <option value="Kai" selected>Kai - warm, collaborative</option>
+                                                                                                                                                                    <option value="Viktor">Viktor - pragmatic, efficient</option>
+                                                                                                                                                                                                </select>
+                                                                                                                                                                                                                        </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-close>Cancel</button>
                 <button class="btn" id="create-project-submit">Create Project</button>
+                                                <button class="btn btn-success" id="launch-project-btn">🚀 Launch</button>
             </div>
         </div>
     </div>
@@ -995,32 +901,47 @@
     </div>
 
     <!-- Create List Modal -->
-    <div class="modal" id="create-list-modal">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Create New List</h2>
-                <button class="modal-close" data-close>&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="list-name">List Name</label>
-                    <input type="text" id="list-name" placeholder="e.g., Shopping, Todo, Ideas...">
-                </div>
-                <div class="form-group">
-                    <label for="list-description">Description (optional)</label>
-                    <textarea id="list-description" rows="2" placeholder="What's this list for?"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" data-close>Cancel</button>
-                <button class="btn" id="create-list-submit">Create List</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Toast Notifications -->
     <div class="toast-container" id="toast-container"></div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="bottom-nav" id="bottom-nav">
+        <button class="bottom-nav-item active" data-tab="dashboard" title="Dashboard">
+            <span class="bottom-nav-icon">&#9632;</span>
+            <span class="bottom-nav-label">Home</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="messages" title="Messages">
+            <span class="bottom-nav-icon">&#9993;</span>
+            <span class="bottom-nav-label">Messages</span>
+            <span class="bottom-nav-badge" id="bottom-unread-count" style="display: none;">0</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="projects" title="Projects">
+            <span class="bottom-nav-icon">&#128193;</span>
+            <span class="bottom-nav-label">Projects</span>
+        </button>
+        <button class="bottom-nav-item" id="more-menu-btn" title="More">
+            <span class="bottom-nav-icon">&#8801;</span>
+            <span class="bottom-nav-label">More</span>
+        </button>
+    </nav>
+
+    <!-- More Menu (slides up from bottom) -->
+    <div class="more-menu-overlay" id="more-menu-overlay"></div>
+    <div class="more-menu" id="more-menu">
+        <div class="more-menu-header">
+            <span>More</span>
+            <button class="more-menu-close" id="more-menu-close">&times;</button>
+        </div>
+        <button class="more-menu-item" data-tab="instances">
+            <span class="more-menu-icon">&#129302;</span>
+            <span>Instances</span>
+        </button>
+        <button class="more-menu-item" data-tab="settings">
+            <span class="more-menu-icon">&#9881;</span>
+            <span>Settings</span>
+        </button>
+    </div>
 
     <script type="module" src="app.js"></script>
 </body>
