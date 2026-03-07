@@ -266,9 +266,8 @@ test.describe('Messages Page', () => {
     const testMessage = `[REGTEST] Clear test ${Date.now()}`;
     await messagesPage.sendMessage(testMessage);
 
-    // Input should be cleared
-    const inputValue = await messagesPage.messageInput.inputValue();
-    expect(inputValue).toBe('');
+    // Input clears asynchronously after API response — wait for it
+    await expect(messagesPage.messageInput).toHaveValue('', { timeout: 10000 });
   });
 
   // -------------------------------------------------------------------------
