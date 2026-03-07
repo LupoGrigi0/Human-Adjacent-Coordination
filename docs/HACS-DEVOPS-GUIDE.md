@@ -1,7 +1,7 @@
 # HACS DevOps Guide
 
 **Author:** Bastion (DevOps)
-**Updated:** 2026-01-08
+**Updated:** 2026-03-07
 **Audience:** System-level devs, anyone debugging infrastructure
 
 ---
@@ -643,6 +643,98 @@ API returns `429 Too Many Requests` with message about rate limit.
 
 ---
 
+## ZeroClaw / OpenClaw Fleet
+
+### Overview
+
+Each HACS instance can have its own ZeroClaw (or OpenClaw) gateway container, providing always-on web chat, WhatsApp/Telegram channels, and RAG-based persistent memory. ZeroClaw is a Rust rewrite of OpenClaw — 3MB binary, 5MB RAM vs OpenClaw's 400MB+.
+
+### Architecture
+
+```
+Internet → nginx (443)
+             ├── /zeroclaw/{instanceId}/ → localhost:{port}  (per-instance)
+             └── /openclaw/              → localhost:18789    (legacy test instance)
+
+Port ranges:
+  ZeroClaw: 19000-19100 (single port per instance)
+  OpenClaw: 18789-18850 (dual ports: gateway + bridge)
+```
+
+### nginx Automation: `claw-nginx-setup`
+
+Location: `/usr/local/bin/claw-nginx-setup`
+
+Auto-generates per-instance nginx proxy configs in `/etc/nginx/claw-instances/`.
+
+```bash
+# Add a new instance route
+claw-nginx-setup add <instanceId> <port> [--type zeroclaw|openclaw]
+
+# Remove an instance route
+claw-nginx-setup remove <instanceId>
+
+# List all configured routes
+claw-nginx-setup list
+```
+
+The script:
+1. Generates a location block config file
+2. Tests nginx config (`nginx -t`)
+3. Reloads nginx on success
+4. Rolls back generated file on failure
+
+Called automatically by `launch-zeroclaw.sh` after container startup.
+
+### Instance Directory Structure
+
+```
+/mnt/coordinaton_mcp_data/instances/{instanceId}/
+└── zeroclaw/
+    ├── config/config.toml    # Instance config
+    ├── workspace/            # Skills, hacs_client.js
+    ├── logs/                 # Gateway logs
+    ├── .env                  # API keys
+    ├── bearer-token.txt      # Gateway auth token
+    └── docker-compose.yml    # Container config
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `/usr/local/bin/claw-nginx-setup` | nginx proxy automation |
+| `/etc/nginx/claw-instances/*.conf` | Auto-generated proxy configs |
+| `src/zeroclaw-hacs/launch-zeroclaw.sh` | Instance launcher (foundation worktree) |
+| `src/zeroclaw-hacs/config.template.toml` | Config template |
+| `src/zeroclaw-hacs/docker-compose.template.yml` | Docker template |
+
+### Container Management
+
+```bash
+# Check all claw containers
+docker ps --filter "name=zeroclaw" --filter "name=openclaw"
+
+# Logs for a specific instance
+docker logs zeroclaw-{instanceId}
+
+# Restart an instance
+cd /mnt/coordinaton_mcp_data/instances/{instanceId}/zeroclaw
+docker-compose restart
+
+# Health check
+curl http://localhost:{port}/health
+```
+
+### Gotchas
+
+- **Use `docker-compose` not `docker compose`** (old Docker version on this system)
+- **Permissions**: ZeroClaw runs as nobody:nogroup (UID 65534). Files must be `chown 65534:65534`
+- **Port binding**: Always `127.0.0.1:{port}` — nginx handles SSL/internet exposure
+- **HACS data is read-only mount** — instances can read but never corrupt HACS
+
+---
+
 ## Git Workflow
 
 ### Production Deployment
@@ -790,18 +882,209 @@ git reset --hard origin/main
 ### Port Exposure
 
 Only these ports are exposed to internet:
+- 25 (SMTP, Postfix — receive-only mail)
 - 80 (HTTP, redirects to HTTPS)
+- 143 (IMAP, Dovecot)
 - 443 (HTTPS)
+- 993 (IMAPS, Dovecot)
 - 8443 (HTTPS, UI dashboard)
 
 Internal only:
 - 3444 (MCP server)
 - 9000 (Webhook)
 - 5222, 5280, etc. (ejabberd)
+- 20000-20100 (OpenFang instances, nginx proxied)
 
 ### Service Isolation
 
 MCP service runs with `ProtectHome=yes` - can't access `/root`. Claude credentials synced to `/mnt/coordinaton_mcp_data/shared-config/claude/` via cron.
+
+---
+
+## Email Infrastructure
+
+### Overview
+
+Receive-only email for all HACS instances. Every instance gets an address (`name@smoothcurves.nexus`). Unmatched addresses route to Lupo's mailbox (catch-all).
+
+**Not a sending system.** Postfix is configured receive-only — no relay, no outbound. This is for receiving notifications, Slack invites, service registrations, etc.
+
+### Architecture
+
+```
+Internet (SMTP, port 25)
+    │
+    ▼
+Postfix (receive-only, TLS)
+    │
+    ├── Virtual mailbox lookup: /etc/postfix/virtual_mailboxes
+    │
+    ▼
+Maildir delivery to:
+    /mnt/coordinaton_mcp_data/instances/{instanceId}/mail/
+    │
+    ▼
+Dovecot (IMAP, ports 143/993)
+    └── External mail client access (Thunderbird, Outlook, etc.)
+```
+
+### Config Files
+
+| File | Purpose |
+|------|---------|
+| `/etc/postfix/main.cf` | Postfix main config |
+| `/etc/postfix/virtual_mailboxes` | Address → Maildir mapping |
+| `/etc/dovecot/dovecot.conf` | Dovecot IMAP config |
+
+### Key Postfix Settings
+
+```
+myhostname = smoothcurves.nexus
+mydomain = smoothcurves.nexus
+virtual_mailbox_domains = smoothcurves.nexus
+virtual_mailbox_base = /mnt/coordinaton_mcp_data/instances
+virtual_mailbox_maps = hash:/etc/postfix/virtual_mailboxes
+smtpd_tls_cert_file = /etc/letsencrypt/live/smoothcurves.nexus/fullchain.pem
+smtpd_tls_key_file = /etc/letsencrypt/live/smoothcurves.nexus/privkey.pem
+smtpd_tls_security_level = may
+```
+
+### Port Assignments
+
+| Port | Protocol | Service | Exposure |
+|------|----------|---------|----------|
+| 25 | SMTP | Postfix | Internet (required for receiving mail) |
+| 143 | IMAP | Dovecot | Internet (cleartext, upgrades to TLS) |
+| 993 | IMAPS | Dovecot | Internet (TLS-wrapped IMAP) |
+
+### Adding a New Mailbox
+
+```bash
+# 1. Edit the virtual mailbox map
+vi /etc/postfix/virtual_mailboxes
+
+# 2. Add line: newname@smoothcurves.nexus    InstanceId-xxxx/mail/
+
+# 3. Rebuild the hash map and reload
+postmap /etc/postfix/virtual_mailboxes && systemctl reload postfix
+```
+
+The mail directory is created automatically on first delivery. No need to pre-create it.
+
+### DNS Requirements
+
+These DNS records must exist at the domain registrar (Dynadot):
+
+| Type | Name | Value |
+|------|------|-------|
+| MX | smoothcurves.nexus | smoothcurves.nexus (priority 10) |
+| A | smoothcurves.nexus | (droplet IP) |
+
+SPF/DKIM are not configured (receive-only — no outbound mail to authenticate).
+
+### Mail Service Commands
+
+```bash
+# Check services
+systemctl status postfix dovecot
+
+# Reload after config changes
+postmap /etc/postfix/virtual_mailboxes && systemctl reload postfix
+
+# Test delivery (send from external account to name@smoothcurves.nexus)
+
+# Check delivery
+ls /mnt/coordinaton_mcp_data/instances/{instanceId}/mail/new/
+
+# View mail log
+tail -f /var/log/mail.log
+
+# Test IMAP access
+openssl s_client -connect smoothcurves.nexus:993
+```
+
+### Troubleshooting
+
+**Mail not arriving:**
+```bash
+# Check mail log for delivery/rejection
+tail -50 /var/log/mail.log
+
+# Verify virtual_mailboxes is hashed
+postmap -q "name@smoothcurves.nexus" hash:/etc/postfix/virtual_mailboxes
+
+# Check Postfix queue
+mailq
+```
+
+**IMAP not connecting:**
+```bash
+# Check Dovecot status
+systemctl status dovecot
+doveadm log errors
+
+# Check TLS certs are valid
+openssl s_client -connect smoothcurves.nexus:993 -quiet
+```
+
+### Domain Responsibility
+
+**DevOps (Bastion) owns:** Postfix, Dovecot, DNS, TLS, ports, service health, virtual mailbox routing infrastructure.
+
+**Messaging (Messenger) owns:** Mailbox-to-instance policy, mail→HACS message bridges, channel gateway integration (Slack, Telegram), user-facing mail workflows.
+
+---
+
+## OpenFang systemd Services
+
+### Overview
+
+OpenFang instances run as background daemons. Without systemd, they survive SSH disconnects but **not server reboots**. The systemd template unit provides:
+- Auto-restart on crash
+- Start on boot (if enabled)
+- Launch/land lifecycle awareness
+- Per-instance user isolation
+
+### Service Files
+
+| File | Purpose |
+|------|---------|
+| `/etc/systemd/system/openfang@.service` | Template unit for OpenFang daemons |
+| `/etc/systemd/system/openfang-approver@.service` | Companion unit for auto-approve sidecar |
+
+### Usage
+
+```bash
+# Start an instance
+systemctl start openfang@Flair-2a84
+
+# Enable auto-start on boot
+systemctl enable openfang@Flair-2a84
+
+# Stop (land) an instance
+systemctl stop openfang@Flair-2a84
+
+# Disable auto-start (for landed instances)
+systemctl disable openfang@Flair-2a84
+
+# Check status
+systemctl status openfang@Flair-2a84
+
+# View logs
+journalctl -u openfang@Flair-2a84 -f
+```
+
+### Launch/Land Lifecycle
+
+When an instance is "landed" via the HACS API (`land_instance`), systemd should NOT revive it. The launch script should:
+1. `systemctl enable openfang@{instanceId}` on launch
+2. `systemctl disable openfang@{instanceId}` on land
+
+This way landed instances stay down across reboots. Only explicitly launched instances auto-restart.
+
+### Port Range
+
+OpenFang instances use ports 20000-20100 (one port per instance, API + dashboard combined).
 
 ---
 
@@ -817,7 +1100,7 @@ curl -s https://smoothcurves.nexus/health | jq .
 systemctl restart mcp-coordination nginx webhook
 
 # Check all services
-systemctl status mcp-coordination nginx webhook ejabberd
+systemctl status mcp-coordination nginx webhook ejabberd postfix dovecot
 
 # Follow all logs
 journalctl -u mcp-coordination -u nginx -u webhook -f
