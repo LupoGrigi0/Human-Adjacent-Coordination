@@ -8,6 +8,12 @@ import { state } from './state.js';
 import { escapeHtml, showToast } from './utils.js';
 import api from './api.js';
 import * as uiConfig from './ui-config.js';
+import {
+    STATUSES, PRIORITIES, PRIORITY_COLORS, STATUS_LABELS, STATUS_ICONS,
+    PRIORITY_ORDER, STATUS_ORDER,
+    showDropdown, renderTaskListHTML, renderTaskRowHTML, renderTaskExpandedHTML,
+    sortTasksInPlace, findTaskById
+} from './shared-tasks.js';
 
 // Module-level state
 let expandedLists = new Set();
@@ -21,40 +27,8 @@ let chatPollInterval = null;
 let showCompletedLists = new Set(); // which lists show completed tasks
 let vitalDocuments = new Set(); // vital doc names
 
-const STATUSES = ['not_started', 'in_progress', 'blocked', 'completed', 'completed_verified', 'archived'];
-const PRIORITIES = ['emergency', 'critical', 'high', 'medium', 'low', 'whenever'];
-const PRIORITY_COLORS = { emergency: '#ef4444', critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#6b7280', whenever: '#a78bfa' };
-const STATUS_LABELS = { not_started: 'Not Started', in_progress: 'In Progress', blocked: 'Blocked', completed: 'Completed', completed_verified: 'Verified', archived: 'Archived' };
-const STATUS_ICONS = { not_started: '\u25CB', in_progress: '\u25D4', blocked: '\u26A0', completed: '\u2714', completed_verified: '\u2714\u2714', archived: '\uD83D\uDCE6' };
+// Constants, showDropdown, and task rendering imported from shared-tasks.js
 const PROJECT_STATUSES = ['active', 'paused', 'archived'];
-
-// ============================================================================
-// DROPDOWN UTILITY
-// ============================================================================
-
-function showDropdown(anchorEl, options, onSelect) {
-    closeAllDropdowns();
-    const rect = anchorEl.getBoundingClientRect();
-    const dd = document.createElement('div');
-    dd.className = 'pd-dropdown';
-    dd.style.cssText = `position:fixed; left:${rect.left}px; top:${rect.bottom + 2}px; z-index:1000;`;
-    // Ensure dropdown doesn't go off-screen right
-    dd.innerHTML = options.map(o =>
-        `<div class="pd-dropdown-item${o.selected ? ' selected' : ''}" data-value="${o.value}">${o.icon ? '<span style="margin-right:4px">' + o.icon + '</span>' : ''}${escapeHtml(o.label)}</div>`
-    ).join('');
-    dd.addEventListener('click', e => {
-        const item = e.target.closest('.pd-dropdown-item');
-        if (item) { onSelect(item.dataset.value); dd.remove(); }
-    });
-    document.body.appendChild(dd);
-    // Reposition if off-screen
-    const ddRect = dd.getBoundingClientRect();
-    if (ddRect.right > window.innerWidth) dd.style.left = (window.innerWidth - ddRect.width - 8) + 'px';
-    if (ddRect.bottom > window.innerHeight) dd.style.top = (rect.top - ddRect.height - 2) + 'px';
-    setTimeout(() => document.addEventListener('click', function handler(e) {
-        if (!dd.contains(e.target)) { dd.remove(); document.removeEventListener('click', handler); }
-    }), 0);
-}
 
 function closeAllDropdowns() {
     document.querySelectorAll('.pd-dropdown, .priority-popover').forEach(el => el.remove());
@@ -261,113 +235,19 @@ function renderTasksSection(listIds, projectId) {
 }
 
 function renderTaskList(listId, tasks, projectId) {
-    const isExpanded = expandedLists.has(listId);
-    const showCompleted = showCompletedLists.has(listId);
-    const activeTasks = tasks.filter(t => !['completed', 'completed_verified', 'archived'].includes(t.status));
-    const completedTasks = tasks.filter(t => ['completed', 'completed_verified'].includes(t.status));
-    const completed = completedTasks.length;
-    const pct = tasks.length > 0 ? Math.round(completed / tasks.length * 100) : 0;
-    const eyeIcon = showCompleted ? '\uD83D\uDC41' : '\uD83D\uDC41\u200D\uD83D\uDDE8'; // eye vs eye-speech
-
-    return `
-    <div class="task-list-section" data-list-id="${listId}">
-        <div class="task-list-header">
-            <span class="chevron ${isExpanded ? 'expanded' : ''}" onclick="window._pdToggleList('${listId}')">&rsaquo;</span>
-            <span class="task-list-name" onclick="window._pdToggleList('${listId}')">${escapeHtml(listId)}</span>
-            <span class="task-list-progress-text">${completed}/${tasks.length}</span>
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-            <span class="completed-toggle-icon" onclick="event.stopPropagation(); window._pdToggleCompleted('${listId}')" title="${showCompleted ? 'Hide completed' : 'Show completed'}">${showCompleted ? '\uD83D\uDC41' : '\uD83D\uDC41\u200D\uD83D\uDDE8'}</span>
-            ${isExpanded ? `<span class="new-task-input-wrap"><span class="new-task-arrow" title="Add with details" onclick="event.stopPropagation()">&#9654;</span><input type="text" class="task-header-input task-create-input" placeholder="New task..." data-list-id="${listId}" data-project-id="${projectId}" onclick="event.stopPropagation()"><span class="new-task-detail-icon" title="Add with details" onclick="event.stopPropagation(); window._pdDetailIcon(this)">&#9998;</span></span>` : ''}
-        </div>
-        <div class="task-list-body" style="display:${isExpanded ? 'block' : 'none'}">
-            <div class="task-list-col-headers">
-                <span class="col-header col-header-priority" onclick="window._pdSortTasks('priority')" title="Sort by priority">P${taskSortField === 'priority' ? (taskSortReverse ? ' \u25B2' : ' \u25BC') : ''}</span>
-                <span class="col-header col-header-title" onclick="window._pdSortTasks('title')" title="Sort by title">Title${taskSortField === 'title' ? (taskSortReverse ? ' \u25B2' : ' \u25BC') : ''}</span>
-                <span class="col-header col-header-status" onclick="window._pdSortTasks('status')" title="Sort by status">Status${taskSortField === 'status' ? (taskSortReverse ? ' \u25B2' : ' \u25BC') : ''}</span>
-                <span class="col-header col-header-assignee" onclick="window._pdSortTasks('assignee')" title="Sort by assignee">Who${taskSortField === 'assignee' ? (taskSortReverse ? ' \u25B2' : ' \u25BC') : ''}</span>
-                <span class="col-header col-header-dates" onclick="window._pdSortTasks('created')" title="Sort by date created">\uD83D\uDCC5${taskSortField === 'created' ? (taskSortReverse ? '\u25B2' : '\u25BC') : ''}</span>
-                <span class="col-header col-header-dates" onclick="window._pdSortTasks('updated')" title="Sort by last updated">\uD83D\uDD04${taskSortField === 'updated' ? (taskSortReverse ? '\u25B2' : '\u25BC') : ''}</span>
-            </div>
-            ${activeTasks.map(t => renderTaskRow(t)).join('')}
-            ${showCompleted ? completedTasks.map(t => renderTaskRow(t)).join('') : ''}
-        </div>
-    </div>`;
-}
-
-function renderTaskRow(task) {
-    const tid = task.id || task.taskId;
-    const priority = task.priority || 'medium';
-    const status = task.status || 'not_started';
-    const assignee = task.assigned_to || task.assignee;
-    const assigneeLabel = assignee ? (assignee.split('-')[0] || '?') : '';
-    const isExpanded = expandedTaskId === tid;
-
-    let row = `
-    <div class="task-row ${isExpanded ? 'task-row-expanded' : ''}" data-task-id="${tid}">
-        <div class="task-row-summary">
-            <span class="priority-dot priority-dot-${priority}" data-task-id="${tid}" onclick="window._pdPriorityPopover(event, '${tid}')" title="${priority}"></span>
-            <span class="task-row-title" data-task-id="${tid}" onclick="window._pdExpandTask('${tid}')">${escapeHtml(task.title)}</span>
-            <span class="status-badge status-${status}" data-task-id="${tid}" onclick="window._pdStatusDropdown(event, '${tid}')" title="${STATUS_LABELS[status] || status}">${STATUS_LABELS[status] || status}</span>
-            ${assigneeLabel
-                ? `<span class="task-assignee-avatar" data-task-id="${tid}" onclick="window._pdAssigneeDropdown(event, '${tid}')" title="${escapeHtml(assignee)}">${escapeHtml(assigneeLabel.charAt(0).toUpperCase())}</span>`
-                : `<span class="task-assignee-avatar task-assignee-empty" data-task-id="${tid}" onclick="window._pdAssigneeDropdown(event, '${tid}')" title="Assign">?</span>`
-            }
-        </div>`;
-
-    if (isExpanded) row += renderTaskExpanded(task);
-    row += '</div>';
-    return row;
-}
-
-function renderTaskExpanded(task) {
-    const tid = task.id || task.taskId;
-    const isAssignee = task.assigned_to === state.instanceId || task.assignee === state.instanceId;
-    const isCompleted = task.status === 'completed';
-    const isVerified = task.status === 'completed_verified';
-
-    return `
-    <div class="task-detail-inline">
-        <div class="task-detail-field">
-            <label>Title</label>
-            <input type="text" class="task-detail-title-input" data-task-id="${tid}" value="${escapeHtml(task.title || '')}" onblur="window._pdSaveField('${tid}','title',this.value)">
-        </div>
-        <div class="task-detail-field">
-            <label>Description</label>
-            <textarea class="task-detail-desc" data-task-id="${tid}" onblur="window._pdSaveField('${tid}','description',this.value)">${escapeHtml(task.description || '')}</textarea>
-        </div>
-        <div class="task-detail-row">
-            <div class="task-detail-field">
-                <label>Priority</label>
-                <select data-task-id="${tid}" onchange="window._pdSaveField('${tid}','priority',this.value)">
-                    ${PRIORITIES.map(p => `<option value="${p}" ${p === task.priority ? 'selected' : ''}>${p}</option>`).join('')}
-                </select>
-            </div>
-            <div class="task-detail-field">
-                <label>Status</label>
-                <select data-task-id="${tid}" onchange="window._pdSaveField('${tid}','status',this.value)">
-                    ${STATUSES.map(s => `<option value="${s}" ${s === task.status ? 'selected' : ''}>${STATUS_LABELS[s]}</option>`).join('')}
-                </select>
-            </div>
-            <div class="task-detail-field">
-                <label>Assignee</label>
-                <select data-task-id="${tid}" onchange="window._pdSaveField('${tid}','assigned_to',this.value)">
-                    <option value="">Unassigned</option>
-                    ${(state.currentProject?.team || []).map(m => {
-                        const mid = typeof m === 'string' ? m : m.instanceId || m.id;
-                        const mname = typeof m === 'string' ? m.split('-')[0] : m.name || mid.split('-')[0];
-                        return `<option value="${mid}" ${mid === (task.assigned_to || task.assignee) ? 'selected' : ''}>${escapeHtml(mname)}</option>`;
-                    }).join('')}
-                </select>
-            </div>
-        </div>
-        <div class="task-detail-actions">
-            ${!task.assigned_to && !task.assignee ? `<button class="btn-action" onclick="window._pdClaimTask('${tid}')">Claim</button>` : ''}
-            ${!isCompleted && !isVerified ? `<button class="btn-action" onclick="window._pdCompleteTask('${tid}')">Complete</button>` : ''}
-            ${isCompleted && !isAssignee ? `<button class="btn-action" onclick="window._pdVerifyTask('${tid}')">Verify</button>` : ''}
-            ${isCompleted && isAssignee ? `<button class="btn-action btn-disabled" disabled title="Cannot verify own task">Verify</button>` : ''}
-            ${isVerified ? `<button class="btn-action" onclick="window._pdArchiveTask('${tid}')">Archive</button>` : ''}
-        </div>
-    </div>`;
+    return renderTaskListHTML(listId, tasks, {
+        prefix: '_pd',
+        expanded: expandedLists.has(listId),
+        showCompleted: showCompletedLists.has(listId),
+        sortField: taskSortField,
+        sortReverse: taskSortReverse,
+        expandedTaskId,
+        columns: ['priority', 'title', 'status', 'assignee', 'created', 'updated'],
+        teamMembers: state.currentProject?.team || [],
+        inputClass: 'task-create-input',
+        projectId,
+        callerId: state.instanceId,
+    });
 }
 
 function renderTeamSection(project) {
@@ -792,6 +672,12 @@ window._pdToggleCompleted = function(listId) {
     const allTasks = Object.values(projectTasks).flat();
     renderProjectDetail(state.currentProject, allTasks);
 };
+
+// Aliases for shared-tasks.js handler naming convention
+window._pdStatusDD = function(event, tid) { window._pdStatusDropdown(event, tid); };
+window._pdPriDD = function(event, tid) { window._pdPriorityPopover(event, tid); };
+window._pdToggleTL = function(lid) { window._pdToggleList(lid); };
+window._pdNewTask = function() { const t = prompt('New task title:'); if (t?.trim()) window._pdQuickAddTask && window._pdQuickAddTask(t.trim()); };
 
 // --- Items 16, 17, 23: New task list ---
 window._pdCreateList = async function(projectId) {
@@ -1219,33 +1105,10 @@ let taskSortField = null;
 let taskSortReverse = false;
 
 window._pdSortTasks = function(field) {
-    if (taskSortField === field) {
-        taskSortReverse = !taskSortReverse;
-    } else {
-        taskSortField = field;
-        taskSortReverse = false;
-    }
-    // Re-sort all lists
-    const priorityOrder = { emergency: 0, critical: 1, high: 2, medium: 3, low: 4, whenever: 5 };
-    const statusOrder = { not_started: 0, in_progress: 1, blocked: 2, completed: 3, completed_verified: 4, archived: 5 };
-    for (const [lid, tasks] of Object.entries(projectTasks)) {
-        tasks.sort((a, b) => {
-            let cmp = 0;
-            if (field === 'priority') {
-                cmp = (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
-            } else if (field === 'status') {
-                cmp = (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0);
-            } else if (field === 'title') {
-                cmp = (a.title || '').localeCompare(b.title || '');
-            } else if (field === 'created') {
-                cmp = new Date(a.created || 0) - new Date(b.created || 0);
-            } else if (field === 'updated') {
-                cmp = new Date(a.updated || 0) - new Date(b.updated || 0);
-            } else if (field === 'assignee') {
-                cmp = (a.assigned_to || '').localeCompare(b.assigned_to || '');
-            }
-            return taskSortReverse ? -cmp : cmp;
-        });
+    if (taskSortField === field) taskSortReverse = !taskSortReverse;
+    else { taskSortField = field; taskSortReverse = false; }
+    for (const tasks of Object.values(projectTasks)) {
+        sortTasksInPlace(tasks, field, taskSortReverse);
     }
     const allTasks = Object.values(projectTasks).flat();
     renderProjectDetail(state.currentProject, allTasks);
@@ -1256,11 +1119,7 @@ window._pdSortTasks = function(field) {
 // ============================================================================
 
 function findTask(taskId) {
-    for (const tasks of Object.values(projectTasks)) {
-        const t = tasks.find(t => (t.id || t.taskId) === taskId);
-        if (t) return t;
-    }
-    return null;
+    return findTaskById(projectTasks, taskId);
 }
 
 async function refreshProjectTasks() {
