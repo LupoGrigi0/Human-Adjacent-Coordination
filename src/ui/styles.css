@@ -410,7 +410,8 @@ body {
    ============================================================================ */
 .main-content {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     background: var(--background-color);
 }
 
@@ -4122,7 +4123,9 @@ body {
     background: var(--surface-color);
     border: 1px solid var(--border-color);
     border-radius: 10px;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 60vh;
 }
 
 .dash .col-header {
