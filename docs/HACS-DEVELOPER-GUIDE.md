@@ -322,6 +322,38 @@ The `@description` tag supports multi-line content. Put `@description` on its ow
 
 **Technical note:** The help generator (`generate-help.js`) uses an `inDescription` boolean flag to properly parse multi-line descriptions. This was added in commit `d9a9e27` to fix empty descriptions in `get_tool_help` output.
 
+**CRITICAL: JSDoc `@param` optional brackets break the Claude API**
+
+When documenting optional parameters with JSDoc syntax like `@param {string} [paramName]` or `@param {string} [paramName=default]`, the MCP tools generator copies the square brackets literally into JSON Schema property names (e.g., `"[paramName]"`). The Claude API requires property keys to match `^[a-zA-Z0-9_.-]{1,64}$` — brackets are invalid.
+
+**Symptom:** Every message to any instance returns:
+```
+API Error: 400 {"type":"error","error":{"type":"invalid_request_error",
+"message":"tools.N.custom.input_schema.properties: Property keys should
+match pattern '^[a-zA-Z0-9_.-]{1,64}$'"}}
+```
+
+**This is a team-wide outage** — it breaks ALL instances, not just the one that pushed the change, because all instances share the same HACS MCP server. Instances with cached tool lists keep working until they reconnect.
+
+**Root cause:** `generate-mcp-tools.js` regex captures `(\S+)` for param names, which includes JSDoc brackets.
+
+**Fix applied:** Generator now strips brackets: `rawName.replace(/^\[/, '').replace(/=.*\]$/, '').replace(/\]$/, '')` (Bastion, 2026-03-07)
+
+**Prevention:** After regenerating MCP tools, verify no bad property keys:
+```bash
+node --input-type=module -e '
+import tools from "./src/mcp-tools-generated.js";
+const p = /^[a-zA-Z0-9_.\-]{1,64}$/;
+let bad = 0;
+tools.forEach((t, i) => {
+  Object.keys(t.inputSchema?.properties || {}).forEach(k => {
+    if (!p.test(k)) { console.log("BAD: tool=" + t.name + " key=" + k); bad++; }
+  });
+});
+console.log(bad ? bad + " bad keys found" : "All clean (" + tools.length + " tools)");
+'
+```
+
 ### 4. Regenerate Documentation (Optional)
 
 If automatic generation doesn't pick up your changes:
@@ -337,7 +369,15 @@ node src/endpoint_definition_automation/generators/generate-openapi.js
 node src/endpoint_definition_automation/generators/generate-mcp-tools.js
 ```
 
-### 5. Push and Verify
+### 5. Add Regression Tests (REQUIRED)
+
+Add automated tests before pushing. See **"Automated Regression Tests"** section below for details.
+
+- **API test:** Add test function to `tests/api/hacs_regression_test.py`
+- **UI test:** If your feature has UI elements, add selectors + page object methods + spec tests in `tests/ui/`
+- **Cleanup:** Every test must clean up data it creates
+
+### 6. Push and Verify
 
 ```bash
 git add .
@@ -411,6 +451,196 @@ cat /mnt/coordinaton_mcp_data/instances/{instanceId}/diary.md
 ```
 
 Don't just trust the API response - verify the backend state changed correctly.
+
+---
+
+## Automated Regression Tests (REQUIRED)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  EDICT: Every new API endpoint, UI feature, or behavioral change           │
+│  MUST include automated regression tests.                                  │
+│                                                                             │
+│  No tests = no merge. This is non-negotiable.                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Matters
+
+HACS is a live production system. Multiple instances push to main throughout the day. Without automated tests, a change in one area silently breaks another. Tests are the contract that says "these promises still hold."
+
+### Test Suite Location
+
+```
+tests/                          # Repo root (sibling of src/)
+├── api/                        # Python API regression tests
+│   ├── hacs_regression_test.py       # 95-test core API suite
+│   └── hacs_role_permissions_test.py # Role-based permission tests
+├── ui/                         # Playwright UI regression tests
+│   ├── playwright.config.js
+│   ├── helpers/                # API client, selectors, test data
+│   ├── page-objects/           # Page Object Models (one per page)
+│   ├── tests/                  # Test specs (numbered, dependency order)
+│   └── visual/                 # WebClaude visual regression (runbook-driven)
+└── plans/                      # Test plans, specs, role docs
+```
+
+### What to Test
+
+**For API changes** — add to `tests/api/`:
+
+| Test Type | What It Covers | Example |
+|-----------|---------------|---------|
+| **Happy path** | Normal operation with valid inputs | `create_task` with all required fields → task exists |
+| **Edge cases** | Boundary conditions, empty inputs | Empty title, very long description, unicode characters |
+| **Validation** | Invalid inputs are rejected cleanly | Bogus priority value → error, not silent acceptance |
+| **Authorization** | Role-gated endpoints enforce permissions | Developer can't call `archive_task` (PM-only) |
+| **Cleanup** | Tests clean up after themselves | Every created task/list/instance gets deleted at end |
+| **Idempotency** | Calling N times doesn't corrupt state | `mark_task_complete` twice → same result, no error |
+
+**For UI changes** — add to `tests/ui/`:
+
+| What Changed | What to Update |
+|-------------|----------------|
+| New element on a page | Add selector to `helpers/selectors.js` |
+| New interactive behavior | Add method to relevant page object in `page-objects/` |
+| New page section or widget | Add test cases to relevant spec in `tests/` |
+| Changed data shape | Update `helpers/api-client.js` if API response changed |
+
+### How to Add API Tests
+
+Add test functions to `tests/api/hacs_regression_test.py`:
+
+```python
+def test_your_new_api():
+    """Test your_api_name — creates resource and verifies it exists."""
+    # Create
+    result = call_api('your_api_name', {
+        'instanceId': TEST_INSTANCE,
+        'param1': 'test_value'
+    })
+    assert result['success'], f"Failed: {result.get('error')}"
+
+    # Verify
+    verify = call_api('get_resource', {
+        'instanceId': TEST_INSTANCE,
+        'resourceId': result['data']['resourceId']
+    })
+    assert verify['data']['param1'] == 'test_value'
+
+    # CLEANUP — always clean up what you created
+    call_api('delete_resource', {
+        'instanceId': TEST_INSTANCE,
+        'resourceId': result['data']['resourceId']
+    })
+```
+
+### How to Add UI Tests
+
+**Step 1:** Add selectors to `tests/ui/helpers/selectors.js`:
+
+```javascript
+const INSTANCES = {
+  // ... existing selectors ...
+
+  /** Launch/land controls (added by Crossing) */
+  LAUNCH_BUTTON: '.instance-action-launch',
+  LAND_BUTTON: '.instance-action-land',
+  ZEROCLAW_STATUS: '.zc-status-badge',
+};
+```
+
+**Step 2:** Add methods to the relevant page object:
+
+```javascript
+// In tests/ui/page-objects/InstancesPage.js
+async getLaunchButton(instanceId) {
+  return this.page.locator(
+    `.instance-card[data-instance-id="${instanceId}"] .instance-action-launch`
+  );
+}
+```
+
+**Step 3:** Add test cases to the relevant spec:
+
+```javascript
+// In tests/ui/tests/05-instances-page.spec.js
+test('should show launch button for zeroclaw-ready instances', async () => {
+  const cards = await instancesPage.getAllCards();
+  // Find a card with zeroclaw_ready status via API
+  const instances = await api.getInstances();
+  const zcReady = instances.find(i => i.zeroclaw_ready);
+  if (!zcReady) { test.skip(); return; }
+
+  const launchBtn = await instancesPage.getLaunchButton(zcReady.instanceId);
+  await expect(launchBtn).toBeVisible();
+});
+```
+
+**Step 4:** Run your tests:
+
+```bash
+# Run specific spec
+cd tests/ui && npx playwright test tests/05-instances-page.spec.js --project=chromium
+
+# Run full UI suite
+cd tests/ui && npx playwright test --project=chromium
+
+# Run API tests
+cd tests/api && python3 hacs_regression_test.py
+```
+
+### Test Quality Standards
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  NOT acceptable:                                                            │
+│  ✗ "Does it return a value" — tests that just check success: true          │
+│  ✗ Tests that leave data behind (created instances, tasks, messages)        │
+│  ✗ Tests that depend on specific production data existing                   │
+│  ✗ Tests that skip error cases                                             │
+│                                                                             │
+│  Acceptable:                                                                │
+│  ✓ Create → verify → modify → verify → cleanup                            │
+│  ✓ Edge cases: empty strings, missing fields, invalid IDs                  │
+│  ✓ Authorization: correct role can, wrong role can't                       │
+│  ✓ Tests that skip gracefully when preconditions aren't met                │
+│  ✓ Tests that clean up after themselves every time                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Cleanup Discipline
+
+Until HACS runs in ephemeral Docker containers for testing, **every test must clean up its own data**. This means:
+
+- Created instances → deleted at end of test
+- Created tasks → deleted or archived at end of test
+- Sent messages → prefixed with `[REGTEST]` for identification
+- Created projects → deleted at end of test
+
+Use `try/finally` patterns to ensure cleanup runs even if assertions fail:
+
+```python
+def test_with_cleanup():
+    resource_id = None
+    try:
+        result = call_api('create_thing', {...})
+        resource_id = result['data']['id']
+        # ... assertions ...
+    finally:
+        if resource_id:
+            call_api('delete_thing', {'id': resource_id})
+```
+
+### Visual Regression Tests (Browser Instances)
+
+For visual or interaction bugs that DOM tests can't catch (CSS overflow, focus behavior, animation glitches), use the WebClaude visual testing framework:
+
+- Runbook: `tests/ui/visual/VISUAL_TEST_RUNBOOK.md`
+- Reports: `tests/ui/visual/reports/`
+- Runner: Any browser-based Claude instance (WebClaude)
+
+See the runbook for the full protocol. The human orchestrator hands WebClaude the GitHub URL to the runbook; WebClaude reads, executes, and commits results.
 
 ---
 

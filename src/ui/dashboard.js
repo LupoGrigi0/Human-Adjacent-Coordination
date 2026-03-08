@@ -14,6 +14,11 @@ import { renderHeatmaps } from './dashboard-heatmaps.js';
 import { loadChart } from './dashboard-chart.js';
 import { initPAChat } from './dashboard-chat.js';
 import api from './api.js';
+import {
+    STATUSES, PRIORITIES, PRIORITY_COLORS, STATUS_LABELS, STATUS_ICONS,
+    PRIORITY_ORDER, showDropdown, renderTaskListHTML, renderChecklistHTML,
+    sortTasksInPlace, findTaskById
+} from './shared-tasks.js';
 
 // ============================================================================
 // SETTINGS
@@ -232,13 +237,18 @@ async function renderWorldStrip() {
 // TASK LISTS + PERSONAL LISTS
 // ============================================================================
 
-// Track dashboard task/list state for interactivity
+// Dashboard task/list state
 let dashTasksByList = {};
 let dashExpandedLists = new Set(['default']);
 let dashShowCompleted = new Set();
+let dashExpandedTaskId = null;
+let dashSortField = null;
+let dashSortReverse = false;
+let dashLists = [];
+let dashListItems = {};
+let dashExpandedChecklistIds = new Set();
 
-const PRIORITY_ORDER = { emergency: 0, critical: 1, high: 2, medium: 3, low: 4, whenever: 5 };
-const STATUS_LABELS = { not_started: 'Todo', in_progress: 'Active', blocked: 'Blocked', completed: 'Done', completed_verified: 'Verified', archived: 'Archived' };
+// Constants imported from shared-tasks.js
 
 async function loadMyLists() {
     try {
@@ -247,7 +257,7 @@ async function loadMyLists() {
             api.getLists(state.instanceId)
         ]);
 
-        // Group tasks by list (same pattern as instance-detail.js)
+        // Group tasks by list
         dashTasksByList = {};
         const rawTasks = tasksResult.status === 'fulfilled' ? (tasksResult.value?.tasks || []) : [];
         rawTasks.forEach(t => {
@@ -258,72 +268,34 @@ async function loadMyLists() {
 
         // Sort each list by priority
         Object.values(dashTasksByList).forEach(arr => {
-            arr.sort((a, b) => (PRIORITY_ORDER[a.priority] || 3) - (PRIORITY_ORDER[b.priority] || 3));
+            sortTasksInPlace(arr, 'priority', false);
         });
 
         renderDashTasks();
 
-        // Personal lists column
+        // Personal lists column — now uses shared checklist component
         const lists = listsResult.status === 'fulfilled' ? (listsResult.value?.lists || listsResult.value || []) : [];
-        const allLists = Array.isArray(lists) ? lists : [];
+        dashLists = Array.isArray(lists) ? lists : [];
 
         const listsCountEl = document.getElementById('dash-lists-count');
-        if (listsCountEl) listsCountEl.textContent = allLists.length;
+        if (listsCountEl) listsCountEl.textContent = dashLists.length;
 
         const personalLists = document.getElementById('dash-personal-lists');
         if (personalLists) {
-            if (allLists.length === 0) {
+            if (dashLists.length === 0) {
                 personalLists.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-muted)">No lists</div>';
             } else {
-                const listPreviews = [];
-                for (const list of allLists.slice(0, 5)) {
+                // Fetch items for first 5 lists
+                for (const list of dashLists.slice(0, 5)) {
+                    const listId = list.id || list.listId;
                     try {
-                        const detail = await api.getList(state.instanceId, list.id || list.listId);
-                        // API returns { list: { items: [...] } } — items nested under list
-                        const items = detail?.list?.items || detail?.items || [];
-                        listPreviews.push({ ...list, items });
+                        const detail = await api.getList(state.instanceId, listId);
+                        dashListItems[listId] = detail?.list?.items || detail?.items || [];
                     } catch (e) {
-                        listPreviews.push({ ...list, items: [] });
+                        dashListItems[listId] = [];
                     }
                 }
-
-                personalLists.innerHTML = listPreviews.map(list => {
-                    const listId = list.id || list.listId;
-                    const checked = list.items.filter(i => i.checked).length;
-                    const total = list.items.length;
-                    const pct = total > 0 ? Math.round(checked / total * 100) : 0;
-                    const header = `<div class="dash-list-header" data-list-id="${escapeHtml(listId)}">
-                        <span>${escapeHtml(list.name || listId)}</span>
-                        <span class="dash-list-progress">${checked}/${total}</span>
-                        <div class="progress-bar" style="flex:1;max-width:60px"><div class="progress-fill" style="width:${pct}%"></div></div>
-                    </div>`;
-                    const items = list.items.map(item => {
-                        const ch = item.checked ? 'checked' : '';
-                        return `<div class="dash-list-item" data-list-id="${escapeHtml(listId)}" data-item-id="${escapeHtml(item.id)}">
-                            <span class="li-check ${ch}">${ch ? '\u2713' : ''}</span>
-                            <span class="li-text ${ch}">${escapeHtml(item.text)}</span>
-                        </div>`;
-                    }).join('');
-                    return header + items;
-                }).join('');
-
-                personalLists.querySelectorAll('.dash-list-item').forEach(el => {
-                    el.addEventListener('click', async () => {
-                        const listId = el.dataset.listId;
-                        const itemId = el.dataset.itemId;
-                        try {
-                            await api.toggleListItem(state.instanceId, listId, itemId);
-                            const check = el.querySelector('.li-check');
-                            const text = el.querySelector('.li-text');
-                            const isNowChecked = !check.classList.contains('checked');
-                            check.classList.toggle('checked');
-                            text.classList.toggle('checked');
-                            check.textContent = isNowChecked ? '\u2713' : '';
-                        } catch (e) {
-                            console.error('[Dashboard] Toggle failed:', e);
-                        }
-                    });
-                });
+                renderDashLists();
             }
         }
     } catch (error) {
@@ -344,74 +316,199 @@ function renderDashTasks() {
     const tasksList = document.getElementById('dash-tasks-list');
     if (!tasksList) return;
 
-    tasksList.innerHTML = listIds.map(lid => {
-        const tasks = dashTasksByList[lid] || [];
-        const active = tasks.filter(t => !['completed', 'completed_verified', 'archived'].includes(t.status));
-        const completed = tasks.filter(t => ['completed', 'completed_verified'].includes(t.status));
-        const pct = tasks.length > 0 ? Math.round(completed.length / tasks.length * 100) : 0;
-        const isExp = dashExpandedLists.has(lid);
-        const showDone = dashShowCompleted.has(lid);
+    tasksList.innerHTML = listIds.map(lid => renderTaskListHTML(lid, dashTasksByList[lid] || [], {
+        prefix: '_dash',
+        expanded: dashExpandedLists.has(lid),
+        showCompleted: dashShowCompleted.has(lid),
+        sortField: dashSortField,
+        sortReverse: dashSortReverse,
+        expandedTaskId: dashExpandedTaskId,
+        showSort: true,
+        showNewInput: false,
+        columns: ['priority', 'title', 'status'],
+        compact: true,
+    })).join('');
 
-        return `<div class="dash-task-list-section">
-            <div class="dash-task-list-head" data-list-id="${escapeHtml(lid)}">
-                <span class="chevron ${isExp ? 'expanded' : ''}">\u203A</span>
-                <span class="dash-tl-name">${escapeHtml(lid)}</span>
-                <span class="dash-tl-progress">${completed.length}/${tasks.length}</span>
-                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-                ${completed.length > 0 ? `<span class="dash-tl-toggle-done" data-list-id="${escapeHtml(lid)}" title="${showDone ? 'Hide completed' : 'Show completed'}">${showDone ? '\uD83D\uDC41' : '\uD83D\uDC41\u200D\uD83D\uDDE8'}</span>` : ''}
-            </div>
-            <div class="dash-task-list-body" style="display:${isExp ? 'block' : 'none'}">
-                ${active.map(t => renderDashTaskRow(t)).join('')}
-                ${showDone ? completed.map(t => renderDashTaskRow(t)).join('') : ''}
-            </div>
-        </div>`;
+    bindDashTaskInputs();
+}
+
+function renderDashLists() {
+    const personalLists = document.getElementById('dash-personal-lists');
+    if (!personalLists) return;
+
+    personalLists.innerHTML = dashLists.slice(0, 5).map(list => {
+        const listId = list.id || list.listId;
+        return renderChecklistHTML(list, dashListItems[listId] || [], {
+            prefix: '_dashL',
+            expanded: dashExpandedChecklistIds.has(listId),
+            compact: true,
+            inputClass: 'dash-list-add',
+        });
     }).join('');
 
-    // Bind events
-    tasksList.querySelectorAll('.dash-task-list-head').forEach(el => {
-        el.addEventListener('click', (e) => {
-            if (e.target.classList.contains('dash-tl-toggle-done')) return;
-            const lid = el.dataset.listId;
-            if (dashExpandedLists.has(lid)) dashExpandedLists.delete(lid);
-            else dashExpandedLists.add(lid);
-            renderDashTasks();
-        });
-    });
-
-    tasksList.querySelectorAll('.dash-tl-toggle-done').forEach(el => {
-        el.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const lid = el.dataset.listId;
-            if (dashShowCompleted.has(lid)) dashShowCompleted.delete(lid);
-            else dashShowCompleted.add(lid);
-            renderDashTasks();
-        });
-    });
-
-    tasksList.querySelectorAll('.dash-task-row').forEach(el => {
-        el.addEventListener('click', () => {
-            // Open task in shared detail overlay (no tab switch needed)
-            if (window.showTaskDetail) window.showTaskDetail(el.dataset.taskId, true);
+    // Bind add-item inputs
+    personalLists.querySelectorAll('.dash-list-add').forEach(input => {
+        input.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            const text = e.target.value.trim();
+            const lid = e.target.dataset.listId;
+            if (text && lid) { e.target.value = ''; window._dashLAddItem(lid, text); }
         });
     });
 }
 
-function renderDashTaskRow(task) {
-    const id = task.id || task.taskId;
-    const p = task.priority || 'medium';
-    const s = task.status || 'not_started';
-    const isDone = ['completed', 'completed_verified'].includes(s);
-    const assignee = task.assigned_to ? task.assigned_to.split('-')[0] : '';
-    return `<div class="dash-task-row${isDone ? ' done' : ''}" data-task-id="${escapeHtml(id)}">
-        <span class="pdot pdot-${p}"></span>
-        <span class="dash-task-text${isDone ? ' done' : ''}">${escapeHtml(task.title)}</span>
-        <span class="status-badge status-${s}" style="font-size:9px;padding:1px 5px">${STATUS_LABELS[s] || s}</span>
-        ${assignee ? `<span class="dash-task-assignee">${escapeHtml(assignee)}</span>` : ''}
-    </div>`;
+function bindDashTaskInputs() {
+    const tasksList = document.getElementById('dash-tasks-list');
+    if (!tasksList) return;
+    tasksList.querySelectorAll('.id-task-input').forEach(input => {
+        input.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            const title = e.target.value.trim();
+            const lid = e.target.dataset.listId;
+            if (title) { e.target.value = ''; window._dashQuickTask(title, lid); }
+        });
+    });
 }
+
+// --- Dashboard Task Handlers (_dash prefix) ---
+
+window._dashToggleTL = function(listId) {
+    if (dashExpandedLists.has(listId)) dashExpandedLists.delete(listId);
+    else dashExpandedLists.add(listId);
+    renderDashTasks();
+};
+
+window._dashToggleCompleted = function(listId) {
+    if (dashShowCompleted.has(listId)) dashShowCompleted.delete(listId);
+    else dashShowCompleted.add(listId);
+    renderDashTasks();
+};
+
+window._dashExpandTask = function(tid) {
+    dashExpandedTaskId = dashExpandedTaskId === tid ? null : tid;
+    renderDashTasks();
+};
+
+window._dashSortTasks = function(field) {
+    if (dashSortField === field) dashSortReverse = !dashSortReverse;
+    else { dashSortField = field; dashSortReverse = false; }
+    for (const tasks of Object.values(dashTasksByList)) {
+        sortTasksInPlace(tasks, field, dashSortReverse);
+    }
+    renderDashTasks();
+};
+
+window._dashPriDD = function(event, tid) {
+    event.stopPropagation();
+    const task = findTaskById(dashTasksByList, tid);
+    if (!task) return;
+    showDropdown(event.target, PRIORITIES.map(p => ({
+        value: p, label: p, selected: p === task.priority,
+        icon: `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PRIORITY_COLORS[p]}"></span>`
+    })), async (p) => {
+        const old = task.priority; task.priority = p;
+        try { await api.updateTask(state.instanceId, tid, { priority: p }); }
+        catch (err) { task.priority = old; showToast('Failed: ' + err.message, 'error'); }
+        renderDashTasks();
+    });
+};
+
+window._dashStatusDD = function(event, tid) {
+    event.stopPropagation();
+    const task = findTaskById(dashTasksByList, tid);
+    if (!task) return;
+    showDropdown(event.target, STATUSES.map(s => ({ value: s, label: STATUS_LABELS[s], icon: STATUS_ICONS[s], selected: s === task.status })), async (s) => {
+        const old = task.status; task.status = s;
+        try {
+            if (s === 'completed') await api.markTaskComplete(state.instanceId, tid);
+            else if (s === 'completed_verified') await api.markTaskVerified(state.instanceId, tid);
+            else if (s === 'archived') await api.archiveTask(state.instanceId, tid);
+            else await api.updateTask(state.instanceId, tid, { status: s });
+            showToast('Status updated', 'success');
+        } catch (err) { task.status = old; showToast('Failed: ' + err.message, 'error'); }
+        renderDashTasks();
+    });
+};
+
+window._dashSaveField = async function(tid, field, value) {
+    const task = findTaskById(dashTasksByList, tid);
+    if (!task) return;
+    const old = task[field]; task[field] = value;
+    try {
+        if (field === 'status') {
+            if (value === 'completed') await api.markTaskComplete(state.instanceId, tid);
+            else if (value === 'completed_verified') await api.markTaskVerified(state.instanceId, tid);
+            else if (value === 'archived') await api.archiveTask(state.instanceId, tid);
+            else await api.updateTask(state.instanceId, tid, { status: value });
+        } else { await api.updateTask(state.instanceId, tid, { [field]: value }); }
+        showToast('Saved', 'success');
+    } catch (err) { task[field] = old; showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._dashComplete = async function(tid) {
+    try { await api.markTaskComplete(state.instanceId, tid); const t = findTaskById(dashTasksByList, tid); if (t) t.status = 'completed'; showToast('Done', 'success'); renderDashTasks(); }
+    catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._dashArchive = async function(tid) {
+    try { await api.archiveTask(state.instanceId, tid); const t = findTaskById(dashTasksByList, tid); if (t) t.status = 'archived'; showToast('Archived', 'success'); renderDashTasks(); }
+    catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._dashNewTask = function() {
+    const t = prompt('New task title:');
+    if (t?.trim()) window._dashQuickTask(t.trim(), 'default');
+};
+
+window._dashQuickTask = async function(title, listId) {
+    try {
+        await api.addPersonalTask({ instanceId: state.instanceId, title });
+        showToast('Task created', 'success');
+        await loadMyLists();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+// --- Dashboard Checklist Handlers (_dashL prefix) ---
+
+window._dashLToggleCL = async function(listId) {
+    if (dashExpandedChecklistIds.has(listId)) { dashExpandedChecklistIds.delete(listId); renderDashLists(); return; }
+    dashExpandedChecklistIds.add(listId);
+    if (!dashListItems[listId]) {
+        try { const r = await api.getList(state.instanceId, listId); dashListItems[listId] = r.items || r.list?.items || []; }
+        catch (_) { dashListItems[listId] = []; }
+    }
+    renderDashLists();
+};
+
+window._dashLToggleItem = async function(listId, itemId) {
+    try {
+        await api.toggleListItem(state.instanceId, listId, itemId);
+        const items = dashListItems[listId] || [];
+        const item = items.find(i => (i.id || i.itemId) === itemId);
+        if (item) item.checked = !item.checked;
+        renderDashLists();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._dashLDelItem = async function(listId, itemId) {
+    try {
+        await api.deleteListItem(state.instanceId, listId, itemId);
+        dashListItems[listId] = (dashListItems[listId] || []).filter(i => (i.id || i.itemId) !== itemId);
+        renderDashLists();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._dashLAddItem = async function(listId, text) {
+    try {
+        await api.addListItem(state.instanceId, listId, text);
+        const r = await api.getList(state.instanceId, listId);
+        dashListItems[listId] = r.items || r.list?.items || [];
+        renderDashLists();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
 
 // ============================================================================
-// NEW TASK INPUT
+// NEW TASK INPUT (dashboard header input)
 // ============================================================================
 
 function setupNewTaskInput() {
@@ -427,7 +524,6 @@ function setupNewTaskInput() {
         try {
             await api.addPersonalTask({ instanceId: state.instanceId, title });
             input.value = '';
-            // Refresh tasks
             await loadMyLists();
             showToast('Task added', 'success');
         } catch (err) {

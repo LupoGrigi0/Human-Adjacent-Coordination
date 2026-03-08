@@ -92,19 +92,33 @@ export async function loadInstances() {
                 actionButtonHtml = `<button class="btn btn-small btn-primary instance-action-chat" data-instance-id="${instance.instanceId}" title="Continue conversation">Continue</button>`;
             }
 
-            // ZeroClaw status icons
+            // Runtime status icons (OpenFang + ZeroClaw)
+            const rt = instance.runtime;
             const zc = instance.zeroclaw;
-            let zcIconHtml = '';
-            if (zc?.enabled) {
-                zcIconHtml = `<a class="zc-live-icon" href="${escapeHtml(zc.webUrl || '#')}" target="_blank" title="Live in ZeroClaw (${escapeHtml(zc.provider || '')}/${escapeHtml(zc.model || '')})" onclick="event.stopPropagation()">&#128640;</a>`;
-            } else if (zc?.ready || instance.interface === 'zeroclaw') {
-                zcIconHtml = `<span class="zc-ready-icon" title="ZeroClaw ready (not running)">&#129430;</span>`;
+            let runtimeIconHtml = '';
+            if (rt?.enabled || zc?.enabled) {
+                const rtype = rt?.type || (zc?.enabled ? 'zeroclaw' : 'unknown');
+                const webUrl = rt?.webUrl || zc?.webUrl || '#';
+                const model = rt?.model || zc?.model || '';
+                const provider = rt?.provider || zc?.provider || '';
+                if (rtype === 'openfang') {
+                    runtimeIconHtml = `<a class="zc-live-icon" href="${escapeHtml(webUrl)}" target="_blank" title="Live in OpenFang (${escapeHtml(provider)}/${escapeHtml(model)})" onclick="event.stopPropagation()">&#129463;</a>`;
+                } else {
+                    runtimeIconHtml = `<a class="zc-live-icon" href="${escapeHtml(webUrl)}" target="_blank" title="Live in ZeroClaw (${escapeHtml(provider)}/${escapeHtml(model)})" onclick="event.stopPropagation()">&#128640;</a>`;
+                }
+            } else if (rt?.ready || zc?.ready || instance.interface === 'zeroclaw') {
+                const rtype = rt?.type || 'zeroclaw';
+                if (rtype === 'openfang') {
+                    runtimeIconHtml = `<span class="zc-ready-icon" title="OpenFang ready (not running)">&#129463;</span>`;
+                } else {
+                    runtimeIconHtml = `<span class="zc-ready-icon" title="ZeroClaw ready (not running)">&#129430;</span>`;
+                }
             }
 
             return `
             <div class="instance-card" data-instance-id="${instance.instanceId || ''}">
                 <div class="instance-card-icons">
-                    ${zcIconHtml}
+                    ${runtimeIconHtml}
                     <span class="instance-info-icon instance-action-details" data-instance-id="${instance.instanceId}" title="View details">&#9432;</span>
                     <span class="instance-status-dot ${statusDotClass}" title="${statusTitle}"></span>
                 </div>
@@ -398,6 +412,13 @@ export async function showWakeInstanceModal() {
     document.getElementById('wake-specific-id').checked = false;
     document.getElementById('wake-specific-id-group').style.display = 'none';
     document.getElementById('wake-instance-id').value = '';
+    document.getElementById('wake-runtime').value = '';
+    document.getElementById('wake-launch-group').style.display = 'none';
+
+    // Runtime selector: show/hide launch checkbox
+    document.getElementById('wake-runtime').onchange = function() {
+        document.getElementById('wake-launch-group').style.display = this.value ? 'block' : 'none';
+    };
 
     // Populate dropdowns (will reset selections)
     await populateWakeDropdowns();
@@ -569,6 +590,30 @@ export async function handleWakeSubmit() {
 
         if (!wakeResult.success && wakeResult.error) {
             throw new Error(wakeResult.error.message || 'Wake failed');
+        }
+
+        // Launch runtime if selected
+        const runtime = document.getElementById('wake-runtime').value;
+        const launchImmediately = document.getElementById('wake-launch-immediately')?.checked;
+        if (runtime && launchImmediately) {
+            submitBtn.textContent = `Launching ${runtime === 'openfang' ? 'OpenFang' : 'ZeroClaw'}...`;
+            try {
+                const launchResult = await api.launchInstance({
+                    instanceId: state.instanceId,
+                    targetInstanceId: targetInstanceId,
+                    runtime: runtime,
+                    apiKey: apiKey
+                });
+                console.log('[Wake API] LAUNCH response:', JSON.stringify(launchResult, null, 2));
+                if (launchResult.success) {
+                    showToast(`${runtime === 'openfang' ? 'OpenFang' : 'ZeroClaw'} launched`, 'success');
+                } else {
+                    showToast(`Launch failed: ${launchResult.error?.message || 'unknown error'}`, 'error');
+                }
+            } catch (launchErr) {
+                console.error('[Wake API] Launch error:', launchErr);
+                showToast(`Launch failed: ${launchErr.message}`, 'error');
+            }
         }
 
         // Close modal first

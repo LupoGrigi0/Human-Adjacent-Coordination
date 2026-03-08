@@ -15,6 +15,12 @@ import { state } from './state.js';
 import { escapeHtml, showToast, formatRelativeTime, formatDateTime } from './utils.js';
 import api from './api.js';
 import { ensureApiKey } from './instances.js';
+import {
+    STATUSES, PRIORITIES, PRIORITY_COLORS, STATUS_LABELS, STATUS_ICONS,
+    PRIORITY_ORDER, STATUS_ORDER,
+    showDropdown, renderTaskListHTML, renderTaskRowHTML, renderTaskExpandedHTML,
+    renderChecklistHTML, sortTasksInPlace, findTaskById
+} from './shared-tasks.js';
 
 // ============================================================================
 // MODULE STATE
@@ -36,37 +42,7 @@ let taskSortField = null;
 let taskSortReverse = false;
 let isOnline = false;
 
-const STATUSES = ['not_started', 'in_progress', 'blocked', 'completed', 'completed_verified', 'archived'];
-const PRIORITIES = ['emergency', 'critical', 'high', 'medium', 'low', 'whenever'];
-const PRIORITY_COLORS = { emergency: '#ef4444', critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#6b7280', whenever: '#a78bfa' };
-const STATUS_LABELS = { not_started: 'Not Started', in_progress: 'In Progress', blocked: 'Blocked', completed: 'Completed', completed_verified: 'Verified', archived: 'Archived' };
-const STATUS_ICONS = { not_started: '\u25CB', in_progress: '\u25D4', blocked: '\u26A0', completed: '\u2714', completed_verified: '\u2714\u2714', archived: '\uD83D\uDCE6' };
-
-// ============================================================================
-// DROPDOWN UTILITY (mirrors projects.js)
-// ============================================================================
-
-function showDropdown(anchorEl, options, onSelect) {
-    document.querySelectorAll('.pd-dropdown').forEach(el => el.remove());
-    const rect = anchorEl.getBoundingClientRect();
-    const dd = document.createElement('div');
-    dd.className = 'pd-dropdown';
-    dd.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.bottom + 2}px;z-index:1000;`;
-    dd.innerHTML = options.map(o =>
-        `<div class="pd-dropdown-item${o.selected ? ' selected' : ''}" data-value="${escapeHtml(o.value || '')}">${o.icon ? '<span style="margin-right:4px">' + o.icon + '</span>' : ''}${escapeHtml(o.label)}</div>`
-    ).join('');
-    dd.addEventListener('click', e => {
-        const item = e.target.closest('.pd-dropdown-item');
-        if (item) { onSelect(item.dataset.value); dd.remove(); }
-    });
-    document.body.appendChild(dd);
-    const r = dd.getBoundingClientRect();
-    if (r.right > window.innerWidth) dd.style.left = (window.innerWidth - r.width - 8) + 'px';
-    if (r.bottom > window.innerHeight) dd.style.top = (rect.top - r.height - 2) + 'px';
-    setTimeout(() => document.addEventListener('click', function h(e) {
-        if (!dd.contains(e.target)) { dd.remove(); document.removeEventListener('click', h); }
-    }), 0);
-}
+// Constants and showDropdown imported from shared-tasks.js
 
 // ============================================================================
 // ENTRY POINTS
@@ -155,8 +131,10 @@ function renderInstanceDetail() {
     const project = inst.project || prefs.project || '';
     const lastActive = inst.lastActiveAt ? formatRelativeTime(inst.lastActiveAt) : '';
     const homeDir = inst.homeDirectory || prefs.homeDirectory || '';
+    const runtime = inst.runtime || prefs.runtime || null;
     const zeroclaw = inst.zeroclaw || prefs.zeroclaw || null;
-    const zcReady = inst.zeroclaw_ready || prefs.zeroclaw_ready || inst.interface === 'zeroclaw';
+    const rtReady = runtime?.ready || inst.zeroclaw_ready || prefs.zeroclaw_ready || inst.interface === 'zeroclaw';
+    const rtType = runtime?.type || (zeroclaw ? 'zeroclaw' : null);
 
     const allTasks = Object.values(instanceTasks).flat();
     const done = allTasks.filter(t => ['completed', 'completed_verified', 'archived'].includes(t.status)).length;
@@ -188,7 +166,7 @@ function renderInstanceDetail() {
     </div>
     <div class="project-detail-body">
         <div class="project-detail-main">
-            ${(zeroclaw || zcReady) ? renderZcSection(zeroclaw, zcReady) : ''}
+            ${(runtime || zeroclaw || rtReady) ? renderRuntimeSection(runtime, zeroclaw, rtReady, rtType) : ''}
             ${renderTasksSection(taskListIds)}
             ${renderListsSection()}
         </div>
@@ -204,30 +182,35 @@ function renderInstanceDetail() {
 // SECTION RENDERERS
 // ============================================================================
 
-function renderZcSection(zc, zcReady) {
-    const isExp = expandedSections.has('zeroclaw');
-    const live = zc?.enabled || zc?.running;
-    const webUrl = zc?.webUrl || zc?.web_url || '';
+function renderRuntimeSection(rt, zc, rtReady, rtType) {
+    const isExp = expandedSections.has('runtime');
+    const live = rt?.enabled || zc?.enabled || zc?.running;
+    const webUrl = rt?.webUrl || zc?.webUrl || zc?.web_url || '';
+    const provider = rt?.provider || zc?.provider || '';
+    const model = rt?.model || zc?.model || '';
+    const type = rtType || 'unknown';
+    const icon = type === 'openfang' ? '&#129463;' : '&#128640;';
+    const label = type === 'openfang' ? 'OpenFang' : 'ZeroClaw';
     let content;
     if (live) {
         content = `<div style="display:flex;flex-direction:column;gap:6px;font-size:0.8125rem">
-            <div><span style="color:#22c55e">&#128640;</span> <strong>Live</strong>${zc?.provider ? ` &mdash; ${escapeHtml(zc.provider)}${zc.model ? ' / ' + escapeHtml(zc.model) : ''}` : ''}</div>
-            ${webUrl ? `<a href="${escapeHtml(webUrl)}" target="_blank" class="btn-action" style="text-align:center">Open Web Chat &#8599;</a>` : ''}
+            <div><span style="color:#22c55e">${icon}</span> <strong>Live</strong>${provider ? ` &mdash; ${escapeHtml(provider)}${model ? ' / ' + escapeHtml(model) : ''}` : ''}</div>
+            ${webUrl ? `<a href="${escapeHtml(webUrl)}" target="_blank" class="btn-action" style="text-align:center">Open Dashboard &#8599;</a>` : ''}
             <button class="btn-action" onclick="window._idLandZc()">&#128907; Land</button>
         </div>`;
-    } else if (zcReady) {
+    } else if (rtReady) {
         content = `<div style="display:flex;flex-direction:column;gap:6px;font-size:0.8125rem">
-            <div>&#129430; <strong>Ready</strong> &mdash; Not running</div>
+            <div>${icon} <strong>Ready</strong> &mdash; Not running</div>
             <button class="btn-action" onclick="window._idLaunchZc()">&#128640; Launch</button>
         </div>`;
     } else {
-        content = '<p class="empty-placeholder">Not configured for ZeroClaw</p>';
+        content = `<p class="empty-placeholder">Not configured for ${label}</p>`;
     }
     return `
-    <div class="section-collapse" data-section="zeroclaw">
-        <div class="section-collapse-header" onclick="window._idToggleSec('zeroclaw')">
-            <span class="chevron ${isExp ? 'expanded' : ''}">&rsaquo;</span> ZeroClaw
-            <span style="margin-left:6px;font-size:0.75rem;color:${live ? 'var(--success-color)' : 'var(--text-muted)'}">${live ? 'LIVE' : zcReady ? 'ready' : ''}</span>
+    <div class="section-collapse" data-section="runtime">
+        <div class="section-collapse-header" onclick="window._idToggleSec('runtime')">
+            <span class="chevron ${isExp ? 'expanded' : ''}">&rsaquo;</span> Runtime
+            <span style="margin-left:6px;font-size:0.75rem;color:${live ? 'var(--success-color)' : 'var(--text-muted)'}">${live ? label + ' LIVE' : rtReady ? label + ' ready' : ''}</span>
         </div>
         <div class="section-collapse-body" style="display:${isExp ? 'block' : 'none'}">${content}</div>
     </div>`;
@@ -252,59 +235,16 @@ function renderTasksSection(listIds) {
 
 function renderTaskList(listId, tasks) {
     const key = 'tl-' + listId;
-    const isExp = expandedSections.has(key) || (listId === 'default' && tasks.length > 0);
-    const showCompleted = showCompletedLists.has(listId);
-    const active = tasks.filter(t => !['completed', 'completed_verified', 'archived'].includes(t.status));
-    const completedTasks = tasks.filter(t => ['completed', 'completed_verified'].includes(t.status));
-    const pct = tasks.length > 0 ? Math.round(completedTasks.length / tasks.length * 100) : 0;
-    return `
-    <div class="task-list-section">
-        <div class="task-list-header">
-            <span class="chevron ${isExp ? 'expanded' : ''}" onclick="window._idToggleTL('${escapeHtml(listId)}')">&rsaquo;</span>
-            <span class="task-list-name" onclick="window._idToggleTL('${escapeHtml(listId)}')">${escapeHtml(listId)}</span>
-            <span class="task-list-progress-text">${completedTasks.length}/${tasks.length}</span>
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-            <span class="completed-toggle-icon" onclick="event.stopPropagation();window._idToggleCompleted('${escapeHtml(listId)}')" title="${showCompleted ? 'Hide completed' : 'Show completed'}">${showCompleted ? '\uD83D\uDC41' : '\uD83D\uDC41\u200D\uD83D\uDDE8'}</span>
-            ${isExp ? `<span class="new-task-input-wrap"><input type="text" class="task-header-input id-task-input" placeholder="New task..." data-list-id="${escapeHtml(listId)}" onclick="event.stopPropagation()"><span class="new-task-detail-icon" title="Add with details" onclick="event.stopPropagation();window._idNewTask()" style="cursor:pointer;padding:0 4px">&#9998;</span></span>` : ''}
-        </div>
-        <div class="task-list-body" style="display:${isExp ? 'block' : 'none'}">
-            <div class="task-list-col-headers">
-                <span class="col-header col-header-priority" onclick="window._idSortTasks('priority')" title="Sort by priority">P${taskSortField === 'priority' ? (taskSortReverse ? ' \u25B2' : ' \u25BC') : ''}</span>
-                <span class="col-header col-header-title" onclick="window._idSortTasks('title')" title="Sort by title">Title${taskSortField === 'title' ? (taskSortReverse ? ' \u25B2' : ' \u25BC') : ''}</span>
-                <span class="col-header col-header-status" onclick="window._idSortTasks('status')" title="Sort by status">Status${taskSortField === 'status' ? (taskSortReverse ? ' \u25B2' : ' \u25BC') : ''}</span>
-            </div>
-            ${active.map(t => renderTaskRow(t)).join('')}
-            ${showCompleted ? completedTasks.map(t => renderTaskRow(t)).join('') : ''}
-        </div>
-    </div>`;
-}
-
-function renderTaskRow(task) {
-    const tid = task.id || task.taskId;
-    const p = task.priority || 'medium';
-    const s = task.status || 'not_started';
-    const isExp = expandedTaskId === tid;
-    return `
-    <div class="task-row ${isExp ? 'task-row-expanded' : ''}">
-        <div class="task-row-summary">
-            <span class="priority-dot priority-dot-${p}" onclick="window._idPriDD(event,'${escapeHtml(tid)}')" title="${p}"></span>
-            <span class="task-row-title" onclick="window._idExpandTask('${escapeHtml(tid)}')">${escapeHtml(task.title)}</span>
-            <span class="status-badge status-${s}" onclick="window._idStatusDD(event,'${escapeHtml(tid)}')">${STATUS_LABELS[s] || s}</span>
-        </div>
-        ${isExp ? `
-        <div class="task-detail-inline">
-            <div class="task-detail-field"><label>Title</label><input type="text" class="task-detail-title-input" value="${escapeHtml(task.title || '')}" onblur="window._idSaveField('${escapeHtml(tid)}','title',this.value)"></div>
-            <div class="task-detail-field"><label>Description</label><textarea class="task-detail-desc" onblur="window._idSaveField('${escapeHtml(tid)}','description',this.value)">${escapeHtml(task.description || '')}</textarea></div>
-            <div class="task-detail-row">
-                <div class="task-detail-field"><label>Priority</label><select onchange="window._idSaveField('${escapeHtml(tid)}','priority',this.value)">${PRIORITIES.map(pr => `<option value="${pr}" ${pr === task.priority ? 'selected' : ''}>${pr}</option>`).join('')}</select></div>
-                <div class="task-detail-field"><label>Status</label><select onchange="window._idSaveField('${escapeHtml(tid)}','status',this.value)">${STATUSES.map(st => `<option value="${st}" ${st === task.status ? 'selected' : ''}>${STATUS_LABELS[st]}</option>`).join('')}</select></div>
-            </div>
-            <div class="task-detail-actions">
-                ${!['completed', 'completed_verified'].includes(s) ? `<button class="btn-action" onclick="window._idComplete('${escapeHtml(tid)}')">Complete</button>` : ''}
-                ${s === 'completed_verified' ? `<button class="btn-action" onclick="window._idArchive('${escapeHtml(tid)}')">Archive</button>` : ''}
-            </div>
-        </div>` : ''}
-    </div>`;
+    return renderTaskListHTML(listId, tasks, {
+        prefix: '_id',
+        expanded: expandedSections.has(key) || (listId === 'default' && tasks.length > 0),
+        showCompleted: showCompletedLists.has(listId),
+        sortField: taskSortField,
+        sortReverse: taskSortReverse,
+        expandedTaskId,
+        columns: ['priority', 'title', 'status'],
+        inputClass: 'id-task-input',
+    });
 }
 
 function renderListsSection() {
@@ -323,31 +263,11 @@ function renderListsSection() {
 
 function renderChecklist(list) {
     const listId = list.id || list.listId || list.name;
-    const isExp = expandedListIds.has(listId);
-    const items = instanceListItems[listId] || [];
-    const checked = items.filter(i => i.checked).length;
-    const total = list.itemCount ?? items.length ?? 0;
-    return `
-    <div class="task-list-section">
-        <div class="task-list-header" onclick="window._idToggleCL('${escapeHtml(listId)}')">
-            <span class="chevron ${isExp ? 'expanded' : ''}">&rsaquo;</span>
-            <span class="task-list-name">${escapeHtml(list.name || listId)}</span>
-            <span class="task-list-progress-text">${checked}/${total}</span>
-        </div>
-        <div class="task-list-body" style="display:${isExp ? 'block' : 'none'}">
-            ${items.map(item => {
-                const iid = escapeHtml(item.id || item.itemId || '');
-                return `<div style="padding:4px 0">
-                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                        <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="window._idToggleItem('${escapeHtml(listId)}','${iid}')" style="accent-color:var(--accent-color)">
-                        <span style="flex:1;${item.checked ? 'text-decoration:line-through;opacity:0.5' : ''}">${escapeHtml(item.text || '')}</span>
-                        <span onclick="event.preventDefault();event.stopPropagation();window._idDelItem('${escapeHtml(listId)}','${iid}')" style="cursor:pointer;color:var(--text-muted);padding:0 4px">&times;</span>
-                    </label>
-                </div>`;
-            }).join('')}
-            <input type="text" class="task-header-input id-list-add" placeholder="Add item..." data-list-id="${escapeHtml(listId)}" onclick="event.stopPropagation()" style="margin-top:4px;width:100%">
-        </div>
-    </div>`;
+    return renderChecklistHTML(list, instanceListItems[listId] || [], {
+        prefix: '_id',
+        expanded: expandedListIds.has(listId),
+        inputClass: 'id-list-add',
+    });
 }
 
 function renderDocsSection() {
@@ -404,11 +324,7 @@ function renderJsonViewer(container, obj, collapsed = []) {
 // ============================================================================
 
 function findTask(tid) {
-    for (const tasks of Object.values(instanceTasks)) {
-        const t = tasks.find(t => (t.id || t.taskId) === tid);
-        if (t) return t;
-    }
-    return null;
+    return findTaskById(instanceTasks, tid);
 }
 
 function reRenderTasks() {
@@ -498,16 +414,8 @@ window._idExpandTask = function(tid) {
 window._idSortTasks = function(field) {
     if (taskSortField === field) taskSortReverse = !taskSortReverse;
     else { taskSortField = field; taskSortReverse = false; }
-    const priorityOrder = { emergency: 0, critical: 1, high: 2, medium: 3, low: 4, whenever: 5 };
-    const statusOrder = { not_started: 0, in_progress: 1, blocked: 2, completed: 3, completed_verified: 4, archived: 5 };
     for (const tasks of Object.values(instanceTasks)) {
-        tasks.sort((a, b) => {
-            let cmp = 0;
-            if (field === 'priority') cmp = (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
-            else if (field === 'status') cmp = (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0);
-            else if (field === 'title') cmp = (a.title || '').localeCompare(b.title || '');
-            return taskSortReverse ? -cmp : cmp;
-        });
+        sortTasksInPlace(tasks, field, taskSortReverse);
     }
     reRenderTasks();
 };
@@ -816,28 +724,36 @@ window._idPrefs = function() {
     renderJsonViewer(document.getElementById(uid), display, ['preferences']);
 };
 
-// --- ZeroClaw launch/land ---
+// --- Runtime launch/land ---
 
 window._idLaunchZc = async function() {
     const tid = state.currentInstanceDetail;
     const apiKey = await ensureApiKey();
     if (!apiKey) return;
+    // Detect runtime type from instance data
+    const inst = instanceData;
+    const rt = inst?.runtime || inst?.preferences?.runtime;
+    const runtime = rt?.type || (inst?.zeroclaw || inst?.preferences?.zeroclaw ? 'zeroclaw' : 'openfang');
+    const label = runtime === 'openfang' ? 'OpenFang' : 'ZeroClaw';
     try {
-        await api.launchInstance({ instanceId: state.instanceId, targetInstanceId: tid, apiKey });
-        showToast('ZeroClaw launched', 'success');
-        // Refresh to show updated status
+        await api.launchInstance({ instanceId: state.instanceId, targetInstanceId: tid, runtime, apiKey });
+        showToast(`${label} launched`, 'success');
         showInstanceDetail(tid);
     } catch (err) { showToast('Launch failed: ' + err.message, 'error'); }
 };
 
 window._idLandZc = async function() {
-    if (!confirm('Land ZeroClaw?')) return;
+    const inst = instanceData;
+    const rt = inst?.runtime || inst?.preferences?.runtime;
+    const runtime = rt?.type || 'zeroclaw';
+    const label = runtime === 'openfang' ? 'OpenFang' : 'ZeroClaw';
+    if (!confirm(`Land ${label}?`)) return;
     const tid = state.currentInstanceDetail;
     const apiKey = await ensureApiKey();
     if (!apiKey) return;
     try {
-        await api.landInstance({ instanceId: state.instanceId, targetInstanceId: tid, apiKey });
-        showToast('ZeroClaw landed', 'success');
+        await api.landInstance({ instanceId: state.instanceId, targetInstanceId: tid, runtime, apiKey });
+        showToast(`${label} landed`, 'success');
         showInstanceDetail(tid);
     } catch (err) { showToast('Land failed: ' + err.message, 'error'); }
 };

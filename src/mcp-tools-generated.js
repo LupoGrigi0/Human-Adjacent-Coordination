@@ -1468,7 +1468,7 @@ export const mcpTools = [
           "type": "string",
           "description": "Authorization key"
         },
-        "[runtime=zeroclaw]": {
+        "runtime": {
           "type": "string",
           "description": "Container runtime to use",
           "enum": [
@@ -1476,7 +1476,7 @@ export const mcpTools = [
           ],
           "default": "\"zeroclaw\""
         },
-        "[provider]": {
+        "provider": {
           "type": "string",
           "description": "LLM provider override",
           "enum": [
@@ -1488,12 +1488,12 @@ export const mcpTools = [
           ],
           "default": "From config template (xai)"
         },
-        "[model]": {
+        "model": {
           "type": "string",
           "description": "LLM model override",
           "default": "From config template (grok-4)"
         },
-        "[port]": {
+        "port": {
           "type": "number",
           "description": "Gateway port override",
           "default": "Auto-allocated from 19000-19100"
@@ -2283,7 +2283,7 @@ export const mcpTools = [
           "type": "string",
           "description": "Task ID to modify"
         },
-        "[projectIdOverride]": {
+        "projectIdOverride": {
           "type": "string",
           "description": "Explicit project ID (fixes hyphenated project IDs)"
         },

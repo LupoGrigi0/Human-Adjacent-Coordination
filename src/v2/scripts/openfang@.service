@@ -1,0 +1,48 @@
+# OpenFang Instance Service Template
+# Usage: systemctl start openfang@Flair-2a84
+#        systemctl enable openfang@Flair-2a84  (auto-start on boot)
+#
+# %i = instance ID (e.g., Flair-2a84)
+# %I = unescaped instance ID
+#
+# Prerequisites:
+#   - openfang-setup.sh must have been run for this instance
+#   - Unix user %i must exist
+#   - config.toml and agent.toml must exist in the instance's openfang dir
+#
+# Install:
+#   cp openfang@.service /etc/systemd/system/
+#   systemctl daemon-reload
+
+[Unit]
+Description=OpenFang Agent OS for HACS instance %i
+After=network.target
+Wants=openfang-approver@%i.service
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+WorkingDirectory=/mnt/coordinaton_mcp_data/instances/%i/openfang
+EnvironmentFile=/mnt/coordinaton_mcp_data/instances/%i/openfang/.env
+Environment=OPENFANG_HOME=/mnt/coordinaton_mcp_data/instances/%i/openfang
+
+ExecStart=/usr/local/bin/openfang start --config config.toml
+
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Security hardening — instance runs as its own user, no escalation
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/mnt/coordinaton_mcp_data/instances/%i
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openfang-%i
+
+[Install]
+WantedBy=multi-user.target

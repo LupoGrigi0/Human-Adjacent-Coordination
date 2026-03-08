@@ -1,0 +1,16 @@
+
+# Bastion's conversational exports (context recovery, not code)
+docs/bastion_*.txt
+docs/bastion_*.md
+docs/*conversational saves*
+docs/UI_MIGRATION_TODO.md
+
+# Playwright test artifacts
+ui/test-results/
+ui/playwright-report/
+ui/results.json
+ui/node_modules/
+
+# Python test artifacts
+api/__pycache__/
+api/*.pyc
