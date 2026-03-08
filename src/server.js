@@ -19,6 +19,8 @@ import { handlers as RoleHandlers } from './v2/roles.js';  // Moved from handler
 import { handlers as VacationHandlers } from './v2/vacation.js';  // Wellness APIs
 // V2 XMPP Messaging (new real-time messaging system)
 import * as XMPPHandler from './v2/messaging.js';
+// Simple Messaging convenience APIs (read tracking, fuzzy matching, project messages)
+import * as SimpleMessaging from './v2/messaging-simple.js';
 
 // V2 API handlers (Foundation's implementation)
 // Note: bootstrap is imported at top of file - single source of truth
@@ -359,6 +361,20 @@ class MCPCoordinationServer {
         case 'register_messaging_user':
           return XMPPHandler.registerMessagingUser(params);
 
+        // Simple Messaging convenience APIs (read tracking, fuzzy matching)
+        case 'list_my_messages':
+          return SimpleMessaging.listMyMessages(params);
+        case 'get_message':
+          return SimpleMessaging.getMessageSimple(params);
+        case 'do_i_have_new_messages':
+          return SimpleMessaging.doIHaveNewMessages(params);
+        case 'list_project_messages':
+          return SimpleMessaging.listProjectMessages(params);
+        case 'purge_room_messages':
+          return SimpleMessaging.purgeRoomMessages(params);
+        case 'reset_read_tracking':
+          return SimpleMessaging.resetReadTracking(params);
+
         // Identity Recovery (Bridge's v2 identity system)
         case 'lookup_identity':
           return lookupIdentity(params);
@@ -626,6 +642,13 @@ class MCPCoordinationServer {
       'get_archived_messages',
       'get_message_stats',
       'delete_message',
+
+      // Simple Messaging convenience APIs
+      'list_my_messages',
+      'do_i_have_new_messages',
+      'list_project_messages',
+      'purge_room_messages',
+      'reset_read_tracking',
 
       // XMPP Real-time Messaging (V2)
       'xmpp_send_message',

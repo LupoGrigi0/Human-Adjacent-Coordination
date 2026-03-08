@@ -74,7 +74,8 @@ const DEFAULT_PERMISSIONS = {
   "generateRecoveryKey": ["Executive", "EA", "COO", "PM"],
   "getRecoveryKey": ["Executive", "EA", "COO", "PM"],
   "launchInstance": ["Executive", "EA", "COO", "PM"],
-  "landInstance": ["Executive", "EA", "COO", "PM"]
+  "landInstance": ["Executive", "EA", "COO", "PM"],
+  "purgeRoomMessages": ["Executive", "EA", "COO"]
 };
 
 /**
