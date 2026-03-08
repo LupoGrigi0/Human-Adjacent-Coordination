@@ -435,7 +435,10 @@ async function resolveRecipient(to) {
 
   // Already a full JID?
   if (to.includes('@')) {
-    return { type: 'direct', jid: to };
+    // Detect if this is a MUC room JID (conference domain) — must use 'room' type
+    // so sendMessage uses send_stanza instead of send_message (which silently drops MUC messages)
+    const isRoom = to.includes(`@${XMPP_CONFIG.conference}`);
+    return { type: isRoom ? 'room' : 'direct', jid: to };
   }
 
   // Role-based addressing: role:COO, role:Developer
