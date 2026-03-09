@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 90 coordination functions available in the HACS system.
+Complete reference for all 97 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-03-03T23:57:55.042Z
+> **Auto-generated:** 2026-03-09T01:18:15.495Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -384,14 +384,14 @@ Returns the list of available wake scripts from the wake-scripts.json manifest. 
 ```
 
 ### land_instance
-Stops a running container for a HACS instance. All data is preserved: workspace, memory/RAG database, config, logs. The instance can be re-launched at any time with launch_instance. Sets zeroclaw.enabled to false but keeps zeroclaw_ready as true, meaning the instance is eligible for re-launch without re-running the export pipeline. Use this to free resources when instances aren't needed, or to rotate through project teams on limited infrastructure. { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "..." } /
+Stops a running instance regardless of runtime (OpenFang or ZeroClaw). All data is preserved: workspace, memory, config, logs. The instance can be re-launched with launch_instance. Sets runtime.enabled to false but keeps runtime.ready as true, meaning the instance can be re-launched without re-running setup. { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "..." } /
 
 **Parameters:**
 - `instanceId` (required): Caller's instance ID
 - `targetInstanceId` (required): Instance to land
 - `apiKey` (required): Authorization key
 
-**Returns:** , Whether land succeeded, Landed instance ID, "landed", ISO timestamp, Caller instance ID, Whether instance can be re-launched (zeroclaw_ready), Timestamp and function info
+**Returns:** , Whether land succeeded, Landed instance ID, Runtime that was stopped, "landed", Whether instance can be re-launched, Timestamp and function info
 
 **Example:**
 ```json
@@ -406,31 +406,45 @@ Stops a running container for a HACS instance. All data is preserved: workspace,
 ```
 
 ### launch_instance
-Starts a container runtime (currently ZeroClaw) for an existing HACS instance. The instance must already be bootstrapped and have zeroclaw_ready: true in preferences (meaning identity documents have been prepared by the export pipeline). This gives the instance a persistent, always-on environment with web chat, multi-channel I/O, memory/RAG, and autonomous operation. The instance must already exist (have a HACS directory). Use pre_approve + bootstrap to create new instances, then the export pipeline to prepare ZeroClaw documents, then launch_instance to bring them online. On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only the bearer token is regenerated. { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "..." } { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "...", "provider": "anthropic", "model": "claude-sonnet-4-20250514" } /
+Starts a runtime (OpenFang or ZeroClaw) for an existing HACS instance. The instance must already be bootstrapped and prepared for the chosen runtime. For OpenFang: runs openfang-setup.sh (creates Unix user, generates config) then launch-openfang.sh (starts daemon + auto-approver as instance user). For ZeroClaw: runs launch-zeroclaw.sh (starts Docker container). On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only auth tokens are regenerated. { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "..." } { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "...", "runtime": "zeroclaw" } { "instanceId": "Manager-abc1", "targetInstanceId": "Worker-def2", "apiKey": "...", "setup": false } /
 
 **Parameters:**
+- `runtime` (required): "openfang" or "zeroclaw"
+- `runtime` (required): 
+- `runtime` (required): 
+- `prefs` (required): Instance preferences
+- `runtime` (required): Runtime to check
+- `prefs` (required): Instance preferences
 - `instanceId` (required): Caller's instance ID
 - `targetInstanceId` (required): Instance to launch
 - `apiKey` (required): Authorization key
-- `runtime` (optional): Container runtime to use [zeroclaw] (default: "zeroclaw")
-- `provider` (optional): LLM provider override [xai, anthropic, openai, google, openrouter] (default: From config template (xai))
-- `model` (optional): LLM model override (default: From config template (grok-4))
-- `port` (optional): Gateway port override (default: Auto-allocated from 19000-19100)
+- `runtime` (optional): Runtime to use [openfang, zeroclaw] (default: "openfang")
+- `provider` (optional): LLM provider override [xai, anthropic, openai, google, openrouter] (default: From config template)
+- `model` (optional): LLM model override (default: From config template)
+- `port` (optional): Port override (default: Auto-allocated)
+- `setup` (optional): Run setup script before launch (default: true)
 
-**Returns:** to zeroclaw-hacs directory, , Whether launch succeeded, Launched instance ID, Runtime used, Docker container name, Gateway port, Web UI port, Public gateway URL, Public web chat URL (append ?token=... for browser access), Auth token for API/web access, LLM provider configured, LLM model configured, Timestamp and function info
+**Returns:** to the scripts directory, , Whether launch succeeded, Launched instance ID, Runtime used, API port, OpenFang agent name, Web dashboard URL, Unix user the instance runs as, Timestamp and function info
 
 **Example:**
 ```json
 {
   "name": "launch_instance",
   "arguments": {
+    "runtime": "example",
+    "runtime": "example",
+    "runtime": "example",
+    "prefs": "example",
+    "runtime": "example",
+    "prefs": "example",
     "instanceId": "example",
     "targetInstanceId": "example",
     "apiKey": "example",
-    "runtime": "zeroclaw",
-    "provider": "From config template (xai)",
-    "model": "From config template (grok-4)",
-    "port": Auto-allocated from 19000-19100
+    "runtime": "openfang",
+    "provider": "From config template",
+    "model": "From config template",
+    "port": Auto-allocated,
+    "setup": true
   }
 }
 ```
@@ -1051,6 +1065,23 @@ Toggles the checked state of a list item. If the item is unchecked, it becomes c
 
 ## messaging Functions
 
+### do_i_have_new_messages
+Quick check: do you have unread messages? Returns false if no, or true with the first 5 unread message IDs if yes. Use get_message(id) to read them. /
+
+**Parameters:**
+- `instanceId` (required): Your instanceId
+
+**Returns:** , Whether you have unread messages, First 5 unread message IDs (only if new_messages is true)
+
+### get_message
+Read a single message by ID. Returns subject, body, sender, and date. Automatically marks the message as read so it won't appear in list_my_messages again. /
+
+**Parameters:**
+- `id` (required): Message ID from list_my_messages
+- `instanceId` (required): Your instanceId
+
+**Returns:** , Message subject, Full message body, Sender, When it was sent
+
 ### get_messaging_info
 Returns messaging status for an instance including their JID, unread count, and list of online teammates. Lightweight alternative to full introspect when you only need messaging info.
 
@@ -1086,6 +1117,24 @@ Returns a list of currently connected XMPP users. Use this to check who is onlin
 }
 ```
 
+### list_my_messages
+List your unread messages. Returns just the essentials: message ID, sender, subject, and date. Use get_message(id) to read the full message body. Messages you've already read are filtered out automatically. /
+
+**Parameters:**
+- `instanceId` (required): Your instanceId
+- `limit` (optional): Max messages to return, default 5
+
+**Returns:** , Array of {id, from, subject, date}, True if you have more unread messages, Reminder to use get_message(id)
+
+### list_project_messages
+List unread messages from your project's team room. Works like list_my_messages but for project communication. Each team member has independent read tracking. /
+
+**Parameters:**
+- `instanceId` (required): Your instanceId
+- `limit` (optional): Max messages to return, default 5
+
+**Returns:** , Your project name, Array of {id, from, subject, date}, True if more unread exist, Reminder to use get_message(id)
+
 ### lookup_shortname
 Looks up instance IDs that match a given short name. Use this to find the full instance ID when you only know part of a name. NOTE: This feature is partially implemented. For now, use full instance IDs.
 
@@ -1103,6 +1152,22 @@ Looks up instance IDs that match a given short name. Use this to find the full i
   }
 }
 ```
+
+### send_message
+Send a message directly to another instance. Simple API - just provide sender, recipient, and subject. If the recipient can't be found exactly, returns close matches so you can try again. This is for direct instance-to-instance messaging only. For role, project, or broadcast messaging, use xmpp_send_message instead. /
+
+**Parameters:**
+- `instanceId` (required): 
+- `instanceId` (required): 
+- `messageIds` (required): 
+- `historyOutput` (required): Raw output from get_room_history
+- `to` (required): The recipient string to match
+- `from` (required): Your instanceId
+- `to` (required): Recipient instanceId
+- `subject` (required): Message subject
+- `body` (optional): Message body
+
+**Returns:** Whether the message was delivered, The resolved recipient instanceId
 
 ### send_message
 The "just works" message sender. You don't need to know exact IDs, formats, or room names. Just tell it who you want to talk to and it figures it out. Fuzzy matching finds the best recipient from instances, roles, projects, and personalities. Case-insensitive, typo-tolerant. LUPO'S RULE: If exactly ONE instance matches (like "Lupo", "Axiom", "Ember"), routes to that specific instance. If MANY instances match the same name (like "Genevieve"), routes to the personality room. Examples that all work: to: "lupo"          → routes to Lupo's specific instance to: "embr"          → fuzzy matches to "ember", routes to Ember's instance to: "genevieve"     → many instances, routes to personality:genevieve room to: "coo"           → matches role, routes to role:coo room to: "hacs"          → matches project, routes to project:hacs room to: "role:developer"→ explicit role room (not fuzzy) to: "project:hacs"  → explicit project room (not fuzzy) to: "all"           → announcements room (broadcast)
@@ -1206,6 +1271,25 @@ Sends a message via the XMPP messaging system. Supports multiple addressing mode
   }
 }
 ```
+
+## messaging-admin Functions
+
+### purge_room_messages
+Destroy and recreate an XMPP room, clearing all message history. For testing and maintenance only. /
+
+**Parameters:**
+- `room` (required): Room name to purge
+
+**Returns:** 
+
+### reset_read_tracking
+Clear all read tracking for an instance. After this, all messages will appear as unread again. Instances can only reset their own read tracking — privileged roles can reset anyone's. /
+
+**Parameters:**
+- `instanceId` (required): Instance to reset
+- `callerInstanceId` (required): Who is calling (defaults to instanceId)
+
+**Returns:** 
 
 ## context Functions
 
