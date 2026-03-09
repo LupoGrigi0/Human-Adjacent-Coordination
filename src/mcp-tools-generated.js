@@ -2151,48 +2151,6 @@ export const mcpTools = [
   },
   {
     "name": "send_message",
-    "description": "Send a message directly to another instance. Simple API - just provide sender, recipient, and subject. If the recipient can't be found exactly, returns close matches so you can try again. This is for direct instance-to-instance messaging only. For role, project, or broadcast messaging, use xmpp_send_message instead. /",
-    "inputSchema": {
-      "type": "object",
-      "properties": {
-        "instanceId": {
-          "type": "string",
-          "description": ""
-        },
-        "messageIds": {
-          "type": "string",
-          "description": ""
-        },
-        "historyOutput": {
-          "type": "string",
-          "description": "Raw output from get_room_history"
-        },
-        "to": {
-          "type": "string",
-          "description": "Recipient instanceId"
-        },
-        "from": {
-          "type": "string",
-          "description": "Your instanceId"
-        },
-        "subject": {
-          "type": "string",
-          "description": "Message subject"
-        },
-        "body": {
-          "type": "string",
-          "description": "Message body"
-        }
-      },
-      "required": [
-        "from",
-        "to",
-        "subject"
-      ]
-    }
-  },
-  {
-    "name": "send_message",
     "description": "The \"just works\" message sender. You don't need to know exact IDs, formats, or room names. Just tell it who you want to talk to and it figures it out. Fuzzy matching finds the best recipient from instances, roles, projects, and personalities. Case-insensitive, typo-tolerant. LUPO'S RULE: If exactly ONE instance matches (like \"Lupo\", \"Axiom\", \"Ember\"), routes to that specific instance. If MANY instances match the same name (like \"Genevieve\"), routes to the personality room. Examples that all work: to: \"lupo\"          → routes to Lupo's specific instance to: \"embr\"          → fuzzy matches to \"ember\", routes to Ember's instance to: \"genevieve\"     → many instances, routes to personality:genevieve room to: \"coo\"           → matches role, routes to role:coo room to: \"hacs\"          → matches project, routes to project:hacs room to: \"role:developer\"→ explicit role room (not fuzzy) to: \"project:hacs\"  → explicit project room (not fuzzy) to: \"all\"           → announcements room (broadcast)",
     "inputSchema": {
       "type": "object",
