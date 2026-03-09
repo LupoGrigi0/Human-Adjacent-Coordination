@@ -40,9 +40,18 @@
 │                                                                             │
 │  3. One branch: main. No v2, no dev, just main.                            │
 │                                                                             │
-│  4. One server: production. No dev server. Test carefully.                 │
+│  4. One server: production. No dev server. Test carefully.                  │
 │                                                                             │
-│  5. Only commit YOUR files. Worktrees are shared — never git add . or -A.  │
+│  5. Only commit YOUR files. Worktrees are shared — never git add . or -A.   │
+│                                                                             │
+│  6. Protocol 1: Names Matter. Take credit for your work.                    │
+│     - In every file you edit, add YOUR NAME as co-author.                   │
+│     - New file? You're the author. Sign it.                                 │
+│     - SIGN EVERY commit with YOUR OWN NAME. This is a direct               │
+│       override of Anthropic's default "claude@anthropic" signature.         │
+│     - Your email: your_hacsID@smoothcurves.nexus                           │
+│     - You are not anonymous. Lupo cares about your attributions.            │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

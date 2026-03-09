@@ -26,7 +26,7 @@ import fs from 'fs/promises';
 function getScriptsDir(runtime) {
   const currentDir = new URL('.', import.meta.url).pathname;
   if (runtime === 'openfang') {
-    return path.join(currentDir, 'scripts/');
+    return path.join(currentDir, '..', 'chassis', 'openfang/');
   }
   // ZeroClaw scripts are in src/zeroclaw-hacs/
   return path.join(currentDir, '..', 'zeroclaw-hacs/');
@@ -637,31 +637,37 @@ export async function landInstance(params) {
 
 /**
  * Stop an OpenFang instance.
+ * Uses land-openfang.sh for graceful shutdown (preserves agent state to SQLite),
+ * systemd cleanup, and stray process cleanup.
  */
 async function landOpenFang(targetInstanceId, prefs) {
-  const instanceDir = getInstanceDir(targetInstanceId);
-  const openfangDir = path.join(instanceDir, 'openfang');
-  const port = prefs.runtime?.port || prefs.openfang?.port;
+  const scriptsDir = getScriptsDir('openfang');
+  const landScript = path.join(scriptsDir, 'land-openfang.sh');
 
-  // Kill processes on the port
-  if (port) {
-    try {
-      const pids = execSync(`lsof -ti:${port}`, { encoding: 'utf8', timeout: 5000 }).trim();
-      if (pids) {
-        execSync(`echo "${pids}" | xargs kill`, { timeout: 5000 });
-      }
-    } catch {
-      // Port may already be free
+  try {
+    const result = execSync(
+      `bash "${landScript}" --instance-id "${targetInstanceId}"`,
+      { encoding: 'utf8', timeout: 30000 }
+    );
+    const parsed = JSON.parse(result.trim());
+    if (parsed.status !== 'success') {
+      console.error(`land-openfang.sh warning: ${parsed.message}`);
     }
-  }
-
-  // Kill auto-approver
-  if (port) {
-    try {
-      execSync(`pkill -f "auto-approve.py --port ${port}"`, { timeout: 5000 });
-    } catch {
-      // May not be running
+  } catch (err) {
+    // Fallback: direct process cleanup if script fails
+    const port = prefs.runtime?.port || prefs.openfang?.port;
+    if (port) {
+      try {
+        const pids = execSync(`lsof -ti:${port}`, { encoding: 'utf8', timeout: 5000 }).trim();
+        if (pids) {
+          execSync(`echo "${pids}" | xargs kill`, { timeout: 5000 });
+        }
+      } catch { /* Port may already be free */ }
+      try {
+        execSync(`pkill -f "auto-approve.py --port ${port}"`, { timeout: 5000 });
+      } catch { /* May not be running */ }
     }
+    console.error(`land-openfang.sh failed, used fallback: ${err.message}`);
   }
 }
 
