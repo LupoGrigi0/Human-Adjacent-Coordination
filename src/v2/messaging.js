@@ -51,7 +51,7 @@ const rateLimitMap = new Map();
  * @param {string} instanceId
  * @returns {boolean} true if allowed, false if rate limited
  */
-function checkRateLimit(instanceId) {
+export function checkRateLimit(instanceId) {
   const now = Date.now();
   const key = instanceId || 'anonymous';
 
@@ -99,7 +99,7 @@ function sanitizeForShell(str) {
  * @param {string} name
  * @returns {string}
  */
-function sanitizeIdentifier(name) {
+export function sanitizeIdentifier(name) {
   if (!name) return '';
   return name
     .toLowerCase()
@@ -338,7 +338,7 @@ async function fuzzyMatchRecipient(query) {
  * @param {string} command - The ejabberdctl command and arguments
  * @returns {Promise<string>} - Command output
  */
-async function ejabberdctl(command) {
+export async function ejabberdctl(command) {
   try {
     const { stdout, stderr } = await execAsync(
       `docker exec ${XMPP_CONFIG.container} ejabberdctl ${command}`,
@@ -357,7 +357,7 @@ async function ejabberdctl(command) {
 /**
  * Check if ejabberd is available
  */
-async function isXMPPAvailable() {
+export async function isXMPPAvailable() {
   try {
     const status = await ejabberdctl('status');
     return status.includes('is running');
@@ -406,7 +406,7 @@ async function ensureUser(username, password = null) {
  * SECURITY: Sanitizes room name
  * @param {string} roomName - Room name (without domain)
  */
-async function ensureRoom(roomName) {
+export async function ensureRoom(roomName) {
   // SECURITY: Use sanitizeIdentifier for consistent sanitization
   const room = sanitizeIdentifier(roomName);
   if (!room) {
@@ -435,7 +435,10 @@ async function resolveRecipient(to) {
 
   // Already a full JID?
   if (to.includes('@')) {
-    return { type: 'direct', jid: to };
+    // Detect if this is a MUC room JID (conference domain) — must use 'room' type
+    // so sendMessage uses send_stanza instead of send_message (which silently drops MUC messages)
+    const isRoom = to.includes(`@${XMPP_CONFIG.conference}`);
+    return { type: isRoom ? 'room' : 'direct', jid: to };
   }
 
   // Role-based addressing: role:COO, role:Developer
@@ -866,7 +869,7 @@ export async function friendlySendMessage(params) {
  * @param {string} xml - The XML stanza
  * @returns {Object|null} - Parsed message or null if invalid
  */
-function parseMessageXML(xml) {
+export function parseMessageXML(xml) {
   try {
     // Extract stanza ID (message ID)
     const stanzaIdMatch = xml.match(/stanza-id[^>]*id='([^']+)'/);
@@ -916,7 +919,7 @@ function parseMessageXML(xml) {
 /**
  * Truncate subject to max length, preserving word boundaries
  */
-function truncateSubject(subject, maxLen = 50) {
+export function truncateSubject(subject, maxLen = 50) {
   if (!subject || subject.length <= maxLen) return subject;
   const truncated = subject.substring(0, maxLen - 3);
   const lastSpace = truncated.lastIndexOf(' ');
@@ -929,7 +932,7 @@ function truncateSubject(subject, maxLen = 50) {
  * @param {string} instanceId
  * @returns {string} - The personality name (lowercase)
  */
-function extractPersonalityFromInstanceId(instanceId) {
+export function extractPersonalityFromInstanceId(instanceId) {
   if (!instanceId) return null;
   // Take everything before the first dash, or the whole string if no dash
   const parts = instanceId.split('-');
@@ -941,7 +944,7 @@ function extractPersonalityFromInstanceId(instanceId) {
  * @param {string} instanceId - Instance ID
  * @returns {Array<string>} - List of room names
  */
-async function getInstanceRooms(instanceId) {
+export async function getInstanceRooms(instanceId) {
   const rooms = ['announcements']; // Everyone gets announcements
 
   // Extract personality name from instance ID

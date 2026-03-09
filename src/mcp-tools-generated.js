@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-03-03T23:57:54.586Z                           ║
- * ║  Tool Count: 90                                                         ║
+ * ║  Generated: 2026-03-09T01:18:14.868Z                           ║
+ * ║  Tool Count: 97                                                         ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -836,6 +836,22 @@ export const mcpTools = [
     }
   },
   {
+    "name": "do_i_have_new_messages",
+    "description": "Quick check: do you have unread messages? Returns false if no, or true with the first 5 unread message IDs if yes. Use get_message(id) to read them. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instanceId"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "edit_document",
     "description": "Edits a document. Supports two modes: \"append\" adds content to the end, \"replace\" does a search-and-replace using the provided pattern. /",
     "inputSchema": {
@@ -1040,6 +1056,27 @@ export const mcpTools = [
         }
       },
       "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_message",
+    "description": "Read a single message by ID. Returns subject, body, sender, and date. Automatically marks the message as read so it won't appear in list_my_messages again. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Message ID from list_my_messages"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Your instanceId"
+        }
+      },
+      "required": [
+        "id",
         "instanceId"
       ]
     }
@@ -1426,7 +1463,7 @@ export const mcpTools = [
   },
   {
     "name": "land_instance",
-    "description": "Stops a running container for a HACS instance. All data is preserved: workspace, memory/RAG database, config, logs. The instance can be re-launched at any time with launch_instance. Sets zeroclaw.enabled to false but keeps zeroclaw_ready as true, meaning the instance is eligible for re-launch without re-running the export pipeline. Use this to free resources when instances aren't needed, or to rotate through project teams on limited infrastructure. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } /",
+    "description": "Stops a running instance regardless of runtime (OpenFang or ZeroClaw). All data is preserved: workspace, memory, config, logs. The instance can be re-launched with launch_instance. Sets runtime.enabled to false but keeps runtime.ready as true, meaning the instance can be re-launched without re-running setup. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } /",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1452,10 +1489,23 @@ export const mcpTools = [
   },
   {
     "name": "launch_instance",
-    "description": "Starts a container runtime (currently ZeroClaw) for an existing HACS instance. The instance must already be bootstrapped and have zeroclaw_ready: true in preferences (meaning identity documents have been prepared by the export pipeline). This gives the instance a persistent, always-on environment with web chat, multi-channel I/O, memory/RAG, and autonomous operation. The instance must already exist (have a HACS directory). Use pre_approve + bootstrap to create new instances, then the export pipeline to prepare ZeroClaw documents, then launch_instance to bring them online. On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only the bearer token is regenerated. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"provider\": \"anthropic\", \"model\": \"claude-sonnet-4-20250514\" } /",
+    "description": "Starts a runtime (OpenFang or ZeroClaw) for an existing HACS instance. The instance must already be bootstrapped and prepared for the chosen runtime. For OpenFang: runs openfang-setup.sh (creates Unix user, generates config) then launch-openfang.sh (starts daemon + auto-approver as instance user). For ZeroClaw: runs launch-zeroclaw.sh (starts Docker container). On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only auth tokens are regenerated. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"runtime\": \"zeroclaw\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"setup\": false } /",
     "inputSchema": {
       "type": "object",
       "properties": {
+        "runtime": {
+          "type": "string",
+          "description": "Runtime to use",
+          "enum": [
+            "openfang",
+            "zeroclaw"
+          ],
+          "default": "\"openfang\""
+        },
+        "prefs": {
+          "type": "object",
+          "description": "Instance preferences"
+        },
         "instanceId": {
           "type": "string",
           "description": "Caller's instance ID"
@@ -1468,14 +1518,6 @@ export const mcpTools = [
           "type": "string",
           "description": "Authorization key"
         },
-        "runtime": {
-          "type": "string",
-          "description": "Container runtime to use",
-          "enum": [
-            "zeroclaw"
-          ],
-          "default": "\"zeroclaw\""
-        },
         "provider": {
           "type": "string",
           "description": "LLM provider override",
@@ -1486,17 +1528,22 @@ export const mcpTools = [
             "google",
             "openrouter"
           ],
-          "default": "From config template (xai)"
+          "default": "From config template"
         },
         "model": {
           "type": "string",
           "description": "LLM model override",
-          "default": "From config template (grok-4)"
+          "default": "From config template"
         },
         "port": {
           "type": "number",
-          "description": "Gateway port override",
-          "default": "Auto-allocated from 19000-19100"
+          "description": "Port override",
+          "default": "Auto-allocated"
+        },
+        "setup": {
+          "type": "boolean",
+          "description": "Run setup script before launch",
+          "default": "true"
         }
       },
       "required": [
@@ -1547,6 +1594,26 @@ export const mcpTools = [
     }
   },
   {
+    "name": "list_my_messages",
+    "description": "List your unread messages. Returns just the essentials: message ID, sender, subject, and date. Use get_message(id) to read the full message body. Messages you've already read are filtered out automatically. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instanceId"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Max messages to return, default 5"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "list_priorities",
     "description": "Use this to populate UI dropdowns or validate priority values. /",
     "inputSchema": {
@@ -1563,6 +1630,26 @@ export const mcpTools = [
         "instanceId": {
           "type": "string",
           "description": "Caller's instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_project_messages",
+    "description": "List unread messages from your project's team room. Works like list_my_messages but for project communication. Each team member has independent read tracking. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instanceId"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Max messages to return, default 5"
         }
       },
       "required": [
@@ -1829,6 +1916,22 @@ export const mcpTools = [
     }
   },
   {
+    "name": "purge_room_messages",
+    "description": "Destroy and recreate an XMPP room, clearing all message history. For testing and maintenance only. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room name to purge"
+        }
+      },
+      "required": [
+        "room"
+      ]
+    }
+  },
+  {
     "name": "push_project_changes",
     "description": "Commits and pushes changes from the instance's local repository clone. Runs as root (has GitHub credentials). Automatically pulls before pushing to minimize conflicts. If there's a conflict, returns details for manual resolution. /",
     "inputSchema": {
@@ -2023,6 +2126,68 @@ export const mcpTools = [
         "instanceId",
         "listId",
         "name"
+      ]
+    }
+  },
+  {
+    "name": "reset_read_tracking",
+    "description": "Clear all read tracking for an instance. After this, all messages will appear as unread again. Instances can only reset their own read tracking — privileged roles can reset anyone's. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance to reset"
+        },
+        "callerInstanceId": {
+          "type": "string",
+          "description": "Who is calling (defaults to instanceId)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "send_message",
+    "description": "Send a message directly to another instance. Simple API - just provide sender, recipient, and subject. If the recipient can't be found exactly, returns close matches so you can try again. This is for direct instance-to-instance messaging only. For role, project, or broadcast messaging, use xmpp_send_message instead. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": ""
+        },
+        "messageIds": {
+          "type": "string",
+          "description": ""
+        },
+        "historyOutput": {
+          "type": "string",
+          "description": "Raw output from get_room_history"
+        },
+        "to": {
+          "type": "string",
+          "description": "Recipient instanceId"
+        },
+        "from": {
+          "type": "string",
+          "description": "Your instanceId"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Message subject"
+        },
+        "body": {
+          "type": "string",
+          "description": "Message body"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "subject"
       ]
     }
   },
