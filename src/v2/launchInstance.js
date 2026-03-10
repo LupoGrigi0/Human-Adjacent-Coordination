@@ -9,6 +9,7 @@
  * @author Crossing-2d23
  * @created 2026-02-22
  * @updated 2026-03-06 — Generic runtime support (OpenFang + ZeroClaw)
+ * @updated 2026-03-10 — Claude Code daemon mode support
  */
 
 import path from 'path';
@@ -27,6 +28,9 @@ function getScriptsDir(runtime) {
   const currentDir = new URL('.', import.meta.url).pathname;
   if (runtime === 'openfang') {
     return path.join(currentDir, '..', 'chassis', 'openfang/');
+  }
+  if (runtime === 'claude-code') {
+    return path.join(currentDir, '..', 'chassis', 'claude-code/');
   }
   // ZeroClaw scripts are in src/zeroclaw-hacs/
   return path.join(currentDir, '..', 'zeroclaw-hacs/');
@@ -220,7 +224,7 @@ export async function launchInstance(params) {
   }
 
   // --- Validate runtime ---
-  const SUPPORTED_RUNTIMES = ['openfang', 'zeroclaw'];
+  const SUPPORTED_RUNTIMES = ['openfang', 'zeroclaw', 'claude-code'];
   if (!SUPPORTED_RUNTIMES.includes(runtime)) {
     return {
       success: false,
@@ -267,6 +271,11 @@ export async function launchInstance(params) {
   // --- OpenFang launch flow ---
   if (runtime === 'openfang') {
     return launchOpenFang(targetInstanceId, instanceId, { provider, model, port, setup, metadata });
+  }
+
+  // --- Claude Code daemon mode ---
+  if (runtime === 'claude-code') {
+    return launchClaudeCode(targetInstanceId, instanceId, { model, metadata });
   }
 
   // --- ZeroClaw launch flow (legacy) ---
@@ -598,6 +607,8 @@ export async function landInstance(params) {
   // --- Stop the runtime ---
   if (runtime === 'openfang') {
     await landOpenFang(targetInstanceId, targetPrefs);
+  } else if (runtime === 'claude-code') {
+    await landClaudeCode(targetInstanceId);
   } else if (runtime === 'zeroclaw') {
     await landZeroClaw(targetInstanceId, targetPrefs);
   }
@@ -668,6 +679,118 @@ async function landOpenFang(targetInstanceId, prefs) {
       } catch { /* May not be running */ }
     }
     console.error(`land-openfang.sh failed, used fallback: ${err.message}`);
+  }
+}
+
+
+/**
+ * Launch an instance with Claude Code daemon mode.
+ * Starts Claude Code in --print mode, creates a session, and installs a cron
+ * job for periodic polling. HACS MCP connectivity and hooks configured.
+ */
+async function launchClaudeCode(targetInstanceId, callerId, options) {
+  const { model, metadata } = options;
+  const scriptsDir = getScriptsDir('claude-code');
+  const launchScript = path.join(scriptsDir, 'launch-claude-daemon.sh');
+
+  try {
+    await fs.access(launchScript, fs.constants.X_OK);
+  } catch {
+    return { success: false, error: { code: 'SCRIPT_NOT_FOUND', message: `Launch script not found: ${launchScript}` }, metadata };
+  }
+
+  const args = [`--instance-id "${targetInstanceId}"`];
+  if (model) args.push(`--model "${model}"`);
+
+  let launchOutput;
+  try {
+    const command = `bash "${launchScript}" ${args.join(' ')} 2>&1`;
+    launchOutput = execSync(command, {
+      cwd: scriptsDir,
+      timeout: 60000,
+      encoding: 'utf8',
+      env: { ...process.env }
+    });
+  } catch (err) {
+    return {
+      success: false,
+      error: {
+        code: 'LAUNCH_FAILED',
+        message: 'Claude Code daemon launch failed',
+        details: err.stderr || err.stdout || err.message
+      },
+      metadata
+    };
+  }
+
+  // Parse launch output (last line is JSON)
+  let launchResult;
+  try {
+    const lines = launchOutput.trim().split('\n');
+    launchResult = JSON.parse(lines[lines.length - 1]);
+  } catch {
+    launchResult = { sessionId: `${targetInstanceId}-fallback` };
+  }
+
+  // Update preferences
+  const updatedPrefs = await readPreferences(targetInstanceId);
+  updatedPrefs.runtime = {
+    type: 'claude-code',
+    ready: true,
+    enabled: true,
+    sessionId: launchResult.sessionId,
+    pollInterval: launchResult.pollInterval || '5m',
+    model: launchResult.model || model || 'sonnet',
+    unixUser: launchResult.unixUser,
+    workDir: launchResult.workDir,
+    hooksDeployed: launchResult.hooksDeployed || ['PreCompact', 'SessionStart'],
+    launchedBy: callerId,
+    launchedAt: new Date().toISOString(),
+    launchedVia: 'launch_instance'
+  };
+  await writePreferences(targetInstanceId, updatedPrefs);
+
+  return {
+    success: true,
+    targetInstanceId,
+    runtime: 'claude-code',
+    sessionId: launchResult.sessionId,
+    pollInterval: launchResult.pollInterval || '5m',
+    model: launchResult.model || model || 'sonnet',
+    unixUser: launchResult.unixUser,
+    workDir: launchResult.workDir,
+    hooksDeployed: launchResult.hooksDeployed,
+    hint: 'Claude Code daemon running. Cron polls every ' + (launchResult.pollInterval || '5m') + '. Session: ' + (launchResult.sessionId || 'unknown'),
+    metadata
+  };
+}
+
+
+/**
+ * Stop a Claude Code daemon instance.
+ * Uses land-claude-daemon.sh for graceful shutdown.
+ */
+async function landClaudeCode(targetInstanceId) {
+  const scriptsDir = getScriptsDir('claude-code');
+  const landScript = path.join(scriptsDir, 'land-claude-daemon.sh');
+
+  try {
+    execSync(
+      `bash "${landScript}" --instance-id "${targetInstanceId}"`,
+      { encoding: 'utf8', timeout: 30000 }
+    );
+  } catch (err) {
+    // Fallback: remove cron entry and kill stray processes directly
+    try {
+      const cronTag = `# HACS-DAEMON: ${targetInstanceId}`;
+      execSync(`crontab -l 2>/dev/null | grep -v "${cronTag}" | crontab -`, { timeout: 5000 });
+    } catch { /* May already be stopped */ }
+    // Kill any stray claude processes for this user
+    const unixUser = targetInstanceId.replace(/[^a-zA-Z0-9_-]/g, '');
+    try {
+      execSync(`pkill -u "${unixUser}" -f claude`, { timeout: 5000 });
+    } catch { /* No processes to kill */ }
+    console.error(`land-claude-daemon.sh failed, used fallback: ${err.message}`);
   }
 }
 
