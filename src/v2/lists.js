@@ -417,7 +417,10 @@ export async function getLists(params) {
   const effectiveId = resolved.effectiveInstanceId;
   const listsData = await initializeLists(effectiveId);
 
-  const summaries = listsData.lists.map(list => ({
+  // Filter out goals (type="goal") — those are served by the Goals API
+  const regularLists = listsData.lists.filter(list => list.type !== 'goal');
+
+  const summaries = regularLists.map(list => ({
     id: list.id,
     name: list.name,
     description: list.description,
@@ -578,7 +581,7 @@ export async function getList(params) {
   const effectiveId = resolved.effectiveInstanceId;
   const listsData = await initializeLists(effectiveId);
 
-  const list = listsData.lists.find(l => l.id === params.listId);
+  const list = listsData.lists.find(l => l.id === params.listId && l.type !== 'goal');
   if (!list) {
     return {
       success: false,
