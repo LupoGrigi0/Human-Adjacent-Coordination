@@ -185,5 +185,28 @@ log "Poll complete. Output length: ${#POLL_OUTPUT}"
 # Write last poll output for debugging
 echo "$POLL_OUTPUT" > "$INSTANCE_DIR/claude-code/last-poll-output.txt" 2>/dev/null || true
 
+# ---------------------------------------------------------------------------
+# 6. Update instance status (lastActiveAt + lastPollAt)
+# ---------------------------------------------------------------------------
+
+POLL_TIMESTAMP=$(date -Iseconds)
+
+# Update lastActiveAt in preferences.json so the dashboard shows this instance as active
+PREFS_FILE="$INSTANCE_DIR/preferences.json"
+if [ -f "$PREFS_FILE" ]; then
+  # Use python3 for safe JSON update (jq may not be available everywhere)
+  python3 -c "
+import json, sys
+with open('$PREFS_FILE') as f:
+    p = json.load(f)
+p['lastActiveAt'] = '$POLL_TIMESTAMP'
+if 'runtime' not in p:
+    p['runtime'] = {}
+p['runtime']['lastPollAt'] = '$POLL_TIMESTAMP'
+with open('$PREFS_FILE', 'w') as f:
+    json.dump(p, f, indent=2)
+" 2>/dev/null || log "WARNING: Failed to update preferences.json"
+fi
+
 log "Poll cycle finished"
 exit 0
