@@ -116,6 +116,8 @@ import { wakeInstance, getWakeScripts } from './v2/wakeInstance.js';
 import { continueConversation, getConversationLog } from './v2/continueConversation.js';
 // V2 Launch/Land Instance (container lifecycle)
 import { launchInstance, landInstance } from './v2/launchInstance.js';
+// Event Broker — device driver pattern for event routing (Messenger-aa2a, 2026-03-11)
+import { initBroker } from './v2/event-broker.js';
 
 /**
  * Simple server implementation for development and testing
@@ -146,6 +148,11 @@ class MCPCoordinationServer {
       await this.ensureDataDirectories();
 
       this.status = 'operational';
+
+      // Initialize event broker (wraps call() to emit events, registers running instances)
+      this.broker = await initBroker(this);
+      await this.logger.info('Event broker initialized');
+
       await this.logger.info('Server initialized successfully');
       await this.logger.info('Call bootstrap() to get started');
 
