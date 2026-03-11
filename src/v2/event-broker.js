@@ -487,9 +487,12 @@ async function resolveOpenFangPort(instanceId) {
   // Fall back to config.toml api_listen
   try {
     const configPath = path.join(DATA_ROOT, 'instances', instanceId, 'openfang', 'config.toml');
-    const config = await fs.readFile(configPath, 'utf8');
-    const match = config.match(/api_listen\s*=\s*"[^"]*:(\d+)"/);
-    if (match) return parseInt(match[1]);
+    const configContent = await fs.readFile(configPath, 'utf8');
+    const match = configContent.match(/api_listen\s*=\s*"([^"]+)"/);
+    if (match) {
+      const portMatch = match[1].match(/:(\d+)$/);
+      if (portMatch) return parseInt(portMatch[1]);
+    }
   } catch { /* no config.toml */ }
 
   return null;
@@ -498,35 +501,46 @@ async function resolveOpenFangPort(instanceId) {
 /**
  * Register an instance's emitter subscriptions with the broker.
  * Called after launch_instance or during broker initialization.
+ *
+ * Detection strategy (pragmatic, not config-dependent):
+ * 1. If runtime.type is set, use it directly
+ * 2. If an OpenFang port is resolvable (from prefs or config.toml), treat as openfang
+ * 3. If interface is 'claude-code' or 'claude', treat as claude-code
+ * 4. Otherwise, skip (instance has no known delivery mechanism)
  */
 async function registerInstance(broker, instanceId) {
   const prefs = await readPreferences(instanceId);
   if (!prefs) return [];
 
   const subIds = [];
-  const runtime = prefs.runtime?.type || prefs.interface;
+  const runtimeType = prefs.runtime?.type;
+  const iface = prefs.interface;
 
-  if (runtime === 'openfang') {
-    const port = await resolveOpenFangPort(instanceId);
+  // Try OpenFang first: check if we can resolve a port (most reliable signal)
+  const openfangPort = await resolveOpenFangPort(instanceId);
+  const isOpenfang = runtimeType === 'openfang' || openfangPort != null;
+  const isClaudeCode = runtimeType === 'claude-code' || iface === 'claude-code' || iface === 'claude';
+
+  logger.info(`[EventBroker] registerInstance ${instanceId}: port=${openfangPort}, isOpenfang=${isOpenfang}, isClaudeCode=${isClaudeCode}, runtimeType=${runtimeType}, iface=${iface}`);
+
+  if (isOpenfang && openfangPort) {
     // Derive agent name from instance ID (e.g., "Genevieve" from "Genevieve", "zara" from "Zara-c207")
     const agentName = instanceId.split('-')[0].toLowerCase();
-    if (port) {
-      // Subscribe to messages for this instance
-      subIds.push(broker.subscribe('message.sent', openfangEmitter, {
-        instanceId,
-        port,
-        agentName,
-        filter: { target: instanceId }
-      }));
-      // Subscribe to task assignments
-      subIds.push(broker.subscribe('task.assigned', openfangEmitter, {
-        instanceId,
-        port,
-        agentName,
-        filter: { target: instanceId }
-      }));
-    }
-  } else if (runtime === 'claude-code') {
+    // Subscribe to messages for this instance
+    subIds.push(broker.subscribe('message.sent', openfangEmitter, {
+      instanceId,
+      port: openfangPort,
+      agentName,
+      filter: { target: instanceId }
+    }));
+    // Subscribe to task assignments
+    subIds.push(broker.subscribe('task.assigned', openfangEmitter, {
+      instanceId,
+      port: openfangPort,
+      agentName,
+      filter: { target: instanceId }
+    }));
+  } else if (isClaudeCode) {
     subIds.push(broker.subscribe('message.sent', claudeCodeEmitter, {
       instanceId,
       filter: { target: instanceId }
@@ -556,16 +570,12 @@ async function registerRunningInstances(broker) {
     const instanceId = entry.name;
 
     try {
-      const prefs = await readPreferences(instanceId);
-      if (!prefs) continue;
-
-      // Only register instances that are actively running
-      const isRunning = prefs.runtime?.enabled ||
-        prefs.openfang_ready ||
-        prefs.zeroclaw?.enabled;
-
-      if (isRunning) {
-        await registerInstance(broker, instanceId);
+      // Try to register — registerInstance will check for a resolvable port
+      // (which means the instance has an OpenFang config). If the port isn't
+      // reachable, delivery will fail gracefully at event time.
+      const subs = await registerInstance(broker, instanceId);
+      if (subs.length > 0) {
+        logger.info(`[EventBroker] auto-registered ${instanceId} (${subs.length} subscriptions)`);
       }
     } catch { /* skip instance */ }
   }
