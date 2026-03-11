@@ -1,8 +1,8 @@
 # HACS Function Reference
 
-Complete reference for all 97 coordination functions available in the HACS system.
+Complete reference for all 109 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-03-09T01:18:15.495Z
+> **Auto-generated:** 2026-03-11T00:52:31.516Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -760,6 +760,232 @@ Commits and pushes changes from the instance's local repository clone. Runs as r
 - `directory` (optional): Subdirectory name of the clone (default: auto-detect)
 
 **Returns:** success, commitHash, pushed, message, metadata }
+
+## goals Functions
+
+### add_criteria
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (required): Goal ID
+- `text` (required): Criteria text
+- `description` (optional): Detailed description
+- `stretch` (required): Mark as stretch criteria [optional, default: false]
+- `projectId` (optional): If this is a project goal
+
+**Example:**
+```json
+{
+  "name": "add_criteria",
+  "arguments": {
+    "instanceId": "example",
+    "goalId": "example",
+    "text": "example",
+    "stretch": "example"
+  }
+}
+```
+
+### add_dependency
+When validate_dependency is called, it checks the linked entity's status. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (required): Goal ID
+- `criteriaId` (required): Criteria ID to add dependency to
+- `dependsOnTask` (required): Task ID this depends on [optional, one of task/goal/project required]
+- `dependsOnGoal` (optional): Goal ID this depends on
+- `dependsOnProject` (optional): Project ID this depends on
+- `projectId` (optional): If this is a project goal
+
+**Example:**
+```json
+{
+  "name": "add_dependency",
+  "arguments": {
+    "instanceId": "example",
+    "goalId": "example",
+    "criteriaId": "example",
+    "dependsOnTask": "example"
+  }
+}
+```
+
+### create_goal
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `name` (required): Goal name
+- `context` (optional): Why this goal exists, what it enables
+- `projectId` (optional): Create a project goal instead of personal
+
+**Example:**
+```json
+{
+  "name": "create_goal",
+  "arguments": {
+    "instanceId": "example",
+    "name": "example"
+  }
+}
+```
+
+### delete_goal
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (required): Goal ID
+- `projectId` (optional): If this is a project goal
+
+### get_goal
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (required): Goal ID
+- `projectId` (optional): If this is a project goal
+
+**Example:**
+```json
+{
+  "name": "get_goal",
+  "arguments": {
+    "instanceId": "example",
+    "goalId": "example"
+  }
+}
+```
+
+### list_personal_goals
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `targetInstanceId` (optional): View another instance's goals (COO/Executive only)
+
+**Example:**
+```json
+{
+  "name": "list_personal_goals",
+  "arguments": {
+    "instanceId": "example"
+  }
+}
+```
+
+### list_project_goals
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `projectId` (required): Project ID
+
+**Example:**
+```json
+{
+  "name": "list_project_goals",
+  "arguments": {
+    "instanceId": "example",
+    "projectId": "example"
+  }
+}
+```
+
+### set_goal_status
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (required): Goal ID
+- `status` (required): New status: in_progress, achieved, exceeded
+- `projectId` (optional): If this is a project goal
+
+**Example:**
+```json
+{
+  "name": "set_goal_status",
+  "arguments": {
+    "instanceId": "example",
+    "goalId": "example",
+    "status": "example"
+  }
+}
+```
+
+### update_criteria
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (required): Goal ID
+- `criteriaId` (required): Criteria ID
+- `text` (optional): New text
+- `description` (optional): New description
+- `stretch` (optional): Update stretch flag
+- `projectId` (optional): If this is a project goal
+
+### validate_criteria
+/
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (required): Goal ID
+- `criteriaId` (required): Criteria ID
+- `projectId` (optional): If this is a project goal
+
+**Example:**
+```json
+{
+  "name": "validate_criteria",
+  "arguments": {
+    "instanceId": "example",
+    "goalId": "example",
+    "criteriaId": "example"
+  }
+}
+```
+
+### validate_dependencies
+Loops through criteria with dependencies and checks each one. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (optional): Validate deps in this specific goal
+- `projectId` (optional): Validate all project goals' deps
+
+**Example:**
+```json
+{
+  "name": "validate_dependencies",
+  "arguments": {
+    "instanceId": "example"
+  }
+}
+```
+
+### validate_dependency
+Does NOT recurse into the dependency's own dependencies. Simple 1:1 status check. Auto-validates the criteria if the dependency is met. /
+
+**Parameters:**
+- `instanceId` (required): Caller's instance ID
+- `goalId` (required): Goal ID
+- `criteriaId` (required): Criteria ID with dependency
+- `projectId` (optional): If this is a project goal
+
+**Example:**
+```json
+{
+  "name": "validate_dependency",
+  "arguments": {
+    "instanceId": "example",
+    "goalId": "example",
+    "criteriaId": "example"
+  }
+}
+```
 
 ## projects Functions
 

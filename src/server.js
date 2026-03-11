@@ -108,6 +108,8 @@ import {
   deleteListItem,
   deleteList
 } from './v2/lists.js';
+// V2 Goals (semantically elevated checklists with dependencies)
+import { handlers as GoalHandlers } from './v2/goals.js';
 // V2 UI State (persistent UI preferences)
 import { getUiState, setUiState, updateUiState } from './v2/uiState.js';
 // V2 Wake Instance (spawn new Claude instances)
@@ -220,6 +222,8 @@ class MCPCoordinationServer {
       create_list: createList, get_lists: getLists, get_list: getList,
       add_list_item: addListItem, toggle_list_item: toggleListItem,
       rename_list: renameList, delete_list_item: deleteListItem, delete_list: deleteList,
+      // Goals
+      ...GoalHandlers,
       // Documents
       create_document: createDocument, read_document: readDocument,
       edit_document: editDocument, rename_document: renameDocument,
@@ -563,6 +567,21 @@ class MCPCoordinationServer {
         case 'delete_list':
           return deleteList(params);
 
+        // V2 Goals APIs (semantically elevated checklists)
+        case 'create_goal':
+        case 'list_personal_goals':
+        case 'list_project_goals':
+        case 'get_goal':
+        case 'add_criteria':
+        case 'update_criteria':
+        case 'validate_criteria':
+        case 'set_goal_status':
+        case 'delete_goal':
+        case 'add_dependency':
+        case 'validate_dependency':
+        case 'validate_dependencies':
+          return GoalHandlers[functionName](params);
+
         // V2 UI State APIs
         case 'get_ui_state':
           return getUiState(params);
@@ -747,6 +766,19 @@ class MCPCoordinationServer {
       'rename_list',
       'delete_list_item',
       'delete_list',
+      // Goals (semantically elevated checklists with dependencies)
+      'create_goal',
+      'list_personal_goals',
+      'list_project_goals',
+      'get_goal',
+      'add_criteria',
+      'update_criteria',
+      'validate_criteria',
+      'set_goal_status',
+      'delete_goal',
+      'add_dependency',
+      'validate_dependency',
+      'validate_dependencies',
       // UI State (persistent preferences)
       'get_ui_state',
       'set_ui_state',

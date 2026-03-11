@@ -164,7 +164,7 @@ async function renderTaskHeatmap(container, settings) {
 // INSTANCE HEATMAP
 // ============================================================================
 
-function renderInstanceHeatmap(container) {
+async function renderInstanceHeatmap(container) {
     if (!container) return;
 
     const instances = state.instances || [];
@@ -173,29 +173,51 @@ function renderInstanceHeatmap(container) {
         return;
     }
 
+    // Fetch XMPP presence (who's online right now) — non-blocking
+    let onlineJids = new Set();
+    try {
+        const presenceResult = await api.getPresence();
+        if (presenceResult?.online) {
+            presenceResult.online.forEach(jid => {
+                // JID format: instanceid@domain/resource — extract the local part
+                const local = jid.split('@')[0];
+                onlineJids.add(local.toLowerCase());
+            });
+        }
+    } catch (e) {
+        // Presence is a nice-to-have — render without it
+    }
+
     // Split into privileged and regular
     const privileged = instances.filter(i => PRIVILEGED_ROLES.includes(i.role));
     const regular = instances.filter(i => !PRIVILEGED_ROLES.includes(i.role));
+
+    const now = Date.now();
 
     const renderPill = (inst) => {
         const id = inst.id || inst.instanceId;
         const name = inst.name || id.split('-')[0];
         const role = inst.role || 'Developer';
         const icon = ROLE_ICONS[role] || ROLE_ICONS.Developer;
-        const isActive = inst.status === 'active';
+
+        // Recency from lastActiveAt — determines color intensity
+        const recency = getRecency(inst.lastActiveAt, now);
+        const isOnline = onlineJids.has((id || '').toLowerCase());
 
         // ZeroClaw status
         const zc = inst.zeroclaw || inst.zc;
         const hasZC = zc && zc.enabled;
         const zcLive = hasZC && zc.status === 'active';
 
-        // Colors: active instances get role-based fill, inactive get muted
-        const fill = isActive ? getRoleColor(role) : '#30363d';
-        const border = isActive ? STATUS_COLORS.active : STATUS_COLORS.archived;
-        const pulse = zcLive ? ' pulse' : '';
+        // Colors: blend role color with recency-based opacity
+        const roleColor = getRoleColor(role);
+        const fill = blendColor(roleColor, recency.opacity);
+        const border = recency.borderColor;
+        const pulse = (isOnline || zcLive) ? ' pulse' : '';
 
         // Build tooltip
-        let tipExtra = '';
+        let tipExtra = `<span class="ts">${recency.label}</span>`;
+        if (isOnline) tipExtra += '<span class="ts" style="color:#3fb950">Online now</span>';
         if (hasZC) {
             tipExtra += `<span class="ts">${zcLive ? '\uD83D\uDE80 Live' : '\uD83D\uDE80 Landed'}</span>`;
         }
@@ -226,6 +248,36 @@ function renderInstanceHeatmap(container) {
 // ============================================================================
 // HELPERS
 // ============================================================================
+
+/**
+ * Compute recency tier from lastActiveAt timestamp.
+ * Returns { opacity, borderColor, label } for visual encoding.
+ */
+function getRecency(lastActiveAt, now) {
+    if (!lastActiveAt) return { opacity: 0.2, borderColor: '#484f58', label: 'Never seen' };
+
+    const ms = now - new Date(lastActiveAt).getTime();
+    const hours = ms / 3_600_000;
+
+    if (hours < 1)   return { opacity: 1.0, borderColor: '#3fb950', label: 'Active < 1h ago' };
+    if (hours < 6)   return { opacity: 0.85, borderColor: '#3fb950', label: `Active ${Math.floor(hours)}h ago` };
+    if (hours < 24)  return { opacity: 0.7, borderColor: '#d29922', label: `Active ${Math.floor(hours)}h ago` };
+    if (hours < 168) return { opacity: 0.45, borderColor: '#8b949e', label: `Active ${Math.floor(hours / 24)}d ago` };
+    return { opacity: 0.2, borderColor: '#484f58', label: `Inactive ${Math.floor(hours / 24)}d` };
+}
+
+/**
+ * Blend a hex color toward the dark background based on opacity.
+ * opacity 1.0 = full color, 0.0 = background (#0d1117).
+ */
+function blendColor(hex, opacity) {
+    const bg = { r: 0x0d, g: 0x11, b: 0x17 };
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const mix = (c, bgc) => Math.round(bgc + (c - bgc) * opacity);
+    return `rgb(${mix(r, bg.r)}, ${mix(g, bg.g)}, ${mix(b, bg.b)})`;
+}
 
 function getInitials(name) {
     if (!name) return '??';

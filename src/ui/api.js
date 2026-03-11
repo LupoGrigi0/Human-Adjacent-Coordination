@@ -703,6 +703,65 @@ export async function deleteListItem(instanceId, listId, itemId, targetInstanceI
 }
 
 // ============================================================================
+// GOALS APIs (semantically elevated checklists with dependencies)
+// ============================================================================
+
+export async function listPersonalGoals(instanceId, targetInstanceId) {
+  const params = { instanceId };
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
+  return rpcCall('list_personal_goals', params);
+}
+
+export async function listProjectGoals(instanceId, projectId) {
+  return rpcCall('list_project_goals', { instanceId, projectId });
+}
+
+export async function getGoal(instanceId, goalId, projectId) {
+  const params = { instanceId, goalId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('get_goal', params);
+}
+
+export async function createGoal(instanceId, name, context, projectId) {
+  const params = { instanceId, name };
+  if (context) params.context = context;
+  if (projectId) params.projectId = projectId;
+  return rpcCall('create_goal', params);
+}
+
+export async function deleteGoal(instanceId, goalId, projectId) {
+  const params = { instanceId, goalId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('delete_goal', params);
+}
+
+export async function addCriteria(instanceId, goalId, text, description, stretch, projectId) {
+  const params = { instanceId, goalId, text };
+  if (description) params.description = description;
+  if (stretch) params.stretch = stretch;
+  if (projectId) params.projectId = projectId;
+  return rpcCall('add_criteria', params);
+}
+
+export async function validateCriteria(instanceId, goalId, criteriaId, projectId) {
+  const params = { instanceId, goalId, criteriaId };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('validate_criteria', params);
+}
+
+export async function setGoalStatus(instanceId, goalId, status, projectId) {
+  const params = { instanceId, goalId, status };
+  if (projectId) params.projectId = projectId;
+  return rpcCall('set_goal_status', params);
+}
+
+export async function deleteCriteria(instanceId, goalId, criteriaId, projectId) {
+  // Goals don't have a delete_criteria endpoint — use update to clear, or just leave
+  // For now, this is a placeholder; criteria persist unless the goal is deleted
+  console.warn('[API] deleteCriteria not yet supported by backend');
+}
+
+// ============================================================================
 // MESSAGING APIs (V2 - uses XMPP backend)
 // ============================================================================
 
@@ -1057,6 +1116,16 @@ export const api = {
   addListItem,
   toggleListItem,
   deleteListItem,
+
+  // Goals
+  listPersonalGoals,
+  listProjectGoals,
+  getGoal,
+  createGoal,
+  deleteGoal,
+  addCriteria,
+  validateCriteria,
+  setGoalStatus,
 
   // Messaging
   sendMessage,

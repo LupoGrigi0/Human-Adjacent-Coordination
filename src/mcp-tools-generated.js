@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-03-09T01:18:14.868Z                           ║
- * ║  Tool Count: 97                                                         ║
+ * ║  Generated: 2026-03-11T00:52:30.685Z                           ║
+ * ║  Tool Count: 109                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -22,6 +22,86 @@
  *   import { mcpTools } from './mcp-tools-generated.js';
  */
 export const mcpTools = [
+  {
+    "name": "add_criteria",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "text": {
+          "type": "string",
+          "description": "Criteria text"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description"
+        },
+        "stretch": {
+          "type": "boolean",
+          "description": "Mark as stretch criteria [optional, default: false]"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "add_dependency",
+    "description": "When validate_dependency is called, it checks the linked entity's status. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "criteriaId": {
+          "type": "string",
+          "description": "Criteria ID to add dependency to"
+        },
+        "dependsOnTask": {
+          "type": "string",
+          "description": "Task ID this depends on [optional, one of task/goal/project required]"
+        },
+        "dependsOnGoal": {
+          "type": "string",
+          "description": "Goal ID this depends on"
+        },
+        "dependsOnProject": {
+          "type": "string",
+          "description": "Project ID this depends on"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "criteriaId"
+      ]
+    }
+  },
   {
     "name": "add_diary_entry",
     "description": "Appends a new entry to an instance's diary.md file. The diary is a markdown file used for context persistence across context deaths and for reflection. Entries can have different audience levels controlling visibility. Use this endpoint to: - Record significant work or decisions for future context recovery - Leave notes for your successor if you lose context - Document learning, insights, or reflections - Create handoff notes with appropriate audience settings",
@@ -557,6 +637,35 @@ export const mcpTools = [
     }
   },
   {
+    "name": "create_goal",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Goal name"
+        },
+        "context": {
+          "type": "string",
+          "description": "Why this goal exists, what it enables"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Create a project goal instead of personal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
     "name": "create_list",
     "description": "Creates a new personal checklist for the calling instance or a target instance (if the caller has permission). Lists are stored per-instance and can contain any number of checkable items. Use this endpoint when you need to create a new organized list of items to track, such as daily tasks, project checklists, or reminders.",
     "inputSchema": {
@@ -729,6 +838,31 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "listId"
+      ]
+    }
+  },
+  {
+    "name": "delete_goal",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId"
       ]
     }
   },
@@ -990,6 +1124,31 @@ export const mcpTools = [
       },
       "required": [
         "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_goal",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId"
       ]
     }
   },
@@ -1614,6 +1773,26 @@ export const mcpTools = [
     }
   },
   {
+    "name": "list_personal_goals",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "View another instance's goals (COO/Executive only)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "list_priorities",
     "description": "Use this to populate UI dropdowns or validate priority values. /",
     "inputSchema": {
@@ -1634,6 +1813,27 @@ export const mcpTools = [
       },
       "required": [
         "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_project_goals",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID"
+        }
+      },
+      "required": [
+        "instanceId",
+        "projectId"
       ]
     }
   },
@@ -2226,6 +2426,36 @@ export const mcpTools = [
     }
   },
   {
+    "name": "set_goal_status",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "status": {
+          "type": "string",
+          "description": "New status: in_progress, achieved, exceeded"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "status"
+      ]
+    }
+  },
+  {
     "name": "take_on_role",
     "description": "Allows an instance to adopt a role within the coordination system. Updates the instance's preferences with the new role and returns concatenated wisdom documents from the role's wisdom directory. Use this endpoint after bootstrap to establish your role in the system. Roles determine what actions you can perform and what tasks you're suited for. Some roles (Executive, EA, COO, PM) require token authentication.",
     "inputSchema": {
@@ -2329,6 +2559,48 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "name"
+      ]
+    }
+  },
+  {
+    "name": "update_criteria",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "criteriaId": {
+          "type": "string",
+          "description": "Criteria ID"
+        },
+        "text": {
+          "type": "string",
+          "description": "New text"
+        },
+        "description": {
+          "type": "string",
+          "description": "New description"
+        },
+        "stretch": {
+          "type": "boolean",
+          "description": "Update stretch flag"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "criteriaId"
       ]
     }
   },
@@ -2521,6 +2793,90 @@ export const mcpTools = [
     "inputSchema": {
       "type": "object",
       "properties": {}
+    }
+  },
+  {
+    "name": "validate_criteria",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "criteriaId": {
+          "type": "string",
+          "description": "Criteria ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "criteriaId"
+      ]
+    }
+  },
+  {
+    "name": "validate_dependencies",
+    "description": "Loops through criteria with dependencies and checks each one. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Validate deps in this specific goal"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Validate all project goals' deps"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "validate_dependency",
+    "description": "Does NOT recurse into the dependency's own dependencies. Simple 1:1 status check. Auto-validates the criteria if the dependency is met. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "criteriaId": {
+          "type": "string",
+          "description": "Criteria ID with dependency"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "criteriaId"
+      ]
     }
   },
   {

@@ -188,7 +188,16 @@ export async function getAllInstances(params = {}) {
           successorId: prefs.successorId || null,
           // Description with friendly fallback
           description: prefs.description || 'No description yet. Try /vacation then write one!',
-          // ZeroClaw/interface info
+          // Runtime metadata (daemon status)
+          runtime: prefs.runtime ? {
+            type: prefs.runtime.type || null,
+            enabled: prefs.runtime.enabled || false,
+            ready: prefs.runtime.ready || false,
+            model: prefs.runtime.model || null,
+            lastPollAt: prefs.runtime.lastPollAt || null,
+            pollInterval: prefs.runtime.pollInterval || null
+          } : null,
+          // Legacy ZeroClaw/interface info
           interface: prefs.interface || null,
           zeroclaw: prefs.zeroclaw ? {
             enabled: prefs.zeroclaw.enabled || false,
@@ -397,7 +406,9 @@ export async function getInstance(params = {}) {
         hasContext: !!(prefs.context && Object.keys(prefs.context).length > 0),
         context: prefs.context || null,
         description: prefs.description || 'No description yet. Try /vacation then write one!',
-        // ZeroClaw / runtime metadata
+        // Runtime metadata (daemon status)
+        runtime: prefs.runtime || null,
+        // Legacy ZeroClaw fields (kept for backward compat)
         interface: prefs.interface || null,
         zeroclaw_ready: prefs.zeroclaw_ready || false,
         zeroclaw: prefs.zeroclaw || null,
