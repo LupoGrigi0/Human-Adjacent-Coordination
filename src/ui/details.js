@@ -11,6 +11,7 @@
 import { state, pushBreadcrumb, popBreadcrumb, clearBreadcrumbs } from './state.js';
 import { escapeHtml, showToast, formatDateTime, getAvatarChar, getStatusClass, getPriorityClass } from './utils.js';
 import api from './api.js';
+import { renderGoalsSectionHTML, showDropdown, GOAL_STATUS_LABELS, GOAL_STATUS_COLORS, GOAL_STATUS_ICONS } from './shared-tasks.js';
 
 // ============================================================================
 // DETAIL PANEL CONTAINER
@@ -302,6 +303,10 @@ export async function showInstanceDetail(instanceId, addBreadcrumb = true, conte
                 </div>
                 ` : ''}
 
+                <div id="instance-goals-container" style="margin-top:16px">
+                    <div style="color:var(--text-muted);font-size:0.85em">Loading goals...</div>
+                </div>
+
                 <div class="instance-detail-actions">
                     <button class="btn btn-primary" id="instance-action-message">Send Message</button>
                     ${isOnline ? `<button class="btn btn-secondary" id="instance-action-continue">Continue Conversation</button>` : ''}
@@ -310,13 +315,136 @@ export async function showInstanceDetail(instanceId, addBreadcrumb = true, conte
             </div>
         `;
 
-        // TODO: Wire up action buttons
+        // Load goals async (don't block panel render)
+        loadInstanceGoals(instanceId);
 
     } catch (error) {
         console.error('[Details] Error loading instance:', error);
         content.innerHTML = `<div class="error-placeholder">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
+
+// ============================================================================
+// INSTANCE GOALS
+// ============================================================================
+
+async function loadInstanceGoals(instanceId) {
+    const container = document.getElementById('instance-goals-container');
+    if (!container) return;
+
+    try {
+        // Get goal summaries
+        const result = await api.listPersonalGoals(state.instanceId, instanceId);
+        const goalSummaries = result.goals || [];
+
+        if (goalSummaries.length === 0) {
+            container.innerHTML = renderGoalsSectionHTML([], {
+                prefix: '_id', title: 'Goals', showCreate: true
+            });
+            wireGoalInputs(instanceId);
+            return;
+        }
+
+        // Fetch full criteria for each goal
+        const fullGoals = await Promise.all(
+            goalSummaries.map(g => api.getGoal(state.instanceId, g.id).then(r => r.goal).catch(() => g))
+        );
+
+        container.innerHTML = renderGoalsSectionHTML(fullGoals, {
+            prefix: '_id', title: 'Goals', showCreate: true, expanded: goalSummaries.length <= 3
+        });
+        wireGoalInputs(instanceId);
+    } catch (err) {
+        console.error('[Details] Error loading goals:', err);
+        container.innerHTML = '<div style="color:var(--text-muted);font-size:0.85em">Could not load goals</div>';
+    }
+}
+
+function wireGoalInputs(instanceId) {
+    // Wire create-goal input
+    document.querySelectorAll('.goal-create-input').forEach(input => {
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            const name = input.value.trim();
+            const projectId = input.dataset.projectId || null;
+            try {
+                await api.createGoal(state.instanceId, name, null, projectId);
+                input.value = '';
+                loadInstanceGoals(instanceId);
+            } catch (err) {
+                showToast('Failed to create goal: ' + err.message, 'error');
+            }
+        });
+    });
+
+    // Wire add-criteria inputs
+    document.querySelectorAll('.goal-add-criteria').forEach(input => {
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            const text = input.value.trim();
+            const goalId = input.dataset.goalId;
+            const projectId = input.dataset.projectId || null;
+            try {
+                await api.addCriteria(state.instanceId, goalId, text, null, false, projectId);
+                input.value = '';
+                loadInstanceGoals(instanceId);
+            } catch (err) {
+                showToast('Failed to add criteria: ' + err.message, 'error');
+            }
+        });
+    });
+}
+
+// Instance-detail goal handlers (prefix: _id)
+window._idToggleGoal = function(goalId) {
+    const section = document.querySelector(`.goal-section[data-goal-id="${goalId}"]`);
+    if (!section) return;
+    const body = section.querySelector('.task-list-body');
+    const chevron = section.querySelector('.chevron');
+    const context = section.querySelector('.goal-context');
+    if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    if (chevron) chevron.classList.toggle('expanded');
+    if (context) context.style.display = context.style.display === 'none' ? 'block' : 'none';
+};
+
+window._idValidateCriteria = async function(goalId, criteriaId) {
+    try {
+        await api.validateCriteria(state.instanceId, goalId, criteriaId);
+        if (state.currentInstanceDetail) loadInstanceGoals(state.currentInstanceDetail);
+    } catch (err) {
+        showToast('Failed to validate criteria: ' + err.message, 'error');
+    }
+};
+
+window._idGoalStatusMenu = function(el, goalId) {
+    const options = ['in_progress', 'achieved', 'exceeded'].map(s => ({
+        label: GOAL_STATUS_LABELS[s],
+        value: s,
+        icon: GOAL_STATUS_ICONS[s]
+    }));
+    showDropdown(el, options, async (status) => {
+        try {
+            await api.setGoalStatus(state.instanceId, goalId, status);
+            if (state.currentInstanceDetail) loadInstanceGoals(state.currentInstanceDetail);
+        } catch (err) {
+            showToast('Failed to update goal status: ' + err.message, 'error');
+        }
+    });
+};
+
+window._idCreateGoal = async function(btn) {
+    const input = btn.parentElement.querySelector('.goal-create-input');
+    if (!input || !input.value.trim()) return;
+    const name = input.value.trim();
+    const projectId = input.dataset.projectId || null;
+    try {
+        await api.createGoal(state.instanceId, name, null, projectId);
+        input.value = '';
+        if (state.currentInstanceDetail) loadInstanceGoals(state.currentInstanceDetail);
+    } catch (err) {
+        showToast('Failed to create goal: ' + err.message, 'error');
+    }
+};
 
 // ============================================================================
 // DOCUMENT DETAIL

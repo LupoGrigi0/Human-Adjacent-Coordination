@@ -334,6 +334,125 @@ export function renderChecklistHTML(list, items, opts = {}) {
 }
 
 // ============================================================================
+// GOAL RENDERING
+// ============================================================================
+
+export const GOAL_STATUS_LABELS = { in_progress: 'In Progress', achieved: 'Achieved', exceeded: 'Exceeded' };
+export const GOAL_STATUS_COLORS = { in_progress: '#3b82f6', achieved: '#22c55e', exceeded: '#a78bfa' };
+export const GOAL_STATUS_ICONS = { in_progress: '◐', achieved: '✓', exceeded: '★' };
+
+/**
+ * Render a single goal as an expandable section with criteria.
+ *
+ * @param {object} goal - Goal object from get_goal (with criteria array)
+ * @param {object} opts - Rendering options
+ * @param {string} opts.prefix - Handler prefix (_id, _pd, _dash)
+ * @param {boolean} opts.expanded - Start expanded
+ * @param {boolean} opts.showAdd - Show add-criteria input
+ * @param {boolean} opts.showStatus - Show status badge with dropdown
+ * @param {boolean} opts.compact - Compact mode
+ * @param {string} opts.projectId - If this is a project goal
+ */
+export function renderGoalHTML(goal, opts = {}) {
+    const {
+        prefix = '_id',
+        expanded = false,
+        showAdd = true,
+        showStatus = true,
+        compact = false,
+        projectId = null,
+    } = opts;
+
+    const goalId = escapeHtml(goal.id);
+    const criteria = goal.criteria || goal.items || [];
+    const validated = criteria.filter(c => c.validated || c.checked).length;
+    const total = criteria.length;
+    const status = goal.status || 'in_progress';
+    const statusColor = GOAL_STATUS_COLORS[status] || '#6b7280';
+    const statusIcon = GOAL_STATUS_ICONS[status] || '◐';
+    const statusLabel = GOAL_STATUS_LABELS[status] || status;
+    const wrapClass = compact ? 'goal-section compact' : 'goal-section';
+    const projAttr = projectId ? ` data-project-id="${escapeHtml(projectId)}"` : '';
+
+    const criteriaHTML = criteria.map(c => {
+        const cid = escapeHtml(c.id);
+        const isStretch = c.stretch;
+        const isDep = !!c.dependency;
+        const isChecked = c.validated || c.checked;
+        return `<div class="goal-criteria-item" style="padding:4px 0">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} ${isDep ? 'disabled title="Dependency — validated automatically"' : ''} onchange="window.${prefix}ValidateCriteria('${goalId}','${cid}')" style="accent-color:${statusColor}">
+                <span style="flex:1;${isChecked ? 'text-decoration:line-through;opacity:0.5' : ''}${isStretch ? ';font-style:italic' : ''}">${isStretch ? '⭐ ' : ''}${isDep ? '🔗 ' : ''}${escapeHtml(c.text || '')}</span>
+            </label>
+            ${c.description ? `<div style="margin-left:28px;font-size:0.8em;color:var(--text-muted)">${escapeHtml(c.description)}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    const progressPct = total > 0 ? Math.round((validated / total) * 100) : 0;
+    const progressBar = total > 0 ? `<div class="goal-progress-bar" style="margin-top:4px;height:3px;background:var(--border-color);border-radius:2px;overflow:hidden"><div style="width:${progressPct}%;height:100%;background:${statusColor};transition:width 0.3s"></div></div>` : '';
+
+    const statusBadge = showStatus
+        ? `<span class="goal-status-badge" onclick="event.stopPropagation();window.${prefix}GoalStatusMenu(this,'${goalId}')" style="cursor:pointer;font-size:0.75em;padding:2px 8px;border-radius:10px;background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}44;margin-left:auto;white-space:nowrap">${statusIcon} ${statusLabel}</span>`
+        : '';
+
+    const addInput = showAdd
+        ? `<input type="text" class="task-header-input goal-add-criteria" placeholder="Add criteria..." data-goal-id="${goalId}"${projAttr} onclick="event.stopPropagation()" style="margin-top:4px;width:100%">`
+        : '';
+
+    const contextLine = goal.context
+        ? `<div style="padding:2px 0 4px 24px;font-size:0.8em;color:var(--text-muted);display:${expanded ? 'block' : 'none'}" class="goal-context">${escapeHtml(goal.context)}</div>`
+        : '';
+
+    return `
+    <div class="${wrapClass}" data-goal-id="${goalId}"${projAttr}>
+        <div class="task-list-header" onclick="window.${prefix}ToggleGoal('${goalId}')">
+            <span class="chevron ${expanded ? 'expanded' : ''}">&rsaquo;</span>
+            <span class="task-list-name">${escapeHtml(goal.name || goalId)}</span>
+            <span class="task-list-progress-text">${validated}/${total}</span>
+            ${statusBadge}
+        </div>
+        ${contextLine}
+        ${progressBar}
+        <div class="task-list-body" style="display:${expanded ? 'block' : 'none'}">
+            ${criteriaHTML || '<div style="padding:4px;color:var(--text-muted);font-size:0.85em">No criteria yet</div>'}
+            ${addInput}
+        </div>
+    </div>`;
+}
+
+/**
+ * Render a goals section: header + list of goals.
+ *
+ * @param {Array} goals - Array of goal objects (from get_goal, with criteria)
+ * @param {object} opts - Options passed to renderGoalHTML + section opts
+ * @param {string} opts.title - Section title (default: "Goals")
+ * @param {boolean} opts.showCreate - Show create-goal input
+ */
+export function renderGoalsSectionHTML(goals, opts = {}) {
+    const { title = 'Goals', showCreate = true, prefix = '_id', projectId = null } = opts;
+    const projAttr = projectId ? ` data-project-id="${escapeHtml(projectId)}"` : '';
+
+    const goalsHTML = goals.map(g => renderGoalHTML(g, opts)).join('');
+
+    const createInput = showCreate
+        ? `<div style="margin-top:8px;display:flex;gap:6px">
+            <input type="text" class="task-header-input goal-create-input" placeholder="New goal name..."${projAttr} style="flex:1">
+            <button class="btn btn-sm" onclick="window.${prefix}CreateGoal(this)"${projAttr} style="padding:4px 12px;font-size:0.8em">+</button>
+           </div>`
+        : '';
+
+    return `
+    <div class="goals-section">
+        <h3 style="margin:0 0 8px 0;font-size:0.95em;display:flex;align-items:center;gap:6px">
+            <span style="color:var(--accent-color)">◎</span> ${escapeHtml(title)}
+            <span style="color:var(--text-muted);font-size:0.8em">(${goals.length})</span>
+        </h3>
+        ${goalsHTML || '<div style="color:var(--text-muted);font-size:0.85em;padding:4px 0">No goals yet</div>'}
+        ${createInput}
+    </div>`;
+}
+
+// ============================================================================
 // UTILITIES
 // ============================================================================
 
