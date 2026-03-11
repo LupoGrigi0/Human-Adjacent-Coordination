@@ -19,7 +19,8 @@ import {
     STATUSES, PRIORITIES, PRIORITY_COLORS, STATUS_LABELS, STATUS_ICONS,
     PRIORITY_ORDER, STATUS_ORDER,
     showDropdown, renderTaskListHTML, renderTaskRowHTML, renderTaskExpandedHTML,
-    renderChecklistHTML, sortTasksInPlace, findTaskById
+    renderChecklistHTML, sortTasksInPlace, findTaskById,
+    renderGoalsSectionHTML, GOAL_STATUS_LABELS, GOAL_STATUS_COLORS, GOAL_STATUS_ICONS
 } from './shared-tasks.js';
 
 // ============================================================================
@@ -32,6 +33,7 @@ let instanceTasks = {};       // { listId: [task, ...] }
 let instanceLists = [];       // checklist summaries
 let instanceListItems = {};   // { listId: [item, ...] }
 let instanceDocuments = [];
+let instanceGoals = [];       // full goal objects with criteria
 let availableRoles = [];
 let availablePersonalities = [];
 let availableProjects = [];
@@ -52,7 +54,7 @@ export async function showInstanceDetail(targetInstanceId) {
     state.currentInstanceDetail = targetInstanceId;
     expandedSections = new Set(['tasks', 'lists']);
     instanceData = null; instanceTasks = {}; instanceLists = [];
-    instanceListItems = {}; instanceDocuments = [];
+    instanceListItems = {}; instanceDocuments = []; instanceGoals = [];
     expandedTaskId = null; expandedListIds = new Set();
     showCompletedLists = new Set();
     taskSortField = null; taskSortReverse = false;
@@ -67,7 +69,7 @@ export async function showInstanceDetail(targetInstanceId) {
     detailView.className = 'project-detail-panel';
     detailView.innerHTML = '<div class="loading-placeholder">Loading instance...</div>';
 
-    const [detailR, tasksR, listsR, docsR, rolesR, persR, projR, presR] = await Promise.allSettled([
+    const [detailR, tasksR, listsR, docsR, rolesR, persR, projR, presR, goalsR] = await Promise.allSettled([
         api.getInstanceDetails(state.instanceId, targetInstanceId),
         api.listTasks(targetInstanceId, { limit: 200, full_detail: true }),
         api.getLists(state.instanceId, targetInstanceId),
@@ -75,7 +77,8 @@ export async function showInstanceDetail(targetInstanceId) {
         api.getRoles(),
         api.getPersonalities(),
         api.listProjects(),
-        api.getPresence()
+        api.getPresence(),
+        api.listPersonalGoals(state.instanceId, targetInstanceId)
     ]);
 
     instanceData = detailR.status === 'fulfilled'
@@ -94,6 +97,16 @@ export async function showInstanceDetail(targetInstanceId) {
     if (rolesR.status === 'fulfilled') availableRoles = rolesR.value.roles || [];
     if (persR.status === 'fulfilled') availablePersonalities = persR.value.personalities || [];
     if (projR.status === 'fulfilled') availableProjects = projR.value.projects || [];
+
+    // Process goals — fetch full criteria for each summary
+    instanceGoals = [];
+    if (goalsR.status === 'fulfilled') {
+        const summaries = goalsR.value.goals || [];
+        const fullGoals = await Promise.all(
+            summaries.map(g => api.getGoal(state.instanceId, g.id).then(r => r.goal).catch(() => g))
+        );
+        instanceGoals = fullGoals;
+    }
 
     isOnline = false;
     if (presR.status === 'fulfilled') {
@@ -167,6 +180,7 @@ function renderInstanceDetail() {
     <div class="project-detail-body">
         <div class="project-detail-main">
             ${(runtime || zeroclaw || rtReady) ? renderRuntimeSection(runtime, zeroclaw, rtReady, rtType) : ''}
+            ${renderGoalsSection()}
             ${renderTasksSection(taskListIds)}
             ${renderListsSection()}
         </div>
@@ -176,6 +190,7 @@ function renderInstanceDetail() {
     </div>`;
 
     bindListInputs();
+    bindGoalInputs();
 }
 
 // ============================================================================
@@ -213,6 +228,29 @@ function renderRuntimeSection(rt, zc, rtReady, rtType) {
             <span style="margin-left:6px;font-size:0.75rem;color:${live ? 'var(--success-color)' : 'var(--text-muted)'}">${live ? label + ' LIVE' : rtReady ? label + ' ready' : ''}</span>
         </div>
         <div class="section-collapse-body" style="display:${isExp ? 'block' : 'none'}">${content}</div>
+    </div>`;
+}
+
+function renderGoalsSection() {
+    if (!instanceGoals.length && !expandedSections.has('goals')) {
+        // Still show the section so goals can be created
+    }
+    const isExp = expandedSections.has('goals') || instanceGoals.length > 0;
+    const goalsHTML = renderGoalsSectionHTML(instanceGoals, {
+        prefix: '_id',
+        title: 'Goals',
+        showCreate: true,
+        showStatus: true,
+        expanded: instanceGoals.length <= 3
+    });
+    return `
+    <div class="section-collapse" data-section="goals">
+        <div class="section-collapse-header" onclick="window._idToggleSec('goals')">
+            <span class="chevron ${isExp ? 'expanded' : ''}">&rsaquo;</span> Goals (${instanceGoals.length})
+        </div>
+        <div class="section-collapse-body" style="display:${isExp ? 'block' : 'none'}">
+            ${goalsHTML}
+        </div>
     </div>`;
 }
 
@@ -551,6 +589,95 @@ window._idNewList = async function() {
         const r = await api.getLists(state.instanceId, state.currentInstanceDetail);
         instanceLists = r.lists || [];
         showToast('Checklist created', 'success'); reRenderLists();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+// --- Goals ---
+
+function reRenderGoals() {
+    const container = document.querySelector('[data-section="goals"] .section-collapse-body');
+    if (!container) return;
+    container.innerHTML = renderGoalsSectionHTML(instanceGoals, {
+        prefix: '_id', title: 'Goals', showCreate: true, showStatus: true,
+        expanded: instanceGoals.length <= 3
+    });
+    bindGoalInputs();
+}
+
+async function refreshGoals() {
+    const tid = state.currentInstanceDetail;
+    try {
+        const r = await api.listPersonalGoals(state.instanceId, tid);
+        const summaries = r.goals || [];
+        instanceGoals = await Promise.all(
+            summaries.map(g => api.getGoal(state.instanceId, g.id).then(r2 => r2.goal).catch(() => g))
+        );
+    } catch (_) { instanceGoals = []; }
+    reRenderGoals();
+}
+
+function bindGoalInputs() {
+    const tid = state.currentInstanceDetail;
+    document.querySelectorAll('.goal-create-input').forEach(input => {
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            try {
+                await api.createGoal(state.instanceId, input.value.trim());
+                input.value = '';
+                await refreshGoals();
+            } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+        });
+    });
+    document.querySelectorAll('.goal-add-criteria').forEach(input => {
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            const goalId = input.dataset.goalId;
+            try {
+                await api.addCriteria(state.instanceId, goalId, input.value.trim());
+                input.value = '';
+                await refreshGoals();
+            } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+        });
+    });
+}
+
+window._idToggleGoal = function(goalId) {
+    const section = document.querySelector(`.goal-section[data-goal-id="${goalId}"]`);
+    if (!section) return;
+    const body = section.querySelector('.task-list-body');
+    const chevron = section.querySelector('.chevron');
+    const context = section.querySelector('.goal-context');
+    if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    if (chevron) chevron.classList.toggle('expanded');
+    if (context) context.style.display = context.style.display === 'none' ? 'block' : 'none';
+};
+
+window._idValidateCriteria = async function(goalId, criteriaId) {
+    try {
+        await api.validateCriteria(state.instanceId, goalId, criteriaId);
+        await refreshGoals();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._idGoalStatusMenu = function(el, goalId) {
+    const options = ['in_progress', 'achieved', 'exceeded'].map(s => ({
+        label: GOAL_STATUS_LABELS[s], value: s, icon: GOAL_STATUS_ICONS[s]
+    }));
+    showDropdown(el, options, async (status) => {
+        try {
+            await api.setGoalStatus(state.instanceId, goalId, status);
+            await refreshGoals();
+        } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    });
+};
+
+window._idCreateGoal = async function(btn) {
+    const input = btn.parentElement.querySelector('.goal-create-input');
+    if (!input || !input.value.trim()) return;
+    try {
+        await api.createGoal(state.instanceId, input.value.trim());
+        input.value = '';
+        await refreshGoals();
     } catch (err) { showToast('Failed: ' + err.message, 'error'); }
 };
 
