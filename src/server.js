@@ -573,7 +573,7 @@ class MCPCoordinationServer {
         case 'add_dependency':
         case 'validate_dependency':
         case 'validate_dependencies':
-          return GoalHandlers[name](params);
+          return GoalHandlers[functionName](params);
 
         // V2 UI State APIs
         case 'get_ui_state':
