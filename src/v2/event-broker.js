@@ -11,7 +11,8 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { readPreferences } from './data.js';
+import { readPreferences, ensureDir } from './data.js';
+import { DATA_ROOT, getInstancesDir, getInstanceDir } from './config.js';
 import { logger } from '../logger.js';
 
 // ---------------------------------------------------------------------------
@@ -36,10 +37,10 @@ class EventBroker {
     event.timestamp = event.timestamp || Date.now();
     event.metadata = event.metadata || {};
 
-    // Log (rolling window)
+    // Log (rolling window — shift is O(1) amortized in V8, avoids full-array copy)
     this.eventLog.push(event);
     if (this.eventLog.length > this.maxLogSize) {
-      this.eventLog = this.eventLog.slice(-this.maxLogSize);
+      this.eventLog.shift();
     }
 
     logger.info(`[EventBroker] emit: ${event.type}`, {
@@ -75,8 +76,8 @@ class EventBroker {
 
     if (pattern === '*') {
       patternMatch = true;
-    } else if (pattern.endsWith('.*')) {
-      patternMatch = event.type.startsWith(pattern.slice(0, -1));
+    } else if (sub._prefix) {
+      patternMatch = event.type.startsWith(sub._prefix);
     } else {
       patternMatch = event.type === pattern;
     }
@@ -96,7 +97,9 @@ class EventBroker {
    */
   subscribe(pattern, driver, config = {}) {
     const id = ++this.subIdCounter;
-    this.subscriptions.push({ pattern, driver, config, id });
+    // Pre-compute wildcard prefix to avoid string allocation in hot-path matches()
+    const _prefix = pattern.endsWith('.*') ? pattern.slice(0, -1) : null;
+    this.subscriptions.push({ pattern, driver, config, id, _prefix });
     logger.info(`[EventBroker] subscribe: ${pattern}`, {
       driver: driver.name || 'unknown',
       id,
@@ -209,22 +212,14 @@ function extractEventFields(handlerName, params, result) {
     case 'assign_task':
     case 'take_on_task':
     case 'assign_task_to_instance':
-      return {
-        source,
-        target: params.assignee || params.targetInstanceId || null,
-        data: {
-          taskId: result?.taskId || params.taskId,
-          title: params.title
-        }
-      };
-
     case 'mark_task_complete':
     case 'mark_task_verified':
       return {
         source,
-        target: null,
+        target: params.assignee || params.assigneeId || params.targetInstanceId || null,
         data: {
-          taskId: params.taskId
+          taskId: result?.taskId || params.taskId,
+          title: params.title
         }
       };
 
@@ -288,6 +283,8 @@ function extractEventFields(handlerName, params, result) {
  * The wrapper is transparent — callers get exactly what they got before.
  */
 function wrapServerCall(server, broker) {
+  if (server._eventBrokerWrapped) return;  // Guard against double-wrapping
+  server._eventBrokerWrapped = true;
   const originalCall = server.call.bind(server);
 
   server.call = async function(functionName, params = {}) {
@@ -319,7 +316,7 @@ function wrapServerCall(server, broker) {
 // Layer 3: Emitter Drivers
 // ---------------------------------------------------------------------------
 
-const DATA_ROOT = process.env.V2_DATA_ROOT || '/mnt/coordinaton_mcp_data';
+// DATA_ROOT imported from config.js
 
 /**
  * OpenFang Emitter — delivers events via the direct message API.
@@ -423,13 +420,11 @@ const claudeCodeEmitter = {
   name: 'claude-code',
 
   async deliver(event, config) {
-    const instanceDir = config.instanceDir ||
-      path.join(DATA_ROOT, 'instances', config.instanceId);
+    const instanceDir = config.instanceDir || getInstanceDir(config.instanceId);
     const flagDir = path.join(instanceDir, 'claude-code');
     const flagFile = path.join(flagDir, '.event-pending');
 
-    // Ensure the directory exists
-    await fs.mkdir(flagDir, { recursive: true });
+    await ensureDir(flagDir);
 
     // Write the event as the flag file content
     await fs.writeFile(flagFile, JSON.stringify(event, null, 2));
@@ -478,15 +473,16 @@ const logEmitter = {
 /**
  * Resolve the delivery port for an OpenFang instance.
  * Checks prefs.runtime.port first, falls back to reading config.toml.
+ * Accepts optional prefs to avoid duplicate readPreferences() call.
  */
-async function resolveOpenFangPort(instanceId) {
+async function resolveOpenFangPort(instanceId, prefs) {
   // Try preferences first (set by launch_instance)
-  const prefs = await readPreferences(instanceId);
+  if (!prefs) prefs = await readPreferences(instanceId);
   if (prefs?.runtime?.port) return prefs.runtime.port;
 
   // Fall back to config.toml api_listen
   try {
-    const configPath = path.join(DATA_ROOT, 'instances', instanceId, 'openfang', 'config.toml');
+    const configPath = path.join(getInstanceDir(instanceId), 'openfang', 'config.toml');
     const configContent = await fs.readFile(configPath, 'utf8');
     const match = configContent.match(/api_listen\s*=\s*"([^"]+)"/);
     if (match) {
@@ -517,38 +513,34 @@ async function registerInstance(broker, instanceId) {
   const iface = prefs.interface;
 
   // Try OpenFang first: check if we can resolve a port (most reliable signal)
-  const openfangPort = await resolveOpenFangPort(instanceId);
+  // Pass prefs to avoid duplicate readPreferences() call
+  const openfangPort = await resolveOpenFangPort(instanceId, prefs);
   const isOpenfang = runtimeType === 'openfang' || openfangPort != null;
   const isClaudeCode = runtimeType === 'claude-code' || iface === 'claude-code' || iface === 'claude';
 
   logger.info(`[EventBroker] registerInstance ${instanceId}: port=${openfangPort}, isOpenfang=${isOpenfang}, isClaudeCode=${isClaudeCode}, runtimeType=${runtimeType}, iface=${iface}`);
 
+  // Determine driver and driver-specific config
+  let driver = null;
+  let driverConfig = {};
+
   if (isOpenfang && openfangPort) {
-    // Derive agent name from instance ID (e.g., "Genevieve" from "Genevieve", "zara" from "Zara-c207")
     const agentName = instanceId.split('-')[0].toLowerCase();
-    // Subscribe to messages for this instance
-    subIds.push(broker.subscribe('message.sent', openfangEmitter, {
-      instanceId,
-      port: openfangPort,
-      agentName,
-      filter: { target: instanceId }
-    }));
-    // Subscribe to task assignments
-    subIds.push(broker.subscribe('task.assigned', openfangEmitter, {
-      instanceId,
-      port: openfangPort,
-      agentName,
-      filter: { target: instanceId }
-    }));
+    driver = openfangEmitter;
+    driverConfig = { port: openfangPort, agentName };
   } else if (isClaudeCode) {
-    subIds.push(broker.subscribe('message.sent', claudeCodeEmitter, {
-      instanceId,
-      filter: { target: instanceId }
-    }));
-    subIds.push(broker.subscribe('task.assigned', claudeCodeEmitter, {
-      instanceId,
-      filter: { target: instanceId }
-    }));
+    driver = claudeCodeEmitter;
+  }
+
+  if (driver) {
+    // Subscribe to event types that target this instance
+    for (const pattern of ['message.sent', 'task.assigned']) {
+      subIds.push(broker.subscribe(pattern, driver, {
+        instanceId,
+        ...driverConfig,
+        filter: { target: instanceId }
+      }));
+    }
   }
 
   return subIds;
@@ -559,26 +551,23 @@ async function registerInstance(broker, instanceId) {
  * Called on broker startup.
  */
 async function registerRunningInstances(broker) {
-  const instancesDir = path.join(DATA_ROOT, 'instances');
+  const instancesDir = getInstancesDir();
   let entries;
   try {
     entries = await fs.readdir(instancesDir, { withFileTypes: true });
   } catch { return; }
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const instanceId = entry.name;
-
-    try {
-      // Try to register — registerInstance will check for a resolvable port
-      // (which means the instance has an OpenFang config). If the port isn't
-      // reachable, delivery will fail gracefully at event time.
-      const subs = await registerInstance(broker, instanceId);
-      if (subs.length > 0) {
-        logger.info(`[EventBroker] auto-registered ${instanceId} (${subs.length} subscriptions)`);
-      }
-    } catch { /* skip instance */ }
-  }
+  // Register all instances in parallel (each does 1-2 file reads)
+  const results = await Promise.allSettled(
+    entries
+      .filter(e => e.isDirectory())
+      .map(async (entry) => {
+        const subs = await registerInstance(broker, entry.name);
+        if (subs.length > 0) {
+          logger.info(`[EventBroker] auto-registered ${entry.name} (${subs.length} subscriptions)`);
+        }
+      })
+  );
 }
 
 
