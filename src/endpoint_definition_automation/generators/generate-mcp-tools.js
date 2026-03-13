@@ -389,7 +389,20 @@ async function main() {
   console.log('');
 
   // Convert to MCP tools format
-  const tools = externalEndpoints.map(endpointToMcpTool);
+  const allTools = externalEndpoints.map(endpointToMcpTool);
+
+  // Deduplicate by tool name — keep first occurrence
+  // (duplicate declarations crash xAI/Grok and Google/Gemini APIs)
+  const seen = new Set();
+  const tools = [];
+  for (const tool of allTools) {
+    if (seen.has(tool.name)) {
+      console.log(`  ⚠️  Skipping duplicate tool: ${tool.name}`);
+      continue;
+    }
+    seen.add(tool.name);
+    tools.push(tool);
+  }
 
   // Sort by name for consistent output
   tools.sort((a, b) => a.name.localeCompare(b.name));
