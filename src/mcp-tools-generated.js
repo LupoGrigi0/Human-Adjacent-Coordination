@@ -3,7 +3,7 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-03-11T08:02:00.568Z                           ║
+ * ║  Generated: 2026-03-13T20:58:10.343Z                           ║
  * ║  Tool Count: 108                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝

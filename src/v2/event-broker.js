@@ -199,7 +199,7 @@ function extractEventFields(handlerName, params, result) {
     case 'xmpp_send_message':
       return {
         source,
-        target: result?.resolved_to || params.to || null,
+        target: params.to || null,
         data: {
           messageId: result?.message_id,
           to: params.to,
