@@ -246,9 +246,13 @@ window._dashToggleGoal = function(goalId) {
     const body = section.querySelector('.task-list-body');
     const chevron = section.querySelector('.chevron');
     const context = section.querySelector('.goal-context');
-    if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
-    if (chevron) chevron.classList.toggle('expanded');
-    if (context) context.style.display = context.style.display === 'none' ? 'block' : 'none';
+    const addWrap = section.querySelector('.goal-add-wrap');
+    const show = body && body.style.display === 'none';
+    if (body) body.style.display = show ? 'block' : 'none';
+    if (chevron) chevron.classList.toggle('expanded', show);
+    if (context) context.style.display = show ? 'block' : 'none';
+    if (addWrap) addWrap.style.display = show ? '' : 'none';
+    if (show) bindDashGoalInputs();
 };
 
 window._dashValidateCriteria = async function(goalId, criteriaId) {
@@ -259,7 +263,7 @@ window._dashValidateCriteria = async function(goalId, criteriaId) {
 };
 
 window._dashGoalStatusMenu = function(el, goalId) {
-    const options = ['in_progress', 'achieved', 'exceeded'].map(s => ({
+    const options = ['in_progress', 'achieved', 'exceeded', 'archived'].map(s => ({
         label: GOAL_STATUS_LABELS[s], value: s, icon: GOAL_STATUS_ICONS[s]
     }));
     showDropdown(el, options, async (status) => {

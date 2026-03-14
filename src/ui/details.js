@@ -417,7 +417,7 @@ window._idValidateCriteria = async function(goalId, criteriaId) {
 };
 
 window._idGoalStatusMenu = function(el, goalId) {
-    const options = ['in_progress', 'achieved', 'exceeded'].map(s => ({
+    const options = ['in_progress', 'achieved', 'exceeded', 'archived'].map(s => ({
         label: GOAL_STATUS_LABELS[s],
         value: s,
         icon: GOAL_STATUS_ICONS[s]

@@ -337,9 +337,9 @@ export function renderChecklistHTML(list, items, opts = {}) {
 // GOAL RENDERING
 // ============================================================================
 
-export const GOAL_STATUS_LABELS = { in_progress: 'In Progress', achieved: 'Achieved', exceeded: 'Exceeded' };
-export const GOAL_STATUS_COLORS = { in_progress: '#3b82f6', achieved: '#22c55e', exceeded: '#a78bfa' };
-export const GOAL_STATUS_ICONS = { in_progress: '◐', achieved: '✓', exceeded: '★' };
+export const GOAL_STATUS_LABELS = { in_progress: 'In Progress', achieved: 'Achieved', exceeded: 'Exceeded', archived: 'Archived' };
+export const GOAL_STATUS_COLORS = { in_progress: '#3b82f6', achieved: '#22c55e', exceeded: '#a78bfa', archived: '#6b7280' };
+export const GOAL_STATUS_ICONS = { in_progress: '◐', achieved: '✓', exceeded: '★', archived: '📦' };
 
 /**
  * Render a single goal as an expandable section with criteria.
@@ -393,9 +393,9 @@ export function renderGoalHTML(goal, opts = {}) {
         ? `<span class="goal-status-badge" onclick="event.stopPropagation();window.${prefix}GoalStatusMenu(this,'${goalId}')" style="cursor:pointer;font-size:0.75em;padding:2px 8px;border-radius:10px;background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}44;white-space:nowrap">${statusIcon} ${statusLabel}</span>`
         : '';
 
-    // Input in the header line — same pattern as task list headers
-    const addInput = showAdd && expanded
-        ? `<span class="new-task-input-wrap"><input type="text" class="task-header-input goal-add-criteria" placeholder="Add criteria..." data-goal-id="${goalId}"${projAttr} onclick="event.stopPropagation()"></span>`
+    // Always render add input — visibility controlled by goal-add-wrap class
+    const addInput = showAdd
+        ? `<span class="new-task-input-wrap goal-add-wrap" style="display:${expanded ? '' : 'none'}"><input type="text" class="task-header-input goal-add-criteria" placeholder="Add criteria..." data-goal-id="${goalId}"${projAttr} onclick="event.stopPropagation()"></span>`
         : '';
 
     const contextLine = goal.context
