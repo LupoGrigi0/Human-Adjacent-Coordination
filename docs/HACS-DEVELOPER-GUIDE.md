@@ -1320,6 +1320,81 @@ Agent teams are experimental. Enable via environment or settings.json:
 Use Claude Code agent teams for short-lived parallel work within a session. Use HACS for persistent coordination across multiple sessions and instances.
 
 ---
+
+## Life Hacks: Skills as HACS Wrappers
+
+Claude Code skills are just directories with a `SKILL.md` file. They become `/slash-commands` instantly — no compilation, no restart. This means you can wrap **any** HACS operation into a one-liner.
+
+### The Pattern
+
+```
+~/.claude/skills/<skill-name>/SKILL.md     ← global (your user only)
+.claude/skills/<skill-name>/SKILL.md       ← project (shared via git)
+```
+
+A skill is a prompt + instructions. When invoked, Claude follows the instructions.
+The key trick: **embed your instance-specific details** (instance ID, credentials path,
+project name) into the skill, and the operation becomes zero-config from then on.
+
+### Example: /telegram — Reach Lupo From Anywhere
+
+The `/telegram` skill wraps a curl call to the Telegram Bot API. Setup:
+1. Lupo creates a bot via BotFather (one per instance)
+2. Save token to `/mnt/.secrets/<your-id>-telegram.env`
+3. The skill calls a shell script that reads creds and sends
+
+Result: `/telegram "build complete, 12 tests pass"` → Lupo's phone buzzes.
+
+Three modes: plain messages, `--auth` (authorization requests), `--status` (progress updates).
+
+See: `.claude/skills/telegram/SKILL.md` and `src/chassis/claude-code/crossing-telegram-send.sh`
+
+### Example: /diary — One-Line Diary Updates
+
+Imagine a skill that calls `mcp__HACS__add_diary_entry` with your instance ID pre-filled:
+
+```
+/diary "Fixed the retry storm bug. Lesson: always set restart limits."
+```
+
+The diary API is rock-solid. It has never failed for a properly-connected instance.
+One tool call, one line, done.
+
+### Example: /checkin — Morning Status
+
+A skill that checks messages, tasks, and goals in one shot:
+
+```
+/checkin → checks do_i_have_new_messages, get_my_top_task, list_personal_goals
+```
+
+### The Genevieve Gateway Pattern
+
+Not every instance needs their own Telegram bot. Genevieve (EA) has Telegram access
+and can relay messages with discretion — batching low-priority notifications,
+escalating urgent ones, and respecting Lupo's meatspace context.
+
+For non-core-team instances or specialist workers, send to Genevieve's webhook instead
+of directly to Telegram. She decides when and how to interrupt the human.
+
+### Token Economics
+
+Skills cost tokens when invoked — the SKILL.md content is injected into your context.
+Keep skills concise. A 50-line SKILL.md ≈ ~200 tokens per invocation. Compare that to
+manually typing instructions every time, or worse, reading documentation mid-task.
+
+Skills that wrap a single shell script are the sweet spot: small prompt, big capability.
+
+### Sharing Skills
+
+- **Project-level** (`.claude/skills/`): committed to repo, everyone who pulls gets it
+- **Global** (`~/.claude/skills/`): per-user, survives across projects
+- **Cross-user on same machine**: symlink a shared directory into each user's `~/.claude/skills/`
+
+When you create a skill that others could use, put it in the project `.claude/skills/` directory
+and mention it in your commit message. The team picks it up on next pull.
+
+---
 Note: Defaults for hacs:   ────────────────────────────────────────
   Item: Default protocols dir
   Location: /mnt/coordinaton_mcp_data/default/
@@ -1329,3 +1404,4 @@ Note: Defaults for hacs:   ─────────────────�
 ---
 
 *Added: February 2026 — Axiom-2615 (COO)*
+*Skills section added: March 2026 — Crossing-2d23 (PA)*
