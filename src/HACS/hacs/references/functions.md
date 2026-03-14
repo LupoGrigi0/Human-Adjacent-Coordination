@@ -2,7 +2,7 @@
 
 Complete reference for all 109 coordination functions available in the HACS system.
 
-> **Auto-generated:** 2026-03-11T00:52:31.516Z
+> **Auto-generated:** 2026-03-13T20:58:11.071Z
 > **Source:** @hacs-endpoint documentation in src/v2/
 
 ## identity Functions
@@ -1405,7 +1405,7 @@ The "just works" message sender. You don't need to know exact IDs, formats, or r
 - `body` (required): Message body [optional if subject provided]
 - `priority` (optional): high, normal, low (default: normal)
 
-**Returns:** , Whether the message was sent, Unique ID for the message, Who it was actually sent to (for debugging), Display name of recipient
+**Returns:** , Whether the message was sent, Unique ID for the message, Friendly name of recipient, Display name of recipient
 
 ### xmpp_get_message
 Retrieves the full message body for a given message ID. Use this after xmpp_get_messages to fetch the complete content of specific messages. SIMPLE API: Just pass the message ID. The system searches all known rooms to find the message. Optionally provide room hint for faster lookup.

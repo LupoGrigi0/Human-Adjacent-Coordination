@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-03-11T00:52:31.769Z",
+    "generated": "2026-03-13T20:58:11.342Z",
     "generator": "generate-ui-api-docs.js",
     "version": "2.0.0",
     "totalEndpoints": 116,
@@ -7753,8 +7753,8 @@
             },
             {
               "type": "string",
-              "path": ".resolved_to",
-              "description": "Who it was actually sent to (for debugging)"
+              "path": ".delivered_to",
+              "description": "Friendly name of recipient"
             },
             {
               "type": "string",
