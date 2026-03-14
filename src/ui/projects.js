@@ -236,7 +236,7 @@ function renderVisionSection() {
 function renderProjectGoalsSection(projectId) {
     const isExpanded = expandedSections.has('goals') || projectGoals.length > 0;
     const goalsHTML = renderGoalsSectionHTML(projectGoals, {
-        prefix: '_pd', showCreate: true, showStatus: true,
+        prefix: '_pd', showTitle: false, showCreate: true, showStatus: true,
         expanded: projectGoals.length <= 5, projectId
     });
     return `

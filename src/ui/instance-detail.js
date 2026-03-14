@@ -238,7 +238,7 @@ function renderGoalsSection() {
     const isExp = expandedSections.has('goals') || instanceGoals.length > 0;
     const goalsHTML = renderGoalsSectionHTML(instanceGoals, {
         prefix: '_id',
-        title: 'Goals',
+        showTitle: false,
         showCreate: true,
         showStatus: true,
         expanded: instanceGoals.length <= 3
@@ -598,7 +598,7 @@ function reRenderGoals() {
     const container = document.querySelector('[data-section="goals"] .section-collapse-body');
     if (!container) return;
     container.innerHTML = renderGoalsSectionHTML(instanceGoals, {
-        prefix: '_id', title: 'Goals', showCreate: true, showStatus: true,
+        prefix: '_id', showTitle: false, showCreate: true, showStatus: true,
         expanded: instanceGoals.length <= 3
     });
     bindGoalInputs();

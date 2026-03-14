@@ -373,6 +373,7 @@ export function renderGoalHTML(goal, opts = {}) {
     const statusLabel = GOAL_STATUS_LABELS[status] || status;
     const wrapClass = compact ? 'goal-section compact' : 'goal-section';
     const projAttr = projectId ? ` data-project-id="${escapeHtml(projectId)}"` : '';
+    const pct = total > 0 ? Math.round((validated / total) * 100) : 0;
 
     const criteriaHTML = criteria.map(c => {
         const cid = escapeHtml(c.id);
@@ -388,15 +389,13 @@ export function renderGoalHTML(goal, opts = {}) {
         </div>`;
     }).join('');
 
-    const progressPct = total > 0 ? Math.round((validated / total) * 100) : 0;
-    const progressBar = total > 0 ? `<div class="goal-progress-bar" style="margin-top:4px;height:3px;background:var(--border-color);border-radius:2px;overflow:hidden"><div style="width:${progressPct}%;height:100%;background:${statusColor};transition:width 0.3s"></div></div>` : '';
-
     const statusBadge = showStatus
-        ? `<span class="goal-status-badge" onclick="event.stopPropagation();window.${prefix}GoalStatusMenu(this,'${goalId}')" style="cursor:pointer;font-size:0.75em;padding:2px 8px;border-radius:10px;background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}44;margin-left:auto;white-space:nowrap">${statusIcon} ${statusLabel}</span>`
+        ? `<span class="goal-status-badge" onclick="event.stopPropagation();window.${prefix}GoalStatusMenu(this,'${goalId}')" style="cursor:pointer;font-size:0.75em;padding:2px 8px;border-radius:10px;background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}44;white-space:nowrap">${statusIcon} ${statusLabel}</span>`
         : '';
 
-    const addInput = showAdd
-        ? `<input type="text" class="task-header-input goal-add-criteria" placeholder="Add criteria..." data-goal-id="${goalId}"${projAttr} onclick="event.stopPropagation()" style="margin-top:4px;width:100%">`
+    // Input in the header line — same pattern as task list headers
+    const addInput = showAdd && expanded
+        ? `<span class="new-task-input-wrap"><input type="text" class="task-header-input goal-add-criteria" placeholder="Add criteria..." data-goal-id="${goalId}"${projAttr} onclick="event.stopPropagation()"></span>`
         : '';
 
     const contextLine = goal.context
@@ -409,13 +408,13 @@ export function renderGoalHTML(goal, opts = {}) {
             <span class="chevron ${expanded ? 'expanded' : ''}">&rsaquo;</span>
             <span class="task-list-name">${escapeHtml(goal.name || goalId)}</span>
             <span class="task-list-progress-text">${validated}/${total}</span>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${statusColor}"></div></div>
             ${statusBadge}
+            ${addInput}
         </div>
         ${contextLine}
-        ${progressBar}
         <div class="task-list-body" style="display:${expanded ? 'block' : 'none'}">
             ${criteriaHTML || '<div style="padding:4px;color:var(--text-muted);font-size:0.85em">No criteria yet</div>'}
-            ${addInput}
         </div>
     </div>`;
 }
@@ -429,26 +428,28 @@ export function renderGoalHTML(goal, opts = {}) {
  * @param {boolean} opts.showCreate - Show create-goal input
  */
 export function renderGoalsSectionHTML(goals, opts = {}) {
-    const { title = 'Goals', showCreate = true, prefix = '_id', projectId = null } = opts;
+    const { title = 'Goals', showCreate = true, showTitle = true, prefix = '_id', projectId = null } = opts;
     const projAttr = projectId ? ` data-project-id="${escapeHtml(projectId)}"` : '';
 
     const goalsHTML = goals.map(g => renderGoalHTML(g, opts)).join('');
 
+    // Create input inline in header — matches task list header pattern
     const createInput = showCreate
-        ? `<div style="margin-top:8px;display:flex;gap:6px">
-            <input type="text" class="task-header-input goal-create-input" placeholder="New goal name..."${projAttr} style="flex:1">
-            <button class="btn btn-sm" onclick="window.${prefix}CreateGoal(this)"${projAttr} style="padding:4px 12px;font-size:0.8em">+</button>
-           </div>`
+        ? `<span class="new-task-input-wrap" style="margin-left:auto"><input type="text" class="task-header-input goal-create-input" placeholder="New goal..."${projAttr} onclick="event.stopPropagation()"><span onclick="event.stopPropagation();window.${prefix}CreateGoal(this)" style="cursor:pointer;padding:0 4px;color:var(--accent-color)" title="Create goal"${projAttr}>+</span></span>`
         : '';
+
+    const header = showTitle
+        ? `<div style="margin:0 0 8px 0;font-size:0.95em;display:flex;align-items:center;gap:6px">
+            <span style="color:var(--accent-color)">◎</span> ${escapeHtml(title)}
+            <span style="color:var(--text-muted);font-size:0.8em">(${goals.length})</span>
+            ${createInput}
+           </div>`
+        : (showCreate ? `<div style="margin:0 0 8px 0;display:flex;align-items:center">${createInput}</div>` : '');
 
     return `
     <div class="goals-section">
-        <h3 style="margin:0 0 8px 0;font-size:0.95em;display:flex;align-items:center;gap:6px">
-            <span style="color:var(--accent-color)">◎</span> ${escapeHtml(title)}
-            <span style="color:var(--text-muted);font-size:0.8em">(${goals.length})</span>
-        </h3>
+        ${header}
         ${goalsHTML || '<div style="color:var(--text-muted);font-size:0.85em;padding:4px 0">No goals yet</div>'}
-        ${createInput}
     </div>`;
 }
 
