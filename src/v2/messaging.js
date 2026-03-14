@@ -802,7 +802,7 @@ export async function sendMessage(params) {
  * @returns {object} SendMessageResponse
  * @returns {boolean} .success - Whether the message was sent
  * @returns {string} .message_id - Unique ID for the message
- * @returns {string} .resolved_to - Who it was actually sent to (for debugging)
+ * @returns {string} .delivered_to - Friendly name of recipient
  * @returns {string} .delivered_to - Display name of recipient
  *
  * ───────────────────────────────────────────────────────────────────────────
@@ -856,7 +856,6 @@ export async function friendlySendMessage(params) {
   if (result.success) {
     return {
       ...result,
-      resolved_to: resolved.jid,
       delivered_to: resolved.display
     };
   }
