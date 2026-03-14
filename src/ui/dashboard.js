@@ -21,6 +21,8 @@ import {
     renderGoalsSectionHTML, GOAL_STATUS_LABELS, GOAL_STATUS_COLORS, GOAL_STATUS_ICONS
 } from './shared-tasks.js';
 
+let expandedGoalIds = new Set();
+
 // ============================================================================
 // SETTINGS
 // ============================================================================
@@ -196,12 +198,14 @@ async function loadDashboardGoals() {
             summaries.map(g => api.getGoal(state.instanceId, g.id).then(r => r.goal).catch(() => g))
         );
 
+        const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
+            : (fullGoals.length <= 5 ? new Set(fullGoals.map(g => g.id)) : new Set());
         container.innerHTML = `<div class="dash-goals-section">${renderGoalsSectionHTML(fullGoals, {
             prefix: '_dash',
             title: 'My Goals',
             showCreate: true,
             showStatus: true,
-            expanded: fullGoals.length <= 5,
+            expandedIds: effectiveExpIds,
             compact: false
         })}</div>`;
 
@@ -252,7 +256,8 @@ window._dashToggleGoal = function(goalId) {
     if (chevron) chevron.classList.toggle('expanded', show);
     if (context) context.style.display = show ? 'block' : 'none';
     if (addWrap) addWrap.style.display = show ? '' : 'none';
-    if (show) bindDashGoalInputs();
+    if (show) { expandedGoalIds.add(goalId); bindDashGoalInputs(); }
+    else expandedGoalIds.delete(goalId);
 };
 
 window._dashValidateCriteria = async function(goalId, criteriaId) {

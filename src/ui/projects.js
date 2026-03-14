@@ -27,6 +27,7 @@ let projectVision = null;
 let onlineInstances = new Set();
 let chatPollInterval = null;
 let showCompletedLists = new Set(); // which lists show completed tasks
+let expandedGoalIds = new Set();
 let vitalDocuments = new Set(); // vital doc names
 
 // Constants, showDropdown, and task rendering imported from shared-tasks.js
@@ -235,9 +236,11 @@ function renderVisionSection() {
 
 function renderProjectGoalsSection(projectId) {
     const isExpanded = expandedSections.has('goals') || projectGoals.length > 0;
+    const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
+        : (projectGoals.length <= 5 ? new Set(projectGoals.map(g => g.id)) : new Set());
     const goalsHTML = renderGoalsSectionHTML(projectGoals, {
         prefix: '_pd', showTitle: false, showCreate: true, showStatus: true,
-        expanded: projectGoals.length <= 5, projectId
+        expandedIds: effectiveExpIds, projectId
     });
     return `
     <div class="section-collapse" data-section="goals">
@@ -754,7 +757,8 @@ window._pdToggleGoal = function(goalId) {
     if (chevron) chevron.classList.toggle('expanded', show);
     if (context) context.style.display = show ? 'block' : 'none';
     if (addWrap) addWrap.style.display = show ? '' : 'none';
-    if (show) bindProjectGoalInputs();
+    if (show) { expandedGoalIds.add(goalId); bindProjectGoalInputs(); }
+    else expandedGoalIds.delete(goalId);
 };
 
 window._pdValidateCriteria = async function(goalId, criteriaId) {

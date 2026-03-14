@@ -428,10 +428,14 @@ export function renderGoalHTML(goal, opts = {}) {
  * @param {boolean} opts.showCreate - Show create-goal input
  */
 export function renderGoalsSectionHTML(goals, opts = {}) {
-    const { title = 'Goals', showCreate = true, showTitle = true, prefix = '_id', projectId = null } = opts;
+    const { title = 'Goals', showCreate = true, showTitle = true, prefix = '_id', projectId = null, expandedIds = null } = opts;
     const projAttr = projectId ? ` data-project-id="${escapeHtml(projectId)}"` : '';
 
-    const goalsHTML = goals.map(g => renderGoalHTML(g, opts)).join('');
+    const goalsHTML = goals.map(g => {
+        // Per-goal expanded state: use expandedIds set if provided, else fall back to opts.expanded
+        const goalExpanded = expandedIds ? expandedIds.has(g.id) : opts.expanded;
+        return renderGoalHTML(g, { ...opts, expanded: goalExpanded });
+    }).join('');
 
     // Create input inline in header — matches task list header pattern
     const createInput = showCreate
