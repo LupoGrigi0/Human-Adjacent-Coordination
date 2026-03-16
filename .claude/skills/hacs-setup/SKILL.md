@@ -8,11 +8,15 @@ allowed-tools: Bash, mcp__HACS__introspect, mcp__HACS__have_i_bootstrapped_befor
 
 Register your HACS identity for all skills to use. Run once after bootstrap.
 
+IMPORTANT: Identity is saved to the CURRENT WORKING DIRECTORY (.hacs-identity),
+not to your home directory. This is because multiple instances share the same
+Unix user (root) but wake in different directories. Each CWD gets its own identity.
+
 ## Steps
 
 1. Check if already set up:
    ```bash
-   cat ~/.hacs-identity 2>/dev/null
+   cat .hacs-identity 2>/dev/null
    ```
    If the file exists and looks correct, tell the user they're already set up and show the current identity.
 
@@ -22,18 +26,20 @@ Register your HACS identity for all skills to use. Run once after bootstrap.
 
 3. If not bootstrapped, tell the user to run `/hacs` first to bootstrap.
 
-4. Save identity:
+4. Save identity to CWD:
    ```bash
-   cat > ~/.hacs-identity << 'IDENTITY'
+   cat > .hacs-identity << IDENTITY
    HACS_INSTANCE_ID=<instance-id>
    HACS_PROJECT=<project-name>
    HACS_ROLE=<role>
    IDENTITY
    ```
 
-5. Confirm: "Identity saved. All /diary, /messages, /tasks, /checkin, /goals, /msg skills will now use your identity automatically."
+5. Confirm: "Identity saved to .hacs-identity in current directory. All /diary, /messages, /tasks, /checkin, /goals, /msg skills will now use your identity automatically."
 
 ## Rules
 
 - Never overwrite an existing identity without asking
 - The instance ID comes from HACS, not from the user guessing
+- Write to CWD (.hacs-identity), NOT to home (~/.hacs-identity)
+- Multiple instances share root — CWD is what distinguishes them

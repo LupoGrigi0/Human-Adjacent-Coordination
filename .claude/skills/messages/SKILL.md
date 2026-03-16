@@ -12,7 +12,10 @@ Check your HACS inbox.
 
 1. Read identity:
    ```bash
-   source ~/.hacs-identity 2>/dev/null
+   # Identity: CWD first (per-instance), then home (fallback)
+   if [ -f .hacs-identity ]; then source .hacs-identity 2>/dev/null
+   elif [ -f ~/.hacs-identity ]; then source ~/.hacs-identity 2>/dev/null
+   fi
    ```
    If missing, tell user to run `/hacs-setup` first.
 
