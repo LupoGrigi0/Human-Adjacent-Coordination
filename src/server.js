@@ -120,6 +120,8 @@ import { continueConversation, getConversationLog } from './v2/continueConversat
 import { launchInstance, landInstance } from './v2/launchInstance.js';
 // Event Broker — device driver pattern for event routing (Messenger-aa2a, 2026-03-11)
 import { initBroker } from './v2/event-broker.js';
+// Semantic Memory — Qdrant-backed remember/store/stats (Axiom-2615, 2026-03-13)
+import { rememberHandler, storeMemoryHandler, rememberStatsHandler, indexDiaryEntry } from './v2/memory.js';
 
 /**
  * Simple server implementation for development and testing
@@ -460,6 +462,14 @@ class MCPCoordinationServer {
 
         case 'recover_context':
           return recoverContext(params);
+
+        // Semantic Memory APIs (Axiom-2615 + Crossing-2d23)
+        case 'remember':
+          return rememberHandler(params);
+        case 'store_memory':
+          return storeMemoryHandler(params);
+        case 'remember_stats':
+          return rememberStatsHandler(params);
 
         // V2 Document APIs
         case 'create_document':

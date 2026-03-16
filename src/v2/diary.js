@@ -8,6 +8,7 @@
  */
 
 import { readDiary, appendDiary, readPreferences } from './data.js';
+import { indexDiaryEntry } from './memory.js';
 
 /**
  * @hacs-endpoint
@@ -209,6 +210,12 @@ export async function addDiaryEntry(params) {
 
   try {
     await appendDiary(params.instanceId, formattedEntry);
+
+    // Auto-index diary entry in semantic memory (fire-and-forget, non-blocking)
+    indexDiaryEntry(params.instanceId, params.entry).catch(err => {
+      // Memory indexing is best-effort — diary write already succeeded
+      console.error(`[diary] Memory auto-index failed: ${err.message}`);
+    });
 
     return {
       success: true,
