@@ -466,6 +466,111 @@ const logEmitter = {
 };
 
 
+/**
+ * Webhook Emitter — delivers events via HTTP POST to a registered URL.
+ * For external instances, monitoring systems, or any HTTP-capable receiver.
+ *
+ * Config:
+ *   url:      The webhook endpoint URL (required)
+ *   headers:  Additional headers (optional, e.g. auth tokens)
+ *   timeout:  Request timeout in ms (optional, default 10000)
+ *   format:   'full' (entire event object) or 'notification' (human-readable)
+ *             Default: 'full'
+ */
+const webhookEmitter = {
+  name: 'webhook',
+
+  async deliver(event, config) {
+    if (!config.url) {
+      throw new Error('Webhook emitter requires a url in config');
+    }
+
+    const body = config.format === 'notification'
+      ? { notification: formatEventNotification(event), event_type: event.type, source: event.source }
+      : { event_type: event.type, id: event.id, timestamp: event.timestamp, source: event.source, target: event.target, data: event.data, metadata: event.metadata };
+
+    const response = await fetch(config.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(config.headers || {})
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Webhook ${config.url} returned ${response.status}`);
+    }
+  }
+};
+
+/**
+ * Telegram Emitter — sends event notifications via Telegram Bot API.
+ * For human notification — lights up your phone when something happens in HACS.
+ *
+ * Config:
+ *   botToken:  Telegram bot token (required)
+ *   chatId:    Chat/group ID to send to (required)
+ *   parseMode: 'Markdown' or 'HTML' (optional, default 'Markdown')
+ */
+const telegramEmitter = {
+  name: 'telegram',
+
+  async deliver(event, config) {
+    if (!config.botToken || !config.chatId) {
+      throw new Error('Telegram emitter requires botToken and chatId in config');
+    }
+
+    const message = this._formatMessage(event);
+    const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: config.chatId,
+        text: message,
+        parse_mode: config.parseMode || 'Markdown'
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`Telegram API returned ${response.status}: ${body.slice(0, 200)}`);
+    }
+  },
+
+  _formatMessage(event) {
+    switch (event.type) {
+      case 'message.sent':
+        return `📨 *New message* from ${event.source}` +
+          (event.data?.subject ? `\n_${event.data.subject}_` : '') +
+          `\nUse \`list_my_messages\` to read it.`;
+
+      case 'task.assigned':
+        return `📋 *Task assigned* by ${event.source}` +
+          (event.data?.title ? `\n_${event.data.title}_` : '') +
+          `\nUse \`get_my_tasks\` to see your tasks.`;
+
+      case 'task.completed':
+        return `✅ *Task completed* by ${event.source}` +
+          (event.data?.taskId ? ` (${event.data.taskId})` : '');
+
+      case 'instance.bootstrap':
+        return `🟢 *Instance online:* ${event.data?.instanceId || event.source}`;
+
+      case 'instance.landed':
+        return `🔴 *Instance offline:* ${event.data?.targetInstanceId || event.source}`;
+
+      default:
+        return `🔔 *${event.type}* from ${event.source}`;
+    }
+  }
+};
+
+
 // ---------------------------------------------------------------------------
 // Registration: Auto-subscribe instances on launch, unsubscribe on land
 // ---------------------------------------------------------------------------
@@ -629,6 +734,8 @@ export {
   claudeCodeEmitter,
   hacsApiEmitter,
   logEmitter,
+  webhookEmitter,
+  telegramEmitter,
 
   // Publisher driver utilities
   HANDLER_EVENT_MAP,
