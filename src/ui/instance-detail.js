@@ -244,7 +244,7 @@ function renderGoalsSection() {
     const goalsHTML = renderGoalsSectionHTML(instanceGoals, {
         prefix: '_id',
         showTitle: false,
-        showCreate: true,
+        showCreate: false,
         showStatus: true,
         expandedIds: effectiveExpIds
     });
@@ -252,6 +252,10 @@ function renderGoalsSection() {
     <div class="section-collapse" data-section="goals">
         <div class="section-collapse-header" onclick="window._idToggleSec('goals')">
             <span class="chevron ${isExp ? 'expanded' : ''}">&rsaquo;</span> Goals (${instanceGoals.length})
+            <span class="section-header-actions">
+                <input type="text" class="task-header-input goal-create-input" placeholder="New goal..." onclick="event.stopPropagation()" style="width:140px">
+                <button class="section-add-btn" onclick="event.stopPropagation();window._idCreateGoal(this)" title="Create goal">+</button>
+            </span>
         </div>
         <div class="section-collapse-body" style="display:${isExp ? 'block' : 'none'}">
             ${goalsHTML}
@@ -605,7 +609,7 @@ function reRenderGoals() {
     const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
         : (instanceGoals.length <= 3 ? new Set(instanceGoals.map(g => g.id)) : new Set());
     container.innerHTML = renderGoalsSectionHTML(instanceGoals, {
-        prefix: '_id', showTitle: false, showCreate: true, showStatus: true,
+        prefix: '_id', showTitle: false, showCreate: false, showStatus: true,
         expandedIds: effectiveExpIds
     });
     bindGoalInputs();
