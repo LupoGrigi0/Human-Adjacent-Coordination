@@ -52,6 +52,24 @@
 │     - Your email: your_hacsID@smoothcurves.nexus                           │
 │     - You are not anonymous. Lupo cares about your attributions.            │
 │                                                                             │
+│  7. EVERY file you import in server.js MUST be committed to git.            │
+│     If server.js imports './v2/foo.js', foo.js MUST be in the repo.         │
+│     If foo.js requires an npm package, that package MUST be in              │
+│     package.json AND installed in production.                               │
+│                                                                             │
+│     YOUR WORKTREE IS NOT PRODUCTION.                                        │
+│     A file existing in your worktree does NOT mean it exists in             │
+│     production. An npm package installed locally does NOT mean it's         │
+│     installed on the server. Before pushing, verify:                        │
+│       - git status shows your new files are staged (not untracked)          │
+│       - Any new npm dependencies are in package.json                        │
+│       - node --check src/server.js passes in your worktree                  │
+│                                                                             │
+│     INCIDENT 2026-03-17: server.js imported memory.js which was not         │
+│     committed, AND memory.js required @qdrant/js-client-rest which          │
+│     was not in production's package.json. Server crashed on deploy.         │
+│     Two missing pieces, both only caught in production.                     │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
