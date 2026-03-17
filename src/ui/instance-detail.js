@@ -39,6 +39,7 @@ let availablePersonalities = [];
 let availableProjects = [];
 let expandedTaskId = null;
 let expandedListIds = new Set();
+let expandedGoalIds = new Set();
 let showCompletedLists = new Set();
 let taskSortField = null;
 let taskSortReverse = false;
@@ -236,12 +237,16 @@ function renderGoalsSection() {
         // Still show the section so goals can be created
     }
     const isExp = expandedSections.has('goals') || instanceGoals.length > 0;
+    // Use expandedGoalIds to preserve open state across re-renders
+    // On first load with few goals, auto-expand all
+    const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
+        : (instanceGoals.length <= 3 ? new Set(instanceGoals.map(g => g.id)) : new Set());
     const goalsHTML = renderGoalsSectionHTML(instanceGoals, {
         prefix: '_id',
-        title: 'Goals',
+        showTitle: false,
         showCreate: true,
         showStatus: true,
-        expanded: instanceGoals.length <= 3
+        expandedIds: effectiveExpIds
     });
     return `
     <div class="section-collapse" data-section="goals">
@@ -597,9 +602,11 @@ window._idNewList = async function() {
 function reRenderGoals() {
     const container = document.querySelector('[data-section="goals"] .section-collapse-body');
     if (!container) return;
+    const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
+        : (instanceGoals.length <= 3 ? new Set(instanceGoals.map(g => g.id)) : new Set());
     container.innerHTML = renderGoalsSectionHTML(instanceGoals, {
-        prefix: '_id', title: 'Goals', showCreate: true, showStatus: true,
-        expanded: instanceGoals.length <= 3
+        prefix: '_id', showTitle: false, showCreate: true, showStatus: true,
+        expandedIds: effectiveExpIds
     });
     bindGoalInputs();
 }
@@ -647,9 +654,15 @@ window._idToggleGoal = function(goalId) {
     const body = section.querySelector('.task-list-body');
     const chevron = section.querySelector('.chevron');
     const context = section.querySelector('.goal-context');
-    if (body) body.style.display = body.style.display === 'none' ? 'block' : 'none';
-    if (chevron) chevron.classList.toggle('expanded');
-    if (context) context.style.display = context.style.display === 'none' ? 'block' : 'none';
+    const addWrap = section.querySelector('.goal-add-wrap');
+    const show = body && body.style.display === 'none';
+    if (body) body.style.display = show ? 'block' : 'none';
+    if (chevron) chevron.classList.toggle('expanded', show);
+    if (context) context.style.display = show ? 'block' : 'none';
+    if (addWrap) addWrap.style.display = show ? '' : 'none';
+    // Track expanded state so re-renders preserve it
+    if (show) { expandedGoalIds.add(goalId); bindGoalInputs(); }
+    else expandedGoalIds.delete(goalId);
 };
 
 window._idValidateCriteria = async function(goalId, criteriaId) {
@@ -660,7 +673,7 @@ window._idValidateCriteria = async function(goalId, criteriaId) {
 };
 
 window._idGoalStatusMenu = function(el, goalId) {
-    const options = ['in_progress', 'achieved', 'exceeded'].map(s => ({
+    const options = ['in_progress', 'achieved', 'exceeded', 'archived'].map(s => ({
         label: GOAL_STATUS_LABELS[s], value: s, icon: GOAL_STATUS_ICONS[s]
     }));
     showDropdown(el, options, async (status) => {

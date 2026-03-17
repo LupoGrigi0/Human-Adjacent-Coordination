@@ -17,8 +17,11 @@ import api from './api.js';
 import {
     STATUSES, PRIORITIES, PRIORITY_COLORS, STATUS_LABELS, STATUS_ICONS,
     PRIORITY_ORDER, showDropdown, renderTaskListHTML, renderChecklistHTML,
-    sortTasksInPlace, findTaskById
+    sortTasksInPlace, findTaskById,
+    renderGoalsSectionHTML, GOAL_STATUS_LABELS, GOAL_STATUS_COLORS, GOAL_STATUS_ICONS
 } from './shared-tasks.js';
+
+let expandedGoalIds = new Set();
 
 // ============================================================================
 // SETTINGS
@@ -116,7 +119,8 @@ export async function loadDashboard() {
         ),
         renderPMStatus(),
         loadMyLists(),
-        initPAChat(document.getElementById('pa-chat-msgs'))
+        initPAChat(document.getElementById('pa-chat-msgs')),
+        loadDashboardGoals()
     ];
 
     if (settings.showChart) {
@@ -171,6 +175,119 @@ async function renderPMStatus() {
         });
     });
 }
+
+// ============================================================================
+// EXECUTIVE GOALS
+// ============================================================================
+
+async function loadDashboardGoals() {
+    const container = document.getElementById('dash-goals');
+    if (!container) return;
+
+    try {
+        const result = await api.listPersonalGoals(state.instanceId);
+        const summaries = result.goals || [];
+
+        if (summaries.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        // Fetch full criteria for each goal
+        const fullGoals = await Promise.all(
+            summaries.map(g => api.getGoal(state.instanceId, g.id).then(r => r.goal).catch(() => g))
+        );
+
+        const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
+            : (fullGoals.length <= 5 ? new Set(fullGoals.map(g => g.id)) : new Set());
+        container.innerHTML = `<div class="dash-goals-section">${renderGoalsSectionHTML(fullGoals, {
+            prefix: '_dash',
+            title: 'My Goals',
+            showCreate: true,
+            showStatus: true,
+            expandedIds: effectiveExpIds,
+            compact: false
+        })}</div>`;
+
+        bindDashGoalInputs();
+    } catch (err) {
+        console.error('[Dashboard] Error loading goals:', err);
+        container.innerHTML = '';
+    }
+}
+
+function bindDashGoalInputs() {
+    document.querySelectorAll('#dash-goals .goal-create-input').forEach(input => {
+        if (input._goalBound) return;
+        input._goalBound = true;
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            try {
+                await api.createGoal(state.instanceId, input.value.trim());
+                input.value = '';
+                await loadDashboardGoals();
+            } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+        });
+    });
+    document.querySelectorAll('#dash-goals .goal-add-criteria').forEach(input => {
+        if (input._goalBound) return;
+        input._goalBound = true;
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            const goalId = input.dataset.goalId;
+            try {
+                await api.addCriteria(state.instanceId, goalId, input.value.trim());
+                input.value = '';
+                await loadDashboardGoals();
+            } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+        });
+    });
+}
+
+window._dashToggleGoal = function(goalId) {
+    const section = document.querySelector(`#dash-goals .goal-section[data-goal-id="${goalId}"]`);
+    if (!section) return;
+    const body = section.querySelector('.task-list-body');
+    const chevron = section.querySelector('.chevron');
+    const context = section.querySelector('.goal-context');
+    const addWrap = section.querySelector('.goal-add-wrap');
+    const show = body && body.style.display === 'none';
+    if (body) body.style.display = show ? 'block' : 'none';
+    if (chevron) chevron.classList.toggle('expanded', show);
+    if (context) context.style.display = show ? 'block' : 'none';
+    if (addWrap) addWrap.style.display = show ? '' : 'none';
+    if (show) { expandedGoalIds.add(goalId); bindDashGoalInputs(); }
+    else expandedGoalIds.delete(goalId);
+};
+
+window._dashValidateCriteria = async function(goalId, criteriaId) {
+    try {
+        await api.validateCriteria(state.instanceId, goalId, criteriaId);
+        await loadDashboardGoals();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._dashGoalStatusMenu = function(el, goalId) {
+    const options = ['in_progress', 'achieved', 'exceeded', 'archived'].map(s => ({
+        label: GOAL_STATUS_LABELS[s], value: s, icon: GOAL_STATUS_ICONS[s]
+    }));
+    showDropdown(el, options, async (status) => {
+        try {
+            await api.setGoalStatus(state.instanceId, goalId, status);
+            await loadDashboardGoals();
+        } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    });
+};
+
+window._dashCreateGoal = async function(btn) {
+    const input = btn.parentElement.querySelector('.goal-create-input');
+    if (!input || !input.value.trim()) return;
+    try {
+        await api.createGoal(state.instanceId, input.value.trim());
+        input.value = '';
+        await loadDashboardGoals();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
 
 // ============================================================================
 // WORLD INFO STRIP

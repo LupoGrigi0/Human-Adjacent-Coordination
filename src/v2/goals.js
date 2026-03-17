@@ -25,7 +25,7 @@ import { readJSON, writeJSON, readPreferences, generateSuffix } from './data.js'
 // DATA ACCESS
 // =============================================================================
 
-const GOAL_STATUSES = ['in_progress', 'achieved', 'exceeded'];
+const GOAL_STATUSES = ['in_progress', 'achieved', 'exceeded', 'archived'];
 
 function getInstanceGoalsFile(instanceId) {
   return path.join(getInstanceDir(instanceId), 'lists.json');
@@ -246,7 +246,12 @@ export async function listPersonalGoals(params) {
   }
 
   const data = await readGoals('personal', targetId);
-  const goals = getGoalArray(data, 'personal');
+  let goals = getGoalArray(data, 'personal');
+
+  // Filter out archived by default
+  if (!params.includeArchived) {
+    goals = goals.filter(g => (g.status || 'in_progress') !== 'archived');
+  }
 
   const summaries = goals.map(g => ({
     id: g.id,
@@ -286,7 +291,11 @@ export async function listProjectGoals(params) {
   }
 
   const data = await readGoals('project', params.projectId);
-  const goals = getGoalArray(data, 'project');
+  let goals = getGoalArray(data, 'project');
+
+  if (!params.includeArchived) {
+    goals = goals.filter(g => (g.status || 'in_progress') !== 'archived');
+  }
 
   const summaries = goals.map(g => ({
     id: g.id,

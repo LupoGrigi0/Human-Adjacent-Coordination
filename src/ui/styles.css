@@ -4078,6 +4078,17 @@ body {
 .th-dot:hover { transform: scale(1.4); z-index: 2; }
 
 /* ====== PM STATUS SCROLL ====== */
+.dash-goals-section {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+.dash-goals-section .goals-section h3 { margin: 0 0 8px 0; }
+.dash-goals-section .goal-section { margin-bottom: 4px; }
+.dash-goals-section .goal-progress-bar { margin-top: 2px; }
+
 .pm-scroll {
     background: var(--surface-color);
     border: 1px solid var(--border-color);

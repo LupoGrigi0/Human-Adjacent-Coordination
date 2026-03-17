@@ -12,7 +12,8 @@ import {
     STATUSES, PRIORITIES, PRIORITY_COLORS, STATUS_LABELS, STATUS_ICONS,
     PRIORITY_ORDER, STATUS_ORDER,
     showDropdown, renderTaskListHTML, renderTaskRowHTML, renderTaskExpandedHTML,
-    sortTasksInPlace, findTaskById
+    sortTasksInPlace, findTaskById,
+    renderGoalsSectionHTML, GOAL_STATUS_LABELS, GOAL_STATUS_COLORS, GOAL_STATUS_ICONS
 } from './shared-tasks.js';
 
 // Module-level state
@@ -21,10 +22,12 @@ let expandedTaskId = null;
 let expandedSections = new Set(['tasks']);
 let projectTasks = {};
 let projectDocuments = [];
+let projectGoals = [];
 let projectVision = null;
 let onlineInstances = new Set();
 let chatPollInterval = null;
 let showCompletedLists = new Set(); // which lists show completed tasks
+let expandedGoalIds = new Set();
 let vitalDocuments = new Set(); // vital doc names
 
 // Constants, showDropdown, and task rendering imported from shared-tasks.js
@@ -80,6 +83,7 @@ export async function showProjectDetail(projectId) {
     expandedSections = new Set(['tasks']);
     projectTasks = {};
     projectDocuments = [];
+    projectGoals = [];
     projectVision = null;
     showCompletedLists = new Set();
     vitalDocuments = new Set();
@@ -118,12 +122,13 @@ export async function showProjectDetail(projectId) {
     }
 
     // Fetch presence, tasks, documents, vision, vital docs in parallel
-    const [presenceResult, tasksResult, docsResult, visionResult, vitalResult] = await Promise.allSettled([
+    const [presenceResult, tasksResult, docsResult, visionResult, vitalResult, goalsResult] = await Promise.allSettled([
         api.getPresence(),
         api.listTasks(state.instanceId, { projectId, limit: 200, full_detail: true }),
         api.listDocuments(state.instanceId, `project:${projectId}`),
         api.readDocument(state.instanceId, 'PROJECT_VISION.md', `project:${projectId}`),
-        api.listVitalDocuments(state.instanceId, `project:${projectId}`)
+        api.listVitalDocuments(state.instanceId, `project:${projectId}`),
+        api.listProjectGoals(state.instanceId, projectId)
     ]);
 
     if (presenceResult.status === 'fulfilled') {
@@ -146,6 +151,15 @@ export async function showProjectDetail(projectId) {
     if (vitalResult.status === 'fulfilled') {
         const vDocs = vitalResult.value.documents || vitalResult.value.vitalDocuments || [];
         vitalDocuments = new Set(vDocs.map(d => typeof d === 'string' ? d : d.name));
+    }
+
+    // Fetch full goal criteria
+    projectGoals = [];
+    if (goalsResult.status === 'fulfilled') {
+        const summaries = goalsResult.value.goals || [];
+        projectGoals = await Promise.all(
+            summaries.map(g => api.getGoal(state.instanceId, g.id, projectId).then(r => r.goal).catch(() => g))
+        );
     }
 
     renderProjectDetail(project, allTasks);
@@ -186,6 +200,7 @@ function renderProjectDetail(project, allTasks) {
     <div class="project-detail-body">
         <div class="project-detail-main">
             ${renderVisionSection()}
+            ${renderProjectGoalsSection(projectId)}
             ${renderTasksSection(listIds, projectId)}
         </div>
         <div class="project-detail-sidebar">
@@ -197,6 +212,7 @@ function renderProjectDetail(project, allTasks) {
 
     detailView.addEventListener('click', handleDetailClick);
     detailView.addEventListener('keydown', handleDetailKeydown);
+    bindProjectGoalInputs();
 }
 
 // ============================================================================
@@ -214,6 +230,25 @@ function renderVisionSection() {
         </div>
         <div class="section-collapse-body" style="display:${isExpanded ? 'block' : 'none'}">
             <pre class="vision-preview">${escapeHtml(isExpanded ? projectVision : lines)}</pre>
+        </div>
+    </div>`;
+}
+
+function renderProjectGoalsSection(projectId) {
+    const isExpanded = expandedSections.has('goals') || projectGoals.length > 0;
+    const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
+        : (projectGoals.length <= 5 ? new Set(projectGoals.map(g => g.id)) : new Set());
+    const goalsHTML = renderGoalsSectionHTML(projectGoals, {
+        prefix: '_pd', showTitle: false, showCreate: true, showStatus: true,
+        expandedIds: effectiveExpIds, projectId
+    });
+    return `
+    <div class="section-collapse" data-section="goals">
+        <div class="section-collapse-header" onclick="window._pdToggleSection('goals')">
+            <span class="chevron ${isExpanded ? 'expanded' : ''}">&rsaquo;</span> Goals (${projectGoals.length})
+        </div>
+        <div class="section-collapse-body" style="display:${isExpanded ? 'block' : 'none'}">
+            ${goalsHTML}
         </div>
     </div>`;
 }
@@ -694,6 +729,99 @@ window._pdCreateList = async function(projectId) {
         renderProjectDetail(state.currentProject, allTasks);
     } catch (err) { showToast('Failed to create list: ' + err.message, 'error'); }
 };
+
+// --- Goals ---
+
+async function refreshProjectGoals() {
+    const projectId = state.currentProjectDetail;
+    try {
+        const r = await api.listProjectGoals(state.instanceId, projectId);
+        const summaries = r.goals || [];
+        projectGoals = await Promise.all(
+            summaries.map(g => api.getGoal(state.instanceId, g.id, projectId).then(r2 => r2.goal).catch(() => g))
+        );
+    } catch (_) { projectGoals = []; }
+    const allTasks = Object.values(projectTasks).flat();
+    renderProjectDetail(state.currentProject, allTasks);
+}
+
+window._pdToggleGoal = function(goalId) {
+    const section = document.querySelector(`.goal-section[data-goal-id="${goalId}"]`);
+    if (!section) return;
+    const body = section.querySelector('.task-list-body');
+    const chevron = section.querySelector('.chevron');
+    const context = section.querySelector('.goal-context');
+    const addWrap = section.querySelector('.goal-add-wrap');
+    const show = body && body.style.display === 'none';
+    if (body) body.style.display = show ? 'block' : 'none';
+    if (chevron) chevron.classList.toggle('expanded', show);
+    if (context) context.style.display = show ? 'block' : 'none';
+    if (addWrap) addWrap.style.display = show ? '' : 'none';
+    if (show) { expandedGoalIds.add(goalId); bindProjectGoalInputs(); }
+    else expandedGoalIds.delete(goalId);
+};
+
+window._pdValidateCriteria = async function(goalId, criteriaId) {
+    const projectId = state.currentProjectDetail;
+    try {
+        await api.validateCriteria(state.instanceId, goalId, criteriaId, projectId);
+        await refreshProjectGoals();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+window._pdGoalStatusMenu = function(el, goalId) {
+    const options = ['in_progress', 'achieved', 'exceeded', 'archived'].map(s => ({
+        label: GOAL_STATUS_LABELS[s], value: s, icon: GOAL_STATUS_ICONS[s]
+    }));
+    showDropdown(el, options, async (status) => {
+        const projectId = state.currentProjectDetail;
+        try {
+            await api.setGoalStatus(state.instanceId, goalId, status, projectId);
+            await refreshProjectGoals();
+        } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    });
+};
+
+window._pdCreateGoal = async function(btn) {
+    const input = btn.parentElement.querySelector('.goal-create-input');
+    if (!input || !input.value.trim()) return;
+    const projectId = state.currentProjectDetail;
+    try {
+        await api.createGoal(state.instanceId, input.value.trim(), null, projectId);
+        input.value = '';
+        await refreshProjectGoals();
+    } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+};
+
+// Wire goal inputs on detail click/keydown handlers
+function bindProjectGoalInputs() {
+    const projectId = state.currentProjectDetail;
+    document.querySelectorAll('.goal-create-input').forEach(input => {
+        if (input._goalBound) return;
+        input._goalBound = true;
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            try {
+                await api.createGoal(state.instanceId, input.value.trim(), null, projectId);
+                input.value = '';
+                await refreshProjectGoals();
+            } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+        });
+    });
+    document.querySelectorAll('.goal-add-criteria').forEach(input => {
+        if (input._goalBound) return;
+        input._goalBound = true;
+        input.addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter' || !input.value.trim()) return;
+            const goalId = input.dataset.goalId;
+            try {
+                await api.addCriteria(state.instanceId, goalId, input.value.trim(), null, false, projectId);
+                input.value = '';
+                await refreshProjectGoals();
+            } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+        });
+    });
+}
 
 // --- Item 9: Project status dropdown ---
 window._pdProjectStatusDropdown = function(event) {
