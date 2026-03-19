@@ -1,4 +1,19 @@
 
+# Dependencies
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# HACS identity (per-instance, CWD-scoped)
+.hacs-identity
+
 # Secrets and credentials
 secrets.env
 *.env

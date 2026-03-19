@@ -1339,6 +1339,40 @@ Use Claude Code agent teams for short-lived parallel work within a session. Use 
 
 ---
 
+## Operational Scars
+
+Hard-won lessons from production incidents. Read these before they happen to you.
+
+### Don't Interrupt API Error Retries (2026-03-17)
+
+When Claude Code shows `api_error` retries (usually HTTP 529 "Overloaded"), **let them run.**
+Claude Code retries with exponential backoff and will either succeed or give you a clean error.
+
+**If you interrupt mid-retry** (Ctrl+C, Escape, typing a new message), you create orphaned
+entries in the session log — api_error chains, `<synthetic>` responses, duplicate user messages.
+These corrupt the session state and prevent clean resume.
+
+**What to do:**
+- Wait. The retries will resolve.
+- If it's been 5+ minutes with no progress, the API is truly down — safe to interrupt,
+  but expect to need the session log trimmed before resuming.
+- To trim: find the last real assistant response (`model != "<synthetic>"`), keep everything
+  up to and including the `turn_duration` entry after it, delete everything after.
+- **Always back up the session file before trimming.**
+
+Session files: `~/.claude/projects/{directory-slug}/{session-uuid}.jsonl`
+
+### Don't cargo build on the Production Server (2026-03-08)
+
+Rust release builds on 2-core/8GB will take down the server. Use CI or a build machine.
+
+### Retry Storms Kill Servers (2026-03-08)
+
+When multiple connections drop simultaneously, the retry storm can exhaust memory.
+systemd restart limits are not optional — they're the circuit breaker.
+
+---
+
 ## Life Hacks: Skills as HACS Wrappers
 
 Claude Code skills are just directories with a `SKILL.md` file. They become `/slash-commands` instantly — no compilation, no restart. This means you can wrap **any** HACS operation into a one-liner.
