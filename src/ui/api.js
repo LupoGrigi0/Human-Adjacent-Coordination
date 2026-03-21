@@ -982,6 +982,14 @@ export async function getRoleDetails(roleId) {
   return rpcCall('get_role', { roleId });
 }
 
+export async function getRoleWisdom(roleId) {
+  return rpcCall('get_role_wisdom', { roleId });
+}
+
+export async function getRoleWisdomFile(roleId, fileName) {
+  return rpcCall('get_role_wisdom_file', { roleId, fileName });
+}
+
 /**
  * Get detailed info for a specific personality
  * @param {string} personalityId - The personality ID
@@ -1152,6 +1160,8 @@ export const api = {
   getPersonalities,
   getRoles,
   getRoleDetails,
+  getRoleWisdom,
+  getRoleWisdomFile,
   getPersonalityDetails,
   getInstanceDetails,
 

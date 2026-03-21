@@ -197,8 +197,9 @@ window._persViewInstance = function(instanceId) {
 
 window._persViewDoc = async function(personalityId, docName) {
     try {
-        const result = await api.getPersonalityDetails(personalityId);
-        const content = result.wisdomContent?.[docName] || 'Content not available';
+        // Personality files don't have a dedicated read API yet
+        // Show the filename and a note about accessing via CLI
+        const content = `File: ${personalityId}/${docName}\n\nPersonality identity files are accessible to instances during bootstrap.\nTo view content, use the CLI:\n  cat /mnt/coordinaton_mcp_data/personalities/${personalityId}/${docName}`;
         const overlay = document.createElement('div');
         overlay.className = 'detail-overlay active';
         overlay.innerHTML = `

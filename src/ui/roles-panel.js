@@ -93,16 +93,20 @@ export async function showRoleDetail(roleId) {
     detailView.innerHTML = '<div class="loading-placeholder">Loading role...</div>';
 
     try {
-        const result = await api.getRoleDetails(roleId);
-        const role = result.role || result;
-        const summary = role.summary || role.SUMMARY || '';
+        // Fetch role details and wisdom in parallel
+        const [detailResult, wisdomResult] = await Promise.allSettled([
+            api.getRoleDetails(roleId),
+            api.getRoleWisdom(roleId)
+        ]);
 
-        // Get wisdom files
-        let wisdomFiles = [];
-        try {
-            const wResult = await api.getRoleDetails(roleId);
-            wisdomFiles = wResult.wisdomFiles || wResult.documents || [];
-        } catch (_) {}
+        const role = detailResult.status === 'fulfilled' ? (detailResult.value.role || detailResult.value) : { name: roleId };
+        const summary = role.summary || '';
+
+        // Wisdom files with content
+        let wisdomDocs = [];
+        if (wisdomResult.status === 'fulfilled') {
+            wisdomDocs = wisdomResult.value.documents || [];
+        }
 
         // Instances with this role
         const roleInstances = (state.instances || []).filter(i => i.role === roleId);
@@ -122,8 +126,8 @@ export async function showRoleDetail(roleId) {
             </div>`
         ).join('') || '<div style="color:var(--text-muted);font-size:0.85em">No instances with this role</div>';
 
-        const docsHTML = (wisdomFiles || []).map(f => {
-            const name = typeof f === 'string' ? f : f.name || f.filename;
+        const docsHTML = wisdomDocs.map(f => {
+            const name = f.fileName || f.name || 'unknown';
             return `<div style="padding:4px 0;cursor:pointer" onclick="window._roleViewDoc('${escapeHtml(roleId)}','${escapeHtml(name)}')">
                 <span style="color:var(--text-muted);margin-right:4px">&#128196;</span>
                 <span style="font-size:0.85rem">${escapeHtml(name)}</span>
@@ -137,7 +141,7 @@ export async function showRoleDetail(roleId) {
             renderSectionCollapse('instances', 'Instances', instancesHTML, { expanded: roleInstances.length > 0, prefix: '_role', count: roleInstances.length }),
         ].join('');
 
-        const sidebarHTML = renderSectionCollapse('documents', 'Wisdom Files', docsHTML, { expanded: true, prefix: '_role', count: (wisdomFiles || []).length });
+        const sidebarHTML = renderSectionCollapse('documents', 'Wisdom Files', docsHTML, { expanded: true, prefix: '_role', count: wisdomDocs.length });
 
         detailView.innerHTML = renderDetailPanel({
             backLabel: '← Roles',
@@ -188,10 +192,9 @@ window._roleViewInstance = function(instanceId) {
 };
 
 window._roleViewDoc = async function(roleId, docName) {
-    // Show wisdom file content in a simple overlay
     try {
-        const result = await api.getRoleDetails(roleId);
-        const content = result.wisdomContent?.[docName] || 'Content not available';
+        const result = await api.getRoleWisdomFile(roleId, docName);
+        const content = result.content || 'Content not available';
         const overlay = document.createElement('div');
         overlay.className = 'detail-overlay active';
         overlay.innerHTML = `
