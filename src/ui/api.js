@@ -722,10 +722,11 @@ export async function getGoal(instanceId, goalId, projectId) {
   return rpcCall('get_goal', params);
 }
 
-export async function createGoal(instanceId, name, context, projectId) {
+export async function createGoal(instanceId, name, context, projectId, targetInstanceId) {
   const params = { instanceId, name };
   if (context) params.context = context;
   if (projectId) params.projectId = projectId;
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
   return rpcCall('create_goal', params);
 }
 

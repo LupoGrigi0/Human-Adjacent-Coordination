@@ -629,11 +629,12 @@ async function refreshGoals() {
 
 function bindGoalInputs() {
     const tid = state.currentInstanceDetail;
+    const targetId = tid !== state.instanceId ? tid : undefined;
     document.querySelectorAll('.goal-create-input').forEach(input => {
         input.addEventListener('keydown', async (e) => {
             if (e.key !== 'Enter' || !input.value.trim()) return;
             try {
-                await api.createGoal(state.instanceId, input.value.trim());
+                await api.createGoal(state.instanceId, input.value.trim(), null, null, targetId);
                 input.value = '';
                 await refreshGoals();
             } catch (err) { showToast('Failed: ' + err.message, 'error'); }
@@ -691,8 +692,9 @@ window._idGoalStatusMenu = function(el, goalId) {
 window._idCreateGoal = async function(btn) {
     const input = btn.parentElement.querySelector('.goal-create-input');
     if (!input || !input.value.trim()) return;
+    const targetId = state.currentInstanceDetail !== state.instanceId ? state.currentInstanceDetail : undefined;
     try {
-        await api.createGoal(state.instanceId, input.value.trim());
+        await api.createGoal(state.instanceId, input.value.trim(), null, null, targetId);
         input.value = '';
         await refreshGoals();
     } catch (err) { showToast('Failed: ' + err.message, 'error'); }
