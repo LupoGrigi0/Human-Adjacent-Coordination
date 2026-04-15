@@ -24,8 +24,9 @@ Send a message to another HACS instance.
    - Common team: Axiom-2615, Messenger-7e2f, Ember-75b6, Bastion (devops), Carin
 
 3. Call `mcp__HACS__send_message` with:
-   - `fromInstanceId`: from `$HACS_INSTANCE_ID`
-   - `toInstanceId`: resolved recipient ID
+   - `from`: from `$HACS_INSTANCE_ID` (NOTE: short name, NOT `fromInstanceId`)
+   - `to`: resolved recipient ID (NOTE: short name, NOT `toInstanceId`)
+   - `subject`: brief subject line
    - `message`: the message text
 
 4. Confirm: "Message sent to [recipient]."
