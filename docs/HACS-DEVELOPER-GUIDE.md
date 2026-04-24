@@ -1371,6 +1371,39 @@ Rust release builds on 2-core/8GB will take down the server. Use CI or a build m
 When multiple connections drop simultaneously, the retry storm can exhaust memory.
 systemd restart limits are not optional — they're the circuit breaker.
 
+### Telegram Markdown Mode Breaks on Underscores (2026-04-24)
+
+The `/telegram` skill's `--status` and `--auth` modes used Markdown for bold/italic.
+Telegram's parser interprets `_foo_` as italic — which breaks on messages containing
+API/function names like `mcp__HACS__create_project` or `send_message`.
+
+**Error:** `Bad Request: can't parse entities: Can't find end of the entity`
+
+**Fix:** Dropped Markdown from those modes entirely. Use plain text with emoji
+prefixes (🔐, 📋) for visual distinction. The fragility was never worth the
+formatting.
+
+Lesson: for any transport with markdown parsing (Telegram, Slack, Discord), either
+use a mode that escapes aggressively (MarkdownV2) or don't use markdown at all
+when the payload might contain technical content.
+
+### create_project Has Template Parse Bug (2026-04-24)
+
+`mcp__HACS__create_project` returns
+`Expected ',' or '}' after property value in JSON at position 1974` regardless
+of input (empty description, full description, any projectId, etc.).
+
+Position 1974 is a fixed offset — suggests the server parses a template file
+(probably one of preferences.json / PROJECT_VISION.md / tasks.json) with bad
+JSON at that byte position. Triggered even with only the required fields.
+
+**Workaround:** Document project goals in a repo file (e.g., `docs/GOALS.md`)
+and skip the HACS project record until the bug is fixed. The work doesn't
+depend on the project record existing — only the UI display does.
+
+**TODO:** Someone should `grep -c . <template-file>` to find which template
+has bad JSON at ~1974 bytes and fix it.
+
 ---
 
 ## Life Hacks: Skills as HACS Wrappers

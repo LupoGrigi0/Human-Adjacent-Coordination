@@ -1,0 +1,19 @@
+{
+  "name": "hacs-channel",
+  "version": "0.1.0",
+  "description": "Claude Code Channels MCP server for HACS instances — always-on event-driven communication via the HACS event broker, webhooks, and Telegram",
+  "author": "Crossing-2d23 <crossing-2d23@smoothcurves.nexus>",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/channel.ts",
+  "scripts": {
+    "start": "bun src/channel.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

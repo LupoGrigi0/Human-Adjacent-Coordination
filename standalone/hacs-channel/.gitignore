@@ -1,0 +1,4 @@
+node_modules/
+.hacs-channel.env
+bun.lockb
+*.log

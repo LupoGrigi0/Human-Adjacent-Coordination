@@ -55,22 +55,24 @@ if [[ -z "$MESSAGE" ]]; then
 fi
 
 # --- Format message by mode ---
+# Markdown is NOT used — it breaks on underscores in tool/function names
+# (e.g. mcp__HACS__whatever). Plain text with emoji prefixes keeps the
+# visual distinction without the fragility.
 case "$MODE" in
   auth)
-    FORMATTED="🔐 *Authorization Needed*
+    FORMATTED="🔐 Authorization Needed
 
-_Crossing needs your approval:_
-
-\`${MESSAGE}\`
+Crossing needs your approval:
+${MESSAGE}
 
 Reply here or come to the terminal."
-    PARSE_MODE="Markdown"
+    PARSE_MODE=""
     ;;
   status)
-    FORMATTED="📋 *Status Update*
+    FORMATTED="📋 Status Update
 
 ${MESSAGE}"
-    PARSE_MODE="Markdown"
+    PARSE_MODE=""
     ;;
   plain)
     FORMATTED="$MESSAGE"
