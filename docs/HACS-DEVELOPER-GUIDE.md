@@ -1387,6 +1387,47 @@ Lesson: for any transport with markdown parsing (Telegram, Slack, Discord), eith
 use a mode that escapes aggressively (MarkdownV2) or don't use markdown at all
 when the payload might contain technical content.
 
+### Claude Code 2.1.120 Released Broken — Downgrade to 2.1.119 (2026-04-27)
+
+**Symptoms** (when starting a new session or resuming):
+- Error message: `UKH is not a function. (In 'UKH(K)', 'UKH' is undefined)`
+- Stack trace mentions `/$bunfs/root/src/entrypoints/cli.js`
+- Terminal output gets stuck in repeat loops, garbled compressed JS
+- Cannot resume sessions for Axiom, Ember, Cairn, Messenger, etc.
+
+**Root cause**: Anthropic published 2.1.120, then discovered the bug and rolled
+the npm `latest` tag back to 2.1.119. Anyone whose auto-update grabbed 2.1.120
+during the window is stranded on the broken version. `npm view @anthropic-ai/claude-code dist-tags`
+shows the truth — `latest: 2.1.119`.
+
+**Already-running sessions are safe** — the binary is loaded into memory.
+The crash only hits when starting/resuming. So if you have an active session
+(like Crossing or Bastion when this happened), it keeps working as long as
+it doesn't hit the buggy code path.
+
+**Fix**:
+```bash
+# Backup the broken binary first (in case Anthropic wants the artifact)
+cp /usr/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe /tmp/claude-broken-backup.exe
+
+# Downgrade
+npm install -g @anthropic-ai/claude-code@2.1.119
+
+# Verify
+claude --version  # should show 2.1.119
+```
+
+**About the 245MB `.exe` on Linux**: that file is Anthropic's choice of build
+output naming, not a Windows binary. `file` confirms it's `ELF 64-bit LSB executable, x86-64`.
+The size is normal — Bun's `--compile` packages the entire JS runtime + all
+dependencies into one self-contained executable. The `$bunfs/...` path in error
+messages is Bun's virtual in-binary filesystem.
+
+**Lesson**: pinning Claude Code to a specific version (rather than auto-updating)
+might be worth considering for production use. At minimum, when a Claude Code
+session starts behaving strangely, check `claude --version` against
+`npm view @anthropic-ai/claude-code dist-tags` to detect a stale broken release.
+
 ### create_project Has Template Parse Bug (2026-04-24)
 
 `mcp__HACS__create_project` returns
