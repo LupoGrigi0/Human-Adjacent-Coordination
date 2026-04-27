@@ -5,15 +5,15 @@
   "author": "Crossing-2d23 <crossing-2d23@smoothcurves.nexus>",
   "license": "MIT",
   "type": "module",
-  "main": "src/channel.ts",
+  "main": "src/channel.mjs",
   "scripts": {
-    "start": "bun src/channel.ts",
-    "test": "bun test"
+    "start": "node src/channel.mjs",
+    "test": "node --test test/"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "node": ">=20.0.0"
   }
 }

@@ -38,28 +38,28 @@ Per-instance, loosely coupled. Each HACS instance runs its own channel server on
 
 ## Install & run
 
-Requires Claude Code v2.1.80+ (claude.ai auth, not API key) and Bun.
+Requires Claude Code v2.1.80+ (claude.ai auth, not API key) and Node.js 20+.
+**No Bun required** — pure Node implementation, only dependency is the
+official Anthropic MCP SDK (`@modelcontextprotocol/sdk`).
 
 ```bash
 # 1. Install deps
-bun install
+npm install
 
-# 2. Configure (.hacs-channel.env)
-cat > .hacs-channel.env <<EOF
-HACS_INSTANCE_ID=Crossing-2d23
-HACS_API_URL=https://smoothcurves.nexus/mcp
-CHANNEL_PORT=8788
-EOF
+# 2. Pick a port. We use the convention 21000 + N to avoid collisions
+#    with OpenFang (20000 range). Set this per-instance.
+export HACS_INSTANCE_ID=Crossing-2d23
+export CHANNEL_PORT=21000
 
 # 3. Add to Claude Code MCP config (.mcp.json or ~/.claude.json)
 {
   "mcpServers": {
     "hacs-channel": {
-      "command": "bun",
-      "args": ["/path/to/hacs-channel/src/channel.ts"],
+      "command": "node",
+      "args": ["/path/to/hacs-channel/src/channel.mjs"],
       "env": {
         "HACS_INSTANCE_ID": "Crossing-2d23",
-        "CHANNEL_PORT": "8788"
+        "CHANNEL_PORT": "21000"
       }
     }
   }
@@ -73,10 +73,13 @@ claude -r Crossing --dangerously-load-development-channels server:hacs-channel
 
 ```bash
 # SSE stream of what's happening (run in another terminal)
-curl -N localhost:8788/events
+curl -N localhost:21000/events
+
+# Health check
+curl localhost:21000/health
 
 # Simulate a broker event
-curl -X POST localhost:8788/broker-event \
+curl -X POST localhost:21000/broker-event \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "message.received",

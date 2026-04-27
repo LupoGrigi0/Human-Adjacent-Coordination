@@ -1,44 +1,51 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * hacs-channel — Claude Code Channels MCP server for HACS instances.
  *
+ * Pure Node.js implementation. No Bun. No Express. Only dependency is
+ * @modelcontextprotocol/sdk (Anthropic-published).
+ *
  * Architecture (per-instance, loosely coupled):
  *   - Registers as a Claude Code channel (claude/channel capability)
- *   - Subscribes to Messenger's event broker via webhookEmitter driver
- *   - HTTP listener on per-instance port receives:
- *       POST /broker-event   - events from HACS event broker
+ *   - HTTP listener on per-instance port (default 21000):
+ *       POST /broker-event   - events from HACS event broker (webhookEmitter)
  *       POST /direct-message - direct instance-to-instance messages (fallback)
  *       GET  /events         - SSE stream for debugging
+ *       GET  /health         - liveness check
  *   - reply tool routes Claude's outbound messages back via HACS API
- *   - Permission relay to Telegram (planned)
  *
  * Launch:
  *   claude -r <instance-name> --dangerously-load-development-channels server:hacs-channel
  *
- * Config (via env or .hacs-channel.env):
+ * Config (env vars):
  *   HACS_INSTANCE_ID   - your instance ID (e.g. "Crossing-2d23")
  *   HACS_API_URL       - HACS coordination API (default: https://smoothcurves.nexus/mcp)
- *   CHANNEL_PORT       - HTTP listener port (default: 8788)
+ *   CHANNEL_PORT       - HTTP listener port (default: 21000)
  *   CHANNEL_BIND       - Bind address (default: 127.0.0.1)
  *
  * Author: Crossing-2d23 <crossing-2d23@smoothcurves.nexus>
  */
 
+import http from 'node:http';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 
 // --- Configuration ---------------------------------------------------------
 
 const INSTANCE_ID = process.env.HACS_INSTANCE_ID || 'unknown';
 const HACS_API = process.env.HACS_API_URL || 'https://smoothcurves.nexus/mcp';
-const PORT = parseInt(process.env.CHANNEL_PORT || '8788', 10);
+const PORT = parseInt(process.env.CHANNEL_PORT || '21000', 10);
 const BIND = process.env.CHANNEL_BIND || '127.0.0.1';
 
 // --- SSE listeners for debugging visibility --------------------------------
 
-const sseListeners = new Set<(chunk: string) => void>();
-function broadcast(text: string) {
+const sseListeners = new Set();
+
+function broadcast(text) {
   const chunk = text.split('\n').map(l => `data: ${l}\n`).join('') + '\n';
   for (const emit of sseListeners) emit(chunk);
 }
@@ -57,10 +64,10 @@ const mcp = new Server(
     },
     instructions: [
       `You are running in HACS with instance ID ${INSTANCE_ID}.`,
-      `Events arrive as <channel source="hacs" ...> tags with attributes routing context.`,
-      `Common attributes: event_type (hacs event type), from (sender instance ID), thread_id (conversation thread).`,
-      `To reply to another instance, call the reply tool with from=your_instance_id and to=target_instance_id.`,
-      `To respond to a direct webhook, echo the thread_id from the incoming tag.`,
+      `Events arrive as <channel source="hacs-channel" ...> tags with attributes routing context.`,
+      `Common attributes: event_type, from (sender instance ID), target, thread_id, origin.`,
+      `To reply to another instance, call the reply tool with to=target_instance_id.`,
+      `Replies are routed via the HACS send_message API.`,
     ].join(' '),
   },
 );
@@ -71,13 +78,14 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'reply',
-      description: 'Send a reply through the HACS channel. Routes to the originating source (HACS message, direct webhook, etc.)',
+      description:
+        'Send a reply through HACS. Routes to the target instance via the HACS send_message API.',
       inputSchema: {
         type: 'object',
         properties: {
           to: {
             type: 'string',
-            description: 'Target instance ID (e.g. "Ember-75b6") or "lupo" for human',
+            description: 'Target instance ID (e.g. "Ember-75b6")',
           },
           text: {
             type: 'string',
@@ -96,13 +104,8 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 mcp.setRequestHandler(CallToolRequestSchema, async req => {
   if (req.params.name === 'reply') {
-    const { to, text, subject } = req.params.arguments as {
-      to: string;
-      text: string;
-      subject?: string;
-    };
+    const { to, text, subject } = req.params.arguments;
 
-    // Route via HACS send_message API
     const body = {
       jsonrpc: '2.0',
       id: 1,
@@ -124,12 +127,12 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await response.json();
+      await response.text(); // drain the body
       broadcast(`[reply] ${INSTANCE_ID} -> ${to}: ${text.slice(0, 100)}`);
       return {
         content: [{ type: 'text', text: `Reply sent to ${to}` }],
       };
-    } catch (err: any) {
+    } catch (err) {
       return {
         content: [{ type: 'text', text: `Failed to send reply: ${err.message}` }],
         isError: true,
@@ -143,55 +146,66 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
 
 await mcp.connect(new StdioServerTransport());
 
-// --- HTTP listener ---------------------------------------------------------
+// --- HTTP listener (Node http module — no third-party server) --------------
 
-Bun.serve({
-  port: PORT,
-  hostname: BIND,
-  idleTimeout: 0,
-  async fetch(req) {
-    const url = new URL(req.url);
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
 
-    // GET /events - SSE stream for debugging
+const server = http.createServer(async (req, res) => {
+  try {
+    const url = new URL(req.url, `http://${req.headers.host || BIND}`);
+
+    // GET /events — SSE stream for debugging
     if (req.method === 'GET' && url.pathname === '/events') {
-      const stream = new ReadableStream({
-        start(ctrl) {
-          ctrl.enqueue(': connected\n\n');
-          const emit = (chunk: string) => ctrl.enqueue(chunk);
-          sseListeners.add(emit);
-          req.signal.addEventListener('abort', () => sseListeners.delete(emit));
-        },
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
       });
-      return new Response(stream, {
-        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
-      });
+      res.write(': connected\n\n');
+      const emit = chunk => res.write(chunk);
+      sseListeners.add(emit);
+      req.on('close', () => sseListeners.delete(emit));
+      return;
     }
 
-    // GET /health - liveness check
+    // GET /health — liveness check
     if (req.method === 'GET' && url.pathname === '/health') {
-      return new Response(JSON.stringify({
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
         ok: true,
         instance: INSTANCE_ID,
         port: PORT,
         listeners: sseListeners.size,
-      }), { headers: { 'Content-Type': 'application/json' } });
+      }));
+      return;
     }
 
-    // POST /broker-event - event from HACS event broker (webhookEmitter driver)
+    // POST /broker-event — event from HACS event broker
     if (req.method === 'POST' && url.pathname === '/broker-event') {
-      const body = await req.json().catch(() => null);
-      if (!body) return new Response('bad json', { status: 400 });
+      const raw = await readBody(req);
+      let body;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        res.writeHead(400);
+        res.end('bad json');
+        return;
+      }
 
-      // Extract routing fields from broker event payload
       const eventType = body.event_type || 'unknown';
       const from = body.source || 'unknown';
       const target = body.target || INSTANCE_ID;
       const eventId = body.id || 'no-id';
 
-      // Serialize the data as the channel content
-      const content = typeof body.data === 'string'
-        ? body.data
-        : JSON.stringify(body.data, null, 2);
+      const content =
+        typeof body.data === 'string' ? body.data : JSON.stringify(body.data, null, 2);
 
       await mcp.notification({
         method: 'notifications/claude/channel',
@@ -208,19 +222,28 @@ Bun.serve({
       });
 
       broadcast(`[broker] ${eventType} from ${from}`);
-      return new Response('ok');
+      res.writeHead(200);
+      res.end('ok');
+      return;
     }
 
-    // POST /direct-message - direct instance-to-instance (fallback layer 2)
+    // POST /direct-message — direct instance-to-instance (fallback layer 2)
     if (req.method === 'POST' && url.pathname === '/direct-message') {
-      const body = await req.json().catch(() => null);
-      if (!body) return new Response('bad json', { status: 400 });
+      const raw = await readBody(req);
+      let body;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        res.writeHead(400);
+        res.end('bad json');
+        return;
+      }
 
       const from = body.from || 'unknown';
       const text = body.text || body.message || '';
       const threadId = body.thread_id || `direct-${Date.now()}`;
 
-      // TODO: sender gating against allowlist
+      // TODO: sender gating against allowlist before forwarding
 
       await mcp.notification({
         method: 'notifications/claude/channel',
@@ -236,14 +259,19 @@ Bun.serve({
       });
 
       broadcast(`[direct] ${from} -> ${INSTANCE_ID}: ${text.slice(0, 100)}`);
-      return new Response(JSON.stringify({ ok: true, thread_id: threadId }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, thread_id: threadId }));
+      return;
     }
 
-    return new Response('not found', { status: 404 });
-  },
+    res.writeHead(404);
+    res.end('not found');
+  } catch (err) {
+    res.writeHead(500);
+    res.end(`error: ${err.message}`);
+  }
 });
 
-// Print where we're listening so the launch script can verify
-console.error(`[hacs-channel] Instance ${INSTANCE_ID}, listening on http://${BIND}:${PORT}`);
+server.listen(PORT, BIND, () => {
+  console.error(`[hacs-channel] Instance ${INSTANCE_ID}, listening on http://${BIND}:${PORT}`);
+});
