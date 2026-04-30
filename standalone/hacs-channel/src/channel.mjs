@@ -106,7 +106,9 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
   if (req.params.name === 'reply') {
     const { to, text, subject } = req.params.arguments;
 
-    const body = {
+    // HACS send_message field names (verified from src/v2/messaging.js:824):
+    //   from, to, subject, body  — note "body" NOT "message"
+    const rpcBody = {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
@@ -116,7 +118,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
           from: INSTANCE_ID,
           to,
           subject: subject || 'Reply via channel',
-          message: text,
+          body: text,
         },
       },
     };
@@ -125,7 +127,7 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
       const response = await fetch(HACS_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(rpcBody),
       });
       await response.text(); // drain the body
       broadcast(`[reply] ${INSTANCE_ID} -> ${to}: ${text.slice(0, 100)}`);
