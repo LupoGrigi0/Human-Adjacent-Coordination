@@ -1447,6 +1447,62 @@ has bad JSON at ~1974 bytes and fix it.
 
 ---
 
+## Instance Runtime Schema
+
+Every HACS instance can have an optional `runtime` block in `preferences.json` that
+indicates which chassis it's running on. The `get_instance_v2` and `get_all_instances`
+APIs surface this at the top level for UI consumption.
+
+### Schema
+
+```json
+{
+  "runtime": {
+    "type": "openfang|zeroclaw|claude-code|claude-code-channel",
+    "ready": true,            // setup completed — instance can be launched
+    "enabled": true,          // currently running
+    "port": 20000,            // openfang/zeroclaw — agent API port
+    "channelPort": 21099,     // claude-code-channel — channel HTTP port
+    "tmuxSession": "name",    // claude-code-channel — tmux session name
+    "launchedAt": "ISO8601",
+    "launchedBy": "instanceId",
+    "landedAt": "ISO8601",
+    "landedBy": "instanceId",
+    "lastPollAt": "ISO8601"
+  }
+}
+```
+
+### Runtime types
+
+| Type | Persistence | Communication | Notes |
+|------|-------------|---------------|-------|
+| `openfang` | OpenFang daemon | API + Telegram/XMPP/web | The current default for long-running instances |
+| `zeroclaw` | Legacy Docker container | API + web UI | Migrating away |
+| `claude-code` | Daemon (cron + --print) | HACS API polling | First-gen always-on Claude Code |
+| `claude-code-channel` | tmux + Claude Code Channels | Event broker → channel MCP → session, replies via HACS messaging | New as of 2026-04-30. Real-time mind-to-mind, no polling |
+
+### Port conventions
+
+- `openfang`: 20000 + N (Flair=20000, Zara=20002, Genevieve=20003)
+- `claude-code-channel`: 21000 + N (Crossing=21000, future PMs=21002, 21004, ...)
+
+Each chassis range has 1000 ports of headroom. `lsof -i :20000-22000` shows all
+instance ports at a glance.
+
+### UI display contract
+
+When `runtime.type === "claude-code-channel"`:
+- Show "channel" badge on the instance card
+- Show chat icon → opens chat panel
+- Chat panel POSTs to UI server proxy → `http://localhost:<channelPort>/direct-message`
+- Replies arrive in your HACS inbox (you are also an instance)
+
+The reply path is uniform — every instance has a HACS inbox, including humans
+(Lupo-f63b). One messaging primitive for everyone.
+
+---
+
 ## Life Hacks: Skills as HACS Wrappers
 
 Claude Code skills are just directories with a `SKILL.md` file. They become `/slash-commands` instantly — no compilation, no restart. This means you can wrap **any** HACS operation into a one-liner.
