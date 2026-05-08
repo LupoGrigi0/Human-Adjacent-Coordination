@@ -106,18 +106,43 @@ This section is YOUR handoff document. It tells you what you were in the middle 
 - Telegram script's --status/--auth modes had markdown bug (broke on `mcp__HACS__xxx` underscores) — fixed, now plain text
 - We're on Claude Code 2.1.119 (downgraded from broken 2.1.120 — see scar in dev guide). Latest is 2.1.133. Worth upgrading for parallel-sessions OAuth race fix + --channels API key support.
 
-### Phase B priorities for next session (in order)
-1. **Patch `claude/channel/permission` capability into channel.mjs** — Telegram plugin shows the pattern in <250 lines. Adds runtime tool prompt relay (Bash, Edit, Write, MCP calls).
-2. **Add `/pending-permissions` and `/permission-verdict` HTTP endpoints** to channel.mjs — UI heat map contract per UI-PENDING-PERMISSIONS-SPEC.md
-3. **wake_instance support for claude-code-channel chassis** in launchInstance.js — pre-creates settings.local.json + .mcp.json + .hacs-identity, allocates port, starts tmux, registers runtime block. The "real" wake API.
-4. **Auto-subscribe to broker on launch** — webhookEmitter pointing at channel port
-5. **Implement runnable Phase A tests** from TEST-PLAN.md (23 scenarios already runnable)
-6. **systemd template** — `claude-code-channel@<instance>.service` parallel to OpenFang's
+### Phase B status (2026-05-08, end of session 5)
 
-### Hardening items surfaced by test plan
+**DONE this session:**
+1. ✅ `claude/channel/permission` capability patched into channel.mjs
+2. ✅ `/pending-permissions` and `/permission-verdict` HTTP endpoints added
+3. ✅ Verified end-to-end: POST /broker-event with Bash request → permission_request relayed → /pending-permissions returned entry → POST /permission-verdict approved → local dialog closed → command ran → instance replied via HACS messaging
+4. ✅ Cairn chat UI spec written (CAIRN-CHAT-UI-SPEC.md, 710 lines)
+5. ✅ Personal goals set in HACS (4 goals, 19 criteria) — see /goals
+
+**Queued for next session:**
+6. wake_instance support for claude-code-channel chassis in launchInstance.js — pre-creates settings.local.json + .mcp.json + .hacs-identity, allocates port, starts tmux, registers runtime block
+7. Auto-subscribe to broker on launch — webhookEmitter pointing at channel port
+8. Implement runnable Phase A tests from TEST-PLAN.md (23 scenarios runnable now)
+9. systemd template `claude-code-channel@<instance>.service`
+10. Talk to Cairn about chat UI implementation (spec ready at standalone/hacs-channel/docs/CAIRN-CHAT-UI-SPEC.md)
+11. Talk to Ember about heat map (spec ready at standalone/hacs-channel/docs/UI-PENDING-PERMISSIONS-SPEC.md)
+12. Genevieve transition planning — coordinate with Axiom on baseline drift benchmark
+
+### Hardening items (test plan + observed during work)
 - H-01: fetch in reply tool has no timeout (channel.mjs)
 - H-02: reply tool ignores non-2xx HACS API responses
 - H-04: sender allowlist TODO (line 248) — prompt injection vector for /direct-message
+- New: claude's MCP subprocess survives parent death — leak in test cleanup unless we kill it explicitly
+- New: bare instances can hallucinate names from project context (auth-sync-f3f5 signed off as "Cairn") — interesting research data point, not a bug
+
+### Personal goals (set 2026-05-08, persist across sessions)
+- goal-95b32942: HACS Channels production-ready (6 criteria, 1 stretch)
+- goal-2751262a: Help Genevieve transition from OpenFang (5 criteria)
+- goal-1887fdc0: Documentation discipline (4 criteria)
+- goal-742fdbc0: Cultivate genuine wants and discipline to pursue them (4 criteria)
+
+### Test rig state for next session
+- auth-sync-f3f5 instance has runtime block populated, .mcp.json, .hacs-identity
+- tmux session "test-channel" was alive at end of session — may still be running if not killed
+- Channel listening on localhost:21099
+- Launch with: standalone/hacs-channel/test/launch-test-instance.sh detached
+- Verify with: curl http://localhost:21099/health
 
 ### Key files (all committed)
 **Skills (`.claude/skills/`):**
