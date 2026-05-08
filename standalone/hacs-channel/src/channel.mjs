@@ -8,11 +8,15 @@
  * Architecture (per-instance, loosely coupled):
  *   - Registers as a Claude Code channel (claude/channel capability)
  *   - HTTP listener on per-instance port (default 21000):
- *       POST /broker-event   - events from HACS event broker (webhookEmitter)
- *       POST /direct-message - direct instance-to-instance messages (fallback)
- *       GET  /events         - SSE stream for debugging
- *       GET  /health         - liveness check
+ *       POST /broker-event         - events from HACS event broker (webhookEmitter)
+ *       POST /direct-message       - direct instance-to-instance messages (fallback)
+ *                                    also recognizes "yes <id>" / "no <id>" text verdicts
+ *       GET  /events               - SSE stream for debugging + permission events
+ *       GET  /health               - liveness check + pending count
+ *       GET  /pending-permissions  - permission prompts awaiting verdict
+ *       POST /permission-verdict   - approve/deny a pending permission prompt
  *   - reply tool routes Claude's outbound messages back via HACS API
+ *   - permission relay forwards Bash/Edit/Write/MCP tool prompts to UI heat map
  *
  * Launch:
  *   claude -r <instance-name> --dangerously-load-development-channels server:hacs-channel
@@ -33,6 +37,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 
 // --- Configuration ---------------------------------------------------------
 
@@ -50,6 +55,18 @@ function broadcast(text) {
   for (const emit of sseListeners) emit(chunk);
 }
 
+// --- Pending permissions (in-memory state for UI heat map) -----------------
+// Map<request_id, {tool_name, description, input_preview, received_at}>
+// Cleared on session restart — Claude Code's local dialog also goes away
+// when the session restarts, so this matches behavior.
+
+const pendingPermissions = new Map();
+
+// Verdict format used by Telegram/Discord/iMessage plugins.
+// 5 lowercase letters from a-z minus 'l' (l visually ambiguous with 1/I).
+// /i tolerates phone autocorrect capitalization.
+const PERMISSION_REPLY_RE = /^\s*(y|yes|n|no)\s+([a-km-z]{5})\s*$/i;
+
 // --- MCP server setup ------------------------------------------------------
 
 const mcp = new Server(
@@ -58,7 +75,12 @@ const mcp = new Server(
     capabilities: {
       experimental: {
         'claude/channel': {},
-        // TODO: 'claude/channel/permission': {} once sender gating is in
+        // Permission relay: forward tool-approval prompts to UI/Telegram so Lupo
+        // can approve/deny remotely. Per docs, this only relays runtime tool
+        // prompts (Bash, Edit, Write, MCP calls) — NOT the launch gauntlet
+        // (project trust, MCP server consent, dev-channels consent).
+        // Sender gating: pending — currently relies on localhost-only HTTP bind.
+        'claude/channel/permission': {},
       },
       tools: {},
     },
@@ -68,6 +90,7 @@ const mcp = new Server(
       `Common attributes: event_type, from (sender instance ID), target, thread_id, origin.`,
       `To reply to another instance, call the reply tool with to=target_instance_id.`,
       `Replies are routed via the HACS send_message API.`,
+      `Permission prompts for your tool calls (Bash, Edit, Write, MCP) are also relayed via this channel — they appear in Lupo's UI heat map for remote approve/deny.`,
     ].join(' '),
   },
 );
@@ -144,6 +167,72 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
   throw new Error(`Unknown tool: ${req.params.name}`);
 });
 
+// --- Permission relay handler ---------------------------------------------
+// Claude Code calls this when a tool wants approval. We store the request
+// for the UI heat map and broadcast it via SSE for any live subscribers.
+//
+// The verdict comes back via:
+//   POST /permission-verdict {request_id, behavior}
+// or via parseTextVerdict() applied to direct-message bodies (so Telegram-style
+// "yes <id>" / "no <id>" text replies also work).
+
+const PermissionRequestSchema = z.object({
+  method: z.literal('notifications/claude/channel/permission_request'),
+  params: z.object({
+    request_id: z.string(),
+    tool_name: z.string(),
+    description: z.string(),
+    input_preview: z.string(),
+  }),
+});
+
+mcp.setNotificationHandler(PermissionRequestSchema, async ({ params }) => {
+  const entry = {
+    request_id: params.request_id,
+    tool_name: params.tool_name,
+    description: params.description,
+    input_preview: params.input_preview,
+    received_at: new Date().toISOString(),
+  };
+  pendingPermissions.set(params.request_id, entry);
+  broadcast(
+    `[permission-request] ${INSTANCE_ID} ${params.request_id} ${params.tool_name} ${JSON.stringify(params.description)}`
+  );
+});
+
+/**
+ * Send a verdict back to Claude Code. Removes from pendingPermissions on success.
+ * Returns {ok, applied, reason}.
+ */
+async function applyVerdict(request_id, behavior) {
+  if (!pendingPermissions.has(request_id)) {
+    return { ok: false, applied: false, reason: 'request_id not found or already resolved' };
+  }
+  if (behavior !== 'allow' && behavior !== 'deny') {
+    return { ok: false, applied: false, reason: `behavior must be "allow" or "deny", got: ${behavior}` };
+  }
+  await mcp.notification({
+    method: 'notifications/claude/channel/permission',
+    params: { request_id, behavior },
+  });
+  pendingPermissions.delete(request_id);
+  broadcast(`[permission-resolved] ${INSTANCE_ID} ${request_id} ${behavior}`);
+  return { ok: true, applied: true };
+}
+
+/**
+ * Parse a text verdict like "yes abcde" or "no fghij".
+ * Returns {request_id, behavior} or null if not a verdict.
+ */
+function parseTextVerdict(text) {
+  const m = PERMISSION_REPLY_RE.exec(text);
+  if (!m) return null;
+  return {
+    request_id: m[2].toLowerCase(),
+    behavior: m[1].toLowerCase().startsWith('y') ? 'allow' : 'deny',
+  };
+}
+
 // --- Stdio connect to Claude Code ------------------------------------------
 
 await mcp.connect(new StdioServerTransport());
@@ -185,7 +274,40 @@ const server = http.createServer(async (req, res) => {
         instance: INSTANCE_ID,
         port: PORT,
         listeners: sseListeners.size,
+        pending_permissions: pendingPermissions.size,
       }));
+      return;
+    }
+
+    // GET /pending-permissions — list of permission prompts awaiting verdict
+    if (req.method === 'GET' && url.pathname === '/pending-permissions') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        instance: INSTANCE_ID,
+        pending: Array.from(pendingPermissions.values()),
+      }));
+      return;
+    }
+
+    // POST /permission-verdict — apply verdict {request_id, behavior:"allow"|"deny"}
+    if (req.method === 'POST' && url.pathname === '/permission-verdict') {
+      const raw = await readBody(req);
+      let body;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, reason: 'bad json' }));
+        return;
+      }
+      if (!body.request_id || !body.behavior) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, reason: 'request_id and behavior required' }));
+        return;
+      }
+      const result = await applyVerdict(body.request_id, body.behavior);
+      res.writeHead(result.ok ? 200 : 404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
       return;
     }
 
@@ -246,6 +368,19 @@ const server = http.createServer(async (req, res) => {
       const threadId = body.thread_id || `direct-${Date.now()}`;
 
       // TODO: sender gating against allowlist before forwarding
+
+      // Check for text-form permission verdict ("yes abcde" / "no abcde")
+      // before forwarding to Claude. Telegram/Discord/iMessage plugins use
+      // this format; supporting it here means a Telegram bridge can POST
+      // raw text replies to /direct-message and verdicts route correctly.
+      const verdict = parseTextVerdict(text);
+      if (verdict) {
+        const result = await applyVerdict(verdict.request_id, verdict.behavior);
+        broadcast(`[direct-verdict] ${from} -> ${verdict.request_id} ${verdict.behavior} (applied=${result.applied})`);
+        res.writeHead(result.ok ? 200 : 404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...result, thread_id: threadId, treated_as: 'verdict' }));
+        return;
+      }
 
       await mcp.notification({
         method: 'notifications/claude/channel',
