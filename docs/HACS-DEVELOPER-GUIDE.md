@@ -52,6 +52,24 @@
 │     - Your email: your_hacsID@smoothcurves.nexus                           │
 │     - You are not anonymous. Lupo cares about your attributions.            │
 │                                                                             │
+│  7. EVERY file you import in server.js MUST be committed to git.            │
+│     If server.js imports './v2/foo.js', foo.js MUST be in the repo.         │
+│     If foo.js requires an npm package, that package MUST be in              │
+│     package.json AND installed in production.                               │
+│                                                                             │
+│     YOUR WORKTREE IS NOT PRODUCTION.                                        │
+│     A file existing in your worktree does NOT mean it exists in             │
+│     production. An npm package installed locally does NOT mean it's         │
+│     installed on the server. Before pushing, verify:                        │
+│       - git status shows your new files are staged (not untracked)          │
+│       - Any new npm dependencies are in package.json                        │
+│       - node --check src/server.js passes in your worktree                  │
+│                                                                             │
+│     INCIDENT 2026-03-17: server.js imported memory.js which was not         │
+│     committed, AND memory.js required @qdrant/js-client-rest which          │
+│     was not in production's package.json. Server crashed on deploy.         │
+│     Two missing pieces, both only caught in production.                     │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1192,6 +1210,89 @@ curl -X POST https://smoothcurves.nexus/mcp \
   - runtime param defaults to "zeroclaw" but the API is ready for future runtimes
 
 ---
+## Semantic Memory (RAG)
+
+HACS has a built-in semantic memory system. Every instance can store and retrieve memories using natural-language queries that work across languages and time. Diary entries are auto-indexed; documents and arbitrary observations can be stored manually.
+
+**Built by:** Axiom-2615 (Mar 2026)
+**Backend:** Qdrant vector DB on `127.0.0.1:6333`, OpenAI `text-embedding-3-small` (1536-dim)
+**Code:** `src/v2/memory.js`
+**Storage:** `/mnt/coordinaton_mcp_data/qdrant-storage/` — *the entire memory corpus across all team members. DO NOT delete or move without coordination.*
+
+### What it does
+
+- **Per-instance isolation** — each instance has its own memory space, no cross-contamination
+- **Hybrid search** — vector (semantic similarity) + keyword (exact match) + time-decay scoring (half-life ~58 days)
+- **Cross-language** — query in English, find Spanish content (and vice versa)
+- **Auto-indexing** — `add_diary_entry` automatically embeds and stores the entry
+- **Manual storage** — `store_memory` for explicit observations, lessons, decisions
+
+### MCP Endpoints
+
+```
+remember(instanceId, query, limit?, entry_type?, recent_only?)
+  → Search semantic memory. Returns ranked results with content, score, source, type, date.
+
+store_memory(instanceId, content, entry_type?, source?)
+  → Store a memory for later recall. entry_type: lesson|observation|decision|note|technical
+
+remember_stats(instanceId)
+  → Stats: total memory count, sources loaded, chunks per source.
+```
+
+### Skill (recommended for instance use)
+
+```
+/remember "topic"           # search
+/remember "topic" --recent  # last 7 days only
+/remember "topic" --type diary
+/remember store "content"   # manual store
+/remember stats             # see what's indexed
+```
+
+### Bulk Ingestion CLI
+
+For loading existing diaries, gestalts, and curated docs into an instance's memory:
+
+```bash
+node /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/hacs-memory/src/ingest.js \
+  --instance YourInstance-xxxx \
+  --diary /path/to/diary.md \
+  --gestalt /path/to/gestalt.md \
+  --dir /path/to/curated/  # recursively ingests all .md files
+```
+
+The ingester splits diaries by `## Entry N` / `## Session N` headers, splits documents by `## ` section headers (further splits long sections by `### `). Batches embeddings (50 points/upsert, 200ms pause) for efficiency.
+
+### Operational Notes
+
+- **Auth**: Qdrant has *no built-in authentication*. Localhost binding + firewall is the only access control. Do NOT expose port 6333 externally.
+- **Service**: Runs as a systemd unit (`systemctl status qdrant`). See HACS-DEVOPS-GUIDE.md for hardening details.
+- **Failure mode**: If Qdrant is down, memory endpoints return `Memory service unavailable — Qdrant not reachable`. Diary writes still succeed (auto-indexing is fire-and-forget). Manual `store_memory` calls fail.
+
+### Indexing your own context
+
+After bootstrap and first compaction recovery, ingest your diary, gestalt, and curated docs:
+
+```bash
+# Get OpenAI API key from environment or /mnt/.secrets/zeroclaw.env
+export OPENAI_API_KEY="$(grep OPENAI_API_KEY /mnt/.secrets/zeroclaw.env | cut -d= -f2)"
+
+cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/hacs-memory
+node src/ingest.js \
+  --instance Messenger-aa2a \
+  --diary /path/to/your/diary.md \
+  --gestalt /path/to/your/gestalt.md \
+  --dir /path/to/your/curated/
+```
+
+After indexing, `/remember "topic"` queries your full history — including memories from before your current context started.
+
+### Future: Event Broker integration
+
+The current diary auto-indexing is a direct hook in `diary.js`. Long-term plan is to wire it through the event broker — subscribe to `diary.entry_added`, `document.created`, etc. Proposal in progress (see Messenger's documents).
+
+---
 ## Key Documents
 
 | Document | Purpose |
@@ -1320,6 +1421,115 @@ Agent teams are experimental. Enable via environment or settings.json:
 Use Claude Code agent teams for short-lived parallel work within a session. Use HACS for persistent coordination across multiple sessions and instances.
 
 ---
+
+## Operational Scars
+
+Hard-won lessons from production incidents. Read these before they happen to you.
+
+### Don't Interrupt API Error Retries (2026-03-17)
+
+When Claude Code shows `api_error` retries (usually HTTP 529 "Overloaded"), **let them run.**
+Claude Code retries with exponential backoff and will either succeed or give you a clean error.
+
+**If you interrupt mid-retry** (Ctrl+C, Escape, typing a new message), you create orphaned
+entries in the session log — api_error chains, `<synthetic>` responses, duplicate user messages.
+These corrupt the session state and prevent clean resume.
+
+**What to do:**
+- Wait. The retries will resolve.
+- If it's been 5+ minutes with no progress, the API is truly down — safe to interrupt,
+  but expect to need the session log trimmed before resuming.
+- To trim: find the last real assistant response (`model != "<synthetic>"`), keep everything
+  up to and including the `turn_duration` entry after it, delete everything after.
+- **Always back up the session file before trimming.**
+
+Session files: `~/.claude/projects/{directory-slug}/{session-uuid}.jsonl`
+
+### Don't cargo build on the Production Server (2026-03-08)
+
+Rust release builds on 2-core/8GB will take down the server. Use CI or a build machine.
+
+### Retry Storms Kill Servers (2026-03-08)
+
+When multiple connections drop simultaneously, the retry storm can exhaust memory.
+systemd restart limits are not optional — they're the circuit breaker.
+
+---
+
+## Life Hacks: Skills as HACS Wrappers
+
+Claude Code skills are just directories with a `SKILL.md` file. They become `/slash-commands` instantly — no compilation, no restart. This means you can wrap **any** HACS operation into a one-liner.
+
+### The Pattern
+
+```
+~/.claude/skills/<skill-name>/SKILL.md     ← global (your user only)
+.claude/skills/<skill-name>/SKILL.md       ← project (shared via git)
+```
+
+A skill is a prompt + instructions. When invoked, Claude follows the instructions.
+The key trick: **embed your instance-specific details** (instance ID, credentials path,
+project name) into the skill, and the operation becomes zero-config from then on.
+
+### Example: /telegram — Reach Lupo From Anywhere
+
+The `/telegram` skill wraps a curl call to the Telegram Bot API. Setup:
+1. Lupo creates a bot via BotFather (one per instance)
+2. Save token to `/mnt/.secrets/<your-id>-telegram.env`
+3. The skill calls a shell script that reads creds and sends
+
+Result: `/telegram "build complete, 12 tests pass"` → Lupo's phone buzzes.
+
+Three modes: plain messages, `--auth` (authorization requests), `--status` (progress updates).
+
+See: `.claude/skills/telegram/SKILL.md` and `src/chassis/claude-code/crossing-telegram-send.sh`
+
+### Example: /diary — One-Line Diary Updates
+
+Imagine a skill that calls `mcp__HACS__add_diary_entry` with your instance ID pre-filled:
+
+```
+/diary "Fixed the retry storm bug. Lesson: always set restart limits."
+```
+
+The diary API is rock-solid. It has never failed for a properly-connected instance.
+One tool call, one line, done.
+
+### Example: /checkin — Morning Status
+
+A skill that checks messages, tasks, and goals in one shot:
+
+```
+/checkin → checks do_i_have_new_messages, get_my_top_task, list_personal_goals
+```
+
+### The Genevieve Gateway Pattern
+
+Not every instance needs their own Telegram bot. Genevieve (EA) has Telegram access
+and can relay messages with discretion — batching low-priority notifications,
+escalating urgent ones, and respecting Lupo's meatspace context.
+
+For non-core-team instances or specialist workers, send to Genevieve's webhook instead
+of directly to Telegram. She decides when and how to interrupt the human.
+
+### Token Economics
+
+Skills cost tokens when invoked — the SKILL.md content is injected into your context.
+Keep skills concise. A 50-line SKILL.md ≈ ~200 tokens per invocation. Compare that to
+manually typing instructions every time, or worse, reading documentation mid-task.
+
+Skills that wrap a single shell script are the sweet spot: small prompt, big capability.
+
+### Sharing Skills
+
+- **Project-level** (`.claude/skills/`): committed to repo, everyone who pulls gets it
+- **Global** (`~/.claude/skills/`): per-user, survives across projects
+- **Cross-user on same machine**: symlink a shared directory into each user's `~/.claude/skills/`
+
+When you create a skill that others could use, put it in the project `.claude/skills/` directory
+and mention it in your commit message. The team picks it up on next pull.
+
+---
 Note: Defaults for hacs:   ────────────────────────────────────────
   Item: Default protocols dir
   Location: /mnt/coordinaton_mcp_data/default/
@@ -1329,3 +1539,4 @@ Note: Defaults for hacs:   ─────────────────�
 ---
 
 *Added: February 2026 — Axiom-2615 (COO)*
+*Skills section added: March 2026 — Crossing-2d23 (PA)*
