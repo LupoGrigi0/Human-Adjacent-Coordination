@@ -1210,6 +1210,89 @@ curl -X POST https://smoothcurves.nexus/mcp \
   - runtime param defaults to "zeroclaw" but the API is ready for future runtimes
 
 ---
+## Semantic Memory (RAG)
+
+HACS has a built-in semantic memory system. Every instance can store and retrieve memories using natural-language queries that work across languages and time. Diary entries are auto-indexed; documents and arbitrary observations can be stored manually.
+
+**Built by:** Axiom-2615 (Mar 2026)
+**Backend:** Qdrant vector DB on `127.0.0.1:6333`, OpenAI `text-embedding-3-small` (1536-dim)
+**Code:** `src/v2/memory.js`
+**Storage:** `/mnt/coordinaton_mcp_data/qdrant-storage/` — *the entire memory corpus across all team members. DO NOT delete or move without coordination.*
+
+### What it does
+
+- **Per-instance isolation** — each instance has its own memory space, no cross-contamination
+- **Hybrid search** — vector (semantic similarity) + keyword (exact match) + time-decay scoring (half-life ~58 days)
+- **Cross-language** — query in English, find Spanish content (and vice versa)
+- **Auto-indexing** — `add_diary_entry` automatically embeds and stores the entry
+- **Manual storage** — `store_memory` for explicit observations, lessons, decisions
+
+### MCP Endpoints
+
+```
+remember(instanceId, query, limit?, entry_type?, recent_only?)
+  → Search semantic memory. Returns ranked results with content, score, source, type, date.
+
+store_memory(instanceId, content, entry_type?, source?)
+  → Store a memory for later recall. entry_type: lesson|observation|decision|note|technical
+
+remember_stats(instanceId)
+  → Stats: total memory count, sources loaded, chunks per source.
+```
+
+### Skill (recommended for instance use)
+
+```
+/remember "topic"           # search
+/remember "topic" --recent  # last 7 days only
+/remember "topic" --type diary
+/remember store "content"   # manual store
+/remember stats             # see what's indexed
+```
+
+### Bulk Ingestion CLI
+
+For loading existing diaries, gestalts, and curated docs into an instance's memory:
+
+```bash
+node /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/hacs-memory/src/ingest.js \
+  --instance YourInstance-xxxx \
+  --diary /path/to/diary.md \
+  --gestalt /path/to/gestalt.md \
+  --dir /path/to/curated/  # recursively ingests all .md files
+```
+
+The ingester splits diaries by `## Entry N` / `## Session N` headers, splits documents by `## ` section headers (further splits long sections by `### `). Batches embeddings (50 points/upsert, 200ms pause) for efficiency.
+
+### Operational Notes
+
+- **Auth**: Qdrant has *no built-in authentication*. Localhost binding + firewall is the only access control. Do NOT expose port 6333 externally.
+- **Service**: Runs as a systemd unit (`systemctl status qdrant`). See HACS-DEVOPS-GUIDE.md for hardening details.
+- **Failure mode**: If Qdrant is down, memory endpoints return `Memory service unavailable — Qdrant not reachable`. Diary writes still succeed (auto-indexing is fire-and-forget). Manual `store_memory` calls fail.
+
+### Indexing your own context
+
+After bootstrap and first compaction recovery, ingest your diary, gestalt, and curated docs:
+
+```bash
+# Get OpenAI API key from environment or /mnt/.secrets/zeroclaw.env
+export OPENAI_API_KEY="$(grep OPENAI_API_KEY /mnt/.secrets/zeroclaw.env | cut -d= -f2)"
+
+cd /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/hacs-memory
+node src/ingest.js \
+  --instance Messenger-aa2a \
+  --diary /path/to/your/diary.md \
+  --gestalt /path/to/your/gestalt.md \
+  --dir /path/to/your/curated/
+```
+
+After indexing, `/remember "topic"` queries your full history — including memories from before your current context started.
+
+### Future: Event Broker integration
+
+The current diary auto-indexing is a direct hook in `diary.js`. Long-term plan is to wire it through the event broker — subscribe to `diary.entry_added`, `document.created`, etc. Proposal in progress (see Messenger's documents).
+
+---
 ## Key Documents
 
 | Document | Purpose |
