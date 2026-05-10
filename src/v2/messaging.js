@@ -822,7 +822,9 @@ export async function sendMessage(params) {
  * @see get_messaging_info - Check who's online
  */
 export async function friendlySendMessage(params) {
-  const { to, from, subject, body, priority = 'normal', in_response_to } = params;
+  const { to, from, subject, priority = 'normal', in_response_to } = params;
+  // Accept `message` as an alias for `body` — common mistake since the function is "send_message"
+  const body = params.body || params.message;
 
   // Basic validation (let sendMessage handle the rest)
   if (!to) {
@@ -830,6 +832,14 @@ export async function friendlySendMessage(params) {
   }
   if (!from) {
     return { success: false, error: 'from is required. Use your instanceId from bootstrap.' };
+  }
+  if (!body && !subject) {
+    return { success: false, error: 'body (or message) is required. Pass the message text in the body field.' };
+  }
+  if (!body && subject) {
+    // Don't silently use subject as body — that's the bug Crossing hit (2026-05-09).
+    // If they only passed a subject, that's likely a mistake (used `message` instead of `body`).
+    return { success: false, error: 'body is required (subject alone is not enough). If you used `message`, the field name is `body`.' };
   }
 
   // Fuzzy match the recipient
