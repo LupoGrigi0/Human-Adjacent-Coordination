@@ -1428,6 +1428,101 @@ might be worth considering for production use. At minimum, when a Claude Code
 session starts behaving strangely, check `claude --version` against
 `npm view @anthropic-ai/claude-code dist-tags` to detect a stale broken release.
 
+### Claude Code Interactive First-Run Prompts Block Automation (2026-05-15)
+
+When you launch `claude` interactively (NOT `claude -p` / print mode) as a brand-new Unix user,
+claude shows a sequence of first-run prompts that `--dangerously-skip-permissions` does NOT bypass:
+
+1. **Theme picker** — "Choose the text style that looks best with your terminal"
+2. **Login method selector** — even when `.credentials.json` is in place
+3. **Workspace trust dialog** — "Is this a project you trust?"
+4. **Dev-channels consent** — only with `--dangerously-load-development-channels`
+
+Print mode (`claude -p`) skips all of these because they're TTY-mode-only prompts. The wake-script
+pattern that uses `claude -p` works because of this side effect. Interactive mode (which we need
+for tmux + channel chassis) requires explicit configuration.
+
+**Fix** — pre-populate three files before launch:
+
+`~/.claude.json` (the user-state file, at $HOME, NOT inside `.claude/`):
+```json
+{
+  "hasCompletedOnboarding": true,
+  "hasCompletedProjectOnboarding": true,
+  "hasTrustDialogAccepted": true,
+  "hasTrustDialogHooksAccepted": true,
+  "bypassPermissionsModeAccepted": true,
+  "projects": {
+    "<your-instance-dir>": {
+      "hasTrustDialogAccepted": true,
+      "allowedTools": [], "mcpContextUris": [], "mcpServers": {},
+      "enabledMcpjsonServers": [], "disabledMcpjsonServers": [],
+      "projectOnboardingSeenCount": 1,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [], "lastGracefulShutdown": true,
+      "lastVersionBase": "2.1.142"
+    }
+  }
+}
+```
+
+`~/.claude/settings.json`:
+```json
+{ "skipDangerousModePermissionPrompt": true }
+```
+
+The **dev-channels consent dialog is NOT persisted** between launches — every interactive launch
+with `--dangerously-load-development-channels` shows it again. There's no flag for it (yet).
+Workaround: after `tmux new-session`, `sleep 6 && tmux send-keys Enter` to auto-accept.
+
+See `src/chassis/claude-code-channel/claude-code-channel-setup.sh` for the canonical setup.
+
+### tmux Pane Target Syntax (=NAME: with trailing colon, 2026-05-15)
+
+The `=NAME` exact-match prefix works for **session** targets (`has-session`, `kill-session`) but
+NOT for **pane** targets (`pipe-pane`, `send-keys`, `capture-pane`). Pane targets use
+`session:window.pane` form. Without the trailing colon, `pipe-pane -t "=NAME"` errors with
+"can't find pane" — silently breaking the log tap while the session itself launches fine.
+
+**Correct usage:**
+```bash
+# session targets — bare =NAME works
+tmux has-session -t "=$INSTANCE_ID"
+tmux kill-session -t "=$INSTANCE_ID"
+
+# pane targets — needs trailing colon "=NAME:"
+tmux pipe-pane -t "=$INSTANCE_ID:" "cat >> $LOG"
+tmux send-keys -t "=$INSTANCE_ID:" Enter
+tmux capture-pane -p -t "=$INSTANCE_ID:"
+```
+
+The `=` prefix forces exact-match (no prefix expansion). The trailing `:` means "default
+window:pane". Both are defense-in-depth against future deployments where multiple instances
+might share a Unix user.
+
+### Claude Code Credentials Live at $HOME/.claude/.credentials.json (2026-05-15)
+
+The shared-config credential file is `.credentials.json` (dotfile), NOT `credentials.json`.
+The destination is `$HOME/.claude/.credentials.json`, NOT `$HOME/.config/claude/credentials.json`.
+
+Confusion is real: `/root/.config/claude/credentials.json` IS a thing (root's XDG-style location,
+that's where the sync cron writes), but `claude` itself reads `~/.claude/.credentials.json` —
+that's the user-facing convention. The wake-script pattern (`src/v2/scripts/claude-code-setup.sh:122-132`)
+gets this right; new scripts need to follow it.
+
+### HACS pre_approve Ignores newInstanceId Parameter (2026-05-15)
+
+`mcp__HACS__pre_approve` generates the new instance ID from the `name` parameter plus a random
+hex suffix, even when `newInstanceId` is explicitly passed. Spaces in `name` produce IDs with
+literal spaces (e.g., `Channel Test Instance-b328`) which then become awful Unix usernames after
+sanitization.
+
+**Workaround:** use no-space names ("ChannelTest" not "Channel Test Instance"). The auto-generated
+suffix preserves uniqueness; the readable name stays clean.
+
+**Bug filed:** prjtask-hacs (pending HACS bug fix).
+
 ### create_project Has Template Parse Bug (2026-04-24)
 
 `mcp__HACS__create_project` returns
@@ -1500,6 +1595,49 @@ When `runtime.type === "claude-code-channel"`:
 
 The reply path is uniform — every instance has a HACS inbox, including humans
 (Lupo-f63b). One messaging primitive for everyone.
+
+### Launching a claude-code-channel instance
+
+Two-stage flow, parallel to OpenFang's `setup → launch` pattern:
+
+```bash
+# 1. Instance must exist in HACS first (bootstrap, or pre_approve+wake)
+# 2. Two-stage chassis bring-up via launch_instance API or directly:
+
+src/chassis/claude-code-channel/
+├── claude-code-channel-setup.sh    # one-time: Unix user, .mcp.json,
+│                                   #          .claude.json bypass flags,
+│                                   #          credentials, port allocation
+├── launch-claude-code-channel.sh   # idempotent: tmux session, auto-Enter
+│                                   #             dev-channels prompt, /health
+│                                   #             wait, returns channelReady
+└── land-claude-code-channel.sh     # graceful: tmux kill, stray process cleanup
+```
+
+Via the HACS API:
+```javascript
+launch_instance({
+  instanceId: "<caller>",
+  targetInstanceId: "<target>",
+  runtime: "claude-code-channel",
+  apiKey: WAKE_API_KEY,
+  setup: true  // false on re-launch to skip heavyweight setup
+})
+```
+
+The Node function `launchClaudeCodeChannel()` in `src/v2/launchInstance.js`
+dispatches to the shell scripts, parses their JSON output, and updates
+`preferences.runtime` with the chassis state on success.
+
+### Regression testing the chassis
+
+Automated regression test at `tests/integration/test-channel-chassis.sh`:
+
+```bash
+WAKE_API_KEY=... ./tests/integration/test-channel-chassis.sh
+```
+
+Exercises eight phases: pre_approve → setup → launch → broker-event roundtrip → land → re-launch → final-land → cleanup. Outputs JSON with per-phase pass/fail. Cleans up Unix user, instance dir, and logs unless `--keep-instance` is passed. Use this before any Claude Code version upgrade or chassis change.
 
 ---
 

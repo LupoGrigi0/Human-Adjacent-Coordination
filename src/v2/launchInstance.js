@@ -32,6 +32,9 @@ function getScriptsDir(runtime) {
   if (runtime === 'claude-code') {
     return path.join(currentDir, '..', 'chassis', 'claude-code/');
   }
+  if (runtime === 'claude-code-channel') {
+    return path.join(currentDir, '..', 'chassis', 'claude-code-channel/');
+  }
   // ZeroClaw scripts are in src/zeroclaw-hacs/
   return path.join(currentDir, '..', 'zeroclaw-hacs/');
 }
@@ -118,13 +121,23 @@ function getRuntimeStatus(prefs) {
  * @status stable
  *
  * @description
- * Starts a runtime (OpenFang or ZeroClaw) for an existing HACS instance.
- * The instance must already be bootstrapped and prepared for the chosen runtime.
+ * Starts a runtime for an existing HACS instance. The instance must already
+ * be bootstrapped and prepared for the chosen runtime.
  *
  * For OpenFang: runs openfang-setup.sh (creates Unix user, generates config)
  * then launch-openfang.sh (starts daemon + auto-approver as instance user).
  *
  * For ZeroClaw: runs launch-zeroclaw.sh (starts Docker container).
+ *
+ * For claude-code: runs launch-claude-daemon.sh (Claude Code in --print mode
+ * with cron polling — daemon pattern).
+ *
+ * For claude-code-channel: runs claude-code-channel-setup.sh (Unix user,
+ * .mcp.json with hacs-channel server, settings.local.json wildcard allow,
+ * port allocation in 21000-21998) then launch-claude-code-channel.sh
+ * (tmux session running claude with --dangerously-load-development-channels,
+ * health-check wait loop). Always-on persistent instance reachable via
+ * HTTP webhook + HACS messaging.
  *
  * On re-launch (after land_instance), existing workspace, memory, and config
  * are preserved. Only auth tokens are regenerated.
@@ -140,7 +153,7 @@ function getRuntimeStatus(prefs) {
  *
  * @param {string} [runtime=openfang] - Runtime to use
  *   @default "openfang"
- *   @enum openfang|zeroclaw
+ *   @enum openfang|zeroclaw|claude-code|claude-code-channel
  *
  * @param {string} [provider] - LLM provider override
  *   @default From config template
@@ -224,7 +237,7 @@ export async function launchInstance(params) {
   }
 
   // --- Validate runtime ---
-  const SUPPORTED_RUNTIMES = ['openfang', 'zeroclaw', 'claude-code'];
+  const SUPPORTED_RUNTIMES = ['openfang', 'zeroclaw', 'claude-code', 'claude-code-channel'];
   if (!SUPPORTED_RUNTIMES.includes(runtime)) {
     return {
       success: false,
@@ -276,6 +289,11 @@ export async function launchInstance(params) {
   // --- Claude Code daemon mode ---
   if (runtime === 'claude-code') {
     return launchClaudeCode(targetInstanceId, instanceId, { model, metadata });
+  }
+
+  // --- Claude Code Channel mode (always-on tmux + MCP channel server) ---
+  if (runtime === 'claude-code-channel') {
+    return launchClaudeCodeChannel(targetInstanceId, instanceId, targetPrefs, { port, setup, metadata });
   }
 
   // --- ZeroClaw launch flow (legacy) ---
@@ -609,6 +627,8 @@ export async function landInstance(params) {
     await landOpenFang(targetInstanceId, targetPrefs);
   } else if (runtime === 'claude-code') {
     await landClaudeCode(targetInstanceId);
+  } else if (runtime === 'claude-code-channel') {
+    await landClaudeCodeChannel(targetInstanceId);
   } else if (runtime === 'zeroclaw') {
     await landZeroClaw(targetInstanceId, targetPrefs);
   }
@@ -810,5 +830,227 @@ async function landZeroClaw(targetInstanceId, prefs) {
     });
   } catch (err) {
     throw new Error(`Failed to stop ZeroClaw container: ${err.message}`);
+  }
+}
+
+
+/**
+ * Launch an instance with claude-code-channel runtime.
+ *
+ * Two-stage pattern (parallel to OpenFang):
+ *   1. claude-code-channel-setup.sh — heavyweight: Unix user, .mcp.json,
+ *      settings.local.json, .hacs-identity, port allocation, chown.
+ *   2. launch-claude-code-channel.sh — lightweight: start tmux session,
+ *      verify /health responds.
+ *
+ * On re-launch (setup=false), skips step 1 and reads the previously-allocated
+ * port from preferences.runtime.channelPort.
+ */
+async function launchClaudeCodeChannel(targetInstanceId, callerId, targetPrefs, options) {
+  const { port, setup, metadata } = options;
+  const scriptsDir = getScriptsDir('claude-code-channel');
+  const setupScript = path.join(scriptsDir, 'claude-code-channel-setup.sh');
+  const launchScript = path.join(scriptsDir, 'launch-claude-code-channel.sh');
+
+  let allocatedPort = port;
+  let unixUser = null;
+  let mcpConfig = null;
+  let settingsFile = null;
+
+  // --- Step 1: Setup (skip if re-launching an already-prepared instance) ---
+  if (setup) {
+    try {
+      await fs.access(setupScript, fs.constants.X_OK);
+    } catch {
+      return {
+        success: false,
+        error: { code: 'SCRIPT_NOT_FOUND', message: `Setup script not found or not executable: ${setupScript}` },
+        metadata
+      };
+    }
+
+    const setupArgs = [`--instance-id "${targetInstanceId}"`];
+    if (port) setupArgs.push(`--port ${port}`);
+
+    let setupOutput;
+    try {
+      const command = `bash "${setupScript}" ${setupArgs.join(' ')} 2>&1`;
+      setupOutput = execSync(command, {
+        cwd: scriptsDir,
+        timeout: 60000,
+        encoding: 'utf8',
+        env: { ...process.env }
+      });
+    } catch (err) {
+      return {
+        success: false,
+        error: {
+          code: 'SETUP_FAILED',
+          message: 'claude-code-channel-setup.sh failed',
+          details: err.stderr || err.stdout || err.message
+        },
+        metadata
+      };
+    }
+
+    // Parse setup output (last line is JSON)
+    let setupResult;
+    try {
+      const lines = setupOutput.trim().split('\n');
+      setupResult = JSON.parse(lines[lines.length - 1]);
+    } catch {
+      return {
+        success: false,
+        error: { code: 'SETUP_FAILED', message: 'Setup script output could not be parsed as JSON', details: setupOutput.slice(-500) },
+        metadata
+      };
+    }
+
+    if (setupResult.status !== 'success') {
+      return {
+        success: false,
+        error: { code: 'SETUP_FAILED', message: setupResult.message || 'Setup script reported failure', details: setupResult },
+        metadata
+      };
+    }
+
+    allocatedPort = setupResult.channelPort;
+    unixUser = setupResult.unixUser;
+    mcpConfig = setupResult.mcpConfig;
+    settingsFile = setupResult.settingsFile;
+  } else {
+    // Re-launch: read port from existing preferences runtime block
+    allocatedPort = targetPrefs?.runtime?.channelPort || port;
+    unixUser = targetPrefs?.runtime?.unixUser;
+
+    if (!allocatedPort) {
+      return {
+        success: false,
+        error: { code: 'NO_PORT', message: `No channelPort found in preferences and no --port override. Run with setup=true first.` },
+        metadata
+      };
+    }
+  }
+
+  // --- Step 2: Launch ---
+  try {
+    await fs.access(launchScript, fs.constants.X_OK);
+  } catch {
+    return {
+      success: false,
+      error: { code: 'SCRIPT_NOT_FOUND', message: `Launch script not found or not executable: ${launchScript}` },
+      metadata
+    };
+  }
+
+  let launchOutput;
+  try {
+    const command = `bash "${launchScript}" --instance-id "${targetInstanceId}" --port ${allocatedPort} 2>&1`;
+    launchOutput = execSync(command, {
+      cwd: scriptsDir,
+      timeout: 90000,
+      encoding: 'utf8',
+      env: { ...process.env }
+    });
+  } catch (err) {
+    return {
+      success: false,
+      error: {
+        code: 'LAUNCH_FAILED',
+        message: 'launch-claude-code-channel.sh failed',
+        details: err.stderr || err.stdout || err.message
+      },
+      metadata
+    };
+  }
+
+  // Parse launch output (last line is JSON)
+  let launchResult;
+  try {
+    const lines = launchOutput.trim().split('\n');
+    launchResult = JSON.parse(lines[lines.length - 1]);
+  } catch {
+    return {
+      success: false,
+      error: { code: 'LAUNCH_FAILED', message: 'Launch script output could not be parsed as JSON', details: launchOutput.slice(-500) },
+      metadata
+    };
+  }
+
+  if (launchResult.status !== 'success') {
+    return {
+      success: false,
+      error: { code: 'LAUNCH_FAILED', message: launchResult.message || 'Launch script reported failure', details: launchResult },
+      metadata
+    };
+  }
+
+  // --- Step 3: Update preferences with generic runtime block ---
+  const updatedPrefs = await readPreferences(targetInstanceId);
+  updatedPrefs.runtime = {
+    type: 'claude-code-channel',
+    ready: true,
+    enabled: true,
+    channelPort: allocatedPort,
+    tmuxSession: launchResult.tmuxSession,
+    unixUser: launchResult.unixUser || unixUser,
+    instanceDir: targetPrefs?.workingDirectory || `/mnt/coordinaton_mcp_data/instances/${targetInstanceId}`,
+    mcpConfig,
+    settingsFile,
+    channelReady: launchResult.channelReady === true,
+    paneLog: launchResult.paneLog,
+    healthUrl: launchResult.healthUrl,
+    attachCommand: launchResult.attachCommand,
+    launchedBy: callerId,
+    launchedAt: new Date().toISOString(),
+    launchedVia: 'launch_instance'
+  };
+  await writePreferences(targetInstanceId, updatedPrefs);
+
+  return {
+    success: true,
+    targetInstanceId,
+    runtime: 'claude-code-channel',
+    channelPort: allocatedPort,
+    tmuxSession: launchResult.tmuxSession,
+    unixUser: launchResult.unixUser || unixUser,
+    channelReady: launchResult.channelReady === true,
+    healthUrl: launchResult.healthUrl,
+    attachCommand: launchResult.attachCommand,
+    killCommand: launchResult.killCommand,
+    paneLog: launchResult.paneLog,
+    hint: launchResult.channelReady
+      ? `Channel ready. Send events: curl -X POST ${launchResult.healthUrl.replace('/health', '/broker-event')} -H 'Content-Type: application/json' -d '{...}'`
+      : `tmux session started but channel /health not yet responding. May still be loading. Check ${launchResult.paneLog}.`,
+    metadata
+  };
+}
+
+
+/**
+ * Stop a claude-code-channel instance.
+ * Uses land-claude-code-channel.sh for graceful tmux shutdown + stray process
+ * cleanup. Falls back to direct tmux kill if script fails.
+ */
+async function landClaudeCodeChannel(targetInstanceId) {
+  const scriptsDir = getScriptsDir('claude-code-channel');
+  const landScript = path.join(scriptsDir, 'land-claude-code-channel.sh');
+
+  try {
+    execSync(
+      `bash "${landScript}" --instance-id "${targetInstanceId}"`,
+      { encoding: 'utf8', timeout: 30000 }
+    );
+  } catch (err) {
+    // Fallback: try direct tmux kill as instance user.
+    // The unix user name follows the same sanitization as the shell scripts.
+    const unixUser = targetInstanceId
+      .replace(/ /g, '_')
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .toLowerCase();
+    try {
+      execSync(`sudo -u "${unixUser}" tmux kill-session -t "=${targetInstanceId}"`, { timeout: 5000 });
+    } catch { /* Session may already be gone */ }
+    console.error(`land-claude-code-channel.sh failed, used fallback: ${err.message}`);
   }
 }
