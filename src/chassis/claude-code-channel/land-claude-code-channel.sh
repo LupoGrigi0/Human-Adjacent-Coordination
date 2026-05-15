@@ -29,7 +29,7 @@ if [ -z "$INSTANCE_ID" ]; then
   exit 1
 fi
 
-UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-' | tr '[:upper:]' '[:lower:]')
+UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-')
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE_ID"
 
 LOG_FILE="$DATA_ROOT/wake-logs/${INSTANCE_ID}-channel-land.log"

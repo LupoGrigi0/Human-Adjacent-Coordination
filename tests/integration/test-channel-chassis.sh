@@ -182,7 +182,7 @@ phase_pre_approve() {
     return 1
   fi
   guard_test_prefix "$INSTANCE_ID" || return 1
-  UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-' | tr '[:upper:]' '[:lower:]')
+  UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-')
   PHASE_DETAILS="{\"instanceId\":\"$INSTANCE_ID\",\"unixUser\":\"$UNIX_USER\"}"
   return 0
 }

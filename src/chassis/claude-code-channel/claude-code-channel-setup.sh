@@ -93,9 +93,10 @@ log "=== Channel chassis setup starting for $INSTANCE_ID ==="
 # ---------------------------------------------------------------------------
 # 1. Sanitize Unix username and create user
 # ---------------------------------------------------------------------------
-# Pattern from openfang-setup.sh: replace spaces with _, strip non-alnum/_/-,
-# lowercase (unix convention).
-UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-' | tr '[:upper:]' '[:lower:]')
+# Pattern from openfang-setup.sh: replace spaces with _, strip non-alnum/_/-.
+# Case is preserved to match the system-wide convention used by openfang
+# and every existing HACS instance (Crossing-2d23, Cairn-2001, Nia-6504, etc).
+UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-')
 
 if ! id "$UNIX_USER" &>/dev/null; then
   log "Creating Unix user: $UNIX_USER with home $INSTANCE_DIR"

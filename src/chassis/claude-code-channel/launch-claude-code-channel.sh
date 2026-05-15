@@ -54,7 +54,7 @@ if [ -z "$INSTANCE_ID" ]; then
 fi
 
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE_ID"
-UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-' | tr '[:upper:]' '[:lower:]')
+UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-')
 
 # Resolve port: explicit --port wins, else read from .hacs-identity that
 # setup wrote. This makes systemd invocation simple: just --instance-id %i.
