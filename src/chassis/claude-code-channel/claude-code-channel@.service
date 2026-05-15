@@ -1,0 +1,75 @@
+# Claude Code Channel Instance Service Template
+#
+# Usage:
+#   systemctl start claude-code-channel@Crossing-2d23
+#   systemctl enable claude-code-channel@Crossing-2d23  (auto-start on boot)
+#
+# %i = instance ID (e.g., Crossing-2d23)
+# %I = unescaped instance ID
+#
+# Prerequisites:
+#   - claude-code-channel-setup.sh must have been run for this instance
+#     (creates Unix user, .mcp.json, .claude.json bypass flags, etc.)
+#   - .hacs-identity must exist in instance dir with channelPort allocated
+#
+# Install:
+#   cp claude-code-channel@.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable claude-code-channel@<InstanceId>
+#   systemctl start  claude-code-channel@<InstanceId>
+#
+# Design notes:
+#   - Type=oneshot + RemainAfterExit=yes: ExecStart launches a detached tmux
+#     session and exits cleanly. systemd treats the service as active until
+#     ExecStop runs. Health monitoring is via the channel /health endpoint,
+#     not systemd process tracking.
+#   - User=root: launch script internally uses `sudo -u <lowercased-user>`
+#     to drop privileges before starting tmux. This works because the
+#     channel chassis sanitizes Unix usernames to lowercase, which doesn't
+#     map cleanly to %i (which preserves case). Running as root lets the
+#     script handle the case conversion.
+#   - Logging via journal: `journalctl -u claude-code-channel@<id>`
+
+[Unit]
+Description=Claude Code Channel for HACS instance %i
+After=network.target
+# Optional: wait for HACS API to be up before launching (uncomment if needed)
+# Wants=mcp-coordination.service
+# After=mcp-coordination.service
+
+# Don't restart-loop on persistent errors: 3 attempts in 5 min, then give up.
+# (These belong in [Unit] per systemd docs, though older systemd accepts them
+# in [Service] with a deprecation warning.)
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+
+# Working directory is the instance dir (where .mcp.json and .claude.json live)
+WorkingDirectory=/mnt/coordinaton_mcp_data/instances/%i
+
+# Launch reads --port from .hacs-identity automatically (no port arg needed)
+ExecStart=/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/claude-code-channel/launch-claude-code-channel.sh --instance-id %i
+
+# Land kills the tmux session as the instance user, frees the port
+ExecStop=/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/claude-code-channel/land-claude-code-channel.sh --instance-id %i
+
+# Launch script does its own health-check wait (up to 30s for /health to respond).
+# Give it 60s margin total before systemd declares failure.
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Restart on failure (crash, OOM, etc.). Rate limits in [Unit] above.
+Restart=on-failure
+RestartSec=10
+
+# Logging — journalctl -u claude-code-channel@<InstanceId>
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claude-channel-%i
+
+[Install]
+WantedBy=multi-user.target

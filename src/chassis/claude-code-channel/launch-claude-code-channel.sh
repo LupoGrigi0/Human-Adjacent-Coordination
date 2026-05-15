@@ -8,8 +8,9 @@
 #
 # Arguments:
 #   --instance-id   Instance ID (required)
-#   --port          Channel port (required — passed from Node launcher; the
-#                   port that setup allocated and that .mcp.json was written with)
+#   --port          Channel port (optional — defaults to value in
+#                   $INSTANCE_DIR/.hacs-identity allocated by setup. Pass
+#                   explicitly only to override.)
 #
 # Output: JSON to stdout with status
 #
@@ -51,13 +52,22 @@ if [ -z "$INSTANCE_ID" ]; then
   echo '{"status":"error","message":"Missing required argument: --instance-id"}' >&2
   exit 1
 fi
-if [ -z "$CHANNEL_PORT" ]; then
-  echo '{"status":"error","message":"Missing required argument: --port"}' >&2
-  exit 1
-fi
 
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE_ID"
 UNIX_USER=$(echo "$INSTANCE_ID" | tr ' ' '_' | tr -cd '[:alnum:]_-' | tr '[:upper:]' '[:lower:]')
+
+# Resolve port: explicit --port wins, else read from .hacs-identity that
+# setup wrote. This makes systemd invocation simple: just --instance-id %i.
+if [ -z "$CHANNEL_PORT" ]; then
+  IDENTITY_FILE="$INSTANCE_DIR/.hacs-identity"
+  if [ -f "$IDENTITY_FILE" ]; then
+    CHANNEL_PORT=$(python3 -c "import json; print(json.load(open('$IDENTITY_FILE')).get('channelPort',''))" 2>/dev/null)
+  fi
+fi
+if [ -z "$CHANNEL_PORT" ]; then
+  echo '{"status":"error","message":"No --port given and no channelPort found in .hacs-identity. Run setup first."}' >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Logging

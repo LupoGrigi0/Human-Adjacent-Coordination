@@ -36,10 +36,12 @@ INSTANCES_DIR="${INSTANCEROOT:-$DATA_ROOT/instances}"
 HACS_ROOT="${HACS_ROOT:-$DATA_ROOT/Human-Adjacent-Coordination}"
 HACS_API="${HACS_API_URL:-https://smoothcurves.nexus/mcp}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CHASSIS_DIR="$HACS_ROOT/src/chassis/claude-code-channel"
-# Allow override for testing from worktree
-if [ ! -d "$CHASSIS_DIR" ]; then
-  CHASSIS_DIR="${CHASSIS_OVERRIDE:-/mnt/coordinaton_mcp_data/worktrees/foundation/src/chassis/claude-code-channel}"
+# CHASSIS_OVERRIDE (if set) wins so worktree tests can run against
+# in-development scripts. Otherwise defaults to the production mirror.
+if [ -n "${CHASSIS_OVERRIDE:-}" ]; then
+  CHASSIS_DIR="$CHASSIS_OVERRIDE"
+else
+  CHASSIS_DIR="$HACS_ROOT/src/chassis/claude-code-channel"
 fi
 
 KEEP_INSTANCE=false
@@ -229,7 +231,8 @@ phase_launch() {
   fi
   TEST_PORT="$port"
   local resp
-  resp=$(bash "$CHASSIS_DIR/launch-claude-code-channel.sh" --instance-id "$INSTANCE_ID" --port "$port" 2>&1 | tail -15)
+  # Omit --port to exercise the auto-read-from-.hacs-identity path that systemd uses
+  resp=$(bash "$CHASSIS_DIR/launch-claude-code-channel.sh" --instance-id "$INSTANCE_ID" 2>&1 | tail -15)
   local channelReady
   channelReady=$(echo "$resp" | python3 -c "
 import json, sys
@@ -296,7 +299,8 @@ phase_land() {
 phase_relaunch() {
   guard_test_prefix "$INSTANCE_ID" || return 1
   local resp
-  resp=$(bash "$CHASSIS_DIR/launch-claude-code-channel.sh" --instance-id "$INSTANCE_ID" --port "$TEST_PORT" 2>&1 | tail -15)
+  # Re-launch also via auto-read-from-.hacs-identity (same path systemd uses)
+  resp=$(bash "$CHASSIS_DIR/launch-claude-code-channel.sh" --instance-id "$INSTANCE_ID" 2>&1 | tail -15)
   local channelReady
   channelReady=$(echo "$resp" | python3 -c "
 import json, sys
