@@ -21,25 +21,36 @@
 # Design notes:
 #   - Type=oneshot + RemainAfterExit=yes: ExecStart launches a detached tmux
 #     session and exits cleanly. systemd treats the service as active until
-#     ExecStop runs. Health monitoring is via the channel /health endpoint,
-#     not systemd process tracking.
-#   - User=root: launch script internally uses `sudo -u <lowercased-user>`
-#     to drop privileges before starting tmux. This works because the
-#     channel chassis sanitizes Unix usernames to lowercase, which doesn't
-#     map cleanly to %i (which preserves case). Running as root lets the
-#     script handle the case conversion.
+#     ExecStop runs. This means **systemd is the launcher, not the
+#     supervisor**: if claude-code dies inside tmux, systemd does NOT see
+#     it. Restart=on-failure only fires if ExecStart itself fails.
+#     In-flight liveness is monitored via the channel /health endpoint
+#     (separate concern from systemd). A future /health watcher (cron or
+#     Phase C /loop pulse) will provide active health monitoring; for
+#     now, manual restart on /health failure is the recovery path.
+#   - User=root: launch script internally uses `sudo -u %i` to drop
+#     privileges before starting tmux. The chassis preserves Unix-username
+#     case to match openfang and existing instance conventions, so %i maps
+#     directly to the Unix user. Running as root lets the launch script
+#     handle setup-vs-launch privilege orchestration uniformly.
 #   - Logging via journal: `journalctl -u claude-code-channel@<id>`
 
 [Unit]
 Description=Claude Code Channel for HACS instance %i
-After=network.target
-# Optional: wait for HACS API to be up before launching (uncomment if needed)
-# Wants=mcp-coordination.service
-# After=mcp-coordination.service
+
+# network-online.target (not network.target) — claude-code makes outbound
+# calls at startup (Anthropic API, HACS registration, npm marketplace).
+# network.target means interfaces configured; network-online.target means
+# actually reachable. Pair with Wants= to pull it in.
+Wants=network-online.target
+After=network-online.target
+
+# HACS API must be up before launching — chassis registers with the
+# coordination server during bootstrap. Order matters at boot.
+Wants=mcp-coordination.service
+After=mcp-coordination.service
 
 # Don't restart-loop on persistent errors: 3 attempts in 5 min, then give up.
-# (These belong in [Unit] per systemd docs, though older systemd accepts them
-# in [Service] with a deprecation warning.)
 StartLimitIntervalSec=300
 StartLimitBurst=3
 
@@ -65,6 +76,17 @@ TimeoutStopSec=30
 # Restart on failure (crash, OOM, etc.). Rate limits in [Unit] above.
 Restart=on-failure
 RestartSec=10
+
+# Resource limits — claude-code can balloon during long sessions or large
+# file operations. Cap memory so a runaway chassis doesn't OOM the host;
+# raise file-descriptor limit because claude opens many fds.
+MemoryMax=2G
+LimitNOFILE=4096
+
+# Hardening — instance dir is at /mnt/coordinaton_mcp_data/instances/%i/,
+# not /home, so blocking /home costs nothing and tightens the surface.
+# (ProtectSystem=strict + NoNewPrivileges would break sudo and npm; skip.)
+ProtectHome=true
 
 # Logging — journalctl -u claude-code-channel@<InstanceId>
 StandardOutput=journal
