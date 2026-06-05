@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlackWolf — The Stack</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>BlackWolf</h1>
+        <p class="subtitle">An onion-skin tour of a Proxmox-based AI workstation</p>
+        <p class="byline">by Forge WolfRider · with Lupo</p>
+    </header>
+
+    <main>
+        <p class="intro">
+            Every layer of a computer system agrees only on its interface to the layer above and below it.
+            That agreement is why you can open this page over thin air and glass cables to a machine whose
+            physical location is none of your concern. Click any ring to look inside.
+        </p>
+
+        <div id="diagram-container">
+            <svg viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg" id="stack-diagram">
+                <!-- Background: case-of-the-case -->
+                <rect width="800" height="800" fill="#0a0e1a"/>
+
+                <!-- Ring 7: Users (outermost, warmest) -->
+                <circle cx="400" cy="400" r="380" class="ring" data-layer="users"
+                        fill="none" stroke="#c98860" stroke-width="2" stroke-opacity="0.7"/>
+                <text x="400" y="35" class="ring-label" text-anchor="middle" fill="#c98860">
+                    Users · Lupo · Forge
+                </text>
+
+                <!-- Ring 6: Applications -->
+                <circle cx="400" cy="400" r="335" class="ring" data-layer="applications"
+                        fill="none" stroke="#a87858" stroke-width="2" stroke-opacity="0.7"/>
+                <text x="400" y="80" class="ring-label" text-anchor="middle" fill="#a87858">
+                    Applications · Claude Code · iCUE · VS Code · OpenRGB
+                </text>
+
+                <!-- Ring 5: Guests (split) -->
+                <circle cx="400" cy="400" r="285" class="ring" data-layer="guests"
+                        fill="none" stroke="#6a7488" stroke-width="2" stroke-opacity="0.7"/>
+                <text x="400" y="130" class="ring-label" text-anchor="middle" fill="#6a7488">
+                    Guests · Wolf-Win11 (pup) · Den (LXC pup, where Forge lives)
+                </text>
+
+                <!-- Ring 4: Proxmox VE -->
+                <circle cx="400" cy="400" r="235" class="ring" data-layer="proxmox"
+                        fill="none" stroke="#4d5c70" stroke-width="2" stroke-opacity="0.8"/>
+                <text x="400" y="180" class="ring-label" text-anchor="middle" fill="#4d5c70">
+                    Proxmox VE 9.1.1 · vmbr0 · vmbr1 · vzdump
+                </text>
+
+                <!-- Ring 3: Linux kernel + KVM -->
+                <circle cx="400" cy="400" r="185" class="ring" data-layer="kernel"
+                        fill="none" stroke="#3a4a60" stroke-width="2" stroke-opacity="0.85"/>
+                <text x="400" y="230" class="ring-label" text-anchor="middle" fill="#3a4a60">
+                    Linux 6.17 · KVM · vfio-pci · IOMMU groups
+                </text>
+
+                <!-- Ring 2: Firmware -->
+                <circle cx="400" cy="400" r="135" class="ring" data-layer="firmware"
+                        fill="none" stroke="#2c3a50" stroke-width="2" stroke-opacity="0.9"/>
+                <text x="400" y="280" class="ring-label" text-anchor="middle" fill="#2c3a50">
+                    Firmware · BIOS · microcode · MRC cache (in SPI flash)
+                </text>
+
+                <!-- Ring 1: Physical hardware (innermost, coolest deepest) -->
+                <circle cx="400" cy="400" r="85" class="ring inner" data-layer="hardware"
+                        fill="#1a2330" stroke="#466f8f" stroke-width="2" stroke-opacity="1"/>
+                <text x="400" y="400" class="ring-label inner-label" text-anchor="middle"
+                      dominant-baseline="middle" fill="#7090b0">
+                    <tspan x="400" dy="-10">Hardware</tspan>
+                    <tspan x="400" dy="20" font-size="12" fill="#466f8f">i9-13900KF · 128 GB DDR5 · 4070 Ti</tspan>
+                </text>
+
+                <!-- Forge marker: a small wolf glyph at the boundary of Den's ring -->
+                <text x="400" y="755" class="forge-marker" text-anchor="middle" fill="#c98860">
+                    🐺 Forge rides the wolf · lives in Den
+                </text>
+            </svg>
+        </div>
+
+        <aside id="layer-detail" class="hidden">
+            <button id="close-detail" aria-label="Close">×</button>
+            <h2 id="detail-title">Layer detail</h2>
+            <div id="detail-body"></div>
+        </aside>
+
+        <p class="recursion-note">
+            <em>The substrate this diagram is drawn on (model weights running in Anthropic's racks)
+            is itself a layer this diagram does not show. The implicit floor is real.</em>
+        </p>
+    </main>
+
+    <footer>
+        <p>Source: <a href="https://github.com/LupoGrigi0/Human-Adjacent-Coordination">github.com/LupoGrigi0/Human-Adjacent-Coordination</a></p>
+        <p>Planning artifact: <a href="../blackwolf-stack-diagram.md">blackwolf-stack-diagram.md</a></p>
+    </footer>
+
+    <script src="diagram.js"></script>
+</body>
+</html>
