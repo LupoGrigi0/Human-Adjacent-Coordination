@@ -39,6 +39,7 @@ INSTANCE_ID=""
 SESSION_ID=""
 SOURCE_HOME="/root"
 DRY_RUN=false
+ASSUME_YES=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -46,12 +47,13 @@ while [[ $# -gt 0 ]]; do
     --session-id)  SESSION_ID="$2";  shift 2 ;;
     --source-home) SOURCE_HOME="$2"; shift 2 ;;
     --dry-run)     DRY_RUN=true;     shift ;;
+    --yes|-y)      ASSUME_YES=true;  shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
 
 if [ -z "$INSTANCE_ID" ] || [ -z "$SESSION_ID" ]; then
-  echo "Usage: $0 --instance-id <id> --session-id <uuid> [--source-home /root] [--dry-run]" >&2
+  echo "Usage: $0 --instance-id <id> --session-id <uuid> [--source-home /root] [--dry-run] [--yes]" >&2
   exit 1
 fi
 
@@ -63,31 +65,90 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 
 echo "=== Teleport $INSTANCE_ID (session $SESSION_ID) ==="
 
-# --- 1. Refuse to run against a live session ------------------------------
-# Copying a transcript mid-write produces a truncated conversation, and
-# relaunching while the original still runs gives you two instances that
-# both believe they are this one.
-#
-# --dry-run is exempt: it changes nothing, and the whole reason to preview a
-# teleport is to check it BEFORE stopping the session you are moving. Blocking
-# the preview on "the session is running" made it impossible to use for the one
-# job it had.
-if [ "$DRY_RUN" = false ]; then
-  if tmux has-session -t "=$INSTANCE_ID" 2>/dev/null \
-     || sudo -u "$UNIX_USER" tmux has-session -t "=$INSTANCE_ID" 2>/dev/null; then
-    die "tmux session '$INSTANCE_ID' is already running. Land it first:
-       $SCRIPT_DIR/land-claude-code-channel.sh --instance-id $INSTANCE_ID"
-  fi
+# --- Locate source transcript (needed by the liveness guard below) --------
+# claude keys sessions by a slug derived from the launch cwd: absolute path
+# with / and _ replaced by -. Because the instance dir IS the home dir for a
+# channel instance, an instance launched from its own dir keeps the same slug
+# across the move and no rewriting is needed.
+SLUG="$(echo "$INSTANCE_DIR" | sed 's/[\/_]/-/g')"
+SRC_PROJECT_DIR="$SOURCE_HOME/.claude/projects/$SLUG"
+SRC_JSONL="$SRC_PROJECT_DIR/$SESSION_ID.jsonl"
+SRC_SIDECAR="$SRC_PROJECT_DIR/$SESSION_ID"
 
-  if pgrep -u root -f "claude.*$SESSION_ID" >/dev/null 2>&1; then
-    die "A claude process still holds session $SESSION_ID. Stop it before teleporting."
-  fi
-  say "No live session holding this transcript."
-else
-  if pgrep -u root -f "claude.*$SESSION_ID" >/dev/null 2>&1; then
-    say "NOTE: session $SESSION_ID is currently LIVE."
-    say "      Fine for a dry run. Stop it before running for real."
-  fi
+[ -f "$SRC_JSONL" ] || die "Session transcript not found at $SRC_JSONL"
+
+# --- 1. Refuse to run against a live session ------------------------------
+# Copying a transcript mid-write truncates the conversation, and relaunching
+# while the original runs gives you two instances that each believe they are
+# this one.
+#
+# Detecting a bare-terminal source session from outside is genuinely hard, and
+# the first version of this guard got it doubly wrong:
+#   - It grepped `pgrep "claude.*<sessionId>"`. The REAL session runs as
+#     `claude -r <name>` with NO session id in its argv, so that could never
+#     have matched it (false negative).
+#   - Worse, THIS SCRIPT's own path contains "claude-code-channel" and its own
+#     argument IS the session id, so pgrep matched the running teleport script
+#     itself and refused every time (false positive). It blocked a correctly
+#     stopped session.
+#
+# What is actually reliable:
+#   - tmux channel session present  -> hard stop (already launched / re-run)
+#   - transcript held open (lsof)   -> hard stop (something IS writing it)
+# What is NOT auto-detectable: an idle bare-terminal claude. It holds no lock,
+# does not keep the .jsonl open between messages, and hides its session id.
+# So we show the human the real signals and require them to confirm the one
+# thing only they can know. --yes skips the prompt for scripted use.
+#
+# --dry-run runs the informational checks but never blocks, so a teleport can
+# be previewed before the source session is stopped.
+
+if sudo -u "$UNIX_USER" tmux has-session -t "=$INSTANCE_ID" 2>/dev/null \
+   || tmux has-session -t "=$INSTANCE_ID" 2>/dev/null; then
+  [ "$DRY_RUN" = true ] \
+    && say "NOTE: channel session '$INSTANCE_ID' is already up (dry run)." \
+    || die "channel session '$INSTANCE_ID' already running. Land it first:
+       $SCRIPT_DIR/land-claude-code-channel.sh --instance-id $INSTANCE_ID"
+fi
+
+# Hard positive: is the transcript open by a live process right now?
+if command -v lsof >/dev/null 2>&1 && lsof -- "$SRC_JSONL" >/dev/null 2>&1; then
+  HOLDER=$(lsof -- "$SRC_JSONL" 2>/dev/null | tail -n +2)
+  [ "$DRY_RUN" = true ] \
+    && say "NOTE: transcript is held open (dry run):
+$HOLDER" \
+    || die "The source transcript is OPEN by a live process — the session is
+       still running. Stop it, then re-run:
+$HOLDER"
+fi
+
+# Soft signals + explicit confirmation for the case lsof cannot see (idle
+# bare-terminal session). Note: right after a clean exit the final flush makes
+# mtime recent, so a fresh mtime is expected and is not on its own a problem.
+TRANSCRIPT_AGE=$(( $(date +%s) - $(stat -c %Y "$SRC_JSONL") ))
+say "Source transcript last written ${TRANSCRIPT_AGE}s ago ($(du -h "$SRC_JSONL" | cut -f1))."
+say "Root claude processes currently running (none should be your source session):"
+# Show only bare interactive claude sessions (claude / claude -r <name>) — the
+# form a source session takes. Exclude channel infrastructure, tmux wrappers,
+# MCP subprocesses, and this script. When you have stopped your source session,
+# its `claude -r <name>` line disappears from this list — that absence is the
+# confirmation you are looking for.
+# Anchor 'claude' as the command name (immediately after PID + ETIME), so a
+# process that merely MENTIONS claude in its arguments (a grep, an editor, this
+# script) can never masquerade as a session. Exclude the channel-chassis launch
+# form, which is infrastructure, not a source session.
+ps -u root -o pid,etime,args 2>/dev/null \
+  | grep -E '^[[:space:]]*[0-9]+[[:space:]]+[0-9:-]+[[:space:]]+(/usr/bin/)?claude([[:space:]]|$)' \
+  | grep -vE 'development-channels|--print' \
+  | sed 's/^/      /' || true
+say "      (if any line above is YOUR $INSTANCE_ID session — 'claude', 'claude -r"
+say "       Crossing', 'claude -r $INSTANCE_ID' — it is STILL RUNNING. Other"
+say "       instances like Bastion are unrelated and fine to leave.)"
+
+if [ "$DRY_RUN" = false ] && [ "$ASSUME_YES" = false ]; then
+  printf "\n  Confirm the source Claude Code session for %s is STOPPED.\n  Type CONFIRM to proceed: " "$INSTANCE_ID"
+  read -r CONFIRMATION
+  [ "$CONFIRMATION" = "CONFIRM" ] || die "Not confirmed (got '$CONFIRMATION'). Aborting — nothing changed."
 fi
 
 # --- 2. Setup must have run -----------------------------------------------
@@ -100,17 +161,7 @@ CURRENT_HOME=$(getent passwd "$UNIX_USER" | cut -d: -f6 || true)
        Re-run setup — it corrects this via usermod."
 say "Setup verified. Home dir correct."
 
-# --- 3. Locate source transcript ------------------------------------------
-# claude keys sessions by a slug derived from the launch cwd: absolute path
-# with / and _ replaced by -. Because the instance dir IS the home dir for a
-# channel instance, an instance launched from its own dir keeps the same slug
-# across the move and no rewriting is needed.
-SLUG="$(echo "$INSTANCE_DIR" | sed 's/[\/_]/-/g')"
-SRC_PROJECT_DIR="$SOURCE_HOME/.claude/projects/$SLUG"
-SRC_JSONL="$SRC_PROJECT_DIR/$SESSION_ID.jsonl"
-SRC_SIDECAR="$SRC_PROJECT_DIR/$SESSION_ID"
-
-[ -f "$SRC_JSONL" ] || die "Session transcript not found at $SRC_JSONL"
+# --- 3. Source transcript -------------------------------------------------
 say "Source transcript: $SRC_JSONL ($(du -h "$SRC_JSONL" | cut -f1))"
 if [ -d "$SRC_SIDECAR" ]; then
   say "Source sidecar:    $SRC_SIDECAR ($(du -sh "$SRC_SIDECAR" | cut -f1))"
