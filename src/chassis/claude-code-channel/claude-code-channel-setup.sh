@@ -302,12 +302,21 @@ log "Wrote .claude.json with onboarding bypass flags + per-project trust"
 # consent — that one isn't persisted by claude and must be auto-accepted
 # via tmux send-keys in launch-claude-code-channel.sh.
 CLAUDE_SHARED_SETTINGS="$INSTANCE_DIR/.claude/settings.json"
+#
+# autoUpdatesChannel/minimumVersion pin the chassis against silent breakage.
+# An unattended instance cannot notice that claude auto-updated overnight and
+# broke its own launch path — on 2026-07-24 the 2.1.219 -> 2.1.220 bump made
+# "mcp__*" an illegal allow rule, which threw a startup dialog and took the
+# whole chassis from 8/8 to 5/8 with no change on our side. "stable" trails
+# latest by about a week and skips releases with known major regressions.
 cat > "$CLAUDE_SHARED_SETTINGS" << CLAUDESHAREDEOF
 {
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "autoUpdatesChannel": "stable",
+  "minimumVersion": "2.1.200"
 }
 CLAUDESHAREDEOF
-log "Wrote .claude/settings.json with skipDangerousModePermissionPrompt"
+log "Wrote .claude/settings.json with dangerous-mode skip + update pinning"
 
 # ---------------------------------------------------------------------------
 # 6b. Write .hacs-identity (read by skills/hooks)
