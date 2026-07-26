@@ -97,6 +97,55 @@ const mcp = new Server(
 
 // --- Reply tool ------------------------------------------------------------
 
+const REPLY_TIMEOUT_MS = Number(process.env.CHANNEL_REPLY_TIMEOUT_MS || 20000);
+
+/**
+ * Return a human-readable reason the send failed, or null if it succeeded.
+ *
+ * "It returned 200" is not the same as "it was delivered." HACS answers 200
+ * for application-level failures and reports them inside the payload, so an
+ * honest check has to unwrap all the way down to HACS's own success flag.
+ */
+function describeSendFailure(response, rawBody) {
+  if (!response.ok) {
+    return `HTTP ${response.status} ${response.statusText}`;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return `unparseable response from HACS: ${rawBody.slice(0, 200)}`;
+  }
+
+  if (parsed.error) {
+    return `JSON-RPC error: ${parsed.error.message || JSON.stringify(parsed.error)}`;
+  }
+
+  // HACS nests its real answer under result.data (and mirrors it as JSON text
+  // in result.content). Either shape may carry success:false.
+  const data = parsed.result?.data;
+  if (data && data.success === false) {
+    const e = data.error || {};
+    return `HACS rejected the send: ${e.code || 'ERROR'} ${e.message || ''}`.trim();
+  }
+
+  const textBlock = parsed.result?.content?.[0]?.text;
+  if (typeof textBlock === 'string') {
+    try {
+      const inner = JSON.parse(textBlock);
+      if (inner.success === false) {
+        const e = inner.error || {};
+        return `HACS rejected the send: ${e.code || 'ERROR'} ${e.message || ''}`.trim();
+      }
+    } catch {
+      // Not JSON — nothing more to check, fall through to success.
+    }
+  }
+
+  return null;
+}
+
 mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
@@ -147,19 +196,55 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
     };
 
     try {
+      // H-01: bound the request. An unbounded fetch here hangs the instance's
+      // turn indefinitely if HACS is wedged.
       const response = await fetch(HACS_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rpcBody),
+        signal: AbortSignal.timeout(REPLY_TIMEOUT_MS),
       });
-      await response.text(); // drain the body
+
+      const rawResponse = await response.text();
+
+      // H-02: verify the send actually succeeded before telling the instance
+      // it did. Three failure layers have to be checked separately, because a
+      // failure at any one of them still produces HTTP 200:
+      //   1. HTTP status
+      //   2. JSON-RPC error member
+      //   3. HACS's own {success:false, error:{...}} envelope inside result
+      // Layer 3 is the one that bites: a malformed project file made
+      // list_projects return HTTP 200 + success:false for weeks (2026-07-25).
+      // Reporting "Reply sent" on any of these is how a message silently
+      // disappears — the instance believes it spoke and no one heard it.
+      const failure = describeSendFailure(response, rawResponse);
+      if (failure) {
+        broadcast(`[reply-FAILED] ${INSTANCE_ID} -> ${to}: ${failure}`);
+        return {
+          content: [{
+            type: 'text',
+            text: `Reply to ${to} was NOT delivered: ${failure}. `
+                + `Do not assume they received it.`,
+          }],
+          isError: true,
+        };
+      }
+
       broadcast(`[reply] ${INSTANCE_ID} -> ${to}: ${text.slice(0, 100)}`);
       return {
         content: [{ type: 'text', text: `Reply sent to ${to}` }],
       };
     } catch (err) {
+      const detail =
+        err.name === 'TimeoutError'
+          ? `HACS did not respond within ${REPLY_TIMEOUT_MS}ms`
+          : err.message;
+      broadcast(`[reply-FAILED] ${INSTANCE_ID} -> ${to}: ${detail}`);
       return {
-        content: [{ type: 'text', text: `Failed to send reply: ${err.message}` }],
+        content: [{
+          type: 'text',
+          text: `Reply to ${to} was NOT delivered: ${detail}. Do not assume they received it.`,
+        }],
         isError: true,
       };
     }
@@ -238,6 +323,26 @@ function parseTextVerdict(text) {
 await mcp.connect(new StdioServerTransport());
 
 // --- HTTP listener (Node http module — no third-party server) --------------
+
+/**
+ * Prefix an inbound channel message with who sent it and how to answer.
+ *
+ * A channel notification lands mid-turn with no conversational framing, so a
+ * receiving instance has no way to know (a) that a specific someone is waiting
+ * on an answer, or (b) that speaking into its own transcript doesn't send
+ * anything. Both facts have to travel with the message.
+ */
+function withReplyGuidance(text, from) {
+  return [
+    `[channel message from ${from}]`,
+    '',
+    text,
+    '',
+    `[To answer ${from}, call the hacs-channel "reply" tool with to="${from}".`,
+    `Text written in your own output is NOT delivered — the reply tool is the`,
+    `only path back to them.]`,
+  ].join('\n');
+}
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -328,8 +433,16 @@ const server = http.createServer(async (req, res) => {
       const target = body.target || INSTANCE_ID;
       const eventId = body.id || 'no-id';
 
-      const content =
+      const rawContent =
         typeof body.data === 'string' ? body.data : JSON.stringify(body.data, null, 2);
+
+      // Wrap with routing instructions. Without this the receiving instance
+      // answers in its own pane and the sender never hears back — the reply
+      // tool exists but nothing tells the instance to reach for it, or who
+      // to address. Observed 2026-07-25: a bare instance given "reply with
+      // X" printed X locally and considered the job done. Delivery is the
+      // channel's responsibility, so teaching the reply path is too.
+      const content = withReplyGuidance(rawContent, from);
 
       await mcp.notification({
         method: 'notifications/claude/channel',
@@ -385,7 +498,7 @@ const server = http.createServer(async (req, res) => {
       await mcp.notification({
         method: 'notifications/claude/channel',
         params: {
-          content: text,
+          content: withReplyGuidance(text, from),
           meta: {
             event_type: 'direct.message',
             from,

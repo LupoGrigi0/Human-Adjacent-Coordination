@@ -30,6 +30,7 @@ CLAUDE_BIN=$(command -v claude 2>/dev/null || echo "/usr/bin/claude")
 # ---------------------------------------------------------------------------
 INSTANCE_ID=""
 CHANNEL_PORT=""
+RESUME_SESSION=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -39,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --port)
       CHANNEL_PORT="$2"
+      shift 2
+      ;;
+    --resume)
+      RESUME_SESSION="$2"
       shift 2
       ;;
     *)
@@ -144,8 +149,22 @@ log "Prerequisites OK"
 #                                    channel mode (not regular tool mode).
 
 log "Starting tmux session: $INSTANCE_ID"
+
+# --resume <sessionId> continues an existing conversation instead of starting
+# fresh. This is the "teleport": the instance keeps its context across a move
+# from one Unix user (or machine) to another, provided the session .jsonl AND
+# its sidecar dir have been copied into the target user's
+# ~/.claude/projects/<cwd-slug>/. The slug is derived from the launch cwd, so
+# an instance whose home IS its instance dir keeps the same slug — no rewrite
+# needed. Without this flag a migrated instance wakes with no memory of itself.
+RESUME_ARG=""
+if [ -n "$RESUME_SESSION" ]; then
+  RESUME_ARG="--resume $RESUME_SESSION"
+  log "Resuming session $RESUME_SESSION"
+fi
+
 sudo -u "$UNIX_USER" tmux new-session -d -s "$INSTANCE_ID" -c "$INSTANCE_DIR" \
-  "$CLAUDE_BIN --dangerously-skip-permissions --dangerously-load-development-channels server:hacs-channel" \
+  "$CLAUDE_BIN $RESUME_ARG --dangerously-skip-permissions --dangerously-load-development-channels server:hacs-channel" \
   2>> "$LOG_FILE"
 
 if ! sudo -u "$UNIX_USER" tmux has-session -t "=$INSTANCE_ID" 2>/dev/null; then

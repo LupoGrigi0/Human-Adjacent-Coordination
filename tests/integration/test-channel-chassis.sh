@@ -272,7 +272,13 @@ phase_broker_event() {
     sleep 1
     local check
     check=$(hacs_call "list_my_messages" "{\"instanceId\":\"$CALLER_INSTANCE_ID\",\"limit\":3}" | mcp_unwrap)
-    if echo "$check" | grep -q "$INSTANCE_ID\|$UNIX_USER"; then
+    # Case-insensitive: HACS lowercases the sender in message "from" fields, so
+    # an instance launched as ChannelTestRegression-815b shows up as
+    # channeltestregression-815b. A case-sensitive match here reported "no
+    # reply" for replies that had already arrived — the chassis was fine and
+    # the test was lying. (Latent since the chassis started preserving
+    # username case in 1545274.)
+    if echo "$check" | grep -qi "$INSTANCE_ID\|$UNIX_USER"; then
       # Got a reply from our test instance. We don't validate the token content
       # because send_message uses subject "Reply via channel" and the body
       # check would need a separate get_message call (out of scope for chassis test).

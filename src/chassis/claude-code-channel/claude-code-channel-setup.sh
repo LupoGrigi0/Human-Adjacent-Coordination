@@ -34,7 +34,12 @@ DATA_ROOT="${V2_DATA_ROOT:-/mnt/coordinaton_mcp_data}"
 INSTANCES_DIR="${INSTANCEROOT:-$DATA_ROOT/instances}"
 HACS_ROOT="${HACS_ROOT:-$DATA_ROOT/Human-Adjacent-Coordination}"
 SHARED_CONFIG="$DATA_ROOT/shared-config"
-CHANNEL_SERVER="$HACS_ROOT/standalone/hacs-channel/src/channel.mjs"
+# CHANNEL_SERVER_OVERRIDE lets the regression suite point a test instance at an
+# in-development channel.mjs. Without it CHASSIS_OVERRIDE is only half an
+# override: the chassis scripts come from the worktree but .mcp.json still
+# wires up the production channel server, so channel-side changes silently
+# go untested and the suite reports on code you did not write.
+CHANNEL_SERVER="${CHANNEL_SERVER_OVERRIDE:-$HACS_ROOT/standalone/hacs-channel/src/channel.mjs}"
 HACS_MCP_PROXY="$HACS_ROOT/src/hacs-mcp-proxy.js"
 
 # Port allocation range (per HACS port convention: claude-code-channel = 21000+N)
@@ -111,6 +116,27 @@ if ! id "$UNIX_USER" &>/dev/null; then
   log "User $UNIX_USER created"
 else
   log "Unix user $UNIX_USER already exists (re-running setup)"
+fi
+
+# Home dir must be the instance dir whether we just created the user or not.
+# Legacy instances (users created by earlier chassis work, e.g. the daemon
+# chassis in March) often have home=/home/<User>, which breaks claude: it
+# reads $HOME/.claude.json for the onboarding flags, finds nothing there,
+# and drops into the first-run walkthrough despite setup having written
+# those flags into the instance dir. Scar: Crossing-2d23 had
+# home=/home/Crossing-2d23 and every interactive launch showed the wizard.
+CURRENT_HOME=$(getent passwd "$UNIX_USER" | cut -d: -f6)
+if [ "$CURRENT_HOME" != "$INSTANCE_DIR" ]; then
+  log "Home dir wrong for $UNIX_USER ($CURRENT_HOME) — correcting to $INSTANCE_DIR"
+  # No -m: do NOT move the old home's contents into the instance dir.
+  usermod -d "$INSTANCE_DIR" "$UNIX_USER" 2>> "$LOG_FILE" || {
+    log "ERROR: usermod -d failed for $UNIX_USER"
+    echo "{\"status\":\"error\",\"message\":\"Failed to set home dir for $UNIX_USER. Check $LOG_FILE.\"}" >&2
+    exit 1
+  }
+  log "Home dir corrected (old home $CURRENT_HOME left in place, untouched)"
+else
+  log "Home dir already correct: $CURRENT_HOME"
 fi
 
 # ---------------------------------------------------------------------------
@@ -214,7 +240,8 @@ cat > "$SETTINGS_FILE" << 'SETTINGSEOF'
       "Read(*)",
       "WebFetch(*)",
       "WebSearch(*)",
-      "mcp__*"
+      "mcp__hacs",
+      "mcp__hacs-channel"
     ],
     "defaultMode": "acceptEdits"
   },
@@ -262,7 +289,7 @@ cat > "$CLAUDE_USER_STATE" << CLAUDEJSONEOF
       "hasClaudeMdExternalIncludesWarningShown": false,
       "exampleFiles": [],
       "lastGracefulShutdown": true,
-      "lastVersionBase": "2.1.142"
+      "lastVersionBase": "$(${CLAUDE_BIN:-claude} --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+' || echo '2.1.142')"
     }
   }
 }
@@ -308,6 +335,17 @@ chmod 755 "$INSTANCE_DIR"
 # .credentials.json must be 600 (and stays 600 after the chown -R)
 [ -f "$CRED_DST" ] && chmod 600 "$CRED_DST"
 log "Set ownership to $UNIX_USER for $INSTANCE_DIR"
+
+# The maildir is the one exception to "instance user owns their home".
+# Postfix's virtual delivery agent runs as vmail (uid 994 / gid 986) and
+# delivery fails with Permission denied if mail/ is owned by anyone else.
+# The recursive chown above sweeps it up, so hand it back. Documented by
+# Bastion in HACS-DEVOPS-GUIDE ("Durable fix (root cause)") and owned by
+# the chassis-setup maintainer — this is that fix.
+if [ -d "$INSTANCE_DIR/mail" ]; then
+  chown -R vmail:vmail "$INSTANCE_DIR/mail"
+  log "Restored mail/ ownership to vmail:vmail (postfix delivery)"
+fi
 
 log "=== Channel chassis setup complete ==="
 
