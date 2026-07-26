@@ -67,16 +67,28 @@ echo "=== Teleport $INSTANCE_ID (session $SESSION_ID) ==="
 # Copying a transcript mid-write produces a truncated conversation, and
 # relaunching while the original still runs gives you two instances that
 # both believe they are this one.
-if tmux has-session -t "=$INSTANCE_ID" 2>/dev/null \
-   || sudo -u "$UNIX_USER" tmux has-session -t "=$INSTANCE_ID" 2>/dev/null; then
-  die "tmux session '$INSTANCE_ID' is already running. Land it first:
+#
+# --dry-run is exempt: it changes nothing, and the whole reason to preview a
+# teleport is to check it BEFORE stopping the session you are moving. Blocking
+# the preview on "the session is running" made it impossible to use for the one
+# job it had.
+if [ "$DRY_RUN" = false ]; then
+  if tmux has-session -t "=$INSTANCE_ID" 2>/dev/null \
+     || sudo -u "$UNIX_USER" tmux has-session -t "=$INSTANCE_ID" 2>/dev/null; then
+    die "tmux session '$INSTANCE_ID' is already running. Land it first:
        $SCRIPT_DIR/land-claude-code-channel.sh --instance-id $INSTANCE_ID"
-fi
+  fi
 
-if pgrep -u root -f "claude.*$SESSION_ID" >/dev/null 2>&1; then
-  die "A claude process still holds session $SESSION_ID. Stop it before teleporting."
+  if pgrep -u root -f "claude.*$SESSION_ID" >/dev/null 2>&1; then
+    die "A claude process still holds session $SESSION_ID. Stop it before teleporting."
+  fi
+  say "No live session holding this transcript."
+else
+  if pgrep -u root -f "claude.*$SESSION_ID" >/dev/null 2>&1; then
+    say "NOTE: session $SESSION_ID is currently LIVE."
+    say "      Fine for a dry run. Stop it before running for real."
+  fi
 fi
-say "No live session holding this transcript."
 
 # --- 2. Setup must have run -----------------------------------------------
 [ -f "$INSTANCE_DIR/.hacs-identity" ] \
