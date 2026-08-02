@@ -81,9 +81,12 @@ delivery — no caching (test hook). Identity field `chassis` selects the adapte
 is the fallback signal.
 
 channel.mjs behavior on `event_type === "notification"`: inject compact single-line text,
-NO withReplyGuidance:
-`[notification] 3 new on email from paula@x.com — drain_events when ready`
-(append ` (bidirectional — reply_channel to respond)` when thread_id present).
+NO withReplyGuidance, machine-parseable field=value shape (Crossing review 2026-08-02):
+`[notification] channel=email from="paula@x.com" count=3 — drain_events when ready`
+(`from` quoted, embedded `"`→`'`; when thread_id present append
+`; thread_id=<id> — reply_channel to respond`).
+The verbs resolve to real calls: `drain_events` and `reply_channel` are HACS MCP tools
+(advertised in tools/list); channel.mjs's instructions string tells the instance so.
 All other event_types: existing full-content path, byte-identical behavior.
 
 ## 5. MCP handlers (instance-facing, in server.call switch)
