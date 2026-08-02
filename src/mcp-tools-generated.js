@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-03-13T20:58:10.343Z                           ║
- * ║  Tool Count: 108                                                        ║
+ * ║  Generated: 2026-08-02T23:28:33.705Z                           ║
+ * ║  Tool Count: 113                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -986,6 +986,34 @@ export const mcpTools = [
     }
   },
   {
+    "name": "drain_events",
+    "description": "Read your pending thin-notification counters, grouped by channel and sender. Each slot carries count, last_ts, and the most recent refs (opaque ids you use to fetch the actual content, e.g. message IDs for the 'hacs' channel). By default draining CLEARS the counters and frees the active notification slot; pass peek=true to look without clearing. No pending events returns {success: true, events: {}, cleared: false}. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "channel": {
+          "type": "string",
+          "description": "Only drain this channel (e.g. \"email\", \"hacs\")"
+        },
+        "from": {
+          "type": "string",
+          "description": "Only drain events from this sender"
+        },
+        "peek": {
+          "type": "boolean",
+          "description": "Return events without clearing counters (default: false)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "edit_document",
     "description": "Edits a document. Supports two modes: \"append\" adds content to the end, \"replace\" does a search-and-replace using the provided pattern. /",
     "inputSchema": {
@@ -1648,7 +1676,7 @@ export const mcpTools = [
   },
   {
     "name": "launch_instance",
-    "description": "Starts a runtime (OpenFang or ZeroClaw) for an existing HACS instance. The instance must already be bootstrapped and prepared for the chosen runtime. For OpenFang: runs openfang-setup.sh (creates Unix user, generates config) then launch-openfang.sh (starts daemon + auto-approver as instance user). For ZeroClaw: runs launch-zeroclaw.sh (starts Docker container). On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only auth tokens are regenerated. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"runtime\": \"zeroclaw\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"setup\": false } /",
+    "description": "Starts a runtime for an existing HACS instance. The instance must already be bootstrapped and prepared for the chosen runtime. For OpenFang: runs openfang-setup.sh (creates Unix user, generates config) then launch-openfang.sh (starts daemon + auto-approver as instance user). For ZeroClaw: runs launch-zeroclaw.sh (starts Docker container). For claude-code: runs launch-claude-daemon.sh (Claude Code in --print mode with cron polling — daemon pattern). For claude-code-channel: runs claude-code-channel-setup.sh (Unix user, .mcp.json with hacs-channel server, settings.local.json wildcard allow, port allocation in 21000-21998) then launch-claude-code-channel.sh (tmux session running claude with --dangerously-load-development-channels, health-check wait loop). Always-on persistent instance reachable via HTTP webhook + HACS messaging. On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only auth tokens are regenerated. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"runtime\": \"zeroclaw\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"setup\": false } /",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1657,7 +1685,9 @@ export const mcpTools = [
           "description": "Runtime to use",
           "enum": [
             "openfang",
-            "zeroclaw"
+            "zeroclaw",
+            "claude-code",
+            "claude-code-channel"
           ],
           "default": "\"openfang\""
         },
@@ -2244,6 +2274,59 @@ export const mcpTools = [
     }
   },
   {
+    "name": "remember",
+    "description": "Search your semantic memory for relevant past context. Uses hybrid search (vector similarity + keyword matching) with time-decay scoring so recent memories rank higher than old ones. Think of it as: \"What do I remember about X?\" Returns the most relevant memories from your diary entries, documents, observations, and any other content that has been indexed for you. Works across languages — a query in English can find memories stored in Spanish, and vice versa.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "entryContent": {
+          "type": "string",
+          "description": "The diary entry text"
+        },
+        "query": {
+          "type": "string",
+          "description": "What you want to remember — natural language"
+        },
+        "limit": {
+          "type": "number",
+          "description": "How many results to return (default: 5, max: 20)"
+        },
+        "entry_type": {
+          "type": "string",
+          "description": "Filter by type: diary, gestalt, observation, document"
+        },
+        "recent_only": {
+          "type": "boolean",
+          "description": "If true, only search last 7 days"
+        }
+      },
+      "required": [
+        "instanceId",
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "remember_stats",
+    "description": "Returns how many memories are indexed for an instance, and which source documents they came from. Useful for checking what's loaded and whether new documents need to be ingested. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
     "name": "remove_from_vital",
     "description": "Removes a document from the vital documents list. Does not delete the document itself. /",
     "inputSchema": {
@@ -2326,6 +2409,37 @@ export const mcpTools = [
         "instanceId",
         "listId",
         "name"
+      ]
+    }
+  },
+  {
+    "name": "reply_channel",
+    "description": "Send a reply back out through a bidirectional channel's outbound driver. Use the thread_id you received with the notification (via drain_events). The driver's verified result is returned verbatim: {ok: true, delivered_via: \"<channel>\"} only after confirmed downstream delivery, otherwise {ok: false, error}. If the driver is unreachable and the thread resolves to a registered HACS instance, the reply falls back to their HACS inbox ({ok: true, delivered_via: \"hacs_inbox\"}). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "channel": {
+          "type": "string",
+          "description": "Channel to reply on (e.g. \"telegram\")"
+        },
+        "thread_id": {
+          "type": "string",
+          "description": "Thread ID from the notification"
+        },
+        "text": {
+          "type": "string",
+          "description": "Reply text to send"
+        }
+      },
+      "required": [
+        "instanceId",
+        "channel",
+        "thread_id",
+        "text"
       ]
     }
   },
@@ -2418,6 +2532,35 @@ export const mcpTools = [
         "instanceId",
         "goalId",
         "status"
+      ]
+    }
+  },
+  {
+    "name": "store_memory",
+    "description": "Store something you want to remember later. The content is embedded and indexed for semantic search. You can store lessons learned, important decisions, observations about colleagues, technical discoveries — anything that future-you might need to recall. Memories are private to your instance. Other instances cannot see them unless cross-instance search is explicitly enabled. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "content": {
+          "type": "string",
+          "description": "What you want to remember"
+        },
+        "entry_type": {
+          "type": "string",
+          "description": "Category: lesson, observation, decision, note, technical (default: note)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Where this knowledge came from (default: self)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "content"
       ]
     }
   },

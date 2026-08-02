@@ -120,6 +120,8 @@ import { continueConversation, getConversationLog } from './v2/continueConversat
 import { launchInstance, landInstance } from './v2/launchInstance.js';
 // Event Broker — device driver pattern for event routing (Messenger-aa2a, 2026-03-11)
 import { initBroker } from './v2/event-broker.js';
+// Event Hub — thin-notification counter core (docs/EVENT-HUB-CONTRACT.md, 2026-08-02)
+import { hub, initHub } from './v2/event-hub.js';
 // Semantic Memory — Qdrant-backed remember/store/stats (Axiom-2615, 2026-03-13)
 import { rememberHandler, storeMemoryHandler, rememberStatsHandler, indexDiaryEntry } from './v2/memory.js';
 
@@ -156,6 +158,10 @@ class MCPCoordinationServer {
       // Initialize event broker (wraps call() to emit events, registers running instances)
       this.broker = await initBroker(this);
       await this.logger.info('Event broker initialized');
+
+      // Initialize event hub (per-{channel,from} counters, thin notifications)
+      this.hub = await initHub(this.broker);
+      await this.logger.info('Event hub initialized');
 
       await this.logger.info('Server initialized successfully');
       await this.logger.info('Call bootstrap() to get started');
@@ -240,6 +246,64 @@ class MCPCoordinationServer {
       update_project: updateProjectV2
     };
     return handlers[name] || null;
+  }
+
+  /**
+   * reply_channel with HACS-inbox fallback (docs/EVENT-HUB-CONTRACT.md §5).
+   * The hub routes the reply through the channel's outbound driver and the
+   * driver's result is returned VERBATIM. Only when the driver is UNREACHABLE
+   * (no registered driver, or transport-level failure — NOT a verified
+   * downstream refusal like a dead thread, which is authoritative) AND the
+   * reply target resolves to a registered HACS instance do we fall back to
+   * the HACS inbox via the existing send_message path. ok:true is only ever
+   * returned after verified delivery (H-02: never fabricate success).
+   */
+  async handleReplyChannel(params = {}) {
+    const result = await hub.replyChannel(params);
+    if (result?.ok !== false) return result;
+
+    // Gate 1: fallback only applies to unreachable-driver failures.
+    const error = String(result.error || '');
+    const unreachable = error.includes('unreachable') || error.includes('has no outbound driver');
+    if (!unreachable) return result;
+
+    // Gate 2: the reply target must resolve to a registered HACS instance.
+    // Only thread_id is a candidate (to/from are not part of the reply_channel
+    // shape), and it must pass the path-traversal guard (contract §8b) before
+    // it is ever used in a filesystem path.
+    const fs = await import('fs/promises');
+    const { getInstanceDir } = await import('./v2/config.js');
+    let recipient = null;
+    const candidate = params.thread_id;
+    if (
+      typeof candidate === 'string' &&
+      /^[A-Za-z0-9._-]+$/.test(candidate) &&
+      candidate !== '.' && candidate !== '..'
+    ) {
+      try {
+        await fs.access(getInstanceDir(candidate));
+        recipient = candidate;
+      } catch { /* not a registered instance — the original failure stands */ }
+    }
+    if (!recipient || typeof params.instanceId !== 'string' || params.instanceId.length === 0) {
+      return result; // no HACS context — the original failure stands
+    }
+
+    // Attempt the HACS inbox via the existing send_message path; only report
+    // success when that path itself verifies delivery.
+    try {
+      const sent = await this.call('send_message', {
+        instanceId: params.instanceId,
+        from: params.instanceId,
+        to: recipient,
+        subject: `[reply_channel fallback] ${params.channel} thread ${params.thread_id}`,
+        body: params.text
+      });
+      if (sent?.success === true) {
+        return { ok: true, delivered_via: 'hacs_inbox' };
+      }
+    } catch { /* fall through to the original, truthful failure */ }
+    return result;
   }
 
   /**
@@ -618,6 +682,12 @@ class MCPCoordinationServer {
           return launchInstance(params);
         case 'land_instance':
           return landInstance(params);
+
+        // Event Hub APIs (thin notifications — docs/EVENT-HUB-CONTRACT.md §5)
+        case 'drain_events':
+          return hub.drain(params);
+        case 'reply_channel':
+          return this.handleReplyChannel(params);
 
         default:
           return {

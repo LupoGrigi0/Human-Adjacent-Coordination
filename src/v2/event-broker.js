@@ -604,6 +604,8 @@ async function resolveOpenFangPort(instanceId, prefs) {
  * Called after launch_instance or during broker initialization.
  *
  * Detection strategy (pragmatic, not config-dependent):
+ * 0. If chassis is 'claude-code-channel' (.hacs-identity or runtime.type),
+ *    subscribe the event-hub input driver and SKIP legacy driver selection
  * 1. If runtime.type is set, use it directly
  * 2. If an OpenFang port is resolvable (from prefs or config.toml), treat as openfang
  * 3. If interface is 'claude-code' or 'claude', treat as claude-code
@@ -611,6 +613,83 @@ async function resolveOpenFangPort(instanceId, prefs) {
  */
 async function registerInstance(broker, instanceId) {
   const prefs = await readPreferences(instanceId);
+
+  // Chassis detection (claude-code-channel): the event hub owns delivery for
+  // these instances — thin notifications INSTEAD of the legacy flag-file
+  // emitter, so a chassis instance never gets the claudeCodeEmitter path.
+  // .hacs-identity `chassis` is the primary signal; prefs.runtime.type is the
+  // fallback (EVENT-HUB-CONTRACT.md §4). Identity is checked even without
+  // preferences.json — chassis instances may predate the prefs file.
+  let isChassis = prefs?.runtime?.type === 'claude-code-channel';
+  if (!isChassis) {
+    try {
+      const identityRaw = await fs.readFile(
+        path.join(getInstanceDir(instanceId), '.hacs-identity'), 'utf8');
+      isChassis = JSON.parse(identityRaw)?.chassis === 'claude-code-channel';
+    } catch { /* no identity file — not a chassis instance */ }
+  }
+
+  if (isChassis) {
+    logger.info(`[EventBroker] registerInstance ${instanceId}: chassis=claude-code-channel → hub input driver`);
+    // In-process hacs-message input driver: HACS messages and task
+    // assignments targeting this instance become thin hub notifications
+    // (channel 'hacs', ref = the id the instance later fetches details with).
+    // Dynamic import avoids a module cycle (event-hub is initialized after
+    // the broker).
+    return [
+      broker.subscribe('message.sent', {
+        name: 'hacs-input-driver',
+        deliver: async (event) => {
+          const messageId = event.data?.messageId;
+          if (messageId == null || messageId === '') {
+            // No fetchable ref — the broker event id is NOT a messageId the
+            // instance could fetch, so never substitute it (skip instead).
+            logger.warn(`[EventBroker] hacs-input-driver: message.sent event ${event.id} has no messageId — skipping hub publish`, {
+              instanceId, source: event.source
+            });
+            return;
+          }
+          const { hub } = await import('./event-hub.js');
+          const pub = hub.publish({
+            target: instanceId,
+            channel: 'hacs',
+            from: event.source,
+            ref: String(messageId)
+          });
+          if (!pub?.ok) {
+            logger.error(`[EventBroker] hacs-input-driver: hub.publish failed for message.sent ${event.id}`, {
+              instanceId, error: pub?.error
+            });
+          }
+        }
+      }, { instanceId, filter: { target: instanceId } }),
+      broker.subscribe('task.assigned', {
+        name: 'hacs-input-driver',
+        deliver: async (event) => {
+          const taskId = event.data?.taskId;
+          if (taskId == null || taskId === '') {
+            logger.warn(`[EventBroker] hacs-input-driver: task.assigned event ${event.id} has no taskId — skipping hub publish`, {
+              instanceId, source: event.source
+            });
+            return;
+          }
+          const { hub } = await import('./event-hub.js');
+          const pub = hub.publish({
+            target: instanceId,
+            channel: 'hacs',
+            from: event.source,
+            ref: String(taskId)
+          });
+          if (!pub?.ok) {
+            logger.error(`[EventBroker] hacs-input-driver: hub.publish failed for task.assigned ${event.id}`, {
+              instanceId, error: pub?.error
+            });
+          }
+        }
+      }, { instanceId, filter: { target: instanceId } })
+    ];
+  }
+
   if (!prefs) return [];
 
   const subIds = [];

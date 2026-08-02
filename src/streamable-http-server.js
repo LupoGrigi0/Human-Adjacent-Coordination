@@ -14,12 +14,14 @@ import { dirname, join } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import https from 'https';
 import http from 'http';
+import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { v4 as uuidv4 } from 'uuid';
 import { MCPCoordinationServer } from './server.js';
+import { hub } from './v2/event-hub.js';
 import { createLogger } from './logger.js';
 import { mcpTools } from './mcp-tools-generated.js';  // Auto-generated, committed to repo
 import { execSync } from 'child_process';
@@ -428,7 +430,11 @@ IP.2 = ::1
       message: {
         error: 'Too many requests from this IP',
         type: 'rate_limit_exceeded'
-      }
+      },
+      // /hub/* is loopback-only + secret-gated (hubGuard) — local drivers
+      // must not share (or exhaust) the public request budget, and external
+      // traffic filling the window must never starve driver intake.
+      skip: (req) => req.path.startsWith('/hub/')
     });
     this.app.use(limiter);
 
@@ -987,6 +993,73 @@ IP.2 = ::1
       });
     });
 
+    // Event Hub HTTP surface — loopback-only driver intake (contract §2).
+    // Drivers without MCP tokens publish here. Auth = loopback source address
+    // AND the shared secret from HUB_SECRET_FILE, read per-request (cheap, and
+    // secret rotation needs no restart). Returns true if the request may pass.
+    const hubGuard = (req, res) => {
+      const remote = req.socket.remoteAddress;
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote)) {
+        res.status(403).json({ ok: false, error: 'forbidden' });
+        return false;
+      }
+      // Behind nginx the loopback check alone is void: proxied EXTERNAL
+      // traffic also arrives from 127.0.0.1. nginx always stamps
+      // X-Forwarded-For/X-Real-IP on proxied requests; direct loopback
+      // connections never carry them — so their presence means "came
+      // through the proxy" and is rejected.
+      if (req.get('X-Forwarded-For') || req.get('X-Real-IP')) {
+        res.status(403).json({ ok: false, error: 'forbidden' });
+        return false;
+      }
+      let secret = '';
+      try {
+        secret = readFileSync(
+          process.env.HUB_SECRET_FILE || '/mnt/coordinaton_mcp_data/.hub-secret',
+          'utf8'
+        ).trim();
+      } catch { /* missing secret file — nothing can authenticate */ }
+      const header = (req.get('X-Hub-Secret') || '').trim();
+      // Constant-time comparison (timingSafeEqual throws on length mismatch,
+      // so guard lengths first — the length itself is not secret).
+      const secretBuf = Buffer.from(secret, 'utf8');
+      const headerBuf = Buffer.from(header, 'utf8');
+      const match = secretBuf.length > 0 &&
+        headerBuf.length === secretBuf.length &&
+        crypto.timingSafeEqual(secretBuf, headerBuf);
+      if (!match) {
+        res.status(403).json({ ok: false, error: 'forbidden' });
+        return false;
+      }
+      return true;
+    };
+
+    // POST /hub/publish — body = publish payload (contract §1).
+    // Validation failures come back {ok:false, error} with HTTP 400.
+    this.app.post('/hub/publish', (req, res) => {
+      if (!hubGuard(req, res)) return;
+      const result = hub.publish(req.body);
+      res.status(result.ok ? 200 : 400).json(result);
+    });
+
+    // POST /hub/register-driver — {channel, callback_url}; drivers re-register
+    // on every start, last writer wins (contract §2).
+    this.app.post('/hub/register-driver', (req, res) => {
+      if (!hubGuard(req, res)) return;
+      const { channel, callback_url } = req.body || {};
+      if (typeof channel !== 'string' || channel.length === 0 ||
+          typeof callback_url !== 'string' || callback_url.length === 0) {
+        return res.status(400).json({ ok: false, error: 'channel and callback_url are required' });
+      }
+      res.json(hub.registerOutbound(channel, callback_url));
+    });
+
+    // GET /hub/status — queryable failures (hub.getStatus(), contract §6 T6d)
+    this.app.get('/hub/status', (req, res) => {
+      if (!hubGuard(req, res)) return;
+      res.json(hub.getStatus());
+    });
+
     // Root endpoint
     this.app.get('/', (req, res) => {
       res.json({
@@ -1022,6 +1095,11 @@ IP.2 = ::1
 
     // Error handling
     this.app.use((err, req, res, next) => {
+      // Malformed JSON on the hub surface → 400 {ok:false, error} — the hub
+      // never crashes on bad input (contract §2, invariant §9.6)
+      if (err?.type === 'entity.parse.failed' && req.path.startsWith('/hub/')) {
+        return res.status(400).json({ ok: false, error: 'malformed JSON body' });
+      }
       logger.error('Server error', err.message);
       res.status(500).json({
         success: false,

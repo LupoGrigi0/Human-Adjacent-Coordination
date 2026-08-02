@@ -541,7 +541,9 @@ def test_message_with_special_chars():
 
 
 def test_message_with_empty_body():
-    """Empty body message should still work."""
+    """Empty body is REJECTED since the 2026 hardening (commit 53145ee):
+    the silent subject-as-body fallback lost a real message, so send_message
+    now requires a non-empty body. This test asserts the rejection."""
     _require_messaging()
     r = rpc_call("send_message", {
         "from": SENDER_ID,
@@ -549,8 +551,9 @@ def test_message_with_empty_body():
         "subject": "Empty body test",
         "body": ""
     })
-    data = assert_success(r, "message with empty body")
-    runner.test_messages_sent += 1
+    data = assert_failure(r, "empty body must be rejected (2026 hardening)")
+    if "body is required" not in str(data.get("error", "")):
+        raise AssertionError(f"Expected 'body is required' error, got: {json.dumps(data)[:200]}")
 
 
 def test_message_with_long_body():
