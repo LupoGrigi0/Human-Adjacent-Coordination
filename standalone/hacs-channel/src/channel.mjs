@@ -428,6 +428,42 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // Thin notification from the event hub (EVENT-HUB-CONTRACT.md §4).
+      // Carries ONLY {channel, from, count, ts, thread_id?} — never a body.
+      // Injected WITHOUT withReplyGuidance: there is nothing to reply to yet,
+      // and guidance boilerplate would defeat the thin-notification purpose.
+      // The instance drains on its own schedule via drain_events.
+      if (body.event_type === 'notification' && body.notification) {
+        const n = body.notification;
+        if (n.count == null || !n.channel || !n.from) {
+          res.writeHead(400);
+          res.end('notification requires channel, from, count');
+          return;
+        }
+        let text = `[notification] ${n.count} new on ${n.channel} from ${n.from} — drain_events when ready`;
+        if (n.thread_id) text += ' (bidirectional — reply_channel to respond)';
+
+        await mcp.notification({
+          method: 'notifications/claude/channel',
+          params: {
+            content: text,
+            meta: {
+              event_type: 'notification',
+              channel: n.channel,
+              from: n.from,
+              count: n.count,
+              thread_id: n.thread_id,
+              origin: 'hub',
+            },
+          },
+        });
+
+        broadcast(`[hub-notification] ${n.channel}/${n.from} count=${n.count}`);
+        res.writeHead(200);
+        res.end('ok');
+        return;
+      }
+
       const eventType = body.event_type || 'unknown';
       const from = body.source || 'unknown';
       const target = body.target || INSTANCE_ID;
