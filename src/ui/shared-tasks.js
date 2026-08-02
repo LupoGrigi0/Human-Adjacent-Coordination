@@ -23,6 +23,54 @@ export const PRIORITY_ORDER = { emergency: 0, critical: 1, high: 2, medium: 3, l
 export const STATUS_ORDER = { not_started: 0, in_progress: 1, blocked: 2, completed: 3, completed_verified: 4, archived: 5 };
 
 // ============================================================================
+// SHARED LIST HEADER — base component for task lists, checklists, and goals
+// ============================================================================
+
+/**
+ * Render a unified list header: chevron + name + progress + bar + extras + input.
+ * Used by renderTaskListHTML, renderChecklistHTML, and renderGoalHTML.
+ *
+ * @param {object} opts
+ * @param {string} opts.id - List/goal ID (escaped)
+ * @param {string} opts.name - Display name
+ * @param {number} opts.done - Number of completed/checked items
+ * @param {number} opts.total - Total items
+ * @param {boolean} opts.expanded - Is this list expanded
+ * @param {string} opts.prefix - Handler prefix (_id, _pd, _dash)
+ * @param {string} opts.toggleHandler - Handler name for chevron/name click (e.g. 'ToggleTL')
+ * @param {string} opts.barColor - Progress bar fill color (default: accent)
+ * @param {string} opts.extraHTML - HTML inserted after progress bar (status badges, eye toggle, etc.)
+ * @param {string} opts.inputHTML - HTML for inline input (shown in header)
+ * @param {string} opts.wrapClass - Wrapper class (default: 'task-list-section')
+ */
+export function renderListHeader(opts) {
+    const {
+        id, name, done = 0, total = 0, expanded = false,
+        prefix = '_id', toggleHandler = 'ToggleTL',
+        barColor = null, extraHTML = '', inputHTML = '',
+        wrapClass = 'task-list-section'
+    } = opts;
+
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const barStyle = barColor ? `width:${pct}%;background:${barColor}` : `width:${pct}%`;
+    const eid = escapeHtml(id);
+
+    return {
+        headerHTML: `
+        <div class="task-list-header" onclick="window.${prefix}${toggleHandler}('${eid}')">
+            <span class="chevron ${expanded ? 'expanded' : ''}">&rsaquo;</span>
+            <span class="task-list-name">${escapeHtml(name || id)}</span>
+            <span class="task-list-progress-text">${done}/${total}</span>
+            <div class="progress-bar"><div class="progress-fill" style="${barStyle}"></div></div>
+            ${extraHTML}
+            ${inputHTML}
+        </div>`,
+        wrapClass,
+        eid
+    };
+}
+
+// ============================================================================
 // DROPDOWN UTILITY
 // ============================================================================
 
@@ -128,16 +176,15 @@ export function renderTaskListHTML(listId, tasks, opts = {}) {
 
     const taskRowOpts = { prefix, expandedTaskId, columns, teamMembers, compact, projectId };
 
+    const { headerHTML } = renderListHeader({
+        id: listId, name: listId, done: completedTasks.length, total: tasks.length,
+        expanded, prefix, toggleHandler: 'ToggleTL',
+        extraHTML: toggleHTML, inputHTML, wrapClass
+    });
+
     return `
     <div class="${wrapClass}">
-        <div class="task-list-header">
-            <span class="chevron ${expanded ? 'expanded' : ''}" onclick="window.${prefix}ToggleTL('${escapeHtml(listId)}')">&rsaquo;</span>
-            <span class="task-list-name" onclick="window.${prefix}ToggleTL('${escapeHtml(listId)}')">${escapeHtml(listId)}</span>
-            <span class="task-list-progress-text">${completedTasks.length}/${tasks.length}</span>
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-            ${toggleHTML}
-            ${inputHTML}
-        </div>
+        ${headerHTML}
         <div class="task-list-body" style="display:${expanded ? 'block' : 'none'}">
             ${colHeaders}
             ${active.map(t => renderTaskRowHTML(t, taskRowOpts)).join('')}
@@ -304,7 +351,6 @@ export function renderChecklistHTML(list, items, opts = {}) {
     const listId = list.id || list.listId || list.name;
     const checked = items.filter(i => i.checked).length;
     const total = list.itemCount ?? items.length ?? 0;
-    const wrapClass = compact ? 'task-list-section compact' : 'task-list-section';
 
     const itemsHTML = items.map(item => {
         const iid = escapeHtml(item.id || item.itemId || '');
@@ -317,18 +363,22 @@ export function renderChecklistHTML(list, items, opts = {}) {
         </div>`;
     }).join('');
 
-    const addInput = showAddInput ? `<input type="text" class="task-header-input ${inputClass}" placeholder="Add item..." data-list-id="${escapeHtml(listId)}" onclick="event.stopPropagation()" style="margin-top:4px;width:100%">` : '';
+    // Input in header — matches task list pattern
+    const inputHTML = showAddInput
+        ? `<span class="new-task-input-wrap"><input type="text" class="task-header-input ${inputClass}" placeholder="Add item..." data-list-id="${escapeHtml(listId)}" onclick="event.stopPropagation()"></span>`
+        : '';
+
+    const { headerHTML } = renderListHeader({
+        id: listId, name: list.name || listId, done: checked, total,
+        expanded, prefix, toggleHandler: 'ToggleCL',
+        inputHTML, wrapClass: compact ? 'task-list-section compact' : 'task-list-section'
+    });
 
     return `
-    <div class="${wrapClass}">
-        <div class="task-list-header" onclick="window.${prefix}ToggleCL('${escapeHtml(listId)}')">
-            <span class="chevron ${expanded ? 'expanded' : ''}">&rsaquo;</span>
-            <span class="task-list-name">${escapeHtml(list.name || listId)}</span>
-            <span class="task-list-progress-text">${checked}/${total}</span>
-        </div>
+    <div class="${compact ? 'task-list-section compact' : 'task-list-section'}">
+        ${headerHTML}
         <div class="task-list-body" style="display:${expanded ? 'block' : 'none'}">
             ${itemsHTML}
-            ${addInput}
         </div>
     </div>`;
 }
@@ -402,16 +452,16 @@ export function renderGoalHTML(goal, opts = {}) {
         ? `<div style="padding:2px 0 4px 24px;font-size:0.8em;color:var(--text-muted);display:${expanded ? 'block' : 'none'}" class="goal-context">${escapeHtml(goal.context)}</div>`
         : '';
 
+    const { headerHTML } = renderListHeader({
+        id: goalId, name: goal.name || goalId, done: validated, total,
+        expanded, prefix, toggleHandler: 'ToggleGoal',
+        barColor: statusColor, extraHTML: statusBadge, inputHTML: addInput,
+        wrapClass
+    });
+
     return `
     <div class="${wrapClass}" data-goal-id="${goalId}"${projAttr}>
-        <div class="task-list-header" onclick="window.${prefix}ToggleGoal('${goalId}')">
-            <span class="chevron ${expanded ? 'expanded' : ''}">&rsaquo;</span>
-            <span class="task-list-name">${escapeHtml(goal.name || goalId)}</span>
-            <span class="task-list-progress-text">${validated}/${total}</span>
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${statusColor}"></div></div>
-            ${statusBadge}
-            ${addInput}
-        </div>
+        ${headerHTML}
         ${contextLine}
         <div class="task-list-body" style="display:${expanded ? 'block' : 'none'}">
             ${criteriaHTML || '<div style="padding:4px;color:var(--text-muted);font-size:0.85em">No criteria yet</div>'}

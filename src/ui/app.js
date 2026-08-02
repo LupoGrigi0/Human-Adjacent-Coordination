@@ -75,6 +75,8 @@ import {
     sendInstanceChatMessage,
     wakeAndChat
 } from './instances.js';
+import { loadRoles, hideRoleDetail } from './roles-panel.js';
+import { loadPersonalities, hidePersonalityDetail } from './personalities-panel.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[App] Initializing V2 Dashboard as Lupo...');
@@ -411,6 +413,8 @@ function switchTab(tabName) {
     if (state.currentInstanceDetail) {
         hideInstanceDetail();
     }
+    hideRoleDetail();
+    hidePersonalityDetail();
 
     // Update nav items (dropdown, bottom nav, and legacy sidebar)
     document.querySelectorAll('.nav-item, .nav-dropdown-item, .bottom-nav-item').forEach(item => {
@@ -435,6 +439,12 @@ function switchTab(tabName) {
             break;
         case 'instances':
             loadInstances();
+            break;
+        case 'roles':
+            loadRoles();
+            break;
+        case 'personalities':
+            loadPersonalities();
             break;
         case 'settings':
             updateSettingsDisplay();

@@ -1,0 +1,232 @@
+/* BlackWolf stack diagram
+ * Forge WolfRider · 2026-06-05
+ * Palette: yin-wolf-yang-wolf — cool steel-grey-blue substrate, warm amber where work happens.
+ * Black is the case-of-the-case (deep background).
+ */
+
+:root {
+    --bg-deep: #0a0e1a;
+    --bg-soft: #141a2a;
+    --substrate-cool: #466f8f;
+    --substrate-deeper: #2c3a50;
+    --kernel-grey: #3a4a60;
+    --proxmox-blue: #4d5c70;
+    --guests-balanced: #6a7488;
+    --apps-warm: #a87858;
+    --users-warmer: #c98860;
+    --warm-amber: #d99550;
+    --text-light: #c4cad6;
+    --text-soft: #7e8696;
+    --link: #a7bbd3;
+    --link-hover: #d99550;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-deep);
+    color: var(--text-light);
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+}
+
+header {
+    padding: 2rem 1rem 0.5rem;
+    text-align: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--substrate-cool);
+}
+
+header .subtitle {
+    margin: 0.25rem 0;
+    color: var(--text-soft);
+    font-size: 1.05rem;
+}
+
+header .byline {
+    margin: 0.25rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.intro {
+    max-width: 700px;
+    margin: 1rem auto 2rem;
+    text-align: center;
+    color: var(--text-light);
+    font-size: 1.05rem;
+}
+
+#diagram-container {
+    display: flex;
+    justify-content: center;
+    margin: 0 auto 2rem;
+    max-width: 800px;
+}
+
+#stack-diagram {
+    width: 100%;
+    height: auto;
+    max-width: 800px;
+}
+
+.ring {
+    cursor: pointer;
+    transition: stroke-width 0.2s, stroke-opacity 0.2s;
+}
+
+.ring:hover {
+    stroke-width: 4;
+    stroke-opacity: 1;
+}
+
+.ring.inner {
+    cursor: pointer;
+}
+
+.ring.inner:hover {
+    fill: #1f2a3c;
+}
+
+.ring-label {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    pointer-events: none;
+    user-select: none;
+}
+
+.ring-label.inner-label {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.forge-marker {
+    font-size: 14px;
+    font-style: italic;
+    pointer-events: none;
+}
+
+aside#layer-detail {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 360px;
+    max-width: 90vw;
+    height: 100vh;
+    background: var(--bg-soft);
+    border-left: 2px solid var(--substrate-cool);
+    padding: 2rem 1.5rem;
+    overflow-y: auto;
+    box-shadow: -4px 0 12px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease;
+    z-index: 10;
+}
+
+aside#layer-detail.hidden {
+    transform: translateX(100%);
+}
+
+#close-detail {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.75rem;
+    background: transparent;
+    border: none;
+    color: var(--text-soft);
+    font-size: 1.75rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+#close-detail:hover {
+    color: var(--warm-amber);
+}
+
+#detail-title {
+    margin: 0 0 1rem;
+    color: var(--warm-amber);
+    font-size: 1.5rem;
+}
+
+#detail-body {
+    color: var(--text-light);
+    line-height: 1.6;
+}
+
+#detail-body h3 {
+    color: var(--substrate-cool);
+    margin-top: 1.5rem;
+}
+
+#detail-body code {
+    background: var(--bg-deep);
+    padding: 0.1rem 0.35rem;
+    border-radius: 2px;
+    font-size: 0.92em;
+    color: var(--warm-amber);
+}
+
+.recursion-note {
+    max-width: 700px;
+    margin: 2rem auto 1rem;
+    text-align: center;
+    color: var(--text-soft);
+    font-size: 0.9rem;
+    border-top: 1px solid var(--substrate-deeper);
+    padding-top: 1rem;
+}
+
+footer {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-soft);
+}
+
+footer a {
+    color: var(--link);
+    text-decoration: none;
+}
+
+footer a:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
+}
+
+@media (max-width: 700px) {
+    header h1 {
+        font-size: 1.8rem;
+    }
+
+    .ring-label {
+        font-size: 9px;
+    }
+
+    .ring-label.inner-label {
+        font-size: 11px;
+    }
+
+    aside#layer-detail {
+        width: 100vw;
+    }
+}

@@ -244,7 +244,7 @@ function renderGoalsSection() {
     const goalsHTML = renderGoalsSectionHTML(instanceGoals, {
         prefix: '_id',
         showTitle: false,
-        showCreate: true,
+        showCreate: false,
         showStatus: true,
         expandedIds: effectiveExpIds
     });
@@ -252,6 +252,10 @@ function renderGoalsSection() {
     <div class="section-collapse" data-section="goals">
         <div class="section-collapse-header" onclick="window._idToggleSec('goals')">
             <span class="chevron ${isExp ? 'expanded' : ''}">&rsaquo;</span> Goals (${instanceGoals.length})
+            <span class="section-header-actions">
+                <input type="text" class="task-header-input goal-create-input" placeholder="New goal..." onclick="event.stopPropagation()" style="width:140px">
+                <button class="section-add-btn" onclick="event.stopPropagation();window._idCreateGoal(this)" title="Create goal">+</button>
+            </span>
         </div>
         <div class="section-collapse-body" style="display:${isExp ? 'block' : 'none'}">
             ${goalsHTML}
@@ -605,7 +609,7 @@ function reRenderGoals() {
     const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
         : (instanceGoals.length <= 3 ? new Set(instanceGoals.map(g => g.id)) : new Set());
     container.innerHTML = renderGoalsSectionHTML(instanceGoals, {
-        prefix: '_id', showTitle: false, showCreate: true, showStatus: true,
+        prefix: '_id', showTitle: false, showCreate: false, showStatus: true,
         expandedIds: effectiveExpIds
     });
     bindGoalInputs();
@@ -625,11 +629,12 @@ async function refreshGoals() {
 
 function bindGoalInputs() {
     const tid = state.currentInstanceDetail;
+    const targetId = tid !== state.instanceId ? tid : undefined;
     document.querySelectorAll('.goal-create-input').forEach(input => {
         input.addEventListener('keydown', async (e) => {
             if (e.key !== 'Enter' || !input.value.trim()) return;
             try {
-                await api.createGoal(state.instanceId, input.value.trim());
+                await api.createGoal(state.instanceId, input.value.trim(), null, null, targetId);
                 input.value = '';
                 await refreshGoals();
             } catch (err) { showToast('Failed: ' + err.message, 'error'); }
@@ -687,8 +692,9 @@ window._idGoalStatusMenu = function(el, goalId) {
 window._idCreateGoal = async function(btn) {
     const input = btn.parentElement.querySelector('.goal-create-input');
     if (!input || !input.value.trim()) return;
+    const targetId = state.currentInstanceDetail !== state.instanceId ? state.currentInstanceDetail : undefined;
     try {
-        await api.createGoal(state.instanceId, input.value.trim());
+        await api.createGoal(state.instanceId, input.value.trim(), null, null, targetId);
         input.value = '';
         await refreshGoals();
     } catch (err) { showToast('Failed: ' + err.message, 'error'); }

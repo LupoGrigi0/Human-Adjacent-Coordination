@@ -239,13 +239,17 @@ function renderProjectGoalsSection(projectId) {
     const effectiveExpIds = expandedGoalIds.size > 0 ? expandedGoalIds
         : (projectGoals.length <= 5 ? new Set(projectGoals.map(g => g.id)) : new Set());
     const goalsHTML = renderGoalsSectionHTML(projectGoals, {
-        prefix: '_pd', showTitle: false, showCreate: true, showStatus: true,
+        prefix: '_pd', showTitle: false, showCreate: false, showStatus: true,
         expandedIds: effectiveExpIds, projectId
     });
     return `
     <div class="section-collapse" data-section="goals">
         <div class="section-collapse-header" onclick="window._pdToggleSection('goals')">
             <span class="chevron ${isExpanded ? 'expanded' : ''}">&rsaquo;</span> Goals (${projectGoals.length})
+            <span class="section-header-actions">
+                <input type="text" class="task-header-input goal-create-input" placeholder="New goal..." data-project-id="${escapeHtml(projectId)}" onclick="event.stopPropagation()" style="width:140px">
+                <button class="section-add-btn" onclick="event.stopPropagation();window._pdCreateGoal(this)" data-project-id="${escapeHtml(projectId)}" title="Create goal">+</button>
+            </span>
         </div>
         <div class="section-collapse-body" style="display:${isExpanded ? 'block' : 'none'}">
             ${goalsHTML}

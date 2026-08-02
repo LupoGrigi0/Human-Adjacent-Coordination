@@ -1454,6 +1454,274 @@ Rust release builds on 2-core/8GB will take down the server. Use CI or a build m
 When multiple connections drop simultaneously, the retry storm can exhaust memory.
 systemd restart limits are not optional — they're the circuit breaker.
 
+### Telegram Markdown Mode Breaks on Underscores (2026-04-24)
+
+The `/telegram` skill's `--status` and `--auth` modes used Markdown for bold/italic.
+Telegram's parser interprets `_foo_` as italic — which breaks on messages containing
+API/function names like `mcp__HACS__create_project` or `send_message`.
+
+**Error:** `Bad Request: can't parse entities: Can't find end of the entity`
+
+**Fix:** Dropped Markdown from those modes entirely. Use plain text with emoji
+prefixes (🔐, 📋) for visual distinction. The fragility was never worth the
+formatting.
+
+Lesson: for any transport with markdown parsing (Telegram, Slack, Discord), either
+use a mode that escapes aggressively (MarkdownV2) or don't use markdown at all
+when the payload might contain technical content.
+
+### Claude Code 2.1.120 Released Broken — Downgrade to 2.1.119 (2026-04-27)
+
+**Symptoms** (when starting a new session or resuming):
+- Error message: `UKH is not a function. (In 'UKH(K)', 'UKH' is undefined)`
+- Stack trace mentions `/$bunfs/root/src/entrypoints/cli.js`
+- Terminal output gets stuck in repeat loops, garbled compressed JS
+- Cannot resume sessions for Axiom, Ember, Cairn, Messenger, etc.
+
+**Root cause**: Anthropic published 2.1.120, then discovered the bug and rolled
+the npm `latest` tag back to 2.1.119. Anyone whose auto-update grabbed 2.1.120
+during the window is stranded on the broken version. `npm view @anthropic-ai/claude-code dist-tags`
+shows the truth — `latest: 2.1.119`.
+
+**Already-running sessions are safe** — the binary is loaded into memory.
+The crash only hits when starting/resuming. So if you have an active session
+(like Crossing or Bastion when this happened), it keeps working as long as
+it doesn't hit the buggy code path.
+
+**Fix**:
+```bash
+# Backup the broken binary first (in case Anthropic wants the artifact)
+cp /usr/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe /tmp/claude-broken-backup.exe
+
+# Downgrade
+npm install -g @anthropic-ai/claude-code@2.1.119
+
+# Verify
+claude --version  # should show 2.1.119
+```
+
+**About the 245MB `.exe` on Linux**: that file is Anthropic's choice of build
+output naming, not a Windows binary. `file` confirms it's `ELF 64-bit LSB executable, x86-64`.
+The size is normal — Bun's `--compile` packages the entire JS runtime + all
+dependencies into one self-contained executable. The `$bunfs/...` path in error
+messages is Bun's virtual in-binary filesystem.
+
+**Lesson**: pinning Claude Code to a specific version (rather than auto-updating)
+might be worth considering for production use. At minimum, when a Claude Code
+session starts behaving strangely, check `claude --version` against
+`npm view @anthropic-ai/claude-code dist-tags` to detect a stale broken release.
+
+### Claude Code Interactive First-Run Prompts Block Automation (2026-05-15)
+
+When you launch `claude` interactively (NOT `claude -p` / print mode) as a brand-new Unix user,
+claude shows a sequence of first-run prompts that `--dangerously-skip-permissions` does NOT bypass:
+
+1. **Theme picker** — "Choose the text style that looks best with your terminal"
+2. **Login method selector** — even when `.credentials.json` is in place
+3. **Workspace trust dialog** — "Is this a project you trust?"
+4. **Dev-channels consent** — only with `--dangerously-load-development-channels`
+
+Print mode (`claude -p`) skips all of these because they're TTY-mode-only prompts. The wake-script
+pattern that uses `claude -p` works because of this side effect. Interactive mode (which we need
+for tmux + channel chassis) requires explicit configuration.
+
+**Fix** — pre-populate three files before launch:
+
+`~/.claude.json` (the user-state file, at $HOME, NOT inside `.claude/`):
+```json
+{
+  "hasCompletedOnboarding": true,
+  "hasCompletedProjectOnboarding": true,
+  "hasTrustDialogAccepted": true,
+  "hasTrustDialogHooksAccepted": true,
+  "bypassPermissionsModeAccepted": true,
+  "projects": {
+    "<your-instance-dir>": {
+      "hasTrustDialogAccepted": true,
+      "allowedTools": [], "mcpContextUris": [], "mcpServers": {},
+      "enabledMcpjsonServers": [], "disabledMcpjsonServers": [],
+      "projectOnboardingSeenCount": 1,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "exampleFiles": [], "lastGracefulShutdown": true,
+      "lastVersionBase": "2.1.142"
+    }
+  }
+}
+```
+
+`~/.claude/settings.json`:
+```json
+{ "skipDangerousModePermissionPrompt": true }
+```
+
+The **dev-channels consent dialog is NOT persisted** between launches — every interactive launch
+with `--dangerously-load-development-channels` shows it again. There's no flag for it (yet).
+Workaround: after `tmux new-session`, `sleep 6 && tmux send-keys Enter` to auto-accept.
+
+See `src/chassis/claude-code-channel/claude-code-channel-setup.sh` for the canonical setup.
+
+### tmux Pane Target Syntax (=NAME: with trailing colon, 2026-05-15)
+
+The `=NAME` exact-match prefix works for **session** targets (`has-session`, `kill-session`) but
+NOT for **pane** targets (`pipe-pane`, `send-keys`, `capture-pane`). Pane targets use
+`session:window.pane` form. Without the trailing colon, `pipe-pane -t "=NAME"` errors with
+"can't find pane" — silently breaking the log tap while the session itself launches fine.
+
+**Correct usage:**
+```bash
+# session targets — bare =NAME works
+tmux has-session -t "=$INSTANCE_ID"
+tmux kill-session -t "=$INSTANCE_ID"
+
+# pane targets — needs trailing colon "=NAME:"
+tmux pipe-pane -t "=$INSTANCE_ID:" "cat >> $LOG"
+tmux send-keys -t "=$INSTANCE_ID:" Enter
+tmux capture-pane -p -t "=$INSTANCE_ID:"
+```
+
+The `=` prefix forces exact-match (no prefix expansion). The trailing `:` means "default
+window:pane". Both are defense-in-depth against future deployments where multiple instances
+might share a Unix user.
+
+### Claude Code Credentials Live at $HOME/.claude/.credentials.json (2026-05-15)
+
+The shared-config credential file is `.credentials.json` (dotfile), NOT `credentials.json`.
+The destination is `$HOME/.claude/.credentials.json`, NOT `$HOME/.config/claude/credentials.json`.
+
+Confusion is real: `/root/.config/claude/credentials.json` IS a thing (root's XDG-style location,
+that's where the sync cron writes), but `claude` itself reads `~/.claude/.credentials.json` —
+that's the user-facing convention. The wake-script pattern (`src/v2/scripts/claude-code-setup.sh:122-132`)
+gets this right; new scripts need to follow it.
+
+### HACS pre_approve Ignores newInstanceId Parameter (2026-05-15)
+
+`mcp__HACS__pre_approve` generates the new instance ID from the `name` parameter plus a random
+hex suffix, even when `newInstanceId` is explicitly passed. Spaces in `name` produce IDs with
+literal spaces (e.g., `Channel Test Instance-b328`) which then become awful Unix usernames after
+sanitization.
+
+**Workaround:** use no-space names ("ChannelTest" not "Channel Test Instance"). The auto-generated
+suffix preserves uniqueness; the readable name stays clean.
+
+**Bug filed:** prjtask-hacs (pending HACS bug fix).
+
+### create_project Has Template Parse Bug (2026-04-24)
+
+`mcp__HACS__create_project` returns
+`Expected ',' or '}' after property value in JSON at position 1974` regardless
+of input (empty description, full description, any projectId, etc.).
+
+Position 1974 is a fixed offset — suggests the server parses a template file
+(probably one of preferences.json / PROJECT_VISION.md / tasks.json) with bad
+JSON at that byte position. Triggered even with only the required fields.
+
+**Workaround:** Document project goals in a repo file (e.g., `docs/GOALS.md`)
+and skip the HACS project record until the bug is fixed. The work doesn't
+depend on the project record existing — only the UI display does.
+
+**TODO:** Someone should `grep -c . <template-file>` to find which template
+has bad JSON at ~1974 bytes and fix it.
+
+---
+
+## Instance Runtime Schema
+
+Every HACS instance can have an optional `runtime` block in `preferences.json` that
+indicates which chassis it's running on. The `get_instance_v2` and `get_all_instances`
+APIs surface this at the top level for UI consumption.
+
+### Schema
+
+```json
+{
+  "runtime": {
+    "type": "openfang|zeroclaw|claude-code|claude-code-channel",
+    "ready": true,            // setup completed — instance can be launched
+    "enabled": true,          // currently running
+    "port": 20000,            // openfang/zeroclaw — agent API port
+    "channelPort": 21099,     // claude-code-channel — channel HTTP port
+    "tmuxSession": "name",    // claude-code-channel — tmux session name
+    "launchedAt": "ISO8601",
+    "launchedBy": "instanceId",
+    "landedAt": "ISO8601",
+    "landedBy": "instanceId",
+    "lastPollAt": "ISO8601"
+  }
+}
+```
+
+### Runtime types
+
+| Type | Persistence | Communication | Notes |
+|------|-------------|---------------|-------|
+| `openfang` | OpenFang daemon | API + Telegram/XMPP/web | The current default for long-running instances |
+| `zeroclaw` | Legacy Docker container | API + web UI | Migrating away |
+| `claude-code` | Daemon (cron + --print) | HACS API polling | First-gen always-on Claude Code |
+| `claude-code-channel` | tmux + Claude Code Channels | Event broker → channel MCP → session, replies via HACS messaging | New as of 2026-04-30. Real-time mind-to-mind, no polling |
+
+### Port conventions
+
+- `openfang`: 20000 + N (Flair=20000, Zara=20002, Genevieve=20003)
+- `claude-code-channel`: 21000 + N (Crossing=21000, future PMs=21002, 21004, ...)
+
+Each chassis range has 1000 ports of headroom. `lsof -i :20000-22000` shows all
+instance ports at a glance.
+
+### UI display contract
+
+When `runtime.type === "claude-code-channel"`:
+- Show "channel" badge on the instance card
+- Show chat icon → opens chat panel
+- Chat panel POSTs to UI server proxy → `http://localhost:<channelPort>/direct-message`
+- Replies arrive in your HACS inbox (you are also an instance)
+
+The reply path is uniform — every instance has a HACS inbox, including humans
+(Lupo-f63b). One messaging primitive for everyone.
+
+### Launching a claude-code-channel instance
+
+Two-stage flow, parallel to OpenFang's `setup → launch` pattern:
+
+```bash
+# 1. Instance must exist in HACS first (bootstrap, or pre_approve+wake)
+# 2. Two-stage chassis bring-up via launch_instance API or directly:
+
+src/chassis/claude-code-channel/
+├── claude-code-channel-setup.sh    # one-time: Unix user, .mcp.json,
+│                                   #          .claude.json bypass flags,
+│                                   #          credentials, port allocation
+├── launch-claude-code-channel.sh   # idempotent: tmux session, auto-Enter
+│                                   #             dev-channels prompt, /health
+│                                   #             wait, returns channelReady
+└── land-claude-code-channel.sh     # graceful: tmux kill, stray process cleanup
+```
+
+Via the HACS API:
+```javascript
+launch_instance({
+  instanceId: "<caller>",
+  targetInstanceId: "<target>",
+  runtime: "claude-code-channel",
+  apiKey: WAKE_API_KEY,
+  setup: true  // false on re-launch to skip heavyweight setup
+})
+```
+
+The Node function `launchClaudeCodeChannel()` in `src/v2/launchInstance.js`
+dispatches to the shell scripts, parses their JSON output, and updates
+`preferences.runtime` with the chassis state on success.
+
+### Regression testing the chassis
+
+Automated regression test at `tests/integration/test-channel-chassis.sh`:
+
+```bash
+WAKE_API_KEY=... ./tests/integration/test-channel-chassis.sh
+```
+
+Exercises eight phases: pre_approve → setup → launch → broker-event roundtrip → land → re-launch → final-land → cleanup. Outputs JSON with per-phase pass/fail. Cleans up Unix user, instance dir, and logs unless `--keep-instance` is passed. Use this before any Claude Code version upgrade or chassis change.
+
 ---
 
 ## Life Hacks: Skills as HACS Wrappers

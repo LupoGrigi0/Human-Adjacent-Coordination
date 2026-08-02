@@ -722,10 +722,11 @@ export async function getGoal(instanceId, goalId, projectId) {
   return rpcCall('get_goal', params);
 }
 
-export async function createGoal(instanceId, name, context, projectId) {
+export async function createGoal(instanceId, name, context, projectId, targetInstanceId) {
   const params = { instanceId, name };
   if (context) params.context = context;
   if (projectId) params.projectId = projectId;
+  if (targetInstanceId) params.targetInstanceId = targetInstanceId;
   return rpcCall('create_goal', params);
 }
 
@@ -982,6 +983,14 @@ export async function getRoleDetails(roleId) {
   return rpcCall('get_role', { roleId });
 }
 
+export async function getRoleWisdom(roleId) {
+  return rpcCall('get_role_wisdom', { roleId });
+}
+
+export async function getRoleWisdomFile(roleId, fileName) {
+  return rpcCall('get_role_wisdom_file', { roleId, fileName });
+}
+
 /**
  * Get detailed info for a specific personality
  * @param {string} personalityId - The personality ID
@@ -1152,6 +1161,8 @@ export const api = {
   getPersonalities,
   getRoles,
   getRoleDetails,
+  getRoleWisdom,
+  getRoleWisdomFile,
   getPersonalityDetails,
   getInstanceDetails,
 

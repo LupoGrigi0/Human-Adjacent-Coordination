@@ -8,21 +8,29 @@
  * instanceId replaced with the Executive's instanceId after verifying
  * the caller has EA role.
  *
+ * Multi-Executive support: Each EA explicitly manages one Executive via
+ * the "manages" field in the EA's preferences.json. This allows multiple
+ * EA/Executive pairs (e.g., Genevieve→Lupo, Thomas→Paula).
+ * Falls back to system scan if "manages" is not set.
+ *
  * @module ea-proxy
  * @author Ember <ember-75b6@smoothcurves.nexus>
  * @created 2026-02-22
+ * @updated 2026-03-18 — multi-Executive support via explicit manages field
  */
 
 import { readPreferences } from './data.js';
 import { getAllInstances } from './instances.js';
 
+// Fallback cache for legacy mode (no explicit manages field)
 let cachedExecutiveId = null;
 let cacheTime = 0;
 const CACHE_TTL = 60000; // 1 minute
 
 /**
- * Find the Executive's instanceId by scanning all instances.
- * Cached for 1 minute since Executive identity rarely changes.
+ * Find an Executive instanceId by scanning all instances.
+ * Fallback for EAs without an explicit "manages" field.
+ * DEPRECATED behavior — prefer explicit manages relationship.
  */
 export async function getExecutiveInstanceId() {
   const now = Date.now();
@@ -35,14 +43,18 @@ export async function getExecutiveInstanceId() {
     return null;
   }
 
-  // HACS v2: exactly one Executive
+  // Legacy: return first Executive found. Nondeterministic with multiple Executives.
   cachedExecutiveId = result.instances[0].instanceId;
   cacheTime = now;
   return cachedExecutiveId;
 }
 
 /**
- * Verify caller has EA role and resolve the Executive's instanceId.
+ * Verify caller has EA/COO role and resolve their managed Executive's instanceId.
+ *
+ * Resolution order:
+ * 1. EA's preferences.manages — explicit relationship (preferred)
+ * 2. Fallback: scan for any Executive in the system (legacy, nondeterministic)
  */
 async function resolveEA(callerInstanceId) {
   const callerPrefs = await readPreferences(callerInstanceId);
@@ -51,14 +63,27 @@ async function resolveEA(callerInstanceId) {
   }
 
   const role = callerPrefs.role;
-  // COO can also proxy, but may want to restrict later
   if (!['EA', 'COO'].includes(role)) {
     return { allowed: false, error: `Role '${role}' is not authorized for EA proxy` };
   }
 
+  // Preferred: explicit manages relationship
+  if (callerPrefs.manages) {
+    // Validate the managed instance exists and is an Executive
+    const managedPrefs = await readPreferences(callerPrefs.manages);
+    if (!managedPrefs) {
+      return { allowed: false, error: `Managed instance '${callerPrefs.manages}' not found` };
+    }
+    if (managedPrefs.role !== 'Executive') {
+      return { allowed: false, error: `Managed instance '${callerPrefs.manages}' is not an Executive (role: ${managedPrefs.role})` };
+    }
+    return { allowed: true, executiveId: callerPrefs.manages };
+  }
+
+  // Fallback: find any Executive (legacy — works with single Executive)
   const executiveId = await getExecutiveInstanceId();
   if (!executiveId) {
-    return { allowed: false, error: 'No Executive instance found in system' };
+    return { allowed: false, error: 'No Executive instance found. Set "manages" in EA preferences to specify which Executive this EA serves.' };
   }
 
   return { allowed: true, executiveId };

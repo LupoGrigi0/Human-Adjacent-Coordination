@@ -172,7 +172,7 @@ export async function createGoal(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
 
   const perm = await checkGoalPermission(callerPrefs, scope, targetId);
   if (!perm.allowed) {
@@ -335,7 +335,7 @@ export async function getGoal(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
   const data = await readGoals(scope, targetId);
   const idx = findGoalIndex(data, params.goalId, scope);
 
@@ -399,7 +399,7 @@ export async function addCriteria(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
 
   const perm = await checkGoalPermission(callerPrefs, scope, targetId);
   if (!perm.allowed) {
@@ -469,7 +469,7 @@ export async function updateCriteria(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
 
   const perm = await checkGoalPermission(callerPrefs, scope, targetId);
   if (!perm.allowed) {
@@ -528,7 +528,7 @@ export async function validateCriteria(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
 
   const perm = await checkGoalPermission(callerPrefs, scope, targetId);
   if (!perm.allowed) {
@@ -595,7 +595,7 @@ export async function setGoalStatus(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
 
   const perm = await checkGoalPermission(callerPrefs, scope, targetId);
   if (!perm.allowed) {
@@ -648,7 +648,7 @@ export async function deleteGoal(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
 
   const perm = await checkGoalPermission(callerPrefs, scope, targetId);
   if (!perm.allowed) {
@@ -714,7 +714,7 @@ export async function addDependency(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
 
   const perm = await checkGoalPermission(callerPrefs, scope, targetId);
   if (!perm.allowed) {
@@ -773,7 +773,7 @@ export async function validateDependency(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
   const data = await readGoals(scope, targetId);
   const goalIdx = findGoalIndex(data, params.goalId, scope);
 
@@ -858,7 +858,7 @@ export async function validateDependencies(params) {
   }
 
   const scope = params.projectId ? 'project' : 'personal';
-  const targetId = params.projectId || params.instanceId;
+  const targetId = params.projectId || params.targetInstanceId || params.instanceId;
   const data = await readGoals(scope, targetId);
   const goals = getGoalArray(data, scope);
 
