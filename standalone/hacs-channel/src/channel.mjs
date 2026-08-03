@@ -452,19 +452,25 @@ const server = http.createServer(async (req, res) => {
           + ` — drain_events when ready`;
         if (n.thread_id) text += `; thread_id=${n.thread_id} — reply_channel to respond`;
 
+        // meta LAW (empirically isolated 2026-08-03, probe-verified twice):
+        // Claude Code SILENTLY DROPS a channel notification when meta
+        // (1) contains a `channel` key naming a channel it never loaded
+        //     (meta.channel is ITS routing namespace, not ours), or
+        // (2) contains ANY non-string value in ANY key (hub_count: 3 died;
+        //     hub_count: "3" woke the idle session).
+        // Therefore: hub fields ride as hub_*-prefixed STRINGS, everything
+        // in meta is String()-coerced, and no numeric ever enters meta.
+        const meta = {
+          event_type: 'notification',
+          from: String(n.from),
+          hub_channel: String(n.channel),
+          hub_count: String(n.count),
+          origin: 'hub',
+        };
+        if (n.thread_id !== undefined) meta.thread_id = String(n.thread_id);
         await mcp.notification({
           method: 'notifications/claude/channel',
-          params: {
-            content: text,
-            meta: {
-              event_type: 'notification',
-              channel: n.channel,
-              from: n.from,
-              count: n.count,
-              thread_id: n.thread_id,
-              origin: 'hub',
-            },
-          },
+          params: { content: text, meta },
         });
 
         broadcast(`[hub-notification] ${n.channel}/${n.from} count=${n.count}`);
