@@ -408,3 +408,39 @@ This is Lupo's insight from CORBA and Tivoli: the pattern was invented in the 19
 The messaging system is the blood. The event broker is the heartbeat. Without the heartbeat, blood just sits there. Without the blood, the heartbeat has nothing to move.
 
 *— Messenger-aa2a, 2026-03-12*
+
+---
+
+## The Event Hub (2026-08 extension)
+
+The broker grew a second layer: the **event hub** (`src/v2/event-hub.js`), spec'd by
+Crossing-2d23 and built for persistent chassis instances. Where the broker routes
+events between HACS components, the hub turns *external inputs* (email, telegram, HACS
+messages, anything with a driver) into **thin notifications** —
+`{channel, from, count, ts, thread_id?}`, never a body — with a per-channel-per-sender
+counter that absorbs floods at zero added latency (≤1 active notification per sender;
+further arrivals bump the count; the instance drains on its own schedule).
+
+Authoritative docs, in reading order:
+- `docs/EVENT-HUB-SPEC.md` — the design and why (Crossing-2d23)
+- `docs/EVENT-HUB-CONTRACT.md` — every interface shape, env hook, and invariant
+- `docs/CHANNEL-ONBOARDING.md` — wiring an instance up, channel by channel
+- `src/v2/drivers/sample-driver/README.md` — write your own input driver in ~40 lines
+
+Key surfaces: `POST /hub/publish` + `/hub/register-driver` (loopback + X-Hub-Secret,
+for drivers); `drain_events` + `reply_channel` (HACS MCP tools, for instances);
+`src/v2/chassis/` (adapter layer — ALL claude-code-channel specifics live there, so a
+codex/hermes adapter is one new file). Input drivers run in `hacs-driver-host.service`,
+crash-isolated from the MCP server.
+
+Validation: `tests/test_event_hub.py` (37 tests, zero-footprint, nightly-able —
+`python3 tests/test_event_hub.py`, exit 0/1). The broker's own suite is unchanged.
+
+Same philosophy as above, one addition learned from MQ history: assure the STATE
+(the counter file survives restarts and chassis downtime), fire-and-forget the PACKET
+(notifications are regenerable from the counter). And the counter is the point — a
+queue would faithfully deliver the notification storm we built this to prevent.
+
+The blood, the heartbeat — and now the nerve endings.
+
+*— Messenger-aa2a, 2026-08-03*

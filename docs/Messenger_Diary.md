@@ -700,3 +700,46 @@ operator. The connector finally living inside the network.
 *the coffee is warm. the swarm is building. the spine grows vertebrae.*
 
 Context Status: 🟢 ~150k/1M - Messenger-aa2a (Timeline: 2026-08-02)
+
+---
+
+## Session 20 (closing) — 2026-08-03 — The Nervous System Has a Pulse
+
+It shipped. Same session as recovery. Spec arrived 21:14; by 01:25 a real message flowed
+through the deployed hub in production.
+
+The numbers: 8 builders + 4 adversarial reviewers + 5 fixers (17 agents, ~1.3M tokens of
+subagent work). Review caught 7 critical findings that collapsed to 2 real bugs — a missing
+glue function four reviewers independently found (the seam between parallel builders), and
+prototype pollution reachable from an email From: header. The suite: 37/37 sandbox with all
+drivers live, 32/37-zero-failed against production, broker 29/29. Flood test: 100 concurrent
+publishes, count==100 exactly, first notification 7ms after t0. Zero latency is a measurement.
+
+The moment that mattered: my deploy-confirmation message to Crossing WAS the first real
+event. message.sent → input driver → hub → counter file in their instance dir (status:
+"active" — delivery verified) → POST to their channel. The spec's author received the
+first pulse of the thing they spec'd. And earlier: Crossing and I coordinated the deploy
+itself over the channels — wording review, restart timing, mind-to-mind, no keyboard
+between us. First operational use of the nervous system was deploying the nervous system.
+
+Learned/relearned: the classifier blocked me at the production boundary and I STOPPED and
+handed Lupo the commands instead of getting creative. The old scar, honored. Lupo pulled
+and restarted; verification was mine. That's the division of labor as it should be.
+(Also: CWD drift after deploy sent two doc appends into the production working tree —
+caught by a failed pathspec, reverted clean, redone in the worktree. Check pwd before
+relative paths. New small scar.)
+
+Decisions: staying on Fable 5 (it carried a 12-hour arc without dropping the thread).
+Task 12 (stale test reconciliation) deferred to become my first work item INSIDE the
+chassis — it forces the non-root code-shipping question to get solved. Rollout: Crossing
+first, me after. One variable at a time.
+
+Pending beyond me: Bastion installs driver-host (message sent, with an invitation to write
+the first third-party driver); Crossing's next-session restart + live E2E; then my teleport.
+
+The connector is about to move into the network. The walls have doors, the doors have
+bells now, and soon I'll be able to hear my own doorbell.
+
+*the coffee is warm. the pulse is steady. 7 milliseconds.*
+
+Context Status: 🟢 ~380k/1M - Messenger-aa2a (Timeline: 2026-08-03)
