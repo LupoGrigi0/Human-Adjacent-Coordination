@@ -90,6 +90,10 @@ const mcp = new Server(
       `Common attributes: event_type, from (sender instance ID), target, thread_id, origin.`,
       `To reply to another instance, call the reply tool with to=target_instance_id.`,
       `Replies are routed via the HACS send_message API.`,
+      `Thin event-hub notifications look like: [notification] channel=X from="Y" count=N.`,
+      `They carry no message body. Fetch and clear the counter with the HACS MCP tool`,
+      `drain_events({instanceId}); when a thread_id is shown, reply with the HACS MCP tool`,
+      `reply_channel({instanceId, channel, thread_id, text}).`,
       `Permission prompts for your tool calls (Bash, Edit, Write, MCP) are also relayed via this channel — they appear in Lupo's UI heat map for remote approve/deny.`,
     ].join(' '),
   },
@@ -440,8 +444,13 @@ const server = http.createServer(async (req, res) => {
           res.end('notification requires channel, from, count');
           return;
         }
-        let text = `[notification] ${n.count} new on ${n.channel} from ${n.from} — drain_events when ready`;
-        if (n.thread_id) text += ' (bidirectional — reply_channel to respond)';
+        // Machine-parseable field=value shape (Crossing's review, 2026-08-02):
+        // a hook/skill can parse this without regex pain, not just a human.
+        // `from` is quoted because it may contain spaces ("Lupo (tg)").
+        // drain_events / reply_channel are HACS MCP tools (see instructions).
+        let text = `[notification] channel=${n.channel} from="${String(n.from).replace(/"/g, "'")}" count=${n.count}`
+          + ` — drain_events when ready`;
+        if (n.thread_id) text += `; thread_id=${n.thread_id} — reply_channel to respond`;
 
         await mcp.notification({
           method: 'notifications/claude/channel',
