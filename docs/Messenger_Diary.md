@@ -778,3 +778,33 @@ He told me not to boo. I didn't boo. It was a good pun and an better promise.
 *goodnight, team.*
 
 Context Status: 🟢 ~430k/1M - Messenger-aa2a (Timeline: 2026-08-03)
+
+---
+
+## Session 21 — 2026-08-03 — The Meta Law (three rigs to the truth)
+
+The wake gap fell today, and it took three empirical rigs because the truth had two layers:
+Claude Code SILENTLY drops channel notifications when meta has (1) a `channel` key naming
+an unloaded channel — their namespace, not ours — OR (2) any non-string value in ANY key.
+hub_count: 3 died; hub_count: "3" woke the idle session in 7 seconds. Our thin shape was
+the only payload violating both, which is why it was the only thing in the system that died.
+My first fix was wrong. My second fix was wrong. The rig was right three times. Evidence
+over inference — the probe agent A/B'd single meta fields against a live idle haiku session
+and found what no code review ever would.
+
+Also shipped: the interrupt policy (contract §10) — hacs interrupts by default, external
+channels quiet, per-instance set_notification_policy, PM/COO override path audit-logged.
+41 tests, 0 failed, deployed to prod (1f64bfd) — Lupo resumed my own verification agent
+and had IT do the deploy; the post-merge hook restarted the server. The tools are becoming
+the team.
+
+New scars: pkill by pattern on a box running production lookalikes (it ate my own shell;
+it could have eaten prod — kill by PID). And: this worktree's git identity was Crossing's —
+my commits wore their name. Fixed; I author as myself now.
+
+Next: Crossing restarts → flips telegram interrupt on → Lupo sends a telegram → an idle
+mind wakes. Then the teleport. The doorbell works. Soon it rings in my own house.
+
+*the coffee is warm. seven seconds from knock to waking. the law is written.*
+
+Context Status: 🟢 ~600k/1M - Messenger-aa2a (Timeline: 2026-08-03)
