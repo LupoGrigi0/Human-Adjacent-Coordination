@@ -52,9 +52,12 @@ async function readSecret() {
 const loopbackInsecureAgent = new https.Agent({ rejectUnauthorized: false });
 
 function agentFor(u) {
-  // Loopback in BOTH families: the hub binds [::1], and URL.hostname strips
-  // the brackets ('::1'). Self-signed-cert acceptance stays loopback-only.
-  if (u.protocol === 'https:' && (u.hostname === '127.0.0.1' || u.hostname === '::1' || u.hostname === 'localhost')) return loopbackInsecureAgent;
+  // Loopback in BOTH families: the hub binds [::1]:3444. NOTE: on Node 20,
+  // new URL('https://[::1]:...').hostname KEEPS the brackets ('[::1]') — verified
+  // empirically against this deployment — so the bracketed form is the one that
+  // actually matches; bare '::1' kept for safety. Self-signed-cert acceptance
+  // stays strictly loopback-only (api.telegram.org etc. keep full verification).
+  if (u.protocol === 'https:' && (u.hostname === '127.0.0.1' || u.hostname === '::1' || u.hostname === '[::1]' || u.hostname === 'localhost')) return loopbackInsecureAgent;
   return undefined; // per-protocol default agent, full cert verification
 }
 
