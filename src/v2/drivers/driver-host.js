@@ -52,7 +52,9 @@ async function readSecret() {
 const loopbackInsecureAgent = new https.Agent({ rejectUnauthorized: false });
 
 function agentFor(u) {
-  if (u.protocol === 'https:' && u.hostname === '127.0.0.1') return loopbackInsecureAgent;
+  // Loopback in BOTH families: the hub binds [::1], and URL.hostname strips
+  // the brackets ('::1'). Self-signed-cert acceptance stays loopback-only.
+  if (u.protocol === 'https:' && (u.hostname === '127.0.0.1' || u.hostname === '::1' || u.hostname === 'localhost')) return loopbackInsecureAgent;
   return undefined; // per-protocol default agent, full cert verification
 }
 
