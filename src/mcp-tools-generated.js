@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-08-02T23:28:33.705Z                           ║
- * ║  Tool Count: 113                                                        ║
+ * ║  Generated: 2026-08-03T18:33:40.581Z                           ║
+ * ║  Tool Count: 114                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -2532,6 +2532,36 @@ export const mcpTools = [
         "instanceId",
         "goalId",
         "status"
+      ]
+    }
+  },
+  {
+    "name": "set_notification_policy",
+    "description": "set_notification_policy - events endpoint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "channel": {
+          "type": "string",
+          "description": "Channel name, e.g. \"email\", \"telegram\", \"hacs\""
+        },
+        "interrupt": {
+          "type": "boolean",
+          "description": "true = interrupt live, false = quiet counters"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance to set policy for (default: yourself)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "channel",
+        "interrupt"
       ]
     }
   },

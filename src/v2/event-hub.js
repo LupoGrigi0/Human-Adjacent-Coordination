@@ -15,7 +15,7 @@ import fs from 'fs/promises';
 import fssync from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { writeJSON, ensureDir } from './data.js';
+import { writeJSON, ensureDir, readPreferences, writePreferences } from './data.js';
 import { getInstancesDir, getInstanceDir } from './config.js';
 import { logger } from '../logger.js';
 
@@ -27,6 +27,12 @@ const RETRY_SWEEP_MS = 60000; // pending-slot re-dispatch cadence
 
 // §8b hardening — path-traversal + prototype-pollution guards
 const SAFE_ID_RE = /^[A-Za-z0-9._-]+$/;      // target/instanceId (used in paths)
+
+// Interrupt-policy system defaults (contract §10): hacs is the colleague-to-
+// colleague real-time fabric → interrupt ON; external channels are quiet by
+// default, opt-in per instance (Genevieve/Axiom flip email on, etc.).
+// Unknown/custom channels default QUIET — a new driver must earn interrupts.
+const INTERRUPT_DEFAULTS = { hacs: true, email: false, telegram: false };
 const SAFE_CHANNEL_RE = /^[a-z0-9_-]+$/i;    // channel names
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']); // exact `from` rejects
 
@@ -366,6 +372,17 @@ class EventHub {
     if (slot._dispatching) return; // one in-flight delivery per slot
     slot._dispatching = true;
     try {
+      // Interrupt policy (contract §10): quiet channels accrue counters and
+      // are drained on the instance's schedule — no injection is sent, so an
+      // idle mind stays asleep. Interrupt channels deliver the notification,
+      // which (post meta-shape fix) starts a turn on an idle session.
+      const interrupt = await this._resolveInterrupt(instanceId, channel);
+      if (!interrupt) {
+        slot.status = 'active'; // aware-by-policy: nothing outstanding to deliver
+        logger.info(`[EventHub] quiet-policy: ${instanceId} ${channel}/${from} count=${slot.count} (counter only)`);
+        this._scheduleSnapshot(instanceId);
+        return;
+      }
       const notification = { channel, from, count: slot.count, ts: slot.last_ts };
       if (slot.thread_id !== undefined) notification.thread_id = slot.thread_id;
       const chassis = await import('./chassis/index.js');
@@ -375,6 +392,79 @@ class EventHub {
     } finally {
       slot._dispatching = false;
     }
+  }
+
+  /**
+   * Resolve the interrupt policy for {instance, channel}:
+   *   per-instance prefs (notifications.<channel>.interrupt) → system default.
+   * The project-level override (PM/COO enabling interrupt for an active
+   * project's members) is tooling that WRITES these prefs via
+   * set_notification_policy — resolution here stays two-source and cheap.
+   * Prefs are read fresh per 0→active transition (rare) so control-panel
+   * edits take effect without a restart. Read failure → defaults (never
+   * blocks delivery decisions on a bad prefs file).
+   */
+  async _resolveInterrupt(instanceId, channel) {
+    let prefs = null;
+    try { prefs = await readPreferences(instanceId); } catch { /* defaults */ }
+    const per = prefs?.notifications?.[channel]?.interrupt;
+    if (typeof per === 'boolean') return per;
+    return INTERRUPT_DEFAULTS[channel] ?? false;
+  }
+
+  /**
+   * @hacs-endpoint
+   * @template-version 1.0.0
+   * ┌─────────────────────────────────────────────────────────────────────────┐
+   * │ SET_NOTIFICATION_POLICY                                                 │
+   * │ Choose which channels interrupt an instance live vs accrue quietly      │
+   * └─────────────────────────────────────────────────────────────────────────┘
+   *
+   * @tool set_notification_policy
+   * @version 1.0.0
+   * @since 2026-08-03
+   * @category events
+   * @status stable
+   *
+   * Sets the interrupt policy for one channel of one instance. Interrupting
+   * channels deliver a live notification that wakes an idle session; quiet
+   * channels only accrue counters (read them with drain_events on your own
+   * schedule). System defaults: hacs interrupts, email/telegram are quiet.
+   * Omit targetInstanceId to set your own policy; setting another instance's
+   * policy (the PM/COO project-override path) is audit-logged with your ID.
+   *
+   * @param {string} instanceId - Your instance ID [required]
+   * @param {string} channel - Channel name, e.g. "email", "telegram", "hacs" [required]
+   * @param {boolean} interrupt - true = interrupt live, false = quiet counters [required]
+   * @param {string} targetInstanceId - Instance to set policy for (default: yourself) [optional]
+   *
+   * @returns {object} response
+   * @returns {boolean} .success
+   * @returns {string} .instanceId - Whose policy was set
+   * @returns {string} .channel
+   * @returns {boolean} .interrupt - The policy now in effect
+   * @returns {boolean} .default - What the system default would have been
+   */
+  async setNotificationPolicy({ instanceId, targetInstanceId, channel, interrupt }) {
+    const target = targetInstanceId || instanceId;
+    if (!target || typeof target !== 'string' || !SAFE_ID_RE.test(target) || target === '.' || target === '..') {
+      return { success: false, error: 'invalid target instanceId' };
+    }
+    if (!channel || !/^[a-z0-9_-]+$/i.test(channel)) {
+      return { success: false, error: 'invalid channel' };
+    }
+    if (typeof interrupt !== 'boolean') {
+      return { success: false, error: 'interrupt must be boolean true|false' };
+    }
+    let prefs;
+    try { prefs = (await readPreferences(target)) || {}; } catch { prefs = {}; }
+    prefs.notifications = prefs.notifications || {};
+    prefs.notifications[channel] = { ...(prefs.notifications[channel] || {}), interrupt };
+    await writePreferences(target, prefs);
+    if (target !== instanceId) {
+      logger.info(`[EventHub] notification policy for ${target} set by ${instanceId}: ${channel}.interrupt=${interrupt}`);
+    }
+    return { success: true, instanceId: target, channel, interrupt, default: INTERRUPT_DEFAULTS[channel] ?? false };
   }
 
   /**

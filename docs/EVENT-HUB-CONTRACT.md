@@ -89,6 +89,39 @@ The verbs resolve to real calls: `drain_events` and `reply_channel` are HACS MCP
 (advertised in tools/list); channel.mjs's instructions string tells the instance so.
 All other event_types: existing full-content path, byte-identical behavior.
 
+**meta law (2026-08-03, probe-isolated over three rig runs):** Claude Code SILENTLY
+DROPS a channel notification when the `meta` object passed to `mcp.notification()`
+(1) contains a `channel` key naming a channel the client never loaded — `meta.channel`
+is the CLIENT's routing namespace, not ours — **or** (2) contains ANY non-string value
+in ANY key (`hub_count: 3` died; `hub_count: "3"` woke the idle session; a numeric in
+an unrelated key also died). This compound drop was the entire "wake gap": thin
+notifications were the only all-conditions-violating payload. Rule: hub fields ride as
+`hub_*`-prefixed keys, every meta value is `String()`-coerced, no numeric ever enters
+meta. With string-only meta, channel injection natively STARTS A TURN on an idle
+session. Any change to the meta shape MUST be re-verified against a live idle session
+(the rig recipe lives in the session notes; a doc-only fix here has been wrong twice).
+
+## 10. Interrupt policy (who gets woken, per channel)
+
+Delivery of the waking injection is gated per `{instance, channel}`:
+
+- Resolution: `preferences.json` → `notifications.<channel>.interrupt` (boolean) wins;
+  else system default; else **quiet**.
+- **System defaults:** `hacs: true` (colleague-to-colleague fabric), `email: false`,
+  `telegram: false`. Unknown/custom channels: quiet — a new driver must earn interrupts.
+- **Quiet semantics:** publish still succeeds, the counter accrues, the slot goes
+  `active` (aware-by-policy), `drain_events` works — but NO injection is sent; an idle
+  mind stays asleep. Quiet is counter-only, by design.
+- **Write path:** MCP tool `set_notification_policy({instanceId, channel, interrupt,
+  targetInstanceId?})`. Self-service; setting another instance's policy (the PM/COO
+  project-override mechanism, e.g. enabling hacs-interrupt for an active project's
+  team) is permitted and audit-logged — role enforcement lands with the settings UI.
+- The three-layer model (system default → per-instance → project override) is realized
+  as: defaults in code, per-instance in prefs, project override as tooling that WRITES
+  prefs. Resolution stays two-source and cheap.
+- Prefs are read fresh on each 0→active transition — policy edits take effect without
+  restarts, and delivery decisions never block on a corrupt prefs file (defaults win).
+
 ## 5. MCP handlers (instance-facing, in server.call switch)
 
 - `drain_events({instanceId, channel?, from?, peek?})` →

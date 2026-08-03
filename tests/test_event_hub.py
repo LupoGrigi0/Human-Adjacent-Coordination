@@ -557,6 +557,25 @@ def test_write_identity():
                    "channelPort": STUB_PORT}, f)
     with open(os.path.join(INSTANCE_DIR, ".env"), "w") as f:
         f.write(f"TELEGRAM_BOT_TOKEN=TESTTOKEN{TIMESTAMP}\n")
+    # Interrupt policy (contract §10): custom channels default QUIET, so the
+    # suite opts its own channels into interrupt via preferences.json — which
+    # also exercises the prefs-resolution path on every delivery below.
+    # 'email' and 'hacs' are deliberately ABSENT: Section 10 tests defaults.
+    suite_channels = ["smoke", "shape", "flood", "drainq", "telegram",
+                      "resil", "mono", "bigbody", "corruptch", "sample", "waketest"]
+    prefs_path = os.path.join(INSTANCE_DIR, "preferences.json")
+    prefs = {}
+    if os.path.exists(prefs_path):
+        try:
+            with open(prefs_path) as f:
+                prefs = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            prefs = {}
+    prefs.setdefault("notifications", {})
+    for ch in suite_channels:
+        prefs["notifications"][ch] = {"interrupt": True}
+    with open(prefs_path, "w") as f:
+        json.dump(prefs, f)
     _identity_ok = True
 
 
@@ -1154,6 +1173,11 @@ def test_email_driver_end_to_end():
     if not os.environ.get("EMAIL_DRIVER_RUNNING"):
         raise RuntimeError("SKIP: EMAIL_DRIVER_RUNNING not set — email driver not under test")
     _require_core()
+    # 'email' defaults to quiet (contract §10) — opt this instance in so the
+    # driver's publish produces a delivered notification we can observe.
+    r = rpc_call("set_notification_policy",
+                 {"instanceId": TEST_ID, "channel": "email", "interrupt": True})
+    assert_success(r, "opt email channel into interrupt for the driver test")
     base = len(_notifs("email"))
     fname = f"{int(time.time())}.M0P{os.getpid()}.evthubtest"
     rfc822 = (
@@ -1199,6 +1223,86 @@ def test_ts_monotone_per_channel():
 runner.run("8.1 Corrupt .hacs-events.json (fresh instance) -> publish ok, quarantine, drain", test_corrupt_events_file)
 runner.run("8.2 Email driver end-to-end (maildir drop)", test_email_driver_end_to_end)
 runner.run("8.3 Notification ts monotone per channel", test_ts_monotone_per_channel)
+
+
+# ---------------------------------------------------------------------------
+# SECTION 10: INTERRUPT POLICY (contract §10) — quiet vs interrupt channels
+# ---------------------------------------------------------------------------
+print()
+print("=" * 70)
+print("SECTION 10: INTERRUPT POLICY — quiet vs interrupt channels")
+print("=" * 70)
+
+
+def test_policy_default_quiet():
+    """A channel with no prefs entry and no system default ('quietch') is
+    QUIET: publish succeeds, counter accrues, but NO notification is delivered
+    to the chassis. Drain still returns the events (contract §10)."""
+    _require_core()
+    base = len(_notifs("quietch"))
+    r = hub_publish({"target": TEST_ID, "channel": "quietch",
+                     "from": "quiet-sender", "ref": "quiet-ref-1"})
+    assert r["status"] == 200 and r["data"].get("ok") is True, \
+        f"quiet publish must still succeed: HTTP {r['status']} {r['text'][:200]}"
+    runner.publishes_sent += 1
+    time.sleep(3.0)  # generous window — nothing should arrive
+    now = len(_notifs("quietch"))
+    assert now == base, \
+        f"quiet channel must deliver NO notification (had {base}, now {now})"
+    r2 = rpc_call("drain_events", {"instanceId": TEST_ID, "channel": "quietch", "peek": True})
+    data = assert_success(r2, "drain (peek) must still see quiet events")
+    ev = (data.get("events") or {}).get("quietch", {}).get("quiet-sender", {})
+    assert ev.get("count") == 1, \
+        f"quiet counter must accrue (want 1), got: {json.dumps(data)[:300]}"
+
+
+def test_policy_default_interrupt_hacs():
+    """'hacs' is the colleague-to-colleague fabric — system default is
+    interrupt ON with no prefs entry needed."""
+    _require_core()
+    base = len(_notifs("hacs"))
+    r = hub_publish({"target": TEST_ID, "channel": "hacs",
+                     "from": "colleague-sender", "ref": "hacs-ref-1"})
+    assert r["status"] == 200 and r["data"].get("ok") is True, "hacs publish failed"
+    runner.publishes_sent += 1
+    got = wait_until(lambda: len(_notifs("hacs")) > base or None, timeout=10)
+    assert got, "hacs channel must deliver a notification by system default"
+
+
+def test_policy_flip_to_interrupt():
+    """set_notification_policy flips 'quietch' to interrupt; a fresh sender
+    (new slot, 0-to-active) must then be delivered."""
+    _require_core()
+    r = rpc_call("set_notification_policy",
+                 {"instanceId": TEST_ID, "channel": "quietch", "interrupt": True})
+    data = assert_success(r, "set_notification_policy must succeed")
+    assert data.get("interrupt") is True and data.get("default") is False, \
+        f"policy echo wrong: {json.dumps(data)[:200]}"
+    base = len(_notifs("quietch"))
+    r2 = hub_publish({"target": TEST_ID, "channel": "quietch",
+                      "from": "loud-sender", "ref": "quiet-ref-2"})
+    assert r2["status"] == 200 and r2["data"].get("ok") is True, "post-flip publish failed"
+    runner.publishes_sent += 1
+    got = wait_until(lambda: len(_notifs("quietch")) > base or None, timeout=10)
+    assert got, "after interrupt=true, the notification must be delivered"
+
+
+def test_policy_rejects_bad_input():
+    """Malformed policy calls are rejected cleanly (hub stays honest)."""
+    _require_core()
+    r = rpc_call("set_notification_policy",
+                 {"instanceId": TEST_ID, "channel": "no spaces allowed", "interrupt": True})
+    data = r["data"]
+    assert data.get("success") is False, f"bad channel must be rejected: {json.dumps(data)[:200]}"
+    r2 = rpc_call("set_notification_policy",
+                  {"instanceId": TEST_ID, "channel": "quietch", "interrupt": "yes"})
+    assert r2["data"].get("success") is False, "non-boolean interrupt must be rejected"
+
+
+runner.run("10.1 Default-quiet channel: counter accrues, no delivery", test_policy_default_quiet)
+runner.run("10.2 'hacs' interrupts by system default", test_policy_default_interrupt_hacs)
+runner.run("10.3 set_notification_policy flips quiet -> interrupt", test_policy_flip_to_interrupt)
+runner.run("10.4 Policy API rejects malformed input", test_policy_rejects_bad_input)
 
 
 # ===========================================================================

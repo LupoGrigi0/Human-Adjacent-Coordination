@@ -688,6 +688,8 @@ class MCPCoordinationServer {
           return hub.drain(params);
         case 'reply_channel':
           return this.handleReplyChannel(params);
+        case 'set_notification_policy':
+          return hub.setNotificationPolicy(params);
 
         default:
           return {
