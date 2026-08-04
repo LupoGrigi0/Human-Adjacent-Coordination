@@ -561,7 +561,10 @@ def test_write_identity():
     # suite opts its own channels into interrupt via preferences.json — which
     # also exercises the prefs-resolution path on every delivery below.
     # 'email' and 'hacs' are deliberately ABSENT: Section 10 tests defaults.
-    suite_channels = ["smoke", "shape", "flood", "drainq", "telegram",
+    # 'telegram' is deliberately ABSENT too (2026-08-04): its system default is
+    # now interrupt=true, so T4's delivery rides — and thereby verifies — the
+    # default rather than a prefs opt-in.
+    suite_channels = ["smoke", "shape", "flood", "drainq",
                       "resil", "mono", "bigbody", "corruptch", "sample", "waketest"]
     prefs_path = os.path.join(INSTANCE_DIR, "preferences.json")
     prefs = {}
