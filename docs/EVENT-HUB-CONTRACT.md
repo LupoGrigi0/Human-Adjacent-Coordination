@@ -108,7 +108,11 @@ Delivery of the waking injection is gated per `{instance, channel}`:
 - Resolution: `preferences.json` → `notifications.<channel>.interrupt` (boolean) wins;
   else system default; else **quiet**.
 - **System defaults:** `hacs: true` (colleague-to-colleague fabric), `email: false`,
-  `telegram: false`. Unknown/custom channels: quiet — a new driver must earn interrupts.
+  `telegram: true`. Unknown/custom channels: quiet — a new driver must earn interrupts.
+  Telegram earned its interrupt 2026-08-04 (production round-trip wake, attended and
+  unattended): the channel requires explicit telegram-side setup, so the default only
+  reaches instances that deliberately wired telegram to be reachable — for everyone
+  else it is inert (no telegram ID, no telegram events, no interrupt).
 - **Quiet semantics:** publish still succeeds, the counter accrues, the slot goes
   `active` (aware-by-policy), `drain_events` works — but NO injection is sent; an idle
   mind stays asleep. Quiet is counter-only, by design.

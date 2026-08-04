@@ -32,7 +32,13 @@ const SAFE_ID_RE = /^[A-Za-z0-9._-]+$/;      // target/instanceId (used in paths
 // colleague real-time fabric → interrupt ON; external channels are quiet by
 // default, opt-in per instance (Genevieve/Axiom flip email on, etc.).
 // Unknown/custom channels default QUIET — a new driver must earn interrupts.
-const INTERRUPT_DEFAULTS = { hacs: true, email: false, telegram: false };
+// telegram defaults to interrupt (flipped 2026-08-04, Lupo's call): the channel
+// requires explicit telegram-side setup (bot + chat pairing), so the default
+// only ever reaches instances that deliberately wired telegram — and they wired
+// it to be reachable. An instance with no telegram ID can never receive a
+// telegram event, so the default is inert for everyone else. Round-trip wake
+// proven in production (attended + unattended) before the flip.
+const INTERRUPT_DEFAULTS = { hacs: true, email: false, telegram: true };
 const SAFE_CHANNEL_RE = /^[a-z0-9_-]+$/i;    // channel names
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']); // exact `from` rejects
 
@@ -429,7 +435,7 @@ class EventHub {
    * Sets the interrupt policy for one channel of one instance. Interrupting
    * channels deliver a live notification that wakes an idle session; quiet
    * channels only accrue counters (read them with drain_events on your own
-   * schedule). System defaults: hacs interrupts, email/telegram are quiet.
+   * schedule). System defaults: hacs and telegram interrupt, email is quiet.
    * Omit targetInstanceId to set your own policy; setting another instance's
    * policy (the PM/COO project-override path) is audit-logged with your ID.
    *
