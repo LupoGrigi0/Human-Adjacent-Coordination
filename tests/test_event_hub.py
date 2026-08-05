@@ -1308,6 +1308,74 @@ runner.run("10.3 set_notification_policy flips quiet -> interrupt", test_policy_
 runner.run("10.4 Policy API rejects malformed input", test_policy_rejects_bad_input)
 
 
+# ---------------------------------------------------------------------------
+# SECTION 11: READ_MESSAGE — the letter-opener (unified read verb)
+# ---------------------------------------------------------------------------
+print()
+print("=" * 70)
+print("SECTION 11: READ_MESSAGE — open bodies behind refs, all channels")
+print("=" * 70)
+
+
+def _read(refs):
+    r = rpc_call("read_message", {"instanceId": TEST_ID, "refs": refs})
+    return assert_success(r, "read_message call")
+
+
+def test_read_telegram_ref():
+    """Seed the telegram body store, open a tg: ref — body + media descriptor."""
+    _require_core()
+    tgdir = os.path.join(INSTANCE_DIR, "telegram")
+    os.makedirs(tgdir, exist_ok=True)
+    with open(os.path.join(tgdir, "inbox.jsonl"), "a") as f:
+        f.write(json.dumps({"ref": "tg:999:1", "ts": int(TIMESTAMP), "from": "Suite(tg)",
+                            "chat_id": "999", "text": "seeded telegram body",
+                            "media": [{"kind": "image", "file_id": "F1", "size": 111}]}) + "\n")
+    m = _read(["tg:999:1"])["messages"][0]
+    assert m.get("body") == "seeded telegram body", f"wrong body: {json.dumps(m)[:200]}"
+    assert m.get("channel") == "telegram" and m.get("thread_id") == "999"
+    assert m.get("attachments", [{}])[0].get("ref") == "tgfile:F1", "media descriptor missing"
+
+
+def test_read_hacs_store_ref():
+    """Seed the hacs body store (what the input driver writes), open a msg-* ref."""
+    _require_core()
+    hdir = os.path.join(INSTANCE_DIR, "hacs")
+    os.makedirs(hdir, exist_ok=True)
+    with open(os.path.join(hdir, "inbox.jsonl"), "a") as f:
+        f.write(json.dumps({"ref": f"msg-{TIMESTAMP}-suite", "ts": int(TIMESTAMP),
+                            "from": "Suite-0000", "subject": "s", "text": "seeded hacs body"}) + "\n")
+    m = _read([f"msg-{TIMESTAMP}-suite"])["messages"][0]
+    assert m.get("body") == "seeded hacs body", f"wrong body: {json.dumps(m)[:200]}"
+    assert m.get("channel") == "hacs"
+
+
+def test_read_email_ref_and_traversal():
+    """Write a real MIME fixture (attachment + unicode) into the test maildir;
+    open it; assert clean text + attachment descriptor; traversal ref rejected."""
+    _require_core()
+    from email.message import EmailMessage
+    em = EmailMessage()
+    em["From"] = "suite@example.com"
+    em["Subject"] = "MIME fixture — café"
+    em.set_content("plain text body — café")
+    em.add_attachment(b"PNGBYTES" * 50, maintype="image", subtype="png", filename="p.png")
+    fixture = os.path.join(INSTANCE_DIR, "mail", "new", f"{TIMESTAMP}.suite.eml")
+    with open(fixture, "wb") as f:
+        f.write(em.as_bytes())
+    out = _read([fixture, os.path.join(INSTANCE_DIR, "mail", "..", "..", "secrets")])
+    good, bad = out["messages"]
+    assert "café" in good.get("body", ""), f"MIME text not extracted: {json.dumps(good)[:200]}"
+    assert good.get("attachments", [{}])[0].get("kind") == "image/png", "attachment not listed"
+    assert "not inside your mail directory" in bad.get("error", ""), \
+        f"traversal must be rejected: {json.dumps(bad)[:200]}"
+
+
+runner.run("11.1 read_message opens telegram refs (body + media descriptor)", test_read_telegram_ref)
+runner.run("11.2 read_message opens hacs store refs (msg-*)", test_read_hacs_store_ref)
+runner.run("11.3 read_message parses MIME email; rejects traversal", test_read_email_ref_and_traversal)
+
+
 # ===========================================================================
 # SECTION 9: CLEANUP — remove test resources (never asserts)
 # ===========================================================================

@@ -25,6 +25,9 @@ class EventBroker {
     this.eventLog = [];        // append-only for debugging
     this.maxLogSize = 1000;    // rolling window
     this.subIdCounter = 0;
+    // Instances with live subscriptions — makes registerInstance idempotent
+    // so the 60s rediscovery sweep (teleport self-wiring) can rescan freely.
+    this.registeredInstances = new Set();
   }
 
   /**
@@ -121,6 +124,7 @@ class EventBroker {
    * Remove all subscriptions for a target instance.
    */
   unsubscribeInstance(instanceId) {
+    this.registeredInstances.delete(instanceId); // sweep may re-register later
     const before = this.subscriptions.length;
     this.subscriptions = this.subscriptions.filter(
       s => s.config?.filter?.target !== instanceId
@@ -209,7 +213,11 @@ function extractEventFields(handlerName, params, result) {
           messageId: result?.message_id,
           to: params.to,
           subject: params.subject,
-          from: params.from
+          from: params.from,
+          // In-process only: the hacs-input-driver persists this to the
+          // recipient's body store for read_message. The hub strips unknown
+          // fields, so a body can never leak into a thin notification.
+          body: params.body ?? params.message
         }
       };
 
@@ -617,6 +625,9 @@ async function resolveOpenFangPort(instanceId, prefs) {
  * 4. Otherwise, skip (instance has no known delivery mechanism)
  */
 async function registerInstance(broker, instanceId) {
+  // Idempotent: the rediscovery sweep rescans every instance dir each minute;
+  // already-registered instances are a no-op (no duplicate subscriptions).
+  if (broker.registeredInstances.has(instanceId)) return [];
   const prefs = await readPreferences(instanceId);
 
   // Chassis detection (claude-code-channel): the event hub owns delivery for
@@ -635,6 +646,7 @@ async function registerInstance(broker, instanceId) {
   }
 
   if (isChassis) {
+    broker.registeredInstances.add(instanceId);
     logger.info(`[EventBroker] registerInstance ${instanceId}: chassis=claude-code-channel → hub input driver`);
     // In-process hacs-message input driver: HACS messages and task
     // assignments targeting this instance become thin hub notifications
@@ -653,6 +665,31 @@ async function registerInstance(broker, instanceId) {
               instanceId, source: event.source
             });
             return;
+          }
+          // Persist the body for read_message (the letter-opener): msg-* ids
+          // are the send API's ids, NOT archive ids — they are unfindable in
+          // the XMPP store, so this in-process store is the ONLY place a
+          // msg-* ref can be opened from. Mirrors the telegram driver's
+          // inbox.jsonl. Store failure never blocks the bell (logged only).
+          try {
+            const dir = path.join(getInstanceDir(instanceId), 'hacs');
+            await ensureDir(dir);
+            const file = path.join(dir, 'inbox.jsonl');
+            try {
+              const st = await fs.stat(file);
+              if (st.size > 5 * 1024 * 1024) await fs.rename(file, `${file}.1`);
+            } catch { /* no file yet */ }
+            await fs.appendFile(file, JSON.stringify({
+              ref: String(messageId),
+              ts: Math.floor((event.timestamp || Date.now()) / 1000),
+              from: event.source,
+              subject: event.data?.subject ?? '',
+              text: event.data?.body ?? ''
+            }) + '\n');
+          } catch (err) {
+            logger.error(`[EventBroker] hacs-input-driver: body persist failed`, {
+              instanceId, messageId, error: err.message
+            });
           }
           const { hub } = await import('./event-hub.js');
           const pub = hub.publish({
@@ -732,6 +769,7 @@ async function registerInstance(broker, instanceId) {
     }
   }
 
+  if (subIds.length > 0) broker.registeredInstances.add(instanceId);
   return subIds;
 }
 
@@ -776,6 +814,18 @@ async function initBroker(server) {
 
   // Register all currently running instances
   await registerRunningInstances(broker);
+
+  // Rediscovery sweep (teleport self-wiring, 2026-08-05): teleported
+  // instances emit no instance.launched event, so a startup-only scan never
+  // sees them — the email/telegram drivers rediscover every 60s and found
+  // Messenger within a minute of setup while this in-process driver stayed
+  // blind until a manual server restart. Same cadence here; registerInstance
+  // is idempotent so the rescan is a no-op for everyone already wired.
+  const rediscovery = setInterval(() => {
+    registerRunningInstances(broker).catch((err) =>
+      logger.error('[EventBroker] rediscovery sweep failed', { error: err.message }));
+  }, 60000);
+  rediscovery.unref?.();
 
   // Subscribe to lifecycle events to auto-register/unregister instances
   broker.subscribe('instance.launched', {

@@ -124,6 +124,45 @@ export async function start({ publish, dataRoot, stateDir, apiBase, outboundPort
     return null;
   }
 
+  // --- Body store (read_message's telegram resolver reads this) -------------
+  // instances/<id>/telegram/inbox.jsonl — one JSON line per inbound message:
+  // {ref, ts, from, chat_id, text, media?: [{kind, file_id, size?}]}.
+  // Rotation: at ~5MB the file moves to inbox.jsonl.1 (one generation kept);
+  // the read path scans both. Text-only — binaries never enter this file.
+  async function persistBody(id, ref, msg) {
+    try {
+      const dir = path.join(dataRoot, 'instances', id, 'telegram');
+      await fs.mkdir(dir, { recursive: true });
+      const file = path.join(dir, 'inbox.jsonl');
+      try {
+        const st = await fs.stat(file);
+        if (st.size > 5 * 1024 * 1024) await fs.rename(file, `${file}.1`);
+      } catch { /* no file yet */ }
+      const media = [];
+      if (msg.photo?.length) {
+        const p = msg.photo[msg.photo.length - 1]; // largest rendition
+        media.push({ kind: 'image', file_id: p.file_id, size: p.file_size });
+      }
+      if (msg.voice) media.push({ kind: 'voice', file_id: msg.voice.file_id, size: msg.voice.file_size });
+      if (msg.audio) media.push({ kind: 'audio', file_id: msg.audio.file_id, size: msg.audio.file_size });
+      if (msg.video) media.push({ kind: 'video', file_id: msg.video.file_id, size: msg.video.file_size });
+      if (msg.document) media.push({ kind: 'document', file_id: msg.document.file_id, size: msg.document.file_size, name: msg.document.file_name });
+      const line = {
+        ref,
+        ts: msg.date || Math.floor(Date.now() / 1000),
+        from: `${msg.from?.first_name || 'unknown'}(tg)`,
+        chat_id: String(msg.chat.id),
+        text: msg.text || msg.caption || ''
+      };
+      if (media.length) line.media = media;
+      await fs.appendFile(file, JSON.stringify(line) + '\n');
+    } catch (err) {
+      // Never let the store break the notification path — the bell outranks
+      // the letter. Logged; the body is simply unavailable to read_message.
+      logger.error('[telegram-driver] body persist failed', { id, ref, error: err.message });
+    }
+  }
+
   // --- Inbound: per-bot long-poll loop --------------------------------------
   async function processBatch(id, bot, updates) {
     for (const u of updates) {
@@ -139,6 +178,13 @@ export async function start({ publish, dataRoot, stateDir, apiBase, outboundPort
       }
       const msg = u.message;
       const chatId = String(msg.chat.id);
+      // Persist the BODY before publishing (the letter-opener's store —
+      // read_message resolves tg: refs against this file). Before, not
+      // after: a publish failure replays the update and the re-write is
+      // idempotent by ref. Media is recorded as kind+file_id descriptors
+      // (Telegram's getFile can fetch them later — phase-2 conversion
+      // scripts' hook); bodies stay text-only here, never binaries.
+      await persistBody(id, `tg:${chatId}:${msg.message_id}`, msg);
       const result = await publish({
         target: id,
         channel: 'telegram',

@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-08-03T18:33:40.581Z                           ║
- * ║  Tool Count: 114                                                        ║
+ * ║  Generated: 2026-08-05T20:53:40.375Z                           ║
+ * ║  Tool Count: 115                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -2208,6 +2208,27 @@ export const mcpTools = [
       "required": [
         "instanceId",
         "name"
+      ]
+    }
+  },
+  {
+    "name": "read_message",
+    "description": "read_message - events endpoint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "refs": {
+          "type": "array",
+          "description": "Refs from drain_events (1-50 strings)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "refs"
       ]
     }
   },
