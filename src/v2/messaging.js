@@ -862,11 +862,17 @@ export async function friendlySendMessage(params) {
     in_response_to
   });
 
-  // Enhance the response with resolution info
+  // Enhance the response with resolution info. delivered_to_id is the
+  // RESOLVED instance id (when the recipient is an instance) — the event
+  // broker needs it to stamp event.target with the canonical id instead of
+  // the caller's raw `to` (which may be a friendly/fuzzy/lowercased name
+  // that never matches a subscription filter — the missed-doorbell bug,
+  // 2026-08-05). Not an internal JID; safe to expose.
   if (result.success) {
     return {
       ...result,
-      delivered_to: resolved.display
+      delivered_to: resolved.display,
+      ...(resolved.instanceId ? { delivered_to_id: resolved.instanceId } : {})
     };
   }
 

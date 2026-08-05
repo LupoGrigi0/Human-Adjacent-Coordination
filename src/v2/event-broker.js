@@ -199,7 +199,12 @@ function extractEventFields(handlerName, params, result) {
     case 'xmpp_send_message':
       return {
         source,
-        target: params.to || null,
+        // Prefer the handler's RESOLVED instance id: params.to may be a
+        // friendly name ("Messenger") or lowercased id that fuzzy-resolution
+        // accepted but that will never string-match a subscription filter.
+        // Raw params.to caused UI-sent messages to miss every hub
+        // subscription (the missed-doorbell bug, 2026-08-05).
+        target: result?.delivered_to_id || params.to || null,
         data: {
           messageId: result?.message_id,
           to: params.to,
