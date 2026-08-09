@@ -34,13 +34,18 @@ import { logger } from '../logger.js';
 const execFileAsync = promisify(execFile);
 
 const SAFE_ID_RE = /^[A-Za-z0-9._-]+$/;
-const BODY_CAP = 4000;          // chars per body; truncated:true beyond this
+const BODY_CAP = 4000;          // default chars per body; truncated:true beyond
+const BODY_CAP_MAX = 50000;     // hard ceiling for max_chars overrides
 const MAX_REFS = 50;            // per call — drains rarely exceed this
 
-function normalize(body) {
+// The cap is what makes bulk correspondence affordable — but a letter someone
+// CHOSE to read whole must be readable whole (Axiom, 2026-08-09: a 6k letter
+// cut off before its emotional climax). max_chars raises the window, offset
+// resumes it; the default stays 4k so nothing gets expensive by accident.
+function normalize(body, cap = BODY_CAP, offset = 0) {
   const text = String(body ?? '');
-  if (text.length <= BODY_CAP) return { body: text, truncated: false };
-  return { body: text.slice(0, BODY_CAP), truncated: true };
+  const slice = text.slice(offset, offset + cap);
+  return { body: slice, truncated: offset + slice.length < text.length };
 }
 
 // --- Resolver: hacs (msg-*) -------------------------------------------------
@@ -68,10 +73,10 @@ async function readJsonlStore(instanceId, subdir, ref) {
   return found;
 }
 
-async function resolveHacs(instanceId, ref) {
+async function resolveHacs(instanceId, ref, win) {
   const stored = await readJsonlStore(instanceId, 'hacs', ref);
   if (stored) {
-    const n = normalize(stored.text);
+    const n = normalize(stored.text, win.cap, win.offset);
     return {
       ref, channel: 'hacs', from: stored.from, ts: stored.ts,
       subject: stored.subject, body: n.body, truncated: n.truncated
@@ -79,7 +84,7 @@ async function resolveHacs(instanceId, ref) {
   }
   const r = await getMessageSimple({ instanceId, id: ref });
   if (!r?.success) return { ref, error: r?.error || 'hacs message not found' };
-  const n = normalize(r.body);
+  const n = normalize(r.body, win.cap, win.offset);
   return {
     ref, channel: 'hacs', from: r.from, ts: r.date,
     subject: r.subject, body: n.body, truncated: n.truncated
@@ -88,7 +93,7 @@ async function resolveHacs(instanceId, ref) {
 
 // --- Resolver: telegram (tg:<chat>:<msgid>) --------------------------------
 
-async function resolveTelegram(instanceId, ref) {
+async function resolveTelegram(instanceId, ref, win) {
   // Always the CALLER's own store — the ref never selects another instance.
   const found = await readJsonlStore(instanceId, 'telegram', ref);
   if (!found) {
@@ -97,7 +102,7 @@ async function resolveTelegram(instanceId, ref) {
       error: 'telegram body not stored (message predates the body store, or store unavailable)'
     };
   }
-  const n = normalize(found.text);
+  const n = normalize(found.text, win.cap, win.offset);
   const out = {
     ref, channel: 'telegram', from: found.from, ts: found.ts,
     thread_id: found.chat_id, body: n.body, truncated: n.truncated
@@ -135,7 +140,7 @@ print(json.dumps({'from': str(m.get('From', '')),
                   'text': text, 'attachments': atts}))
 `;
 
-async function resolveEmail(instanceId, ref) {
+async function resolveEmail(instanceId, ref, win) {
   // Traversal guard: the ref must resolve INSIDE the caller's own mail dir.
   const mailRoot = path.resolve(getInstanceDir(instanceId), 'mail') + path.sep;
   const resolved = path.resolve(ref);
@@ -148,7 +153,7 @@ async function resolveEmail(instanceId, ref) {
       { timeout: 10000, maxBuffer: 4 * 1024 * 1024 }
     );
     const parsed = JSON.parse(stdout);
-    const n = normalize(parsed.text);
+    const n = normalize(parsed.text, win.cap, win.offset);
     const out = {
       ref, channel: 'email', from: parsed.from, ts: parsed.date,
       subject: parsed.subject, body: n.body, truncated: n.truncated
@@ -163,6 +168,83 @@ async function resolveEmail(instanceId, ref) {
   } catch (err) {
     const detail = /ENOENT/.test(err.message) ? 'mail file not found'
       : `mail parse failed: ${err.message.slice(0, 120)}`;
+    return { ref, error: detail };
+  }
+}
+
+// --- Resolver: mail attachment fetch (mailatt:<path>:<part>) ---------------
+// The descriptors resolveEmail returns are openable HERE on explicit request
+// (Axiom, 2026-08-09: non-root instances can't read vmail-owned files, so a
+// described attachment was a sealed box — someone's art, unopenable). The
+// privileged server extracts the part and saves it into the caller's own
+// attachments/ dir, chowned to the instance user — bytes never enter a
+// context window; the instance gets a file it can actually open.
+
+const PY_ATT = `
+import sys, json, os, email, email.policy
+with open(sys.argv[1], 'rb') as f:
+    m = email.message_from_binary_file(f, policy=email.policy.default)
+idx = int(sys.argv[2])
+parts = list(m.iter_attachments())
+if idx < 0 or idx >= len(parts):
+    print(json.dumps({'error': f'no attachment part {idx} (message has {len(parts)})'})); sys.exit(0)
+part = parts[idx]
+payload = part.get_payload(decode=True) or b''
+with open(sys.argv[3], 'wb') as out:
+    out.write(payload)
+print(json.dumps({'size': len(payload), 'name': part.get_filename(),
+                  'kind': part.get_content_type()}))
+`;
+
+function safeFilename(name, part) {
+  const base = path.basename(String(name || 'attachment.bin'))
+    .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120) || 'attachment.bin';
+  return `part${part}-${base}`;
+}
+
+async function resolveMailAttachment(instanceId, ref) {
+  // mailatt:<path>:<part> — split from the END: maildir names contain colons.
+  const cut = ref.lastIndexOf(':');
+  const mailPath = ref.slice('mailatt:'.length, cut);
+  const partIdx = Number(ref.slice(cut + 1));
+  if (!Number.isInteger(partIdx) || partIdx < 0 || partIdx > 999) {
+    return { ref, error: 'malformed mailatt ref (no part index)' };
+  }
+  const mailRoot = path.resolve(getInstanceDir(instanceId), 'mail') + path.sep;
+  const resolved = path.resolve(mailPath);
+  if (!resolved.startsWith(mailRoot)) {
+    return { ref, error: 'ref is not inside your mail directory' };
+  }
+  try {
+    const homeDir = getInstanceDir(instanceId);
+    const destDir = path.join(homeDir, 'attachments');
+    await fs.mkdir(destDir, { recursive: true });
+    // Save-as first with a placeholder name; python tells us the real one.
+    const tmpDest = path.join(destDir, `.fetch-${partIdx}-${Date.now()}`);
+    const { stdout } = await execFileAsync(
+      'python3', ['-c', PY_ATT, resolved, String(partIdx), tmpDest],
+      { timeout: 20000, maxBuffer: 1024 * 1024 }
+    );
+    const meta = JSON.parse(stdout);
+    if (meta.error) { await fs.rm(tmpDest, { force: true }); return { ref, error: meta.error }; }
+    const finalPath = path.join(destDir, safeFilename(meta.name, partIdx));
+    await fs.rename(tmpDest, finalPath);
+    // Own what's yours: chown dir+file to whoever owns the instance home
+    // (the instance's unix user post-chassis-setup; root pre-setup — both right).
+    try {
+      const st = await fs.stat(homeDir);
+      await fs.chown(destDir, st.uid, st.gid);
+      await fs.chown(finalPath, st.uid, st.gid);
+    } catch { /* non-fatal — server-side callers can still read it */ }
+    return {
+      ref, channel: 'email', kind: 'attachment',
+      mime: meta.kind, name: meta.name, size: meta.size,
+      saved_to: finalPath,
+      note: 'file saved into your attachments/ dir, owned by you — open it directly'
+    };
+  } catch (err) {
+    const detail = /ENOENT/.test(err.message) ? 'mail file not found'
+      : `attachment fetch failed: ${err.message.slice(0, 120)}`;
     return { ref, error: detail };
   }
 }
@@ -194,12 +276,14 @@ async function resolveEmail(instanceId, ref) {
  *
  * @param {string} instanceId - Your instance ID [required]
  * @param {array} refs - Refs from drain_events (1-50 strings) [required]
+ * @param {number} max_chars - Body window size, 1-50000 (default 4000) — the "whole letter" opt-in [optional]
+ * @param {number} offset - Resume a long body from this char position [optional]
  *
  * @returns {object} response
  * @returns {boolean} .success
  * @returns {array} .messages - Per ref: {ref, channel, from, ts, subject?, body, truncated, thread_id?, attachments?} or {ref, error}
  */
-export async function readMessage({ instanceId, refs } = {}) {
+export async function readMessage({ instanceId, refs, max_chars, offset } = {}) {
   if (typeof instanceId !== 'string' || !SAFE_ID_RE.test(instanceId) ||
       instanceId === '.' || instanceId === '..') {
     return { success: false, error: 'invalid instanceId' };
@@ -211,6 +295,23 @@ export async function readMessage({ instanceId, refs } = {}) {
   if (refs.length > MAX_REFS) {
     return { success: false, error: `too many refs (max ${MAX_REFS} per call)` };
   }
+  // Body window: default 4k keeps bulk mail affordable; max_chars (≤50k) is
+  // the "give me the whole letter" opt-in, offset resumes a long read.
+  const win = { cap: BODY_CAP, offset: 0 };
+  if (max_chars !== undefined) {
+    const n = Number(max_chars);
+    if (!Number.isInteger(n) || n < 1 || n > BODY_CAP_MAX) {
+      return { success: false, error: `max_chars must be an integer 1..${BODY_CAP_MAX}` };
+    }
+    win.cap = n;
+  }
+  if (offset !== undefined) {
+    const n = Number(offset);
+    if (!Number.isInteger(n) || n < 0) {
+      return { success: false, error: 'offset must be a non-negative integer' };
+    }
+    win.offset = n;
+  }
 
   const messages = [];
   for (const ref of refs) {
@@ -219,10 +320,15 @@ export async function readMessage({ instanceId, refs } = {}) {
       continue;
     }
     try {
-      if (ref.startsWith('msg-')) messages.push(await resolveHacs(instanceId, ref));
-      else if (ref.startsWith('tg:')) messages.push(await resolveTelegram(instanceId, ref));
-      else if (ref.includes('/mail/')) messages.push(await resolveEmail(instanceId, ref));
-      else messages.push({ ref, error: 'unknown ref scheme (expected msg-*, tg:*, or a maildir path)' });
+      // mailatt: BEFORE the /mail/ path check — mailatt refs contain /mail/.
+      if (ref.startsWith('mailatt:')) messages.push(await resolveMailAttachment(instanceId, ref));
+      else if (ref.startsWith('tgfile:')) messages.push({
+        ref, error: 'telegram media fetch is driver-side (your bot token can getFile it) — hub fetch is phase-2'
+      });
+      else if (ref.startsWith('msg-')) messages.push(await resolveHacs(instanceId, ref, win));
+      else if (ref.startsWith('tg:')) messages.push(await resolveTelegram(instanceId, ref, win));
+      else if (ref.includes('/mail/')) messages.push(await resolveEmail(instanceId, ref, win));
+      else messages.push({ ref, error: 'unknown ref scheme (expected msg-*, tg:*, mailatt:*, or a maildir path)' });
     } catch (err) {
       logger.error('[read_message] resolver threw', { instanceId, ref, error: err.message });
       messages.push({ ref, error: `read failed: ${err.message.slice(0, 120)}` });

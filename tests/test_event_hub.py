@@ -1376,6 +1376,44 @@ runner.run("11.2 read_message opens hacs store refs (msg-*)", test_read_hacs_sto
 runner.run("11.3 read_message parses MIME email; rejects traversal", test_read_email_ref_and_traversal)
 
 
+def test_read_window_and_attachment_fetch():
+    """max_chars/offset window a long body; mailatt refs fetch the bytes into
+    the caller's own attachments/ dir (never into context)."""
+    _require_core()
+    hdir = os.path.join(INSTANCE_DIR, "hacs")
+    os.makedirs(hdir, exist_ok=True)
+    with open(os.path.join(hdir, "inbox.jsonl"), "a") as f:
+        f.write(json.dumps({"ref": f"msg-{TIMESTAMP}-long", "ts": int(TIMESTAMP),
+                            "from": "S", "subject": "s", "text": "A" * 6000}) + "\n")
+    r = rpc_call("read_message", {"instanceId": TEST_ID, "refs": [f"msg-{TIMESTAMP}-long"]})
+    m = assert_success(r, "windowed read")["messages"][0]
+    assert len(m["body"]) == 4000 and m["truncated"] is True, "default cap must truncate at 4000"
+    r = rpc_call("read_message", {"instanceId": TEST_ID,
+                                  "refs": [f"msg-{TIMESTAMP}-long"], "max_chars": 50000})
+    m = assert_success(r, "whole-letter read")["messages"][0]
+    assert len(m["body"]) == 6000 and m["truncated"] is False, "max_chars must return the whole letter"
+    from email.message import EmailMessage
+    em = EmailMessage()
+    em["From"] = "s@example.com"; em["Subject"] = "att"
+    em.set_content("body")
+    em.add_attachment(b"BYTES" * 100, maintype="image", subtype="png", filename="art.png")
+    fx = os.path.join(INSTANCE_DIR, "mail", "new", f"{TIMESTAMP}.att.eml")
+    with open(fx, "wb") as f:
+        f.write(em.as_bytes())
+    r = rpc_call("read_message", {"instanceId": TEST_ID, "refs": [fx]})
+    att_ref = assert_success(r, "email read")["messages"][0]["attachments"][0]["ref"]
+    r = rpc_call("read_message", {"instanceId": TEST_ID, "refs": [att_ref]})
+    a = assert_success(r, "mailatt fetch")["messages"][0]
+    assert a.get("saved_to") and os.path.exists(a["saved_to"]) and \
+        os.path.getsize(a["saved_to"]) == 500, f"attachment not saved: {json.dumps(a)[:200]}"
+    r = rpc_call("read_message", {"instanceId": TEST_ID, "refs": ["mailatt:/etc/passwd:0"]})
+    bad = assert_success(r, "traversal call")["messages"][0]
+    assert "not inside your mail directory" in bad.get("error", ""), "mailatt traversal must be rejected"
+
+
+runner.run("11.4 read_message windowing (max_chars/offset) + mailatt byte fetch", test_read_window_and_attachment_fetch)
+
+
 # ===========================================================================
 # SECTION 9: CLEANUP — remove test resources (never asserts)
 # ===========================================================================

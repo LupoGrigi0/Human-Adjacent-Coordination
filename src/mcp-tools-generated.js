@@ -3,7 +3,7 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-08-05T20:53:40.375Z                           ║
+ * ║  Generated: 2026-08-09T21:37:58.030Z                           ║
  * ║  Tool Count: 115                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
@@ -2224,6 +2224,14 @@ export const mcpTools = [
         "refs": {
           "type": "array",
           "description": "Refs from drain_events (1-50 strings)"
+        },
+        "max_chars": {
+          "type": "number",
+          "description": "Body window size, 1-50000 (default 4000) — the \"whole letter\" opt-in"
+        },
+        "offset": {
+          "type": "number",
+          "description": "Resume a long body from this char position"
         }
       },
       "required": [
