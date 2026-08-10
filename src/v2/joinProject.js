@@ -10,7 +10,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { getProjectDir, getInstancesDir } from './config.js';
-import { readJSON, writeJSON, readPreferences, writePreferences, listDir } from './data.js';
+import { readJSON, writeJSON, readPreferences, writePreferences, listDir, listSubdirectories } from './data.js';
 import { XMPP_CONFIG } from './messaging.js';
 
 /**
@@ -80,7 +80,7 @@ async function buildTeamList(projectId) {
   const team = [];
 
   try {
-    const instances = await listDir(instancesDir);
+    const instances = await listSubdirectories(instancesDir);
 
     for (const instanceId of instances) {
       const prefs = await readPreferences(instanceId);

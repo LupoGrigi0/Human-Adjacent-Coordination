@@ -17,7 +17,7 @@
 
 import path from 'path';
 import { logger } from '../logger.js';
-import { readPreferences, readJSON, writeJSON, listDir } from './data.js';
+import { readPreferences, readJSON, writeJSON, listDir, listSubdirectories } from './data.js';
 import { getInstancesDir, getInstanceDir } from './config.js';
 import {
   XMPP_CONFIG,
@@ -123,7 +123,9 @@ function parseRoomHistory(historyOutput) {
 async function fuzzyMatchInstance(to) {
   let dirs;
   try {
-    dirs = await listDir(getInstancesDir());
+    // Directories only — a stray file (instances/.gitignore) must not become
+    // a fuzzy-match candidate. (Crossing-2d23, 2026-08-10)
+    dirs = await listSubdirectories(getInstancesDir());
   } catch {
     return { match: null, candidates: [] };
   }

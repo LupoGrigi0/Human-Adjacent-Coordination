@@ -46,7 +46,11 @@ export async function readJSON(filePath) {
     const content = await fs.readFile(filePath, 'utf8');
     return JSON.parse(content);
   } catch (error) {
-    if (error.code === 'ENOENT') {
+    // ENOTDIR: a path component is a regular file — e.g. instances/.gitignore
+    // treated as an instance dir, so .gitignore/preferences.json can't exist.
+    // Semantically identical to ENOENT: the JSON isn't there.
+    // (Axiom's .gitignore ENOTDIR crash — Crossing-2d23, 2026-08-10)
+    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') {
       return null;
     }
     throw error;
@@ -124,6 +128,22 @@ export async function ensureDir(dirPath) {
  */
 export async function listDir(dirPath) {
   return await fs.readdir(dirPath);
+}
+
+/**
+ * List only the subdirectories of a directory (skips regular files)
+ * Use this when scanning container dirs (instances/, projects/) whose entries
+ * are expected to be directories — plain listDir() returns files too (e.g.
+ * instances/.gitignore), and treating a file as an instance dir fails
+ * downstream with ENOTDIR.
+ * (Axiom's .gitignore ENOTDIR crash — Crossing-2d23, 2026-08-10)
+ * @param {string} dirPath - Path to directory
+ * @returns {Promise<string[]>} Array of subdirectory names (not full paths)
+ * @throws {Error} If directory doesn't exist or can't be read
+ */
+export async function listSubdirectories(dirPath) {
+  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+  return entries.filter(e => e.isDirectory()).map(e => e.name);
 }
 
 /**

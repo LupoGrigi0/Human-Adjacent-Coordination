@@ -18,7 +18,8 @@ import {
   readPreferences,
   writePreferences,
   readJSON,
-  listDir
+  listDir,
+  listSubdirectories
 } from './data.js';
 
 /**
@@ -344,7 +345,10 @@ export async function lookupIdentity(params) {
   let matches = [];
 
   try {
-    const entries = await listDir(instancesDir);
+    // Directories only — instances/ also holds files like .gitignore, and
+    // treating one as an instance dir crashed the scan with ENOTDIR.
+    // (Axiom's .gitignore ENOTDIR crash — Crossing-2d23, 2026-08-10)
+    const entries = await listSubdirectories(instancesDir);
 
     for (const entry of entries) {
       const prefsPath = path.join(instancesDir, entry, 'preferences.json');
@@ -614,7 +618,7 @@ export async function haveIBootstrappedBefore(params) {
 
   try {
     const instancesDir = getInstancesDir();
-    const dirs = await fs.readdir(instancesDir);
+    const dirs = await listSubdirectories(instancesDir);
     const matches = [];
 
     for (const dir of dirs) {

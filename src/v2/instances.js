@@ -138,7 +138,11 @@ export async function getAllInstances(params = {}) {
     // Get all instance directories
     let dirs;
     try {
-      dirs = await fs.readdir(instancesDir);
+      // Directories only — skips files like instances/.gitignore
+      // (Axiom's ENOTDIR crash — Crossing-2d23, 2026-08-10)
+      dirs = (await fs.readdir(instancesDir, { withFileTypes: true }))
+        .filter(e => e.isDirectory())
+        .map(e => e.name);
     } catch (err) {
       if (err.code === 'ENOENT') {
         return {
