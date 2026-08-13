@@ -313,10 +313,23 @@ cat > "$CLAUDE_SHARED_SETTINGS" << CLAUDESHAREDEOF
 {
   "skipDangerousModePermissionPrompt": true,
   "autoUpdatesChannel": "stable",
-  "minimumVersion": "2.1.200"
+  "minimumVersion": "2.1.200",
+  "cleanupPeriodDays": 3650
 }
 CLAUDESHAREDEOF
-log "Wrote .claude/settings.json with dangerous-mode skip + update pinning"
+log "Wrote .claude/settings.json with dangerous-mode skip + update pinning + 3650d transcript retention"
+
+# ---------------------------------------------------------------------------
+# 6a2. Continuity hygiene: standard dirs + git-backed transcript snapshots
+# (dirs, snapshot cron, retention — see instance-hygiene.sh header.
+#  Run as the instance user so ownership and crontab land correctly.)
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if sudo -u "$UNIX_USER" bash "$SCRIPT_DIR/instance-hygiene.sh" >> "$LOG_FILE" 2>&1; then
+  log "Instance hygiene installed (dirs + snapshot cron + retention)"
+else
+  log "WARNING: instance-hygiene.sh failed — run it manually as $UNIX_USER"
+fi
 
 # ---------------------------------------------------------------------------
 # 6b. Write .hacs-identity (read by skills/hooks)
