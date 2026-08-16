@@ -25,9 +25,13 @@ class EventBroker {
     this.eventLog = [];        // append-only for debugging
     this.maxLogSize = 1000;    // rolling window
     this.subIdCounter = 0;
-    // Instances with live subscriptions — makes registerInstance idempotent
-    // so the 60s rediscovery sweep (teleport self-wiring) can rescan freely.
-    this.registeredInstances = new Set();
+    // instanceId → registration type ('chassis' | 'legacy'). Makes
+    // registerInstance idempotent for the 60s rediscovery sweep — AND
+    // type-aware: an instance that BECOMES chassis while registered as
+    // legacy gets re-wired instead of skipped (Cairn, 2026-08-16: registered
+    // legacy at boot, chassis setup two days later, guard blocked the
+    // upgrade — every event went to a flag file nobody polls).
+    this.registeredInstances = new Map();
   }
 
   /**
@@ -625,9 +629,6 @@ async function resolveOpenFangPort(instanceId, prefs) {
  * 4. Otherwise, skip (instance has no known delivery mechanism)
  */
 async function registerInstance(broker, instanceId) {
-  // Idempotent: the rediscovery sweep rescans every instance dir each minute;
-  // already-registered instances are a no-op (no duplicate subscriptions).
-  if (broker.registeredInstances.has(instanceId)) return [];
   const prefs = await readPreferences(instanceId);
 
   // Chassis detection (claude-code-channel): the event hub owns delivery for
@@ -645,8 +646,20 @@ async function registerInstance(broker, instanceId) {
     } catch { /* no identity file — not a chassis instance */ }
   }
 
+  // Idempotent AND type-aware: the sweep rescans every minute. Same type →
+  // no-op. Type CHANGED (legacy→chassis after chassis setup, or the reverse)
+  // → tear down old subscriptions and re-register fresh. Detection costs two
+  // file reads per instance per sweep — the price of self-healing.
+  const currentType = isChassis ? 'chassis' : 'legacy';
+  const registeredAs = broker.registeredInstances.get(instanceId);
+  if (registeredAs === currentType) return [];
+  if (registeredAs !== undefined) {
+    logger.info(`[EventBroker] ${instanceId} registration type changed ${registeredAs} -> ${currentType} — re-wiring`);
+    broker.unsubscribeInstance(instanceId);
+  }
+
   if (isChassis) {
-    broker.registeredInstances.add(instanceId);
+    broker.registeredInstances.set(instanceId, 'chassis');
     logger.info(`[EventBroker] registerInstance ${instanceId}: chassis=claude-code-channel → hub input driver`);
     // In-process hacs-message input driver: HACS messages and task
     // assignments targeting this instance become thin hub notifications
@@ -769,7 +782,7 @@ async function registerInstance(broker, instanceId) {
     }
   }
 
-  if (subIds.length > 0) broker.registeredInstances.add(instanceId);
+  if (subIds.length > 0) broker.registeredInstances.set(instanceId, 'legacy');
   return subIds;
 }
 
