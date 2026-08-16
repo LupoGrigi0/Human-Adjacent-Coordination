@@ -573,6 +573,33 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// Guard the listener: an unhandled 'error' (typically EADDRINUSE from a
+// stale predecessor holding the port) used to THROW and kill the whole MCP
+// server — the instance silently lost its channel tools while the stale
+// process's /health kept answering ok. Retry with backoff for the stale-
+// predecessor case (it usually releases within seconds of a bounce);
+// after that, stay alive DEGRADED: the MCP reply tool still works even
+// with no inbound HTTP listener, and we log loudly instead of dying.
+// (Found by Cairn-2001 while instrumenting the mirror, 2026-08-16.)
+const LISTEN_RETRY_MS = 5000;
+const LISTEN_MAX_RETRIES = 6;
+let listenRetries = 0;
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE' && listenRetries < LISTEN_MAX_RETRIES) {
+    listenRetries++;
+    console.error(
+      `[hacs-channel] port ${PORT} in use (stale predecessor?) — ` +
+      `retry ${listenRetries}/${LISTEN_MAX_RETRIES} in ${LISTEN_RETRY_MS}ms`);
+    setTimeout(() => server.listen(PORT, BIND), LISTEN_RETRY_MS);
+    return;
+  }
+  console.error(
+    `[hacs-channel] LISTENER DOWN (${err.code || err.message}) — ` +
+    `continuing DEGRADED: MCP tools (reply) still available, inbound HTTP ` +
+    `(/direct-message, /health, /broker-event) is NOT. Fix the port and ` +
+    `restart the channel.`);
+});
 server.listen(PORT, BIND, () => {
+  listenRetries = 0;
   console.error(`[hacs-channel] Instance ${INSTANCE_ID}, listening on http://${BIND}:${PORT}`);
 });
