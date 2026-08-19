@@ -54,7 +54,11 @@ function normalize(body, cap = BODY_CAP, offset = 0) {
 // (findable via getMessageSimple). Store first, archive fallback — so both
 // drain refs and list_my_messages ids open with the same verb.
 
-async function readJsonlStore(instanceId, subdir, ref) {
+// Exported for messaging-simple.js (get_message resolves msg-* drain refs
+// with the same store). That import is circular with our getMessageSimple
+// import above — safe because both are only called at runtime, never during
+// module evaluation.
+export async function readJsonlStore(instanceId, subdir, ref) {
   const dir = path.join(getInstanceDir(instanceId), subdir);
   let found = null;
   for (const name of ['inbox.jsonl', 'inbox.jsonl.1']) {

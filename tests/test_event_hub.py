@@ -1414,6 +1414,31 @@ def test_read_window_and_attachment_fetch():
 runner.run("11.4 read_message windowing (max_chars/offset) + mailatt byte fetch", test_read_window_and_attachment_fetch)
 
 
+def test_get_message_accepts_drain_refs():
+    """The contract drain_events documents: its refs fetch the content. Bastion
+    hit the gap — get_message('msg-*') said "Message not found" because msg-*
+    ids never enter the XMPP archive. get_message must resolve them from the
+    hacs body store, same rule as read_message."""
+    _require_core()
+    hdir = os.path.join(INSTANCE_DIR, "hacs")
+    os.makedirs(hdir, exist_ok=True)
+    ref = f"msg-{TIMESTAMP}-getmsg"
+    with open(os.path.join(hdir, "inbox.jsonl"), "a") as f:
+        f.write(json.dumps({"ref": ref, "ts": int(TIMESTAMP), "from": "Suite-0000",
+                            "subject": "drain ref", "text": "body behind a drain ref"}) + "\n")
+    r = rpc_call("get_message", {"instanceId": TEST_ID, "id": ref})
+    m = assert_success(r, "get_message with msg-* ref")
+    assert m.get("body") == "body behind a drain ref", f"wrong body: {json.dumps(m)[:200]}"
+    assert m.get("from") == "Suite-0000"
+    # a msg-* ref that exists nowhere must fail with a pointer, not a bare 404
+    r = rpc_call("get_message", {"instanceId": TEST_ID, "id": "msg-0-nonexistent"})
+    assert not r.get("success"), "nonexistent ref must fail"
+    assert "body store" in r.get("error", ""), f"error must explain msg-* resolution: {r.get('error')}"
+
+
+runner.run("11.5 get_message resolves drain_events msg-* refs (Bastion's gap)", test_get_message_accepts_drain_refs)
+
+
 # ===========================================================================
 # SECTION 9: CLEANUP — remove test resources (never asserts)
 # ===========================================================================

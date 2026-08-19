@@ -3,7 +3,7 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-08-09T21:37:58.030Z                           ║
+ * ║  Generated: 2026-08-19T19:06:24.724Z                           ║
  * ║  Tool Count: 115                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
@@ -987,7 +987,7 @@ export const mcpTools = [
   },
   {
     "name": "drain_events",
-    "description": "Read your pending thin-notification counters, grouped by channel and sender. Each slot carries count, last_ts, and the most recent refs (opaque ids you use to fetch the actual content, e.g. message IDs for the 'hacs' channel). By default draining CLEARS the counters and frees the active notification slot; pass peek=true to look without clearing. No pending events returns {success: true, events: {}, cleared: false}. /",
+    "description": "Read your pending thin-notification counters, grouped by channel and sender. Each slot carries count, last_ts, and the most recent refs (opaque ids — pass them to read_message to fetch the actual content; hacs msg-* refs also work with get_message). By default draining CLEARS the counters and frees the active notification slot; pass peek=true to look without clearing. No pending events returns {success: true, events: {}, cleared: false}. /",
     "inputSchema": {
       "type": "object",
       "properties": {

@@ -188,8 +188,9 @@ class EventHub {
    * @description
    * Read your pending thin-notification counters, grouped by channel and
    * sender. Each slot carries count, last_ts, and the most recent refs
-   * (opaque ids you use to fetch the actual content, e.g. message IDs for
-   * the 'hacs' channel). By default draining CLEARS the counters and frees
+   * (opaque ids — pass them to read_message to fetch the actual content;
+   * hacs msg-* refs also work with get_message). By default draining
+   * CLEARS the counters and frees
    * the active notification slot; pass peek=true to look without clearing.
    * No pending events returns {success: true, events: {}, cleared: false}.
    *

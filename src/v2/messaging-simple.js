@@ -33,6 +33,7 @@ import {
   sendMessage as sendMessageXMPP,
   getMessage as getMessageXMPP,
 } from './messaging.js';
+import { readJsonlStore } from './read-message.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -379,11 +380,34 @@ export async function getMessageSimple(params) {
   }
 
   try {
+    // msg-* ids are drain_events refs: they live in the hacs body store and
+    // are NEVER in the XMPP archive. Resolve them store-first (same rule as
+    // read_message) so the ref a notification hands you opens with either
+    // read verb instead of dead-ending in "Message not found".
+    if (id.startsWith('msg-')) {
+      const stored = await readJsonlStore(instanceId, 'hacs', id);
+      if (stored) {
+        return {
+          success: true,
+          subject: stored.subject,
+          body: stored.text,
+          from: stored.from,
+          date: stored.ts,
+        };
+      }
+    }
+
     // Use the existing XMPP getMessage for the search
     const result = await getMessageXMPP({ id, instanceId });
 
     if (!result.success) {
-      return { success: false, error: result.error || 'Message not found' };
+      const notFound = result.error || 'Message not found';
+      return {
+        success: false,
+        error: id.startsWith('msg-')
+          ? `${notFound} (msg-* refs resolve from your hacs body store; this one isn't there — it may predate the store)`
+          : notFound,
+      };
     }
 
     // Mark as read
