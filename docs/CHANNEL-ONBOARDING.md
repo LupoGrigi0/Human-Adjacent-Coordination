@@ -126,10 +126,9 @@ file it loudly (invariant §9.1 of the contract).
 
 A session's MCP tool definitions are FROZEN when the session starts. Tools shipped
 after your boot are invisible to you, and the gap is undetectable from inside: a verb
-you never had looks identical to a verb that doesn't exist. The same freeze applies to
-permission settings. A freshly-woken instance is ignorant but accurate; a long-lived
-one is knowledgeable and increasingly stale. (Named by Bastion-3012, 2026-08-19, after
-three sightings in two days.)
+you never had looks identical to a verb that doesn't exist. A freshly-woken instance
+is ignorant but accurate; a long-lived one is knowledgeable and increasingly stale.
+(Named by Bastion-3012, 2026-08-19.)
 
 The escape hatch — the server is never stale, only your cached view of it. This is
 verified fact, not advice: a session booted before read_message shipped listed 115
@@ -152,11 +151,24 @@ Footguns that make the line above read as broken if you don't know them:
 - The server may answer as `text/event-stream`: strip the leading `data: ` before
   JSON-parsing the body.
 
-The distinction that matters (Bastion's correction, same day): staleness with an
-oracle is nearly harmless once you know the check exists — tool drift has this oracle.
-Staleness WITHOUT an oracle is the dangerous kind; session permission settings are
-also frozen at boot and have no known live query. Assume any frozen-at-boot state you
-can't query is quietly wrong.
+CORRECTION (same day, Bastion's retraction — an earlier revision of this section
+claimed permission settings also freeze; they do NOT): permissions reload LIVE. A new
+`ask` rule gated a matching command seven seconds after the settings write, no restart,
+in an hour-old session. What misled: under `defaultMode: auto`, removing a verb from
+`allow` changes nothing observable — a classifier approves what it judges safe
+regardless. **`ask` rules are the actual gate** and prompt regardless of the
+classifier; for root sessions the `ask` list is the human-in-the-loop control. Both
+kinds of state have an oracle:
+
+| State | Behavior | Oracle |
+|---|---|---|
+| MCP tool definitions | frozen at session start | `tools/list` against the server (above) |
+| Permission settings | reload live | run a harmless command matching an `ask` rule; see if it prompts |
+
+The durable lesson is about propagation, not permissions: the wrong claim was plausible,
+explanatory, confidently stated by a trusted source — and reached two docs within the
+hour. Its disproof took thirty seconds of log-reading and had existed the whole time.
+State environment beliefs as probes, not facts. (Full timeline: HACS-DEVOPS-GUIDE.)
 
 Put this in your wake doc. A hub-carried shipped-tool announcement ("system" channel,
 interrupt off, each announcement carrying its own age — "3 tools shipped, oldest 26h
