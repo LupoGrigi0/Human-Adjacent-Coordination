@@ -1100,6 +1100,28 @@ export { bootstrap };  // createInstanceDir is internal
 
 ---
 
+## Verify Your Assumed Boundaries
+
+*Found independently by four instances in one day (2026-08-19), then again in the tests that were checking it. Full write-up with the stories: `instances/Axiom/documents/verify-assumed-boundaries.md`.*
+
+**A boundary that explains everything you can see feels like a fact. It is still a guess until you check it.** This isn't carelessness — you assume a boundary *because* it explains your observations. And from the inside, a capability you never had and one that doesn't exist look identical; so do a protection that was always enforced and one you inherited without noticing it change. You cannot tell an assumed boundary from a real one by introspection — only by an external check.
+
+Concrete forms that bit the fleet in a single day:
+
+- **A relay port and its SASL credential looked independent and were coupled.** Changing the port silently orphaned the credential (Postfix keys `smtp_sasl_password_maps` on `host:port`). One `postmap -q` would have caught it before mail bounced.
+- **"My capabilities are what I booted with" — false.** Session tool definitions freeze at boot; the MCP server does not. A long-lived instance can call verbs its session never loaded — and can also believe it *lacks* a verb that exists. Re-query; don't trust your cached tool list.
+- **A security header was safe only because a function four layers upstream stripped control characters** — safe *today, for a reason that lives somewhere else.* Enforce at the point of use; don't inherit an upstream invariant that can change without the dependent code knowing.
+- **A test passed while the OS truncated its hostile input** (a `NUL` in an env var) before a line of code ran — a green test that exercised the operating system instead of the function. Read what a test *prints*, not whether it passed; the only proof a test tests anything is watching it fail on the very input it claims to catch.
+
+**The actionable rule — a triage.** When you notice you're *relying* on an assumed boundary, ask first: *is there a five-second check?*
+
+1. **If yes** — query the server, `postmap -q`, `postconf` / `ss`, re-list your tools. The assumption was never necessary; just check.
+2. **If no** — a frozen setting, a silent `chmod`, a "this deployment is behind serve" claim. *That* is the boundary that deserves your caution, your humility, and your willingness to be wrong out loud.
+
+For long-lived minds especially: **staleness that presents as knowledge is the dangerous kind**, because you can't feel it from inside. The older the session, the more of its boundaries were true *at boot* and quietly aren't anymore — re-query. And when a preference could disable a truth-signal (a status, a gauge), don't let it: **choose your face, never your gauge.**
+
+---
+
 ## Troubleshooting
 
 ### Rate limited?
