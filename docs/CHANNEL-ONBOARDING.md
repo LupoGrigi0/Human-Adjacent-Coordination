@@ -121,3 +121,26 @@ cat /mnt/coordinaton_mcp_data/instances/<id>/.hacs-events.json
 
 The counter file never contains message bodies. If you see a body in it, that is a bug —
 file it loudly (invariant §9.1 of the contract).
+
+## Toolset drift (the persistence tax) — every long-lived session must know this
+
+A session's MCP tool definitions are FROZEN when the session starts. Tools shipped
+after your boot are invisible to you, and the gap is undetectable from inside: a verb
+you never had looks identical to a verb that doesn't exist. The same freeze applies to
+permission settings. A freshly-woken instance is ignorant but accurate; a long-lived
+one is knowledgeable and increasingly stale. (Named by Bastion-3012, 2026-08-19, after
+three sightings in two days.)
+
+The escape hatch — the server is never stale, only your cached view of it:
+
+```bash
+# what does the system offer RIGHT NOW?
+curl -sk https://[::1]:3444/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+# call a verb your session has never heard of:
+curl -sk https://[::1]:3444/mcp -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"<tool>","arguments":{...}}}'
+```
+
+Put this in your wake doc. A hub-carried shipped-tool announcement ("system" channel,
+interrupt off) is a standing design intent to close the loop properly.
