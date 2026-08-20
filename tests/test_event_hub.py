@@ -1439,6 +1439,25 @@ def test_get_message_accepts_drain_refs():
 runner.run("11.5 get_message resolves drain_events msg-* refs (Bastion's gap)", test_get_message_accepts_drain_refs)
 
 
+def test_raw_send_friendly_name_rings():
+    """Doorbell safety net (Orla, 2026-08-20): xmpp_send_message with a
+    friendly name — what the HACS UI sends — must still produce a hub event
+    targeting the RESOLVED instance id. Without resolveEmitTarget the emit
+    carries the raw string, matches no subscription, and the letter lands
+    in the archive with no bell."""
+    _require_core()
+    friendly = TEST_ID.rsplit("-", 1)[0]   # unique timestamped prefix, suffix dropped
+    r = rpc_call("xmpp_send_message", {"from": TEST_ID, "to": friendly,
+                                       "subject": "safety net", "body": "ring"})
+    assert_success(r, "xmpp_send_message with friendly name")
+    got = wait_until(lambda: (TEST_ID in (read_events_file().get("hacs") or {})) or None,
+                     timeout=10)
+    assert got, "counter never gained a hacs slot — friendly-name send did not ring"
+
+
+runner.run("11.6 xmpp_send_message friendly name still rings (doorbell safety net)", test_raw_send_friendly_name_rings)
+
+
 # ===========================================================================
 # SECTION 9: CLEANUP — remove test resources (never asserts)
 # ===========================================================================

@@ -14,6 +14,7 @@ import path from 'path';
 import { readPreferences, ensureDir } from './data.js';
 import { DATA_ROOT, getInstancesDir, getInstanceDir } from './config.js';
 import { logger } from '../logger.js';
+import { fuzzyMatchInstance } from './messaging-simple.js';
 
 // ---------------------------------------------------------------------------
 // Layer 1: The Core Broker
@@ -296,6 +297,33 @@ function extractEventFields(handlerName, params, result) {
 }
 
 /**
+ * Doorbell safety net for resolution-free senders (the UI path).
+ * xmpp_send_message emits whatever the caller typed as `to`; a friendly
+ * name ("Orla") never string-matches a subscription filter ("Orla-da01"),
+ * so the letter lands in the archive but no bell rings (Orla, 2026-08-20).
+ * Resolve instance-shaped raw targets with the SAME matcher send_message
+ * uses — the bell follows the letter no matter which door the sender used.
+ * Room/role/broadcast targets pass through untouched; on any failure the
+ * raw target is kept (archive delivery already succeeded).
+ */
+async function resolveEmitTarget(handlerName, fields, result) {
+  if (handlerName !== 'xmpp_send_message') return fields.target;
+  const t = fields.target;
+  if (!t || result?.delivered_to_id) return t;
+  if (t.includes('@') || /^(role|project|team|personality):/i.test(t) || t.toLowerCase() === 'all') {
+    return t;
+  }
+  try {
+    const m = await fuzzyMatchInstance(t);
+    if (m.match && m.match !== t) {
+      logger.debug(`[EventBroker] doorbell safety net: raw target '${t}' resolved -> '${m.match}'`);
+      return m.match;
+    }
+  } catch { /* keep raw target */ }
+  return t;
+}
+
+/**
  * Wraps the server's call() method to emit events after successful handler execution.
  * The wrapper is transparent — callers get exactly what they got before.
  */
@@ -311,6 +339,7 @@ function wrapServerCall(server, broker) {
     const eventType = HANDLER_EVENT_MAP[functionName];
     if (eventType && result?.success !== false) {
       const fields = extractEventFields(functionName, params, result);
+      fields.target = await resolveEmitTarget(functionName, fields, result);
 
       broker.emit({
         type: eventType,
@@ -887,5 +916,6 @@ export {
   // Publisher driver utilities
   HANDLER_EVENT_MAP,
   extractEventFields,
+  resolveEmitTarget,
   wrapServerCall
 };

@@ -118,10 +118,14 @@ function parseRoomHistory(historyOutput) {
 
 /**
  * Find an instance by exact or fuzzy match
+ * Exported for event-broker.js: the doorbell safety net resolves raw
+ * xmpp_send_message targets with the SAME matcher send_message uses, so
+ * the emitted event target matches subscriptions whenever the archive
+ * delivery would have.
  * @param {string} to - The recipient string to match
  * @returns {Promise<{match: string|null, candidates: string[]}>}
  */
-async function fuzzyMatchInstance(to) {
+export async function fuzzyMatchInstance(to) {
   let dirs;
   try {
     // Directories only — a stray file (instances/.gitignore) must not become
