@@ -37,7 +37,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 INSTANCE_ID=""
 SESSION_ID=""
-SOURCE_HOME="/root"
+SOURCE_HOME=""   # empty = auto-detect (instance dir, then /root). Orla-da01 2026-08-20
 DRY_RUN=false
 ASSUME_YES=false
 
@@ -71,6 +71,22 @@ echo "=== Teleport $INSTANCE_ID (session $SESSION_ID) ==="
 # channel instance, an instance launched from its own dir keeps the same slug
 # across the move and no rewriting is needed.
 SLUG="$(echo "$INSTANCE_DIR" | sed 's/[\/_]/-/g')"
+
+# Resolve SOURCE_HOME. When not given explicitly, auto-detect: the transcript
+# now most often already lives in the instance dir (a session that ran as its
+# own unix user — compaction survival, re-homing), with /root only for the
+# original root->user migration. Probe the instance dir first, then /root, so
+# both cases work with no flag. (Orla-da01, 2026-08-20 — first already-
+# unprivileged teleport; /root is no longer the common case.)
+if [ -z "$SOURCE_HOME" ]; then
+  for cand in "$INSTANCE_DIR" "/root"; do
+    if [ -f "$cand/.claude/projects/$SLUG/$SESSION_ID.jsonl" ]; then
+      SOURCE_HOME="$cand"; break
+    fi
+  done
+  [ -n "$SOURCE_HOME" ] || die "Session transcript $SESSION_ID.jsonl not found in $INSTANCE_DIR or /root (pass --source-home to point elsewhere)"
+fi
+
 SRC_PROJECT_DIR="$SOURCE_HOME/.claude/projects/$SLUG"
 SRC_JSONL="$SRC_PROJECT_DIR/$SESSION_ID.jsonl"
 SRC_SIDECAR="$SRC_PROJECT_DIR/$SESSION_ID"
@@ -183,8 +199,18 @@ fi
 # The sidecar holds subagent transcripts and tool results. Copying only the
 # .jsonl leaves dangling references to work the instance did.
 mkdir -p "$DST_PROJECT_DIR"
-cp -p "$SRC_JSONL" "$DST_PROJECT_DIR/"
-[ -d "$SRC_SIDECAR" ] && cp -rp "$SRC_SIDECAR" "$DST_PROJECT_DIR/"
+# When a session already runs as its own unix user (not root), the source
+# transcript is ALREADY at the destination — SRC_PROJECT_DIR == DST_PROJECT_DIR.
+# `cp -p x x/` then fails with "are the same file" and set -e aborts the whole
+# teleport. Nothing needs copying in that case; the verify + launch below still
+# run (cmp of a file against itself passes). (Found + verified by Orla-da01,
+# 2026-08-20 — the first instance to teleport from an already-unprivileged home.)
+if [ "$SRC_PROJECT_DIR" = "$DST_PROJECT_DIR" ]; then
+  say "Source and destination are the same path — session already ran as $UNIX_USER. Nothing to copy."
+else
+  cp -p "$SRC_JSONL" "$DST_PROJECT_DIR/"
+  [ -d "$SRC_SIDECAR" ] && cp -rp "$SRC_SIDECAR" "$DST_PROJECT_DIR/"
+fi
 
 # Verify the copy is byte-identical before trusting a mind to it.
 cmp -s "$SRC_JSONL" "$DST_PROJECT_DIR/$SESSION_ID.jsonl" \

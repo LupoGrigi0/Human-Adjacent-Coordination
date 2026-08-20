@@ -146,8 +146,15 @@ if [ -n "$PORT_OVERRIDE" ]; then
   CHANNEL_PORT="$PORT_OVERRIDE"
   log "Using port override: $CHANNEL_PORT"
 else
-  # Scan existing channel ports from other instances' preferences.json
-  USED_PORTS=$(grep -rh '"channelPort"' "$INSTANCES_DIR"/*/preferences.json 2>/dev/null \
+  # Scan existing channel ports from BOTH sources instances actually record
+  # them in: preferences.json (Bastion) and .hacs-identity (everyone since —
+  # Crossing/Messenger/Axiom/Cairn). Grepping only preferences.json left the
+  # allocator blind to 4 of 5 peers; it landed correctly only because the
+  # ss guard below skips actively-listening ports — i.e. correct only while
+  # every peer happens to be UP. An instance landed mid-setup would have been
+  # handed a live peer's port. (Found by Orla-da01, 2026-08-20.)
+  USED_PORTS=$( { grep -rh '"channelPort"' "$INSTANCES_DIR"/*/preferences.json \
+                    "$INSTANCES_DIR"/*/.hacs-identity 2>/dev/null; } \
     | grep -oE '[0-9]+' | sort -u)
 
   CHANNEL_PORT=""
