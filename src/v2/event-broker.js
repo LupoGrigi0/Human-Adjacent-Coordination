@@ -319,6 +319,14 @@ async function resolveEmitTarget(handlerName, fields, result) {
       logger.debug(`[EventBroker] doorbell safety net: raw target '${t}' resolved -> '${m.match}'`);
       return m.match;
     }
+    if (!m.match) {
+      // Fail loud where we CAN: the send already returned success to the
+      // caller, so the only honest alarm left is the operator log. "You
+      // cannot debug a message that didn't arrive; you can always debug
+      // one that failed loudly." (Orla/Crossing, 2026-08-20)
+      logger.warn(`[EventBroker] doorbell may stay silent: raw target '${t}' did not resolve to an instance` +
+        (m.candidates?.length ? ` (ambiguous: ${m.candidates.join(', ')})` : ' (no candidates)'));
+    }
   } catch { /* keep raw target */ }
   return t;
 }
