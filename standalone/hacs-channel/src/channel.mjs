@@ -324,6 +324,62 @@ function parseTextVerdict(text) {
 
 // --- Stdio connect to Claude Code ------------------------------------------
 
+// Transport truth-tracking (Cairn's reproduction, 2026-08-23: a channel with
+// a dead delivery path answered ok:true/200 to every sender — two transports'
+// worth of messages vanished politely). Three facts this section makes
+// unforgeable:
+//   1. A JSON-RPC notification has NO reply BY DEFINITION — the await resolves
+//      on transport write. "Accepted" can never mean "delivered" on this path;
+//      real confirmation can only be DERIVED by observing the session act.
+//   2. The HTTP server keeps this process's event loop alive even after the
+//      MCP transport closes — without onclose we become a zombie holding the
+//      port and answering 200s. Now the zombie knows it's a zombie.
+//   3. A /health that cannot fail is not a health endpoint.
+let transportDead = false;
+let transportDiedAt = null;
+let lastNotificationAt = null;
+let notificationsSent = 0;
+
+function markTransportDead(why) {
+  if (transportDead) return;
+  transportDead = true;
+  transportDiedAt = new Date().toISOString();
+  console.error(
+    `[hacs-channel] MCP TRANSPORT DEAD (${why}) at ${transportDiedAt} — ` +
+    `delivery to the session is DEAD. /direct-message and /broker-event will ` +
+    `answer 503, /health reports ok:false. Only a session (re)start restores delivery.`);
+}
+
+mcp.onclose = () => markTransportDead('SDK onclose');
+mcp.onerror = (err) => {
+  console.error(`[hacs-channel] MCP transport error: ${err?.message || err}`);
+};
+
+// The SDK does NOT reliably surface pipe death — rig-verified 2026-08-23:
+// stdin EOF (client gone) fired neither onclose nor onerror, and the
+// transport kept "sending" into the void. Watch the pipes ourselves; they
+// are the transport, whatever the SDK believes.
+process.stdin.on('end', () => markTransportDead('stdin EOF — client closed the pipe'));
+process.stdin.on('close', () => markTransportDead('stdin closed'));
+process.stdout.on('error', (e) => markTransportDead(`stdout error: ${e?.code || e?.message}`));
+
+/**
+ * Single choke point for session-bound notifications: refuses when the
+ * transport is known dead, records send-side truth when it isn't. A resolved
+ * send still only proves the bytes left us (fact 1 above) — but a THROWN send
+ * now surfaces as 503 instead of being minted into ok:true.
+ */
+async function sendToSession(notification) {
+  if (transportDead) {
+    const e = new Error(`MCP transport dead since ${transportDiedAt}`);
+    e.transportDead = true;
+    throw e;
+  }
+  await mcp.notification(notification);
+  lastNotificationAt = new Date().toISOString();
+  notificationsSent++;
+}
+
 await mcp.connect(new StdioServerTransport());
 
 // --- HTTP listener (Node http module — no third-party server) --------------
@@ -375,13 +431,20 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // GET /health — liveness check
+    // GET /health — liveness check. ok tracks the MCP transport, the only
+    // thing that determines whether a message can be delivered; 503 when
+    // it's dead so even a status-code-only check tells the truth.
     if (req.method === 'GET' && url.pathname === '/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.writeHead(transportDead ? 503 : 200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        ok: true,
+        ok: !transportDead,
         instance: INSTANCE_ID,
         port: PORT,
+        mcp_connected: !transportDead,
+        transport_died_at: transportDiedAt,
+        last_notification_at: lastNotificationAt,
+        notifications_sent: notificationsSent,
+        accepted_means_delivered: false,
         listeners: sseListeners.size,
         pending_permissions: pendingPermissions.size,
       }));
@@ -468,10 +531,16 @@ const server = http.createServer(async (req, res) => {
           origin: 'hub',
         };
         if (n.thread_id !== undefined) meta.thread_id = String(n.thread_id);
-        await mcp.notification({
-          method: 'notifications/claude/channel',
-          params: { content: text, meta },
-        });
+        try {
+          await sendToSession({
+            method: 'notifications/claude/channel',
+            params: { content: text, meta },
+          });
+        } catch (err) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, reason: 'session transport dead', detail: err.message }));
+          return;
+        }
 
         broadcast(`[hub-notification] ${n.channel}/${n.from} count=${n.count}`);
         res.writeHead(200);
@@ -495,19 +564,25 @@ const server = http.createServer(async (req, res) => {
       // channel's responsibility, so teaching the reply path is too.
       const content = withReplyGuidance(rawContent, from);
 
-      await mcp.notification({
-        method: 'notifications/claude/channel',
-        params: {
-          content,
-          meta: {
-            event_type: eventType,
-            from,
-            target,
-            event_id: eventId,
-            origin: 'broker',
+      try {
+        await sendToSession({
+          method: 'notifications/claude/channel',
+          params: {
+            content,
+            meta: {
+              event_type: eventType,
+              from,
+              target,
+              event_id: eventId,
+              origin: 'broker',
+            },
           },
-        },
-      });
+        });
+      } catch (err) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, reason: 'session transport dead', detail: err.message }));
+        return;
+      }
 
       broadcast(`[broker] ${eventType} from ${from}`);
       res.writeHead(200);
@@ -546,21 +621,33 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      await mcp.notification({
-        method: 'notifications/claude/channel',
-        params: {
-          content: withReplyGuidance(text, from),
-          meta: {
-            event_type: 'direct.message',
-            from,
-            thread_id: threadId,
-            origin: 'direct',
+      try {
+        await sendToSession({
+          method: 'notifications/claude/channel',
+          params: {
+            content: withReplyGuidance(text, from),
+            meta: {
+              event_type: 'direct.message',
+              from,
+              thread_id: threadId,
+              origin: 'direct',
+            },
           },
-        },
-      });
+        });
+      } catch (err) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          ok: false, thread_id: threadId,
+          reason: 'session transport dead', detail: err.message,
+        }));
+        return;
+      }
 
       broadcast(`[direct] ${from} -> ${INSTANCE_ID}: ${text.slice(0, 100)}`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      // ok here means "written to a live transport" — never "delivered".
+      // Delivery can only be confirmed by observing the session (see the
+      // transport truth-tracking block above).
       res.end(JSON.stringify({ ok: true, thread_id: threadId }));
       return;
     }
