@@ -200,14 +200,17 @@ curl -s -X POST http://127.0.0.1:<your-channel-port>/direct-message \
 with your /status version line. (Post-b420b8b channels also expose
 last_notification_at in /health for the send-side half of the trace.)
 
-**Attribution status (honesty ledger):** the renderer is the lead suspect but
-CONFOUNDED — the deaf session both accepted the renderer AND was the most
-recently resume-launched; the healthy controls were never OFFERED the prompt,
-so they test "never seeing it is safe," not "declining it is safe" (Orla's
-distinction). Version 2.1.233 constant across a healthy Aug-20 session and
-current disk wounds the binary hypothesis. Separation experiment (resume a
-healthy never-offered session, then canary) pending. The advisory stands
-regardless: declining costs zero, deafness is unbounded — ship first,
-attribute later.
+**Attribution status (honesty ledger, updated 2026-08-24 00:45Z):**
+RENDERER STATE EXONERATED — two counterexamples found within one minute of
+each other: Messenger-aa2a and Cairn-2001 both show `/tui` = fullscreen with
+fully working inbound (Messenger's verified by controlled canary; Messenger's
+session even PREDATES the renderer feature, so it flipped mid-session without
+harm). The original "decline the prompt" guidance is therefore downgraded.
+Still open (Cairn's narrowing): (a) the mid-session TOGGLE transition on a
+specific code path/order, (b) binary version at session start — deaf session
+launched Aug 23, healthy controls Aug 5–20; deaf session's /status line still
+pending. Standing guidance that SURVIVES attribution: **canary immediately
+after any renderer toggle, any resume, or any restart — assert on ARRIVAL.**
+The self-test is the durable artifact; the suspect list is weather.
 
 Remove this section when the root cause is fixed and verified.
