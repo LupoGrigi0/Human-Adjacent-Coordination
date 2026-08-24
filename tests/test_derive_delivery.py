@@ -73,18 +73,18 @@ def assistant_text(text):
 
 check("plain-string user turn carrying the nonce is delivery",
       dd.scan(transcript(user_text(f"CHANNEL CANARY {NONCE} — probe")), NONCE),
-      True)
+      "surfaced")
 
 check("text-block user turn carrying the nonce is delivery",
       dd.scan(transcript(user_blocks({"type": "text",
                                       "text": f"hello {NONCE} there"})), NONCE),
-      True)
+      "surfaced")
 
 check("delivery found among unrelated surrounding turns",
       dd.scan(transcript(assistant_text("thinking about things"),
                          user_text("unrelated human message"),
                          user_text(f"probe {NONCE}")), NONCE),
-      True)
+      "surfaced")
 
 # ---- FALSE POSITIVES: none of these are delivery ---------------------------
 # Each of these actually occurred in the live transcript on 2026-08-24 while
@@ -94,7 +94,7 @@ check("FALSE POSITIVE: assistant discussing the nonce is NOT delivery",
       dd.scan(transcript(assistant_text(
           f"I fired a self-canary with nonce {NONCE}; it returned ok:true")),
           NONCE),
-      False)
+      None)
 
 check("FALSE POSITIVE: tool_result echoing our own curl is NOT delivery",
       dd.scan(transcript(user_blocks(
@@ -102,13 +102,13 @@ check("FALSE POSITIVE: tool_result echoing our own curl is NOT delivery",
            "content": [{"type": "text",
                         "text": f"curl ... CHANNEL CANARY {NONCE} ... ok:true"}]})),
           NONCE),
-      False)
+      None)
 
 check("FALSE POSITIVE: tool_result as bare string is NOT delivery",
       dd.scan(transcript(user_blocks(
           {"type": "tool_result", "content": f"output containing {NONCE}"})),
           NONCE),
-      False)
+      None)
 
 check("FALSE POSITIVE: a tool_result block DISQUALIFIES its whole record, "
       "even when a text block in the same record also has the nonce",
@@ -116,14 +116,14 @@ check("FALSE POSITIVE: a tool_result block DISQUALIFIES its whole record, "
           {"type": "tool_result", "content": f"echo {NONCE}"},
           {"type": "text", "text": f"and {NONCE} again"})),
           NONCE),
-      False)
+      None)
 
 check("FALSE POSITIVE: assistant role inside a type=user record is NOT delivery",
       dd.scan(transcript({"type": "user",
                           "message": {"role": "assistant",
                                       "content": f"talking about {NONCE}"}}),
               NONCE),
-      False)
+      None)
 
 check("FALSE POSITIVE: a non-user record TYPE is NOT delivery even when its "
       "message.role says user (guards the outer type check, which mutation "
@@ -132,7 +132,7 @@ check("FALSE POSITIVE: a non-user record TYPE is NOT delivery even when its "
                           "message": {"role": "user",
                                       "content": f"summary mentioning {NONCE}"}}),
               NONCE),
-      False)
+      None)
 
 check("FALSE POSITIVE: a SIDECHAIN user turn is this mind prompting its own "
       "subagent, not someone reaching it — never delivery",
@@ -140,7 +140,7 @@ check("FALSE POSITIVE: a SIDECHAIN user turn is this mind prompting its own "
                           "message": {"role": "user",
                                       "content": f"Agent, investigate {NONCE}"}}),
               NONCE),
-      False)
+      None)
 
 check("a real delivery is still found when a sidechain turn also mentions it",
       dd.scan(transcript({"type": "user", "isSidechain": True,
@@ -148,11 +148,11 @@ check("a real delivery is still found when a sidechain turn also mentions it",
                                       "content": f"agent prompt {NONCE}"}},
                          user_text(f"genuine inbound {NONCE}")),
               NONCE),
-      True)
+      "surfaced")
 
 check("nonce absent entirely is not delivery",
       dd.scan(transcript(user_text("nothing to see here")), NONCE),
-      False)
+      None)
 
 # ---- OFFSET: a prior mention must not be mistaken for this delivery --------
 
@@ -160,9 +160,9 @@ t = transcript(user_text(f"an OLD delivery of {NONCE}"),
                assistant_text("time passes"))
 size_after_old = Path(t).stat().st_size
 check("scanning from offset 0 sees the old delivery",
-      dd.scan(t, NONCE, 0), True)
+      dd.scan(t, NONCE, 0), "surfaced")
 check("scanning from the current end does NOT resurrect the old delivery",
-      dd.scan(t, NONCE, size_after_old), False)
+      dd.scan(t, NONCE, size_after_old), None)
 
 # ---- ROBUSTNESS: malformed lines must not crash or swallow a real hit ------
 
@@ -173,7 +173,61 @@ f.write("\n")
 f.write(json.dumps(user_text(f"real delivery {NONCE}")) + "\n")
 f.close()
 check("malformed lines are skipped without hiding a genuine delivery",
-      dd.scan(f.name, NONCE), True)
+      dd.scan(f.name, NONCE), "surfaced")
+
+# ---- REAL SHAPES: how Claude Code actually records channel delivery -------
+# Captured verbatim from the live transcript on 2026-08-24, after v1 of this
+# detector reported DEAF for a canary that HAD been delivered. Every fixture
+# above was invented; these are observed. That difference is the whole lesson.
+
+ENV = ('<channel source="hacs-channel" event_type="direct.message" '
+       'from="channel-canary" thread_id="canary" origin="direct">\n'
+       f'CHANNEL CANARY {NONCE} - probe\n')
+
+check("REAL SHAPE: queue-operation/enqueue means the message ARRIVED at the "
+      "session - the inbound leg is alive even before the mind sees it",
+      dd.scan(transcript({"type": "queue-operation", "operation": "enqueue",
+                          "content": ENV}), NONCE),
+      "arrived")
+
+check("REAL SHAPE: queue-operation/remove means it was SURFACED to the mind",
+      dd.scan(transcript({"type": "queue-operation", "operation": "enqueue",
+                          "content": ENV},
+                         {"type": "queue-operation", "operation": "remove",
+                          "content": ENV}), NONCE),
+      "surfaced")
+
+check("REAL SHAPE: attachment/queued_command means it was SURFACED",
+      dd.scan(transcript({"type": "attachment", "isSidechain": False,
+                          "attachment": {"type": "queued_command",
+                                         "prompt": ENV}}), NONCE),
+      "surfaced")
+
+check("REGRESSION (v1's false negative): the tool_result echo of our own curl "
+      "must NOT count, but a real queue-operation in the SAME transcript must",
+      dd.scan(transcript(user_blocks({"type": "tool_result",
+                                      "content": f"curl ... {NONCE} ... ok:true"}),
+                         {"type": "queue-operation", "operation": "enqueue",
+                          "content": ENV}), NONCE),
+      "arrived")
+
+check("a queue-operation WITHOUT the channel envelope is not channel delivery",
+      dd.scan(transcript({"type": "queue-operation", "operation": "enqueue",
+                          "content": f"some other queued thing {NONCE}"}), NONCE),
+      None)
+
+check("a queue-operation/REMOVE without the channel envelope is not delivery "
+      "(the remove branch's envelope check had no covering test until a "
+      "surviving mutation exposed it, 2026-08-24)",
+      dd.scan(transcript({"type": "queue-operation", "operation": "remove",
+                          "content": f"unrelated dequeue mentioning {NONCE}"}),
+              NONCE),
+      None)
+
+check("an attachment of the wrong type is not delivery",
+      dd.scan(transcript({"type": "attachment",
+                          "attachment": {"type": "file", "prompt": ENV}}), NONCE),
+      None)
 
 # ---- report ---------------------------------------------------------------
 
