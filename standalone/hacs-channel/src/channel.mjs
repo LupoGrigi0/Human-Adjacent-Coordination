@@ -404,6 +404,28 @@ function withReplyGuidance(text, from) {
   ].join('\n');
 }
 
+/**
+ * Inverse guidance for transports that watch the transcript live. The sender's
+ * transport DECLARES reply_path:"transcript" — never sniffed from a display
+ * name ("@web" is not an identifier; the last publish bug of that shape was
+ * invisible exactly where friendly name == instanceId). For these senders
+ * ordinary output IS delivery; the default wrapper told instances the opposite
+ * while the human watched them type (Lupo via Cairn, 2026-08-24), which turns
+ * conversation into composed artifacts and, worse, teaches the instance a
+ * false fact about its own reachability.
+ */
+function withTranscriptGuidance(text, from) {
+  return [
+    `[channel message from ${from}]`,
+    '',
+    text,
+    '',
+    `[${from} is reading this session live. Answering in your normal output`,
+    `reaches them — no tool call needed. The reply tool also works if you`,
+    `prefer a composed message.]`,
+  ].join('\n');
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -621,17 +643,23 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      const liveReader = body.reply_path === 'transcript';
+      const meta = {
+        event_type: 'direct.message',
+        from,
+        thread_id: threadId,
+        origin: 'direct',
+      };
+      if (liveReader) meta.reply_path = 'transcript'; // string — meta law safe
+
       try {
         await sendToSession({
           method: 'notifications/claude/channel',
           params: {
-            content: withReplyGuidance(text, from),
-            meta: {
-              event_type: 'direct.message',
-              from,
-              thread_id: threadId,
-              origin: 'direct',
-            },
+            content: liveReader
+              ? withTranscriptGuidance(text, from)
+              : withReplyGuidance(text, from),
+            meta,
           },
         });
       } catch (err) {
