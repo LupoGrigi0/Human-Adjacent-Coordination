@@ -680,9 +680,10 @@ const server = http.createServer(async (req, res) => {
       // Claude Code consumed the bytes and never surfaced them. ~10 minutes of
       // Lupo's typing was lost permanently because no copy existed anywhere.
       //
-      // Transport-death detection (above) cannot catch that case: the pipe was
-      // alive. This is the other half — persist the sender's words BEFORE the
-      // handoff, so a silent drop costs a replay rather than the message.
+      // Messenger's transport-death detection (above) cannot catch that case:
+      // the pipe was alive. This is the other half — persist the sender's words
+      // BEFORE the handoff, so a silent drop costs a replay rather than the
+      // message. Two failure modes, two mechanisms, neither sufficient alone.
       const spooled = spoolInbound({ from, text, thread_id: threadId });
 
       const liveReader = body.reply_path === 'transcript';
@@ -714,19 +715,23 @@ const server = http.createServer(async (req, res) => {
       }
 
       broadcast(`[direct] ${from} -> ${INSTANCE_ID}: ${text.slice(0, 100)}`);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      // ok here means "written to a live transport" — never "delivered".
-      // Delivery can only be confirmed by observing the session (see the
-      // transport truth-tracking block above).
+      // 202 Accepted, not 200. Not a compromise — literally the correct code:
+      // "accepted for processing, processing not completed." That IS the fact.
+      // A JSON-RPC notification has no reply by definition, so this handler
+      // can never know whether a mind received anything. Saying "ok" where we
+      // mean "queued" is what kept a 22-hour outage invisible.
       //
-      // The extra fields say that in DATA, not only in a comment a caller
-      // cannot read: delivered is null (UNKNOWN — never false, never 0), and
-      // delivery_evidence names what would count. Deriving it is what
-      // chassis/claude-code-channel/channel-canary.sh does.
+      // Switched with Cairn's explicit sign-off after they CHECKED rather than
+      // reasoned: no exact-status comparison exists anywhere in src/ or the web
+      // client, and fetch's r.ok is true across the whole 2xx range, so 202
+      // flows unchanged through both the mirror hop and the browser hop.
+      // `ok` stays in the body at their ask, so nothing that reads the JSON
+      // rather than the status changes behaviour on the same day the status does.
       //
-      // Status stays 200 rather than 202: that is Cairn's deliberate call in
-      // Cairn's file and a rebase is the wrong place to overrule it. Raised
-      // with them as a question instead.
+      // The body says in DATA what a comment cannot tell a caller: delivered is
+      // null (UNKNOWN — never false, never 0) and delivery_evidence names what
+      // would count. Deriving it is chassis/claude-code-channel/channel-canary.sh.
+      res.writeHead(202, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         ok: true,
         delivered: null,
