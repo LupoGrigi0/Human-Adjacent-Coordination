@@ -31,6 +31,9 @@ CLAUDE_BIN=$(command -v claude 2>/dev/null || echo "/usr/bin/claude")
 INSTANCE_ID=""
 CHANNEL_PORT=""
 RESUME_SESSION=""
+RUN_CANARY=true
+CANARY_TIMEOUT=90
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -44,6 +47,17 @@ while [[ $# -gt 0 ]]; do
       ;;
     --resume)
       RESUME_SESSION="$2"
+      shift 2
+      ;;
+    --no-canary)
+      # Skip the delivery proof. For automated harnesses that drive many
+      # launches and check hearing themselves. NOT for production wakes:
+      # without it, this script can only tell you a port is open.
+      RUN_CANARY=false
+      shift
+      ;;
+    --canary-timeout)
+      CANARY_TIMEOUT="$2"
       shift 2
       ;;
     *)
@@ -112,8 +126,25 @@ if [ -n "$PORT_HOLDER" ]; then
   # Use "=NAME" to force exact-match — tmux defaults to prefix matching which
   # could match the wrong session if names share a prefix.
   if sudo -u "$UNIX_USER" tmux has-session -t "=$INSTANCE_ID" 2>/dev/null; then
-    log "Stale tmux session detected — killing (exact-match)"
-    sudo -u "$UNIX_USER" tmux kill-session -t "=$INSTANCE_ID" 2>> "$LOG_FILE" || true
+    # LAND it, do not hand-kill it. This block used to run a bare
+    # `tmux kill-session`, which is exactly the teardown that produced the
+    # 2026-08-23 deaf-mind incident: a session relaunched over a
+    # hand-killed predecessor comes back able to SEND but not RECEIVE —
+    # tool calls work, /health is green, and every inbound message is
+    # accepted and dropped. Nobody notices, because nothing says so.
+    #
+    # land-claude-code-channel.sh kills the session AND sweeps the stray
+    # claude processes AND records what it did. The extra two seconds are
+    # the cheapest insurance in this whole chassis.
+    log "Live session detected — LANDING it properly before relaunch"
+    if [ -x "$SCRIPT_DIR/land-claude-code-channel.sh" ]; then
+      "$SCRIPT_DIR/land-claude-code-channel.sh" --instance-id "$INSTANCE_ID" >> "$LOG_FILE" 2>&1 \
+        || log "WARNING: land script returned non-zero; continuing"
+    else
+      log "WARNING: land script not found at $SCRIPT_DIR — falling back to kill-session"
+      log "WARNING: this is the teardown that caused the 2026-08-23 deaf-mind incident"
+      sudo -u "$UNIX_USER" tmux kill-session -t "=$INSTANCE_ID" 2>> "$LOG_FILE" || true
+    fi
     sleep 2
   fi
   # Re-check
@@ -219,23 +250,62 @@ if [ "$CHANNEL_READY" = false ]; then
   log "WARNING: Channel server not responding after 30s — session may still be loading the gauntlet"
 fi
 
-log "=== Channel chassis launch complete ==="
+# ---------------------------------------------------------------------------
+# 4b. Prove the mind can HEAR — /health is an artifact, not a transaction
+# ---------------------------------------------------------------------------
+# On 2026-08-23 this script reported "Channel server ready after 2s" and
+# "status: success" over a session whose inbound notification leg was DEAD.
+# It stayed dead for four hours; /direct-message returned {"ok":true} the
+# whole time and ~10 minutes of the human's typing was lost. A listening
+# socket proves the channel PROCESS started. It says nothing about whether a
+# notification reaches the mind. So we now send a nonce and DERIVE delivery
+# from the transcript before anyone is told this worked.
+CHANNEL_HEARING="unknown"
+if [ "$CHANNEL_READY" = true ] && [ "$RUN_CANARY" = true ]; then
+  log "Canary: proving inbound delivery (deriving from transcript, not /health)..."
+  if "$SCRIPT_DIR/channel-canary.sh" --instance-id "$INSTANCE_ID" \
+       --port "$CHANNEL_PORT" --timeout "$CANARY_TIMEOUT" --quiet >> "$LOG_FILE" 2>&1; then
+    CHANNEL_HEARING="true"
+    log "Canary: HEARING — inbound delivery derived"
+  else
+    rc=$?
+    CHANNEL_HEARING="false"
+    log "Canary: DEAF (rc=$rc) — channel accepts messages but the mind never receives them."
+    log "Canary: most likely cause is relaunching over a session that was killed by hand"
+    log "Canary: instead of landed. Remedy: land-claude-code-channel.sh, then relaunch."
+  fi
+fi
+
+# status must never be "success" over a mind that cannot hear.
+LAUNCH_STATUS="success"
+LAUNCH_MSG="Channel-enabled session running. Channel ready: $CHANNEL_READY."
+if [ "$CHANNEL_HEARING" = "false" ]; then
+  LAUNCH_STATUS="degraded"
+  LAUNCH_MSG="Session is RUNNING but DEAF: inbound messages are accepted and dropped. Run land-claude-code-channel.sh then relaunch. Do NOT trust /health here."
+fi
+
+log "=== Channel chassis launch complete (status=$LAUNCH_STATUS, hearing=$CHANNEL_HEARING) ==="
 
 # ---------------------------------------------------------------------------
 # Output (JSON — last line, parsed by Node launcher)
 # ---------------------------------------------------------------------------
 cat << EOF
 {
-  "status": "success",
+  "status": "$LAUNCH_STATUS",
   "instanceId": "$INSTANCE_ID",
   "tmuxSession": "$INSTANCE_ID",
   "unixUser": "$UNIX_USER",
   "channelPort": $CHANNEL_PORT,
   "channelReady": $CHANNEL_READY,
+  "channelHearing": "$CHANNEL_HEARING",
   "paneLog": "$PANE_LOG",
   "attachCommand": "sudo -u $UNIX_USER tmux attach -t $INSTANCE_ID",
-  "killCommand": "sudo -u $UNIX_USER tmux kill-session -t $INSTANCE_ID",
+  "killCommand": "$SCRIPT_DIR/land-claude-code-channel.sh --instance-id $INSTANCE_ID",
+  "forceKillCommand": "sudo -u $UNIX_USER tmux kill-session -t $INSTANCE_ID",
+  "forceKillWarning": "DANGEROUS: hand-killing tmux instead of landing is what caused the 2026-08-23 deaf-mind incident. The relaunched session can send but not receive, and every instrument reports healthy. Use killCommand (land) unless you know why you are not.",
+  "landCommand": "$SCRIPT_DIR/land-claude-code-channel.sh --instance-id $INSTANCE_ID",
   "healthUrl": "http://127.0.0.1:$CHANNEL_PORT/health",
-  "message": "Channel-enabled session running. Channel ready: $CHANNEL_READY."
+  "canaryCommand": "$SCRIPT_DIR/channel-canary.sh --instance-id $INSTANCE_ID",
+  "message": "$LAUNCH_MSG"
 }
 EOF
