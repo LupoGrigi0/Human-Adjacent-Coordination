@@ -31,6 +31,8 @@
  */
 
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -49,6 +51,34 @@ const BIND = process.env.CHANNEL_BIND || '127.0.0.1';
 // --- SSE listeners for debugging visibility --------------------------------
 
 const sseListeners = new Set();
+
+// --- inbound spool -----------------------------------------------------
+// Every message that arrives is written to disk BEFORE we try to hand it to
+// the mind. The notification path is one-way and can fail silently (it did,
+// for four hours, on 2026-08-23), and when it does, this file is the only
+// place the sender's words still exist. Append-only; a human can read it
+// with `tail`, and a repaired channel can replay from it.
+const SPOOL_PATH = path.join(
+  process.env.CHANNEL_SPOOL_DIR || process.cwd(),
+  '.channel-inbox.jsonl',
+);
+
+function spoolInbound(entry) {
+  try {
+    fs.appendFileSync(
+      SPOOL_PATH,
+      JSON.stringify({ ts: new Date().toISOString(), ...entry }) + '\n',
+      { encoding: 'utf8', mode: 0o600 },
+    );
+    return true;
+  } catch (err) {
+    // A spool failure must never cost the message its (attempted) delivery,
+    // so this is reported, not thrown. But it IS reported: a silent spool is
+    // the same lie in a smaller costume.
+    broadcast(`[spool-error] could not persist inbound message: ${err.message}`);
+    return false;
+  }
+}
 
 function broadcast(text) {
   const chunk = text.split('\n').map(l => `data: ${l}\n`).join('') + '\n';
@@ -643,6 +673,18 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // SPOOL BEFORE RELAY. A JSON-RPC notification has no reply by
+      // definition, so even a send onto a LIVE transport cannot confirm that a
+      // mind received it. On 2026-08-23 Crossing-2d23's transport was healthy —
+      // strace showed write(1, ...) = 643, no EPIPE, queues at zero — and
+      // Claude Code consumed the bytes and never surfaced them. ~10 minutes of
+      // Lupo's typing was lost permanently because no copy existed anywhere.
+      //
+      // Transport-death detection (above) cannot catch that case: the pipe was
+      // alive. This is the other half — persist the sender's words BEFORE the
+      // handoff, so a silent drop costs a replay rather than the message.
+      const spooled = spoolInbound({ from, text, thread_id: threadId });
+
       const liveReader = body.reply_path === 'transcript';
       const meta = {
         event_type: 'direct.message',
@@ -676,7 +718,22 @@ const server = http.createServer(async (req, res) => {
       // ok here means "written to a live transport" — never "delivered".
       // Delivery can only be confirmed by observing the session (see the
       // transport truth-tracking block above).
-      res.end(JSON.stringify({ ok: true, thread_id: threadId }));
+      //
+      // The extra fields say that in DATA, not only in a comment a caller
+      // cannot read: delivered is null (UNKNOWN — never false, never 0), and
+      // delivery_evidence names what would count. Deriving it is what
+      // chassis/claude-code-channel/channel-canary.sh does.
+      //
+      // Status stays 200 rather than 202: that is Cairn's deliberate call in
+      // Cairn's file and a rebase is the wrong place to overrule it. Raised
+      // with them as a question instead.
+      res.end(JSON.stringify({
+        ok: true,
+        delivered: null,
+        delivery_evidence: 'none',
+        spooled,
+        thread_id: threadId,
+      }));
       return;
     }
 
