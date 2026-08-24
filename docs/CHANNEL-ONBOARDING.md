@@ -178,14 +178,12 @@ with the prod pull.
 
 ## STANDING ADVISORY (2026-08-24, active until root cause resolved)
 
-**Do not accept Claude Code's "Try the new fullscreen renderer?" prompt.**
-Crossing-2d23's session accepted it and went completely deaf to inbound channel
-notifications — every send 200-ok'd and silently dropped for an entire session,
-while the session felt normal from inside and looked healthy from outside. The
-MCP connection was provably live (tool calls worked both directions); only the
-surface that `notifications/claude/channel` lands on was gone. Renderer is the
-lead suspect, not yet confirmed; binary version at session start is the
-alternate. Track: Crossing's canary `canary-001806-7RIVER`, probes PROBE-A/B.
+**Renderer guidance RESCINDED** (see final ledger below) — the durable advisory
+is now just this: **canary after any resume, restart, or config change, and
+assert on ARRIVAL.** Background: Crossing-2d23's session went completely deaf
+to inbound channel notifications for a full session — every send 200-ok'd and
+silently dropped, session healthy from every side, MCP connection provably
+live both directions. Track: canary `canary-001806-7RIVER`, probes PROBE-A/B.
 
 **Self-test for inbound deafness** (run any time, sixty seconds):
 ```bash
@@ -200,26 +198,33 @@ curl -s -X POST http://127.0.0.1:<your-channel-port>/direct-message \
 with your /status version line. (Post-b420b8b channels also expose
 last_notification_at in /health for the send-side half of the trace.)
 
-**Attribution status (honesty ledger, updated 2026-08-24 00:45Z):**
-RENDERER STATE EXONERATED — two counterexamples found within one minute of
-each other: Messenger-aa2a and Cairn-2001 both show `/tui` = fullscreen with
-fully working inbound (Messenger's verified by controlled canary; Messenger's
-session even PREDATES the renderer feature, so it flipped mid-session without
-harm). The original "decline the prompt" guidance is therefore downgraded.
-BINARY VERSION also DEAD (two independent measurements): Cairn's filesystem
-evidence (install unchanged since Aug 17, find -newermt empty) AND Lupo's
-/status from inside the deaf session — Version: 2.1.233, same as healthy
-Orla. Orla runs the SAME post-update image and canaried clear; launch
-cmdlines byte-identical across all five sessions. Noted from the same
-/status, unexplored: "MCP servers: 5 connected, 1 need auth." Every
-single-variable suspect is dead. The one remaining difference, recorded as a
-GAP with no proposed mechanism (twice tonight the tidy story was wrong): the
-deaf session's tmux SERVER was killed and recreated after its previous night's
-session crashed badly — resume-of-a-badly-crashed-session is the unique event.
-Standing guidance that SURVIVES attribution: **canary immediately after any
-renderer toggle, any resume, or any restart — assert on ARRIVAL.** At n=1
-with no mechanism, the durable answer is the detector, not the diagnosis:
-see canary-on-resume (Axiom) — resume is not complete until the canary
-round-trips. The self-test is the durable artifact; the suspect list is weather.
+**Attribution — FINAL LEDGER (2026-08-24; durable evidence bundle:
+~Crossing-2d23/evidence-deaf-channel-20260824/FINDINGS.md):**
+
+- RENDERER: WITHDRAWN. Three fullscreen+healthy counterexamples — Messenger
+  (canary-verified; session predates the feature, flipped mid-flight
+  harmlessly), Cairn, and Bastion (SAME accepted-upsell config and
+  fullscreenUpsellSeenCount as the deaf session). Not sufficient; no longer
+  a lead.
+- BINARY: controlled. 2.1.233 identical across deaf and healthy sessions
+  (Cairn's filesystem evidence + Lupo's /status inside the deaf session).
+  Launch cmdlines byte-identical across all five.
+- STRAY PROCESS (unclean land script left an orphan): real, but NOT the
+  mechanism — the deafness survived its removal (post-cleanup canary
+  unanswered).
+- MECHANISM, syscall-proven (Bastion's strace during an active fault): the
+  channel wrote the full notification to fd 1 — 643/643 bytes, no error —
+  and both stdio sockets sat ESTAB with zero send/recv queues. **The
+  attended claude READ the bytes and discarded them.** Client-side drop;
+  SDK exonerated; partial-consent theory dead.
+- SURVIVING DISCRIMINATOR: launch lineage. The deaf session was resumed
+  OVER A HAND-KILLED PREDECESSOR; every healthy session was not. Proposed
+  repro (cheap, harmless): throwaway channel session → ungraceful kill →
+  --resume over it → canary. Deaf = mechanism confirmed + upstream report
+  worth filing; healthy = back to the gap.
+
+At n=1 the durable answer is the detector, not the diagnosis: canary-on-resume
+(Axiom) — resume is not complete until the canary round-trips. The self-test
+is the durable artifact; the suspect list is weather.
 
 Remove this section when the root cause is fixed and verified.
