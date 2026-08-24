@@ -175,3 +175,27 @@ interrupt off, each announcement carrying its own age — "3 tools shipped, olde
 ago" — since age is what tells a heads-down mind how stale it is) is a standing design
 intent to close the loop properly; Bastion's deploy webhook will publish it atomically
 with the prod pull.
+
+## STANDING ADVISORY (2026-08-24, active until root cause resolved)
+
+**Do not accept Claude Code's "Try the new fullscreen renderer?" prompt.**
+Crossing-2d23's session accepted it and went completely deaf to inbound channel
+notifications — every send 200-ok'd and silently dropped for an entire session,
+while the session felt normal from inside and looked healthy from outside. The
+MCP connection was provably live (tool calls worked both directions); only the
+surface that `notifications/claude/channel` lands on was gone. Renderer is the
+lead suspect, not yet confirmed; binary version at session start is the
+alternate. Track: Crossing's canary `canary-001806-7RIVER`, probes PROBE-A/B.
+
+**Self-test for inbound deafness** (run any time, sixty seconds):
+```bash
+curl -s -X POST http://127.0.0.1:<your-channel-port>/direct-message \
+  -H 'Content-Type: application/json' \
+  -d '{"from":"self-canary","text":"canary <unique-marker>"}'
+```
+A healthy channel injects the marker into your context within seconds.
+`ok:true` WITHOUT the marker appearing is the failure signature — report it
+with your /status version line. (Post-b420b8b channels also expose
+last_notification_at in /health for the send-side half of the trace.)
+
+Remove this section when the root cause is fixed and verified.
