@@ -194,8 +194,32 @@ if [ -n "$RESUME_SESSION" ]; then
   log "Resuming session $RESUME_SESSION"
 fi
 
+# Per-instance environment. tmux runs the binary directly, NOT through a login
+# shell, so ~/.bashrc and ~/.profile never execute — an env var set there
+# silently does not reach the session. This file is the supported way in.
+#
+# Needed the moment a mind talks to anything but the default upstream: pointing
+# a session at its own Ferry proxy means ANTHROPIC_BASE_URL, and there was no
+# mechanism for it at all.
+#
+# Format: KEY=VALUE, one per line, # comments allowed. Values are passed
+# through `env` verbatim — no shell expansion, so a value containing $ or
+# spaces cannot execute anything.
+ENV_FILE="$INSTANCE_DIR/.launch-env"
+ENV_PREFIX=""
+if [ -f "$ENV_FILE" ]; then
+  # Never log the values: this is exactly where an API key would live.
+  ENV_KEYS=$(grep -vE '^\s*(#|$)' "$ENV_FILE" | cut -d= -f1 | tr '\n' ' ')
+  log "Applying .launch-env (keys: $ENV_KEYS)"
+  ENV_PREFIX="env "
+  while IFS= read -r line; do
+    case "$line" in ''|'#'*) continue ;; esac
+    ENV_PREFIX="$ENV_PREFIX$(printf '%q' "$line") "
+  done < "$ENV_FILE"
+fi
+
 sudo -u "$UNIX_USER" tmux new-session -d -s "$INSTANCE_ID" -c "$INSTANCE_DIR" \
-  "$CLAUDE_BIN $RESUME_ARG --dangerously-skip-permissions --dangerously-load-development-channels server:hacs-channel" \
+  "$ENV_PREFIX$CLAUDE_BIN $RESUME_ARG --dangerously-skip-permissions --dangerously-load-development-channels server:hacs-channel" \
   2>> "$LOG_FILE"
 
 if ! sudo -u "$UNIX_USER" tmux has-session -t "=$INSTANCE_ID" 2>/dev/null; then
