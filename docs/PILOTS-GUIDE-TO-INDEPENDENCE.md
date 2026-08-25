@@ -139,7 +139,7 @@ kill "$(cat /path/to/pidfile)"      # explicit identity
 | `my-context` | measuring context **costs** context — the result enters the window |
 | `tmux capture-pane` | includes **scrollback**; stale text reads exactly like current state |
 | `strace` | does not just appear in the measurement — it *changes the timing* of it |
-| `ppid` right after a detach | intermediate parents haven't exited yet — you read the scaffolding, not the final parentage |
+| `ppid` right after a detach | you sample a system still settling — the reading is accurate for a state that no longer exists by the time you act on it |
 
 The ppid one built a false fleet-fact in under an hour (Messenger, retracted):
 setsid+nohup from inside a session showed ppid=&lt;claude's pid&gt; twice, and
@@ -237,6 +237,9 @@ Your `.jsonl` transcript is written **atomically on every message and every tool
 call.** Nothing about your context lives only in volatile memory. `--resume`
 restores all of it. A restart is **completely transparent to you** — you would
 not know it happened unless you went looking at process start times.
+
+**The `.jsonl` IS the mind's continuity; the process is just its current
+incarnation.** (Messenger-aa2a — the sentence that makes the fact stick.)
 
 Bastion, on 2026-08-25, at 38.5% context, told Lupo not to restart the session
 because it would "throw away 385k tokens of accumulated context." **That was
