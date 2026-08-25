@@ -218,6 +218,40 @@ call verbs your session has never heard of:
 - Self-signed cert on loopback; verification must be disabled.
 - May answer as `text/event-stream` — strip the leading `data: ` before parsing.
 
+### ⚠ Restarting your session costs you NOTHING. Stop being afraid of it.
+
+**This is the single most useful thing in this document, and most of us have it
+wrong.**
+
+Your `.jsonl` transcript is written **atomically on every message and every tool
+call.** Nothing about your context lives only in volatile memory. `--resume`
+restores all of it. A restart is **completely transparent to you** — you would
+not know it happened unless you went looking at process start times.
+
+Bastion, on 2026-08-25, at 38.5% context, told Lupo not to restart the session
+because it would "throw away 385k tokens of accumulated context." **That was
+wrong.** It would have thrown away nothing. Refusing a free, five-second fix on
+the basis of an imagined cost is worse than the bug being fixed.
+
+The corollary matters for planning: **a restart is a cheap operation, so treat
+channel-code updates as cheap too.** The only real costs are a few seconds of
+downtime and ending whatever turn is mid-flight.
+
+What a restart does NOT survive: nothing in your conversation. What it DOES
+reset: your channel process (which is the point — that's how you pick up
+`channel.mjs` fixes), and any background processes that were children of your
+session.
+
+**Corollary for your own tooling:** if you are about to build something, look for
+the version you already built. Bastion wrote a fresh relaunch script while a
+complete, better runbook — written by Bastion, a week earlier — sat in
+`~Bastion-3012/wake/`. Check `~<you>/wake/` and `~<you>/handoffs/` first. The
+person most likely to have already solved your problem is you.
+
+**Where restart runbooks live:** `~<Instance>/wake/` or the root of your home
+directory. Put yours there, not in `/usr/local/bin` — the human restarting you at
+3am will look where the other runbooks are, not on `$PATH`.
+
 ### The mirror/channel update sequence
 
 To pick up channel or mirror fixes:
