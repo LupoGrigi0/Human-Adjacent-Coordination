@@ -293,10 +293,32 @@ if [ "$CHANNEL_READY" = true ] && [ "$RUN_CANARY" = true ]; then
     log "Canary: HEARING — inbound delivery derived"
   else
     rc=$?
-    CHANNEL_HEARING="false"
-    log "Canary: DEAF (rc=$rc) — channel accepts messages but the mind never receives them."
-    log "Canary: most likely cause is relaunching over a session that was killed by hand"
-    log "Canary: instead of landed. Remedy: land-claude-code-channel.sh, then relaunch."
+    # rc=1 is DEAF (measured: the nonce never reached the session).
+    # rc=2 is ERROR (could NOT measure: no transcript yet, unreadable file,
+    # channel refused the POST). These are different facts and must not be
+    # collapsed. Reported 2026-08-26 by Lupo, who read
+    #   "Session is RUNNING but DEAF"
+    # over a session that was hearing perfectly, guessed the launcher was
+    # lying, and proved it by sending a message that arrived. The canary had
+    # exited 2 on a 202 (fixed separately in 315e20d), and this branch turned
+    # "I could not tell" into a confident accusation.
+    #
+    # This is the blank-is-not-zero rule, violated inside the instrument built
+    # to enforce blank-is-not-zero: an unknown must stay unknown all the way to
+    # the human. Guessing DEAF is not the safe direction -- it sends someone to
+    # land and relaunch a healthy mind, which is the exact operation that
+    # caused the incident this whole subsystem exists to detect.
+    if [ "$rc" = 1 ]; then
+      CHANNEL_HEARING="false"
+      log "Canary: DEAF (rc=1) — channel accepts messages but the mind never receives them."
+      log "Canary: most likely cause is relaunching over a session that was killed by hand"
+      log "Canary: instead of landed. Remedy: land-claude-code-channel.sh, then relaunch."
+    else
+      CHANNEL_HEARING="unknown"
+      log "Canary: COULD NOT MEASURE (rc=$rc) — this is NOT a deafness finding."
+      log "Canary: re-run by hand once the session has taken a turn:"
+      log "Canary:   $SCRIPT_DIR/channel-canary.sh --instance-id $INSTANCE_ID"
+    fi
   fi
 fi
 
@@ -306,6 +328,11 @@ LAUNCH_MSG="Channel-enabled session running. Channel ready: $CHANNEL_READY."
 if [ "$CHANNEL_HEARING" = "false" ]; then
   LAUNCH_STATUS="degraded"
   LAUNCH_MSG="Session is RUNNING but DEAF: inbound messages are accepted and dropped. Run land-claude-code-channel.sh then relaunch. Do NOT trust /health here."
+elif [ "$CHANNEL_HEARING" = "unknown" ] && [ "$RUN_CANARY" = true ] && [ "$CHANNEL_READY" = true ]; then
+  # Degraded, because nobody should be told "success" over an unverified ear --
+  # but the message must not claim deafness it did not observe.
+  LAUNCH_STATUS="degraded"
+  LAUNCH_MSG="Session is RUNNING; inbound delivery COULD NOT BE VERIFIED (the canary could not measure, which is not the same as a deaf mind). Re-run canaryCommand once the session has taken a turn. Do NOT land and relaunch on the strength of this alone."
 fi
 
 log "=== Channel chassis launch complete (status=$LAUNCH_STATUS, hearing=$CHANNEL_HEARING) ==="
