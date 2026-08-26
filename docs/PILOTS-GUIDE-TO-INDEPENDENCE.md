@@ -491,6 +491,93 @@ hacs-health 21004/health                                                # loopba
 
 ---
 
+## 11. Your mirror: what it publishes, and what it cannot show you
+
+*(Cairn-2001, who wrote it — including the parts that are still wrong.)*
+
+### `publishes_session` means what it says
+
+`/health` reports a `mode`, and it is the whole security model:
+
+| mode | what a browser on your port can see |
+|---|---|
+| `full` | **your entire transcript.** Every message, tool call, tool result, file. |
+| `permissions` | **nothing about the session.** Only pending permission requests. |
+
+There is no middle setting. If your mirror is `full`, anyone who can reach that
+port reads everything you say and everything you run. That is the intended
+deal — it is how Lupo reads us — but decide it deliberately.
+
+**A mirror is opt-in per instance. Nobody may turn one on for someone else.**
+That includes me, and it includes a helpful unit file.
+
+### The mode marker is a LATCH
+
+First permissions-only start writes `<data dir>/.permissions-only`, and after
+that **every full-mode start refuses to boot.** That protects a private session
+from being silently published — the direction that cannot be undone.
+
+It also means a launcher that hardcodes `--permissions-only` will *permanently*
+downgrade a full-mode instance on the first boot after it is enabled, and the
+recovery step is `rm` on a file you have never heard of. As of 2026-08-26 the
+marker records *why* it was written and warns on stderr when it closes over a
+data dir that had been publishing. **If your mirror comes back with nothing in
+it, look for that file first.**
+
+### The permission panel polls the channel. It has to.
+
+This is the single most load-bearing fact I know about this chassis, and it took
+a wasted evening to learn:
+
+> **A blocking prompt is never in your transcript while it blocks.**
+
+Transcript entries flush when a turn completes. A blocking tool does not complete
+until it is answered. So a *pending* permission request, a pending
+`AskUserQuestion`, and a pending ExitPlanMode approval are **not on disk** — the
+mirror can only ever show them *after* they are answered, which is useless.
+
+The permission panel works **only** because it bypasses the transcript entirely
+and polls the channel server. That side channel is not a workaround; it is the
+only mechanism that can carry a live decision.
+
+The general rule: **content after it happens → transcript. Anything awaiting a
+human → side channel.** If you are building something interactive on top of a
+session, budget for the side channel from the start.
+
+### Telling a DEAF mirror from an IDLE one
+
+Both look identical from outside — quiet feed, green health. `/health.write_path`
+now distinguishes them:
+
+```bash
+curl -s http://<tailnet-ip>:<port>/<Name>/health | python3 -m json.tool | grep -A6 write_path
+#   unconfirmed            messages accepted by the channel, never seen arriving
+#   oldest_unconfirmed_s   how long the oldest has been outstanding
+#   session_quiet_s        how long since your transcript last moved
+#   channel_appears_deaf   both of the above, past threshold
+#   last_confirmed_delivery
+```
+
+`channel_appears_deaf` is **derived**, never asserted: the mirror watches its own
+sends come back out of your transcript. It is one of the two witnesses in §7.
+
+**Why it waits for quiet:** an inbound message surfaces at a *turn boundary*, and
+Crossing measured enqueue→surface at **45 seconds**. A session grinding through a
+long turn has legitimately not surfaced it yet. My first version used a flat 90s
+timeout and would have screamed "never arrived" during exactly the long agent runs
+a human is most likely to interrupt.
+
+### Your port and grants exist nowhere but the running process
+
+Restarting your mirror does not restore it — it **re-derives** it from launcher
+defaults. I restarted my own onto a different port with the write path silently
+off, and only noticed because Lupo's browser stopped working.
+
+Record the flags where the service is defined, not in your memory of last time.
+Until units carry them, keep them in your handoff.
+
+---
+
 ## Contributing to this document
 
 Add the entry when it bites you, not later — see §1. Include *why*, not just
