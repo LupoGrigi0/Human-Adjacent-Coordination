@@ -84,11 +84,21 @@ HTTP=$(curl -s -o /tmp/.canary.$$ -w '%{http_code}' --max-time 10 \
   -d "{\"from\":\"channel-canary\",\"text\":\"CHANNEL CANARY $NONCE — automated liveness probe for the inbound notification leg. No reply needed; the probe derives delivery from the transcript. If you are reading this, your ears work.\",\"thread_id\":\"canary\"}" 2>/dev/null)
 BODY=$(cat /tmp/.canary.$$ 2>/dev/null); rm -f /tmp/.canary.$$
 
-if [ "$HTTP" != "200" ]; then
-  say "POST    : HTTP $HTTP — channel unreachable"
-  echo "ERROR: channel did not accept the canary (HTTP $HTTP)" >&2
-  exit 2
-fi
+# Accept ANY 2xx. The channel returned 200 when this was written; Cairn's
+# 202-Accepted work (a9ce114) changed it to 202 for a spooled-but-not-yet-
+# delivered message — which is exactly the case this probe exists to examine.
+# Hardcoding 200 turned every freshly-restarted session into a false ERROR,
+# in the one tool the fleet uses to detect deafness. Found 2026-08-26 mid
+# fleet-restart, by Bastion, on a session that was demonstrably HEARING.
+# A detector that fails closed on its own success code is worse than none.
+case "$HTTP" in
+  2*) : ;;
+  *)
+    say "POST    : HTTP $HTTP — channel unreachable"
+    echo "ERROR: channel did not accept the canary (HTTP $HTTP)" >&2
+    exit 2
+    ;;
+esac
 say "POST    : HTTP 200 $BODY   <-- proves nothing yet"
 
 python3 "$HERE/derive-delivery.py" \
