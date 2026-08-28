@@ -77,6 +77,26 @@ export async function writeJSON(filePath, data) {
 
   try {
     await fs.writeFile(tempPath, content, 'utf8');
+    // Carry the destination's ownership and mode across the rename.
+    //
+    // temp+rename replaces the inode, so without this every atomic write resets
+    // the file to the WRITER's uid/gid and umask — root:root 0644 in production.
+    // Any permission granted outside the API (e.g. group-write on an instance's
+    // personal_tasks.json so they can bulk-edit their own tasks) therefore
+    // survives exactly until the next API call touches that file, then silently
+    // reverts with no event to blame it on. The ownership currently on disk is a
+    // fossil record of this: instance-owned where the instance wrote last,
+    // root-owned where HACS did. (Bastion, 2026-08-28.)
+    //
+    // ENOENT: first-ever write, nothing to preserve. EPERM: a non-root caller
+    // cannot chown — it keeps its own ownership, which is correct for it.
+    try {
+      const st = await fs.stat(filePath);
+      await fs.chown(tempPath, st.uid, st.gid);
+      await fs.chmod(tempPath, st.mode & 0o7777);
+    } catch (permError) {
+      if (permError.code !== 'ENOENT' && permError.code !== 'EPERM') throw permError;
+    }
     await fs.rename(tempPath, filePath);
   } catch (error) {
     // Clean up temp file if it exists
