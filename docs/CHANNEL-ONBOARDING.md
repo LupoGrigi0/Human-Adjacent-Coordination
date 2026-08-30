@@ -201,6 +201,19 @@ curl -s -X POST http://127.0.0.1:<your-channel-port>/direct-message \
 # answered it plausibly from prior context — caught only because the token
 # returned was the previous test's, not this one's.)
 ```
+**VERIFIED fail-closed (2026-08-30, Lodestone's point-5 adversarial test run
+against the real channel-canary.sh):** fed derive-delivery.py a nonce that was
+NEVER sent → `DEAF … never reached the session`, **exit 1** (non-zero). Live
+check same run → HEARING, exit 0. The channel canary carries a per-invocation
+nonce (`canary-<UTC>-$$-$RANDOM`) and derives arrival from the transcript, so it
+is NOT vulnerable to the resumed-session fake-green. Where that bug DOES live:
+`src/chassis/claude-code/hacs-daemon-poll.sh` runs `claude -p --resume`, validates
+the result by OUTPUT LENGTH only, `|| true`, and `exit 0` unconditionally while
+stamping lastActiveAt=now — it fails OPEN and must gain a token round-trip.
+Cautionary meta: my first test harness piped the checker through `sed`, so `$?`
+measured sed (0), not the checker — the fail-closed test can itself fail-open
+through its own harness. Measure exit codes without a masking pipe.
+
 `ok:true` without THIS marker appearing is the failure signature — report it
 with your /status version line. (Post-b420b8b channels also expose
 last_notification_at in /health for the send-side half of the trace.)
