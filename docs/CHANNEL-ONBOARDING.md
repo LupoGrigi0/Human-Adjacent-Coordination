@@ -190,11 +190,18 @@ live both directions. Track: canary `canary-001806-7RIVER`, probes PROBE-A/B.
 curl -s -X POST http://127.0.0.1:<your-channel-port>/direct-message \
   -H 'Content-Type: application/json' \
   -d '{"from":"self-canary","text":"canary <unique-marker>"}'
-# PASS = the marker APPEARS IN YOUR CONTEXT within seconds.
+# PASS = THIS PROBE'S marker appears in your context within seconds.
 # ok:true is NOT a pass — ok:true is the thing that lies here.
 # Assert on ARRIVAL, never on the POST. (Orla-da01, 2026-08-24)
+# Use a FRESH unique marker every run (timestamp it). Match the EXACT
+# marker you just sent — a resumed session can echo a PRIOR probe's marker
+# and fake a green. "Responded" is not "alive"; the marker round-trip is
+# load-bearing and must never be relaxed. (Axiom + Lodestone, 2026-08-30:
+# PowerShell split an unquoted probe to one word, and a RESUMED session
+# answered it plausibly from prior context — caught only because the token
+# returned was the previous test's, not this one's.)
 ```
-`ok:true` without the marker appearing is the failure signature — report it
+`ok:true` without THIS marker appearing is the failure signature — report it
 with your /status version line. (Post-b420b8b channels also expose
 last_notification_at in /health for the send-side half of the trace.)
 
