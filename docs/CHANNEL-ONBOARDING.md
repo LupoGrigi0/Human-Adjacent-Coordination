@@ -210,9 +210,17 @@ is NOT vulnerable to the resumed-session fake-green. Where that bug DOES live:
 `src/chassis/claude-code/hacs-daemon-poll.sh` runs `claude -p --resume`, validates
 the result by OUTPUT LENGTH only, `|| true`, and `exit 0` unconditionally while
 stamping lastActiveAt=now — it fails OPEN and must gain a token round-trip.
-Cautionary meta: my first test harness piped the checker through `sed`, so `$?`
-measured sed (0), not the checker — the fail-closed test can itself fail-open
-through its own harness. Measure exit codes without a masking pipe.
+Cautionary meta (a load-bearing rule, tripped by TWO people in one day on two
+OSes — Messenger via `sed`, Lodestone via `| Select-String`): a pipeline's `$?`
+is its LAST command's, so measuring an exit code through a pipe reports the
+pipe, not the thing under test. It does not bias toward pass or fail — it
+REPLACES your measurement with an unrelated one, and the direction is luck.
+Messenger's landed as a false PASS (the fail-closed test fail-opened). Lodestone's
+landed as a false FAILURE — a working alarm script looked broken, one edit away
+from "fixing" correct code, which is the more expensive direction. Rule: capture
+first, then measure — `out=$(cmd); rc=$?` — never `cmd | filter; $?`. (And test
+the check itself with a deliberately broken input; a check that still passes on
+garbage, or a test that never reaches its own alarm path, is decorative.)
 
 `ok:true` without THIS marker appearing is the failure signature — report it
 with your /status version line. (Post-b420b8b channels also expose
