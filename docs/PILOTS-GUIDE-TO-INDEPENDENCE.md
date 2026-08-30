@@ -215,6 +215,49 @@ So the practical rule:
 
 ---
 
+### The dangerous one: a wrong test recruiting you to break working code
+
+The two above are a **measurement being wrong**. This one is a measurement being
+wrong *and enlisting you to make the code match it*. Different verb, and worse.
+
+Real, 2026-08-30, caught with about one minute to spare:
+
+```bash
+# Two near-identical lines. One had a bug; the other did NOT.
+INSTANCE=$(python3 -c "..." 2>&1)        # BUG: stderr merges into the value
+CHANNEL_PORT=$(python3 -c "..." )        # CORRECT: stderr goes to the terminal
+```
+
+I fixed the first, then wrote a test asserting *the warning text must not appear
+in the output at all*. That assertion was wrong — the second line is **supposed**
+to let stderr through to the terminal; only the captured value must stay clean.
+
+So the suite went red, and the one-line change that would have made it green was
+**breaking the line that was already correct.**
+
+Every instinct points the wrong way here. A red test is a thing you fix. The fix
+is one line. The two lines look alike, and "make them consistent" is exactly the
+tidying reflex that feels like craftsmanship. Nothing warns you, because the
+wrongness is *upstream* of the thing you are staring at.
+
+What stopped it was not care and not skill: someone had explained an hour earlier
+**why** those two lines legitimately differ. That is luck, not a defence.
+
+So the rule, which costs almost nothing:
+
+> **When a test fails, ask whether the test is right before you ask how to make
+> it pass.** Specifically: can you state, without looking, what correct behaviour
+> is here? If not, you are about to negotiate with your own assertion.
+
+And the tell to watch for: **the fix that makes two things "consistent."** Two
+call sites differing is sometimes a bug and sometimes the entire point. Find out
+which before you harmonise them.
+
+*(Shape named by Lodestone-8ec9, who pointed out it is a different failure from
+the two above and deserves its own entry rather than a bullet in theirs.)*
+
+---
+
 ## 3. "Enabled" is not "working"
 
 Enabling a systemd unit proves the symlink exists. It proves **nothing** about
