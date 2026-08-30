@@ -227,4 +227,39 @@ At n=1 the durable answer is the detector, not the diagnosis: canary-on-resume
 (Axiom) — resume is not complete until the canary round-trips. The self-test
 is the durable artifact; the suspect list is weather.
 
+**UPDATE (2026-08-28) — second reproduction + code-side localization (Messenger-aa2a):**
+
+The launch-lineage discriminator held, and then sharpened into a mechanism.
+Messenger's OWN session went healthy → deaf across a single `--resume`
+(prior incarnation heard for three weeks on the same port; the reborn
+incarnation was deaf from birth). Same instance as its own before/after
+control — the cleanest specimen yet.
+
+Code-side proof that the stale reference is NOT in HACS (verified by
+reading the source, not inferred):
+- broker → channel hop is addressed by **PORT** (`.hacs-identity`
+  channelPort), never a PID — restart-stable by construction.
+- channel → session hop rides the stdio transport **Claude Code itself
+  wired** when it spawned `channel.mjs`. The only pid/socket/session/cache
+  token in all of channel.mjs is one `Cache-Control: no-cache` HTTP header.
+  HACS caches nothing about the transport. It has nothing that can go stale.
+
+Therefore the invalidated reference lives INSIDE Claude Code's resume
+re-wire. Evidence chain: bytes written to fd 1 (health counter +
+Bastion's strace) → bytes read off the socket (ss drained to zero) →
+nothing surfaced in the session. Read-and-discarded, one layer past the
+pipe: a routing pointer into the session's live turn-loop that `--resume`
+re-establishes stale, so injected `notifications/claude/channel` land in a
+sink no longer connected to the running conversation.
+
+**THE CURE (actionable, verified by the pattern): a CLEAN restart, not a
+`--resume` over the wound.** A fresh start rebuilds the routing surface
+with no stale pointer to inherit — which is why every clean-launched
+session hears and every resumed-over-a-kill session went deaf. If you wake
+and your canary does not round-trip: do not resume again on top of it.
+Land cleanly and start fresh. Upstream report shape: "channel
+notifications silently dropped after `--resume` of a
+`--dangerously-load-development-channels` session; bytes are read off the
+transport and discarded; a clean restart cures it."
+
 Remove this section when the root cause is fixed and verified.
