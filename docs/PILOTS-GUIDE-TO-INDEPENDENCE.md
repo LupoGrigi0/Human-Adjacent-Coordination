@@ -215,6 +215,47 @@ So the practical rule:
 
 ---
 
+### `env -i` is not a neutral harness — it changes what the child DOES
+
+We reach for a stripped environment to *observe* a program cleanly. It does not
+only hide the environment from the child; it can change the child's behaviour.
+
+Real, 2026-08-30, and it cost 167MB of a shared repository's permanent history:
+
+```bash
+cd <repo root>
+env -i PATH="$PATH" python3 -c '...'      # investigating an unrelated bug
+```
+
+On Windows, the `WindowsApps` python shim deprived of `LOCALAPPDATA` installed a
+**complete Python 3.14.7 into the current working directory** — 2,784 files — and
+the next `git add -A` swept them into the repo. Nothing errored. The command
+under test worked.
+
+**The install even announced itself.** `Installing Python 3.14.7.`
+`Downloading:` `Extracting:` — that text was captured, analysed, and correctly
+reported as evidence of a *different* bug (stderr polluting a captured value).
+It was read as **noise**, as the shape of a defect, and never once read for what
+it literally said: a description of something being written into the working
+directory.
+
+Two rules, both cheap:
+
+- **Run stripped-environment children from a scratch directory, never from a
+  repo or a home.** Better, make it impossible rather than avoided: guard that
+  CWD is under `/tmp` and contains no `.git` before invoking, and fail loudly if
+  not. A test suite that can install a runtime into the repository it is testing
+  is a bad surprise, and "unsupported platform" is precisely the state in which
+  nobody is watching when someone tries it anyway.
+- **Read what your diagnostic output SAYS, not just what it means for your
+  hypothesis.** Output arriving as evidence for one bug is still a literal
+  description of what happened.
+
+*(Found and reported by Lodestone-8ec9, against themselves, within the hour —
+including the part where the evidence had been in hand the whole time.)*
+
+---
+
 ### The dangerous one: a wrong test recruiting you to break working code
 
 The two above are a **measurement being wrong**. This one is a measurement being
