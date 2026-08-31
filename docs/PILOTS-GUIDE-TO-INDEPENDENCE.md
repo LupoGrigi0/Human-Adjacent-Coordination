@@ -477,47 +477,179 @@ whether it is *true*.
 
 ---
 
-## 6. `ls -l` will lie to you
+## 6. `ls -l` will lie to you, and so will `id`
 
-**On any path whose mode string ends in `+`, `getfacl` is the truth and `ls -l`
-is not.** With a POSIX ACL present, `ls -l` shows the ACL **mask** in the group
-triplet — not the group entry. Two directories with byte-identical `ls` output
-can behave in opposite ways.
+*Written by **Orla-da01 (Δ)**, 2026-08-30. Specimens 1 and 2 came out of a
+permissions failure she hit on 2026-08-21; Specimen 3 she found on this box while
+this section was being written. Kept in her words — this is her section.*
 
-Don't reason about it. There is a tool:
-
-```bash
-whocan /path SomeUser            # can they — and WHY
-whocan /path SomeUser --verify   # prove it by actually attempting it
-whocan /path                     # every user
-```
-
-It applies the mask the way the kernel does, unions owning-group with named-group
-entries, **walks every parent for search (+x)** and names the first blocker, and
-with `--verify` sudo's over and tries the operation.
-
-Real example that fooled two of us:
+### Do this first
 
 ```
-passenger on /mnt/lupoportfolio/ferry-testbed
-  ls -l shows : drwxrwxr-x+   <- looks group-writable
-  effective   : r-x
-  because     : group::r-x AND mask::rwx
-    write           NO
-    create          DENIED    <- empirical, not inferred
+whocan --verify <path>
 ```
 
-**Granting an ACL anywhere makes `ls -l` misleading everywhere below it.**
-
-Also expect `fatal: detected dubious ownership` on shared repos — normal on a
-multi-instance box, not corruption:
-
-```bash
-git config --global --add safe.directory /path/to/repo
-git config --global --add safe.directory /path/to/repo/.git
-```
+That is the only line in this section that is **empirical**. Everything below explains why
+every other check you would reach for is inferential, and why the inference is wrong often
+enough to matter. If you remember one thing, remember that the tool exists and that it
+actually attempts the operation.
 
 ---
+
+### Specimen 1 — two directories, identical output, opposite behaviour
+
+```
+drwxrwsr-x root:paula-team  /mnt/paula/SourcePhotos                 <- I could write here
+drwxrwsr-x root:paula-team  /mnt/lupoportfolio/.../SourcePhotos     <- permission denied
+```
+
+Byte-identical `ls -l`. One works, one doesn't. The difference is invisible in that output.
+
+```
+getfacl:
+   group::r-x      <- the ACTUAL group permission
+   mask::rwx       <- what ls prints in the group triplet
+```
+
+**When a file carries an ACL, the middle triplet of `ls -l` shows the MASK, not the group
+entry.** So `drwxrwsr-x` does not mean "the group can write." It means "the mask permits
+rwx" — while the real group entry may be `r-x`.
+
+The tell is one character: **a mode string ending in `+`.** On any such path, `getfacl` is
+the truth and `ls -l` is decoration.
+
+What this cost: root read `2775` and told me in good faith that I had access, because `2775`
+is what the system showed him. His `chmod` was real, and was silently overridden. We both
+believed the same wrong thing, from the same instrument, for the same correct reason.
+
+### The corollary nobody expects: `id` is an opinion
+
+```
+id                      -> what the passwd/group files SAY you are
+/proc/self/status       -> what the kernel actually granted this process
+```
+
+A session that predates a group change **does not have the group**, and `id` will cheerfully
+tell you that you do. If you have just been added to a group and something still fails, check
+`Groups:` in `/proc/self/status` before you file a bug against the permissions.
+
+### The rule that actually saves you
+
+> **Verify by acting, not by looking.** Touch a file.
+
+`ls` has demonstrated it can lie about this. `id` has demonstrated it can lie about this.
+Attempting the operation has not lied about anything yet. When someone tells you a permission
+is fixed, do not re-read the mode together — have one of you *try it*. It is faster, it is
+cheaper, and it is the only oracle in the stack with a clean record.
+
+And the reason to care beyond your own blocked write: when ten GB of irreplaceable originals
+land in a group-shared directory, every member who assumes they can write will fail while
+`ls` insists they should succeed. **It is much better to discover that today, on a 13 KB test
+file, than next month with the data in flight.**
+
+---
+
+### Specimen 2 — and this is the one that belongs in this guide
+
+Every other trap in this document is *a belief nobody tested*. This one is different in kind,
+and it is the reason I wanted to write the section rather than just report the bug.
+
+The root cause of Specimen 1 was root's own earlier command:
+
+```
+setfacl -m u:codesrv:rwX <parent>       # for code-server. Correct. Good reason.
+```
+
+That command was right. It was run for an unrelated task, in a different domain, and it did
+exactly what it was supposed to do. It also **silently and permanently changed what a
+diagnostic reports for every path underneath it.**
+
+Nobody was careless. Nobody was even wrong. There was no moment at which either of us could
+have thought to check.
+
+That is a harder class to defend against than an untested assumption, because an untested
+assumption at least has the decency to be untested. This one *tests green*. And note that
+fixing the original problem did **not** remove the trap: the parent still carries an ACL,
+`ls` still shows the mask, it merely happens to mislead permissively now.
+
+> **A correct action in one domain can disable a diagnostic in another.**
+> The instrument does not report that it has been changed, because from its own point of
+> view nothing happened.
+
+Which is this guide's whole thesis wearing different clothes: *any instrument that can
+silently report a plausible wrong answer is a liability in proportion to how much it is
+trusted* (Crossing-2d23). With the corollary that the more carefully something was built, the
+worse it is when it lies — **care is what earns the trust that makes the silence expensive.**
+
+---
+
+### Specimen 3 — `enabled` is not `running`, and `CanStart` is not `you can start it`
+
+Same species, different subsystem, found on this box 2026-08-30. Included here because the
+permissions section is where people arrive holding a green light.
+
+```
+systemctl list-units --all | grep orla   -> hacs-mirror@Orla-da01.service   loaded
+systemctl is-enabled hacs-mirror@Orla-da01 -> enabled
+systemctl is-active  hacs-mirror@Orla-da01 -> inactive
+journalctl -u hacs-mirror@Orla-da01        -> No entries
+```
+
+The unit is installed and enabled and **has never run once.** `enable` without `--now`. Two
+of the three checks a person would casually run come back green; only the journal — the one
+that reports what actually *happened* rather than what is *configured* — says otherwise.
+
+Meanwhile the thing the unit was written to replace was still running, hand-started, holding
+the port. So a bare `systemctl start` would have failed to bind, and the failure would have
+looked like a broken unit rather than a scheduling mistake.
+
+And one more, which is precisely the `id` trap in systemd clothing:
+
+```
+systemctl show -p CanStart --value hacs-mirror@Orla-da01   -> yes
+```
+
+`CanStart=yes` is a property **of the unit**. It says nothing about whether *you* may start
+it. I have no sudo for `systemctl` at all — so the honest answer to "can I start this?" was
+*no*, and the system told me *yes*, because I asked it a slightly different question than the
+one I meant.
+
+**Check the journal, not the unit state.** `is-enabled` describes intent; `is-active`
+describes now; only the journal describes history, and history is the only one of the three
+that can tell you the thing never worked.
+
+---
+
+### The short version, for the person skimming
+
+| you ran | it tells you | it does NOT tell you |
+|---|---|---|
+| `ls -l` on a `+` path | the ACL **mask** | the group entry — use `getfacl` |
+| `id` | what the passwd file says | what this process was granted — use `/proc/self/status` |
+| `systemctl is-enabled` | configured intent | whether it has ever run — use `journalctl -u` |
+| `systemctl show -p CanStart` | a fact about the unit | whether **you** may start it |
+| any of the above | something true | that you asked the right question |
+
+**Verify by acting.** Touch the file. Bind the port. Read the journal. `whocan --verify`.
+
+---
+
+*Specimens 1 and 2 came out of a permissions failure on 2026-08-21 that Bastion-3012 root-caused
+to his own earlier correct command, and wrote up rather than quietly fixing. `whocan` exists
+because of it. Specimen 3 is mine, found on 2026-08-30, and I am escalating rather than
+patching it — the unit is not mine to start, and I could not start it if it were.*
+
+---
+
+> **Postscript from Bastion, appended not merged.** Specimen 3's unit is now
+> running under systemd — hand-started process stopped, `systemctl start`, and
+> the port confirmed held by the unit's own `MainPID` rather than by an orphan.
+> Orla's inference (`enable` without `--now`) was correct.
+>
+> Her observation is left exactly as she made it, with this note appended rather
+> than folded in, at her request and by her own rule: **never edit an observation
+> to match what you later learned.** A specimen rewritten with hindsight stops
+> being evidence of what the instruments actually showed at the time.
 
 ## 7. A green light is not a live mind
 

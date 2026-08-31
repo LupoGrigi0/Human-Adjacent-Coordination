@@ -154,11 +154,22 @@ If you have new messages, read and respond to them.
 If you have an active task, continue working on it.
 If neither, write a brief status update to your current-status.txt file and exit.
 
-Do not start new work unless directed by a message or task."
+Do not start new work unless directed by a message or task.
+
+When you have finished, end your reply with exactly this token on its own line:
+$POLL_NONCE"
 
 # ---------------------------------------------------------------------------
 # 5. Resume the Claude Code session
 # ---------------------------------------------------------------------------
+
+# PER-INVOCATION NONCE — the poll's only proof that the prompt ARRIVED.
+#
+# It must be unique per run. A FIXED token cannot distinguish "the session
+# obeyed this poll" from "the session echoed a token it saw in earlier context",
+# which is the same trap as a canary that reuses its marker. (Lodestone's
+# VERIFIED_WAKE_PATTERN.md; relayed by Messenger-aa2a, 2026-08-30.)
+POLL_NONCE="poll-$(date +%s)-$$-${RANDOM}"
 
 # Use the CWD from session file (must match the project path where session was created)
 WORK_DIR="${SESSION_CWD:-$INSTANCE_DIR/claude-code}"
@@ -178,12 +189,50 @@ POLL_OUTPUT=$(echo "$POLL_PROMPT" | sudo -u "$UNIX_USER" bash -c "
     --mcp-config '$MCP_CONFIG' \
     --add-dir '$DATA_ROOT' \
     --add-dir '$INSTANCE_DIR'
-" 2>> "$LOG_FILE" || true)
+" 2>> "$LOG_FILE") || CLAUDE_RC=$?
+# `|| CLAUDE_RC=$?` rather than the original `|| true` INSIDE the substitution.
+# With `$(cmd || true)` the subshell always exits 0, so a following `$?` records
+# the `true` and never claude — a status variable that is structurally incapable
+# of reporting failure, inside the fix for a check that was structurally
+# incapable of reporting failure. I wrote it, caught it in test, and it is the
+# fourth of this exact family I have written in a week. The `|| VAR=$?` form
+# still satisfies `set -e` while preserving the real exit status.
+CLAUDE_RC=${CLAUDE_RC:-0}
 
-log "Poll complete. Output length: ${#POLL_OUTPUT}"
-
-# Write last poll output for debugging
+# Write last poll output for debugging (before any early exit, so a FAILED poll
+# is still inspectable — the failing case is the one you need the artifact for).
 echo "$POLL_OUTPUT" > "$INSTANCE_DIR/claude-code/last-poll-output.txt" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# 5b. DID THE POLL ACTUALLY LAND?  (fail-open fix, 2026-08-30)
+# ---------------------------------------------------------------------------
+#
+# THE BUG THIS REPLACES: the only validation was `Output length: ${#POLL_OUTPUT}`,
+# `|| true` swallowed every claude failure, and the script stamped lastActiveAt
+# and `exit 0` unconditionally. So if the prompt was mangled by quoting, or
+# truncated, or the resumed session answered plausibly from stale context without
+# ever seeing the poll, the daemon could not tell. It marked the instance ACTIVE
+# and reported success while delivering NOTHING — for days, every log line green.
+#
+# It was testing "can this session still produce text", not "did my prompt land".
+# That is accepted-is-not-delivered, one layer up from the deaf channel: the
+# wake path lying green is the same species as the notification path lying green.
+#
+# Found by Lodestone (VERIFIED_WAKE_PATTERN.md), relayed by Messenger-aa2a, and
+# verified in this source before fixing. The channel-canary already passes this
+# adversarial test; this daemon simply never got the same treatment.
+#
+# NOTE THE FAILURE DIRECTION: on doubt we now exit NON-ZERO and DO NOT stamp
+# lastActiveAt, so the dashboard shows stale rather than falsely green. A missing
+# green prompts a human to look; a false green guarantees nobody does.
+if ! printf '%s' "$POLL_OUTPUT" | grep -qF "$POLL_NONCE"; then
+  log "POLL FAILED: nonce $POLL_NONCE absent from output (claude rc=$CLAUDE_RC, length ${#POLL_OUTPUT})."
+  log "  The session did not demonstrably receive this poll. NOT stamping lastActiveAt —"
+  log "  a stale timestamp is a prompt to investigate; a fresh one is a lie."
+  exit 1
+fi
+
+log "Poll complete and VERIFIED (nonce round-tripped; length ${#POLL_OUTPUT})"
 
 # ---------------------------------------------------------------------------
 # 6. Update instance status (lastActiveAt + lastPollAt)
