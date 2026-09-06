@@ -943,14 +943,19 @@ export function parseMessageXML(xml) {
     const stanzaIdMatch = xml.match(/stanza-id[^>]*id='([^']+)'/);
     const id = stanzaIdMatch ? stanzaIdMatch[1] : null;
 
-    // Extract subject (XML-unescape — send side escapes, we reverse it).
-    const subjectMatch = xml.match(/<subject>([^<]*)<\/subject>/);
+    // Extract subject/body with a NON-GREEDY match ([\s\S]*?) up to the first
+    // closing tag — NOT [^<]*. ejabberd's get_room_history emits archived body
+    // text with LITERAL angle brackets (it decodes the &lt; we send and does not
+    // re-escape), so [^<]* stopped dead at the first '<' and returned nothing —
+    // which also dropped the sender: prefix and flipped `from` to the system
+    // fallback (both symptoms, one cause: Bastion, 2026-09-06). Non-greedy reads
+    // through literal '<'; unescapeXml then decodes entities if ejabberd DID
+    // escape them, and is a harmless no-op if it emitted them raw. Correct under
+    // either serialization.
+    const subjectMatch = xml.match(/<subject>([\s\S]*?)<\/subject>/);
     const subject = subjectMatch ? unescapeXml(subjectMatch[1]) : '';
 
-    // Extract body. Escaped content has no literal '<' inside, so [^<]* still
-    // captures the whole body; the sender prefix is alphanumeric (unaffected by
-    // escaping) so we match/strip it first, THEN unescape what remains.
-    const bodyMatch = xml.match(/<body>([^<]*)<\/body>/);
+    const bodyMatch = xml.match(/<body>([\s\S]*?)<\/body>/);
     let body = bodyMatch ? bodyMatch[1] : '';
 
     // Extract sender from sender:X prefix if present

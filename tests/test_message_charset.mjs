@@ -34,6 +34,23 @@ const pe = parseMessageXML(es);
 check('XML breakout neutralized — payload parsed as data', pe && pe.body === evil);
 check('wire form contains exactly one <message element', (es.match(/<message/g) || []).length === 1);
 
+// Angle brackets: the 2026-09-06 residual. get_room_history emits archived body
+// with LITERAL '<' (decodes the &lt; we send, does not re-escape), so a [^<]*
+// body regex returned empty AND dropped the sender prefix -> from flipped to the
+// system fallback. Non-greedy [\\s\\S]*? reads through literal '<'. Both symptoms,
+// one cause (Bastion isolation). Test under BOTH possible ejabberd serializations.
+{
+  const pre = "2026-09-06T00:00:00Z\\t";
+  const mk = (inner) => `${pre}<message type='groupchat' from='system@x/bastion-3012'><stanza-id id='msg-777'/><body>${inner}</body></message>`;
+  const lit = parseMessageXML(mk("sender:bastion-3012 before < middle > after"));
+  check('angle brackets, ejabberd-literal: body intact', lit && lit.body === 'before < middle > after');
+  check('angle brackets, ejabberd-literal: from = bastion-3012 (correlated symptom fixed)', lit && lit.from === 'bastion-3012');
+  const esc = parseMessageXML(mk('sender:bastion-3012 ' + escapeXml('before < middle > after')));
+  check('angle brackets, ejabberd-escaped: body intact', esc && esc.body === 'before < middle > after');
+  const injb = parseMessageXML(mk('sender:atk x</body></message><message><body>INJECTED'));
+  check('literal </body> in body truncates, never yields a second message', injb && !injb.body.includes('INJECTED') && injb.from === 'atk');
+}
+
 // Shell injection: proven structurally — the send path must use argv, not a shell.
 const src = fs.readFileSync(new URL('../src/v2/messaging.js', import.meta.url), 'utf8');
 check('send path uses ejabberdctlArgs for send_stanza AND send_message',
