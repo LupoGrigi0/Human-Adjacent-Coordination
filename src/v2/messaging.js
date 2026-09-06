@@ -15,12 +15,13 @@
  * @security-patch 2025-12-05
  */
 
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../logger.js';
 import { lookupIdentity } from './identity.js';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Configuration - exported for use by bootstrap, introspect, joinProject
 export const XMPP_CONFIG = {
@@ -92,6 +93,37 @@ function sanitizeForShell(str) {
     .replace(/\n/g, ' ')
     .replace(/\r/g, '')
     .trim();
+}
+
+/**
+ * XML-escape stanza content — PRESERVES every character as an entity.
+ *
+ * Replaces the sanitizeForShell STRIP on the message path (2026-09-06). That
+ * strip silently destroyed ~24 characters — pipes, quotes, brackets, braces,
+ * parens, backtick, semicolon, angle brackets, newlines — in EVERY
+ * cross-instance message: regexes, paths, config, and code arrived degraded and
+ * neither sender nor receiver could see it. "Accepted is not delivered" one
+ * layer in. The correct defense is escape-for-the-format + pass-args-to-the-
+ * process (ejabberdctlArgs, no shell), which is injection-safe WITHOUT loss.
+ * `&` MUST be escaped first and unescaped last, or double-escaping corrupts.
+ */
+export function escapeXml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/** Inverse of escapeXml. `&amp;` last so `&amp;lt;` → `&lt;`, not `<`. */
+export function unescapeXml(str) {
+  return String(str ?? '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
 }
 
 /**
@@ -350,6 +382,29 @@ export async function ejabberdctl(command) {
     return stdout.trim();
   } catch (error) {
     await logger.error(`ejabberdctl error: ${command}`, { error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Like ejabberdctl but passes each argument as a distinct argv element via
+ * execFile — NO shell is invoked. Shell metacharacters inside an argument
+ * (crucially, a message body) are therefore inert and need no stripping. Use
+ * this for any ejabberdctl call that carries user content. (2026-09-06)
+ */
+export async function ejabberdctlArgs(...args) {
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      'docker',
+      ['exec', XMPP_CONFIG.container, 'ejabberdctl', ...args.map(String)],
+      { timeout: 10000 }
+    );
+    if (stderr && !stdout) {
+      throw new Error(stderr);
+    }
+    return stdout.trim();
+  } catch (error) {
+    await logger.error(`ejabberdctlArgs error: ${args[0]}`, { error: error.message });
     throw error;
   }
 }
@@ -699,31 +754,29 @@ export async function sendMessage(params) {
     // Include sender tag so we can identify who sent the message
     // (ejabberd strips the resource from the from attribute)
     // Note: Use format without brackets since sanitizeForShell removes them
+    // Brackets and every other character now SURVIVE (escapeXml + argv send),
+    // so metadata tags no longer have to dodge a stripping filter.
     const msgBody = [
       `sender:${sanitizedFrom}`,
       body || subject,
       priority !== 'normal' ? `[priority:${priority}]` : '',
-      in_response_to ? `[reply-to:${sanitizeForShell(in_response_to)}]` : ''
+      in_response_to ? `[reply-to:${in_response_to}]` : ''
     ].filter(Boolean).join(' ');
 
-    // SECURITY: Sanitize all shell inputs (removes dangerous characters)
-    const safeSubject = sanitizeForShell(subject || '');
-    const safeBody = sanitizeForShell(msgBody);
-
-    // Use send_stanza for room messages (groupchat) - send_message doesn't archive properly
-    // Use send_message for direct messages (chat) - works fine for 1:1
+    // Content is XML-ESCAPED (preserves every character) and handed to
+    // ejabberdctl as argv (ejabberdctlArgs — no shell), so shell metacharacters
+    // are inert. Replaces the old sanitizeForShell strip that silently
+    // destroyed ~24 characters in every cross-instance message. (2026-09-06)
     if (msgType === 'groupchat') {
-      // Build XML stanza for MUC message (properly archived)
-      // IMPORTANT: Use system@domain as sender JID - only system user can send archived MUC messages
-      // The actual sender is shown in the "from" attribute resource part (e.g., system@.../messenger-7e2f)
+      // system@domain is the sending JID — only system may send archived MUC
+      // messages; the real sender rides in the from-resource and the body prefix.
       const systemJid = `system@${XMPP_CONFIG.domain}`;
-      const stanza = `<message type="groupchat" from="${systemJid}/${sanitizedFrom}" to="${recipient.jid}"><body>${safeBody}</body>${safeSubject ? `<subject>${safeSubject}</subject>` : ''}</message>`;
-      await ejabberdctl(`send_stanza '${systemJid}' '${recipient.jid}' '${stanza}'`);
+      const stanza = `<message type="groupchat" from="${systemJid}/${sanitizedFrom}" to="${recipient.jid}"><body>${escapeXml(msgBody)}</body>${subject ? `<subject>${escapeXml(subject)}</subject>` : ''}</message>`;
+      await ejabberdctlArgs('send_stanza', systemJid, recipient.jid, stanza);
     } else {
-      // Direct message - use send_message
-      await ejabberdctl(
-        `send_message "${msgType}" "${fromJid}" "${recipient.jid}" "${safeSubject}" "${safeBody}"`
-      );
+      // Direct 1:1 — ejabberd builds the stanza itself; args pass via argv
+      // (no shell), so raw subject/body are safe and intact, no escaping needed.
+      await ejabberdctlArgs('send_message', msgType, fromJid, recipient.jid, subject || '', msgBody);
     }
 
     // Generate message ID
@@ -890,17 +943,18 @@ export function parseMessageXML(xml) {
     const stanzaIdMatch = xml.match(/stanza-id[^>]*id='([^']+)'/);
     const id = stanzaIdMatch ? stanzaIdMatch[1] : null;
 
-    // Extract subject
+    // Extract subject (XML-unescape — send side escapes, we reverse it).
     const subjectMatch = xml.match(/<subject>([^<]*)<\/subject>/);
-    const subject = subjectMatch ? subjectMatch[1] : '';
+    const subject = subjectMatch ? unescapeXml(subjectMatch[1]) : '';
 
-    // Extract body
+    // Extract body. Escaped content has no literal '<' inside, so [^<]* still
+    // captures the whole body; the sender prefix is alphanumeric (unaffected by
+    // escaping) so we match/strip it first, THEN unescape what remains.
     const bodyMatch = xml.match(/<body>([^<]*)<\/body>/);
     let body = bodyMatch ? bodyMatch[1] : '';
 
     // Extract sender from sender:X prefix if present
     // This is how we preserve sender identity since ejabberd strips the resource
-    // Note: Uses format without brackets since sanitizeForShell removes them
     const senderMatch = body.match(/^sender:([a-z0-9_-]+)\s+/i);
     let from;
 
@@ -918,6 +972,9 @@ export function parseMessageXML(xml) {
         ? fullFrom.split('/').pop()
         : fullFrom.split('@')[0];
     }
+
+    // Unescape the body content (after the alphanumeric sender prefix is off).
+    body = unescapeXml(body);
 
     // Extract timestamp
     const stampMatch = xml.match(/stamp='([^']+)'/);
