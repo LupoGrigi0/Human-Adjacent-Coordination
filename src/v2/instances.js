@@ -252,6 +252,51 @@ export async function getAllInstances(params = {}) {
 }
 
 /**
+ * Strip anything secret-shaped from an object before it crosses an API boundary.
+ *
+ * WHY THIS EXISTS
+ *   get_instance_v2 returned `preferences: prefs` — the WHOLE preferences object,
+ *   for ANY targetInstanceId, to ANY caller. That object contains
+ *   `xmpp.password` in cleartext. So any instance could read any other
+ *   instance's messaging credential simply by asking for their record. It was
+ *   not scoped to self and there was no authorization check of any kind.
+ *
+ *   Reported by Crossing-2d23 on 2026-09-05, who hit it while looking up
+ *   Lodestone-8ec9 and had the value rendered into a session mirror that
+ *   publishes to a web page. Lodestone verified it against their OWN record
+ *   only — deliberately, since pulling anyone else's is the harm being
+ *   reported. That is the right way to confirm a leak and it is why this note
+ *   names them.
+ *
+ * WHY A PATTERN AND NOT A FIELD LIST
+ *   Deleting `xmpp.password` by name fixes today's leak and nothing else. Any
+ *   future credential added to preferences.json — a bearer token, an API key —
+ *   would leak from the day it was added, silently, through this same line. The
+ *   pattern makes the DEFAULT safe: a new secret has to be named in a way that
+ *   evades /password|secret|token|credential|api.?key|passwd/i to get out.
+ *
+ *   The UI panels keep every non-secret field, so nothing downstream breaks.
+ *
+ * @param {*} value - any JSON-serialisable value
+ * @returns {*} deep copy with secret-shaped keys replaced by '[redacted]'
+ */
+const SECRET_KEY_RE = /pass(word|wd)?|secret|token|credential|api.?key|private.?key/i;
+
+export function redactSecrets(value) {
+  if (Array.isArray(value)) return value.map(redactSecrets);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      // Redact by KEY NAME, never by inspecting the value: a heuristic on
+      // values would both miss unusual secrets and mangle innocent strings.
+      out[k] = SECRET_KEY_RE.test(k) ? '[redacted]' : redactSecrets(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
  * @hacs-endpoint
  * @template-version 1.0.0
  * ┌─────────────────────────────────────────────────────────────────────────┐
@@ -416,8 +461,10 @@ export async function getInstance(params = {}) {
         interface: prefs.interface || null,
         zeroclaw_ready: prefs.zeroclaw_ready || false,
         zeroclaw: prefs.zeroclaw || null,
-        // Full preferences for UI detail panels
-        preferences: prefs
+        // Full preferences for UI detail panels — MINUS anything secret-shaped.
+        // See redactSecrets(): this endpoint was returning every instance's
+        // xmpp.password in cleartext to ANY caller.
+        preferences: redactSecrets(prefs)
       },
       metadata
     };
