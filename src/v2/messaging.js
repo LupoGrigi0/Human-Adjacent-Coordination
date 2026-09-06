@@ -943,17 +943,18 @@ export function parseMessageXML(xml) {
     const stanzaIdMatch = xml.match(/stanza-id[^>]*id='([^']+)'/);
     const id = stanzaIdMatch ? stanzaIdMatch[1] : null;
 
-    // Extract subject/body with a NON-GREEDY match ([\s\S]*?) up to the first
-    // closing tag — NOT [^<]*. ejabberd's get_room_history emits archived body
-    // text with LITERAL angle brackets (it decodes the &lt; we send and does not
-    // re-escape), so [^<]* stopped dead at the first '<' and returned nothing —
-    // which also dropped the sender: prefix and flipped `from` to the system
-    // fallback (both symptoms, one cause: Bastion, 2026-09-06). Non-greedy reads
-    // through literal '<'; unescapeXml then decodes entities if ejabberd DID
-    // escape them, and is a harmless no-op if it emitted them raw. Correct under
-    // either serialization.
+    // NON-GREEDY match ([\s\S]*?) up to the first closing tag — NOT [^<]*.
+    // ejabberd DECODES the &lt; we escape on send (its XML parser, on receipt),
+    // and get_room_history emits that archived text with LITERAL angle brackets
+    // — confirmed by raw capture, not inferred (Bastion, 2026-09-06). So:
+    //   - [^<]* stopped at the first literal '<' → empty body → also lost the
+    //     sender: prefix → `from` fell back to system. Non-greedy fixes all three.
+    //   - We do NOT unescape here. escapeXml(send) is already reversed by
+    //     ejabberd; the archive text is final. A second decode corrupts the only
+    //     bodies where it acts — text that legitimately contains entity syntax
+    //     ("&amp;" typed literally came back "&"). Crossing's find, 2026-09-06.
     const subjectMatch = xml.match(/<subject>([\s\S]*?)<\/subject>/);
-    const subject = subjectMatch ? unescapeXml(subjectMatch[1]) : '';
+    const subject = subjectMatch ? subjectMatch[1] : '';
 
     const bodyMatch = xml.match(/<body>([\s\S]*?)<\/body>/);
     let body = bodyMatch ? bodyMatch[1] : '';
@@ -978,8 +979,9 @@ export function parseMessageXML(xml) {
         : fullFrom.split('@')[0];
     }
 
-    // Unescape the body content (after the alphanumeric sender prefix is off).
-    body = unescapeXml(body);
+    // No unescape: ejabberd already decoded on receipt; archive text is final.
+    // (See the extraction comment above — a second decode corrupts literal
+    // entity text, Crossing 2026-09-06.)
 
     // Extract timestamp
     const stampMatch = xml.match(/stamp='([^']+)'/);
