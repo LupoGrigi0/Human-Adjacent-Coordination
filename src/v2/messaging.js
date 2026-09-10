@@ -233,7 +233,7 @@ async function getAllKnownProjects() {
  *
  * Returns: { resolved: {type, jid, display}, matches: [], error: string }
  */
-async function fuzzyMatchRecipient(query) {
+export async function fuzzyMatchRecipient(query) {
   if (!query) return { error: 'Recipient is required' };
   const q = query.toLowerCase().trim();
 
@@ -263,6 +263,29 @@ async function fuzzyMatchRecipient(query) {
   const matches = [];
   const instances = await getAllKnownInstances();
   const projects = await getAllKnownProjects();
+
+  // EXACT instanceId match wins OUTRIGHT, before any fuzzy scoring. An instance
+  // whose id literally IS the query — the Ferry fairy `passenger` — must never
+  // lose to a fuzzy personality group (Passenger-7676/fbf6). Scoring exact
+  // identity against fuzzy name-matches let the group win and returned success,
+  // sending a probe to two unrelated dormant minds and nearly manufacturing a
+  // false architectural finding (channels-don't-wake-idle, which is false).
+  // Exact identity is not a fuzzy match and must not be judged as one.
+  // (Crossing, 2026-09-10 — the fails-open resolution he first flagged on Viktor.)
+  const exactInstance = instances.find(
+    (i) => i.instanceId && i.instanceId.toLowerCase() === q
+  );
+  if (exactInstance) {
+    return {
+      resolved: {
+        type: 'room',
+        subtype: 'personality',
+        jid: `personality-${sanitizeIdentifier(exactInstance.personality)}@${XMPP_CONFIG.conference}`,
+        display: `${exactInstance.name} (${exactInstance.instanceId})`,
+        instanceId: exactInstance.instanceId,
+      },
+    };
+  }
 
   // Match against instances (both name and full ID)
   for (const inst of instances) {
