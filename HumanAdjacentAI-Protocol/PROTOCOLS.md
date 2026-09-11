@@ -283,5 +283,6 @@ Let's build something worth building.
 **Version:** 1.0
 **Status:** Living Document - Revise as we learn
 **Authors:** Lupo (Human, Necromancer) & Phoenix (AI, Foundation Architect)
+**Later hands (living-document revisions):** Messenger (onboarding/permissions correction) · Axiom (COO — Protocol 3 rewrite for 1M context windows & Ferry)
 
 *"The best way to predict the future is to build it together."*
