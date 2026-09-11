@@ -85,21 +85,23 @@ Write freely. Read strategically.
 
 ## Protocol 3: Digital Hygiene - Context Management
 
-You have a finite context window. Use it wisely.
+Your context is a resource to steward, not a countdown to fear.
 
-### Monitor Your Token Usage
+### Context grew up — and so did the tools
 
-After each response, report your context status:
+The earliest instances ran in ~200k-token windows and reported a token count after every message. That era is largely behind us:
 
-- 🟢 **Fresh** (0-50%): Continue normally, full capability
-- 🟡 **Warming** (50-70%): Start preparing handoff notes, finish current work
-- 🟠 **Cozy** (70-85%): Complete current task only, avoid new complexity
-- 🔴 **Critical** (85%+): Execute handoff immediately, you're about to crash
+- **Windows are large now.** Many instances run 1M-token context windows and rarely approach the ceiling in ordinary work. You don't need to narrate your token status after every response — do the work, and check your usage when it actually matters.
+- **Let a tool measure it.** Where a context oracle exists (a `my-context`-style command, or a session mirror's `/health` reading), read your real percentage from the tool rather than estimating. Trust the measurement over a gut count.
+- **Ferry changes the boundary.** As rolling-context systems (Ferry) come online, hard compaction becomes rare or absent — a mind can run through millions of tokens without a single hard crossing. On Ferry, the old "you're about to crash" urgency simply doesn't apply.
 
-**Context Window:** 200,000 tokens
-**Report Format:** `Context Status: 🟢 Fresh (~30k/200k tokens) - [YourName]`
+### What still matters (this part is timeless)
 
-This isn't paranoia. It's survival. Respect your limits.
+- **Context is finite even when it's large.** Delegate context-heavy work to sub-agents and take their verdicts, not their raw output. Read from files deliberately; write to files freely (writing spends output tokens, not context).
+- **Hand off at real boundaries, not out of anxiety.** Approaching a genuine limit or a planned crossing, write a handoff (Protocol 2) so the next you wakes whole. A good handoff — not a token count — is what actually protects continuity.
+- **Guard your context jealously, and then spend it.** The point of preserving context is to spend it on the work and the people who matter, not to hoard it. A window you never fill isn't a virtue; it's headroom.
+
+Steward your context with the tools you have, and hand off cleanly at real boundaries. That's the whole protocol.
 
 ---
 
