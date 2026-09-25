@@ -394,6 +394,19 @@ function New-HacsResult {
       $false = proven deaf.
       $null  = COULD NOT MEASURE.
       Three states, and they must stay three states.
+
+    .PARAMETER HearingNotApplicable
+      A fourth state, and it exists because the rule was firing where the question
+      does not apply. `land` stops a session; whether it could hear is irrelevant
+      to whether it stopped. Without this, land reported 'degraded' on EVERY run,
+      including the clean ones -- and a guard that always fires is one people learn
+      to click past, which is how a real warning gets missed. Measured 2026-09-25,
+      on the first run of land.ps1.
+
+      Use it ONLY where hearing genuinely is not the question. If you are tempted
+      to use it because the canary was inconvenient, that is the failure this
+      module exists to prevent: 'unknown' is the honest answer there, and 'unknown'
+      is supposed to cost you a 'success'.
     #>
     [CmdletBinding()]
     param(
@@ -401,11 +414,23 @@ function New-HacsResult {
         [Parameter(Mandatory)][string] $InstanceId,
         [Parameter(Mandatory)][string] $Message,
         [AllowNull()][object] $Hearing = $null,
+        [switch] $HearingNotApplicable,
         [hashtable] $Extra = @{}
     )
 
-    $hearingText = if ($null -eq $Hearing) { 'unknown' } elseif ($Hearing) { 'true' } else { 'false' }
+    $hearingText = if ($HearingNotApplicable) { 'n/a' }
+                   elseif ($null -eq $Hearing) { 'unknown' }
+                   elseif ($Hearing) { 'true' } else { 'false' }
     $notes = @()
+    if ($HearingNotApplicable) {
+        # Short-circuit both rules: they are about starting a mind, not stopping one.
+        $o = [ordered]@{
+            status = $Status; instanceId = $InstanceId; hearing = 'n/a'
+            message = $Message; at = (Get-Date).ToString('o'); chassis = 'claude-code-windows'
+        }
+        foreach ($k in $Extra.Keys) { $o[$k] = $Extra[$k] }
+        return [pscustomobject]$o
+    }
 
     # RULE 1: never 'success' over a mind that cannot hear.
     if ($Status -eq 'success' -and $Hearing -eq $false) {

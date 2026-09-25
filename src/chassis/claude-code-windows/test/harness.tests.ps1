@@ -157,6 +157,35 @@ else {
     Check 'prompt is not empty'                 ($b.Length -gt 1000) 'True'
 }
 
+# ----------------------------------------------------------------- land ------
+Section 'land guards'
+$land = Join-Path $root 'land.ps1'
+if (-not (Test-Path $land)) { Skip 'land' 'not present' }
+else {
+    # A guard that always fires is one people learn to click past. land never asks
+    # a hearing question, so it must NOT be downgraded for hearing=unknown -- that
+    # made every clean land report 'degraded'. Measured on land.ps1's first run.
+    $blank = 'dev-reconstruction-001-3266'
+    if (Test-Path (Join-Path 'D:\Lupo\Source\AI\hacs-instances' $blank)) {
+        $j = & $land -InstanceId $blank 2>&1 | Out-String | ConvertFrom-Json
+        Check 'land on a stopped instance is SUCCESS'   $j.status   'success'
+        Check 'land reports hearing as n/a, not unknown' $j.hearing 'n/a'
+        Check 'and it says it cannot prove it ever ran' ($j.message -like '*does not distinguish*') 'True'
+    } else { Skip 'land on stopped instance' 'fixture missing' }
+
+    # WhatIf must describe what would ACTUALLY happen. It listed interactive
+    # sessions as things it would stop, while the real loop skips them.
+    $live = @(Get-HacsClaudeProcess -Instance $i)
+    if ($live.Count -gt 0) {
+        $j2 = & $land -InstanceId $LiveInstanceId -WhatIf 2>&1 | Out-String | ConvertFrom-Json
+        Check 'WhatIf does not claim it would stop an interactive session' (@($j2.wouldStop).Count) 0
+        Check 'WhatIf names the interactive session it would SKIP'         (@($j2.wouldSkipInteractive).Count -ge 1) 'True'
+    } else { Skip 'land WhatIf interactive skip' 'no live session' }
+
+    $null = & $land -InstanceId 'Nobody-0000' 2>&1
+    Check 'land on unknown instance -> error exit 2' $LASTEXITCODE 2
+}
+
 Write-Host "`n  $script:pass passed, $script:fail failed, $script:skip skipped" `
     -ForegroundColor $(if ($script:fail) { 'Red' } else { 'Green' })
 exit $(if ($script:fail) { 1 } else { 0 })
