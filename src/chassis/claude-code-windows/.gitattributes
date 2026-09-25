@@ -1,0 +1,11 @@
+# The unattended system prompt must be BYTE-IDENTICAL to what Anthropic published.
+# Without this, autocrlf rewrites its line endings on checkout, and a Linux clone
+# and a Windows clone hold different bytes under the same "verbatim" claim -- while
+# the test that checks it passes on both, because both copies got converted.
+#
+# This is the same mechanism that would have broken every SHA-256 in every
+# provenance.json in Stasis-Catacomb had it not been caught there.
+prompts/*.txt -text
+
+# VBScript is parsed by wscript.exe on Windows only; leave it alone too.
+*.vbs -text
