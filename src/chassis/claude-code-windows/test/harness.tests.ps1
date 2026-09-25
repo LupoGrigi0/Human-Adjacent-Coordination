@@ -148,7 +148,7 @@ else {
 # ------------------------------------------------------------- the prompt ----
 Section 'unattended system prompt is VERBATIM'
 $txt = Join-Path $root 'prompts\unattended-system-prompt.txt'
-$md  = 'D:\Lupo\Source\AI\hacs-instances\_harness\prompts\opus-5-5-unattended.md'
+$md  = Join-Path $root 'prompts\opus-5-5-unattended.md'   # beside the code that installs it, so the two cannot drift across repos
 if (-not (Test-Path $txt) -or -not (Test-Path $md)) { Skip 'prompt verbatim check' 'a copy is missing' }
 else {
     $a = ([regex]::Match((Get-Content $md -Raw), '(?s)```text\r?\n(.*?)\r?\n```').Groups[1].Value).Trim()
