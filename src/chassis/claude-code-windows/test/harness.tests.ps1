@@ -209,6 +209,43 @@ else {
     Check 'land on unknown instance -> error exit 2' $LASTEXITCODE 2
 }
 
+# ----------------------------------------------------------------- canary ----
+Section 'canary (the verdict, not the send)'
+$canary = Join-Path $root 'canary.ps1'
+if (-not (Test-Path $canary)) { Skip 'canary' 'not present' }
+else {
+    # ERROR before DEAF. An instance with no transcript is "I could not look", and
+    # reporting that as deafness would send someone to restart a healthy mind.
+    $null = & $canary -InstanceId 'dev-reconstruction-001-3266' -Mark 2>&1
+    Check 'no transcript -> ERROR (2), never DEAF (1)' $LASTEXITCODE 2
+    $null = & $canary -InstanceId 'Nobody-0000' -Mark 2>&1
+    Check 'unknown instance -> ERROR (2)'              $LASTEXITCODE 2
+    $null = & $canary -InstanceId $LiveInstanceId -Nonce 'x' 2>&1
+    Check 'missing -FromOffset refuses rather than guessing' $LASTEXITCODE 2
+
+    $m = & $canary -InstanceId $LiveInstanceId -Mark 2>&1 | Out-String | ConvertFrom-Json
+    Check 'mark returns an offset'          ($m.offset -gt 0) 'True'
+    Check 'nonce is words, not a token'     ($m.nonce -match '^canary-[a-z]+-[a-z]+-\d+$') 'True'
+
+    # DEAF: a nonce nobody will ever deliver.
+    $d = & $canary -InstanceId $LiveInstanceId -Nonce 'canary-never-delivered-0000' -FromOffset $m.offset -TimeoutSec 5 -PollSec 2 2>&1 | Out-String | ConvertFrom-Json
+    Check 'undelivered nonce -> DEAF (1)'   $d.exitCode 1
+
+    # THE TRAP, and the reason this test exists: while reverse-engineering the
+    # inbox socket I grepped my own transcript for six probe nonces and found all
+    # six -- every one as tool_use/tool_result, because I had TYPED them. A hit
+    # inside a tool block is the instrument appearing in its own reading.
+    $t = & $canary -InstanceId $LiveInstanceId -Nonce 'DOORBELL-TEST hollow-beacon-7440' -FromOffset 0 -TimeoutSec 5 -PollSec 2 2>&1 | Out-String | ConvertFrom-Json
+    Check 'a nonce only in TOOL blocks is not HEARING' $t.verdict 'DEAF'
+
+    # POSITIVE CONTROL. Without this, every DEAF above would pass even if the
+    # detector could never return HEARING at all.
+    $word = [string]([char]0x47) + 'r' + [string]([char]0xFC) + 'nlichtunbehagen'
+    $p = & $canary -InstanceId $LiveInstanceId -Nonce $word -FromOffset 0 -TimeoutSec 5 -PollSec 2 2>&1 | Out-String | ConvertFrom-Json
+    Check 'a real non-tool entry IS HEARING' $p.verdict 'HEARING'
+    Check 'and it names the entry type'      ($p.entryType -in @('assistant','user')) 'True'
+}
+
 Write-Host "`n  $script:pass passed, $script:fail failed, $script:skip skipped" `
     -ForegroundColor $(if ($script:fail) { 'Red' } else { 'Green' })
 exit $(if ($script:fail) { 1 } else { 0 })
