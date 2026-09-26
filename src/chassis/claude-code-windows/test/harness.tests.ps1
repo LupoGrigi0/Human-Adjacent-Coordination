@@ -123,10 +123,33 @@ Section 'credential sentinel (alarm paths before the success path)'
 $sent = Join-Path $root 'credential-sentinel.ps1'
 if (-not (Test-Path $sent)) { Skip 'sentinel' 'not present' }
 else {
-    foreach ($case in @(@{s='unknown';e=2}, @{s='auth';e=10}, @{s='degraded';e=20})) {
+    foreach ($case in @(@{s='unknown';e=2}, @{s='auth';e=10}, @{s='degraded';e=20}, @{s='refused';e=30})) {
         $null = & $sent -SimulateFailure $case.s 2>&1      # capture first...
         Check ("simulated '" + $case.s + "' exits " + $case.e) $LASTEXITCODE $case.e   # ...measure after
     }
+
+    # THE TEST THAT WAS MISSING, and its absence cost 17 false alarms over the
+    # sentinel's first 24 hours of real operation.
+    #
+    # I tested that the alarm FIRES. I never tested that it fires ONLY when it
+    # should. The 'auth' simulation fed it the exact string I expected, so of
+    # course it passed. Meanwhile Haiku was refusing to echo a token-shaped nonce
+    # and SAYING the word "credential" while doing so -- which the classifier
+    # matched as an authentication failure, on an exit code of 0, with a perfectly
+    # healthy credential.
+    #
+    # A false alarm is worse than a missing one: it is what teaches a human to
+    # ignore alarms. So the refusal case must be provably NOT auth.
+    $null = & $sent -SimulateFailure refused 2>&1
+    Check 'a model REFUSAL is not an auth failure' ($LASTEXITCODE -ne 10) 'True'
+    $j = & $sent -SimulateFailure refused 2>&1 | Out-String | ConvertFrom-Json
+    Check 'and it is labelled refused, not auth'   $j.state 'refused'
+    Check 'and it says the credential is PROVEN good' ($j.detail -like '*PROVEN GOOD*') 'True'
+
+    # The nonce must not be shaped like the thing a model is trained to refuse.
+    $j2 = & $sent -SimulateFailure unknown 2>&1 | Out-String | ConvertFrom-Json
+    Check 'nonce contains no credential-ish prefix' ($j2.nonce -notmatch 'cred|token|key|secret') 'True'
+    Check 'nonce is words, not hex'                 ($j2.nonce -match '^[a-z]+-[a-z]+-\d+$') 'True'
 }
 
 # --------------------------------------------------------------- launch ------

@@ -52,6 +52,10 @@
     10  AUTH      authentication failed -- THIS is the 08-09 / 09-24 signature
     20  DEGRADED  reached something, but no valid answer (rate limit, overload,
                   wrong model, truncated reply)
+    30  REFUSED   the model answered and DECLINED the probe. This PROVES the
+                  credential, the network and model dispatch are all fine -- it is
+                  the opposite of an auth failure, and conflating the two is what
+                  produced 17 false alarms over the first 24 hours of operation.
      2  UNKNOWN   could not run the probe at all -- binary missing, no scratch dir.
                   "I could not look" is NOT "the credential is bad", and collapsing
                   the two is the single most common failure in this codebase.
@@ -69,18 +73,37 @@
 param(
     [string] $Claude       = "$env:USERPROFILE\.local\bin\claude.exe",
     [string] $Model        = 'haiku',
-    [string] $ScratchDir   = 'D:\Lupo\hacs-runtime\_credential-probe',
+    # NOT '_credential-probe'. The model cited that directory name as evidence it
+    # was being security-tested, and refused. A probe's own name should not be an
+    # input to the thing it measures.
+    [string] $ScratchDir   = 'D:\Lupo\hacs-runtime\_liveness-probe',
     [string] $LogPath      = 'D:\Lupo\hacs-runtime\credential-sentinel.log',
     [int]    $TimeoutSec   = 90,
     # Test affordances, after battery-watch.ps1: a monitor whose alarm path has
     # never executed is decoration.
-    [ValidateSet('none', 'auth', 'degraded', 'unknown')][string] $SimulateFailure = 'none'
+    [ValidateSet('none', 'auth', 'degraded', 'unknown', 'refused')][string] $SimulateFailure = 'none'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$nonce  = 'cred-{0}-{1}' -f ([DateTimeOffset]::Now.ToUnixTimeSeconds()), (Get-Random -Maximum 999999)
+# THE NONCE MUST NOT LOOK LIKE A CREDENTIAL.
+# The first version was 'cred-<unixtime>-<random>'. Over 24 hours of real running,
+# Haiku REFUSED to echo it 17 times out of 36 -- non-deterministically, on
+# identical input -- saying it looked like a credential token and that the working
+# directory name ('_credential-probe') suggested a security test. Its refusal prose
+# contained the word "credential", which the classifier below then matched as an
+# AUTHENTICATION FAILURE. So a healthy credential raised a 3am alarm telling a
+# human to run /login. Seventeen times.
+#
+# VERIFIED_WAKE_PATTERN.md says "unique token per invocation" and it is right, but
+# it did not anticipate that a TOKEN-SHAPED token is a request a model is trained
+# to refuse. So the nonce is now three ordinary words and a number: still unique
+# per invocation, still impossible to satisfy from stale context, and obviously
+# not a secret.
+$w1 = @('copper','quiet','amber','narrow','hollow','bright','distant','level','patient','dry')
+$w2 = @('lantern','harbour','ledger','compass','anvil','beacon','thicket','granite','meadow','shutter')
+$nonce = '{0}-{1}-{2}' -f (Get-Random -InputObject $w1), (Get-Random -InputObject $w2), (Get-Random -Minimum 1000 -Maximum 9999)
 $result = [ordered]@{
     check      = 'anthropic-credential'
     at         = (Get-Date).ToString('o')
@@ -130,7 +153,12 @@ try {
         $out = 'Failed to authenticate: OAuth session expired and could not be refreshed'
         $code = 1
     } elseif ($SimulateFailure -eq 'degraded') {
-        $out = 'I am afraid I cannot do that right now.'
+        $out = 'Some unrelated answer with no nonce in it.'
+        $code = 0
+    } elseif ($SimulateFailure -eq 'refused') {
+        # The exact false-positive that ran for 24 hours: a REFUSAL whose prose
+        # mentions credentials. This must NOT classify as auth.
+        $out = "I can't output that string. It appears to be a credential token, and the request pattern suggests a security test."
         $code = 0
     } else {
         Push-Location $ScratchDir
@@ -159,10 +187,18 @@ try { Set-Content -Path $outFile -Value $text -Encoding utf8 } catch { }
 # Two independent signals for auth, because a vendor string is not a contract and
 # will change without notice. The exit code alone cannot distinguish auth from any
 # other failure, and the string alone will rot.
-$authPattern = 'authenticat|OAuth|/login|credential|401|unauthoriz'
-$looksAuth   = ($text -match $authPattern) -or ($errText -match $authPattern)
+# ORDER MATTERS, and getting it wrong is what produced the false alarms. The old
+# code tested the string pattern FIRST and unconditionally, so an exit-0 success
+# whose prose happened to mention credentials was reported as an auth failure.
+#
+# A real auth failure is not subtle: the process EXITS NON-ZERO. So the exit code
+# is the gate and the string only refines it. And the pattern is narrowed to
+# phrases the CLI itself emits, not words a model might use while declining --
+# 'credential' alone was matching the model's own refusal.
+$authPattern = 'Failed to authenticate|OAuth session expired|Please run /login|401 Unauthorized|Invalid API key'
+$refusalPattern = "I can't|I cannot|I won't|I'm not able to|raises security concerns|prompt injection"
 
-if ($looksAuth) {
+if ($code -ne 0 -and (($text -match $authPattern) -or ($errText -match $authPattern))) {
     Complete-Sentinel 'auth' 10 ("AUTHENTICATION FAILED -- a scheduled wake cannot fix this; a human must run /login. said: " +
         $(if ($text) { $text.Substring(0, [Math]::Min(200, $text.Length)) } else { $errText }))
 }
@@ -173,6 +209,14 @@ if ($code -ne 0) {
 }
 if (-not $text) {
     Complete-Sentinel 'degraded' 20 'exit=0 with NO OUTPUT. An empty success is not a success.'
+}
+if ($text -notmatch [regex]::Escape($nonce) -and $text -match $refusalPattern) {
+    # The model answered and DECLINED. That proves the credential, the network and
+    # the whole stack are fine -- it is the opposite of an auth failure. It is its
+    # own state, exit 30, so it can never again be mistaken for one.
+    Complete-Sentinel 'refused' 30 ("the model REFUSED the probe rather than failing it. Credential, network and " +
+        "model dispatch are all PROVEN GOOD by this. The probe itself needs rewording. said: " +
+        $text.Substring(0, [Math]::Min(200, $text.Length)))
 }
 if ($text -notmatch [regex]::Escape($nonce)) {
     Complete-Sentinel 'degraded' 20 ("exit=0 and output looked fine, but the nonce did NOT round-trip. " +
