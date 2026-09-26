@@ -128,7 +128,7 @@ else {
         Check ("simulated '" + $case.s + "' exits " + $case.e) $LASTEXITCODE $case.e   # ...measure after
     }
 
-    # THE TEST THAT WAS MISSING, and its absence cost 17 false alarms over the
+    # THE TEST THAT WAS MISSING, and its absence cost 8 false alarms in 26 scheduled runs over the
     # sentinel's first 24 hours of real operation.
     #
     # I tested that the alarm FIRES. I never tested that it fires ONLY when it

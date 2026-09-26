@@ -55,7 +55,7 @@
     30  REFUSED   the model answered and DECLINED the probe. This PROVES the
                   credential, the network and model dispatch are all fine -- it is
                   the opposite of an auth failure, and conflating the two is what
-                  produced 17 false alarms over the first 24 hours of operation.
+                  produced 8 false alarms in 26 scheduled runs over the first 24h.
      2  UNKNOWN   could not run the probe at all -- binary missing, no scratch dir.
                   "I could not look" is NOT "the credential is bad", and collapsing
                   the two is the single most common failure in this codebase.
@@ -89,12 +89,17 @@ $ErrorActionPreference = 'Stop'
 
 # THE NONCE MUST NOT LOOK LIKE A CREDENTIAL.
 # The first version was 'cred-<unixtime>-<random>'. Over 24 hours of real running,
-# Haiku REFUSED to echo it 17 times out of 36 -- non-deterministically, on
-# identical input -- saying it looked like a credential token and that the working
+# Haiku REFUSED to echo it in 8 of 26 SCHEDULED runs -- a 31% false-alarm rate,
+# non-deterministically, on identical input -- saying it looked like a credential token and that the working
 # directory name ('_credential-probe') suggested a security test. Its refusal prose
 # contained the word "credential", which the classifier below then matched as an
 # AUTHENTICATION FAILURE. So a healthy credential raised a 3am alarm telling a
-# human to run /login. Seventeen times.
+# human to run /login, eight times overnight.
+#
+# (I first reported this as SEVENTEEN. That count included my own 13 deliberate
+# -SimulateFailure auth runs, which are in the same log. The instrument appearing
+# in its own reading -- in the count OF the bug about the instrument appearing in
+# its own reading. Corrected by filtering to the :15 scheduled fires.)
 #
 # VERIFIED_WAKE_PATTERN.md says "unique token per invocation" and it is right, but
 # it did not anticipate that a TOKEN-SHAPED token is a request a model is trained

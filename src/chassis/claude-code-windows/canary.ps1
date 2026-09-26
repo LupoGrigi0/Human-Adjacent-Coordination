@@ -43,7 +43,7 @@
   THE NONCE IS WORDS, NOT A TOKEN
   -------------------------------
   Learned expensively: the credential sentinel's original nonce looked like a
-  credential, and the model refused to echo it 17 times in 24 hours -- while its
+  credential, and the model refused to echo it in 8 of 26 scheduled runs -- while its
   refusal text tripped an auth-failure classifier. A liveness nonce must be unique
   per invocation AND obviously not a secret.
 
