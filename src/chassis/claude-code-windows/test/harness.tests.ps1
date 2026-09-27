@@ -434,6 +434,16 @@ $sessCl = 'C:\Users\LupoG\.local\bin\claude.exe --session-id 90fa2961-2e6b-4ed2-
 Check 'a SESSION whose prompt says "daemon run" is not infrastructure' (Test-HacsInfrastructureProcess -CommandLine $sessCl) 'False'
 Check 'a pty host is not infrastructure (it is its session''s)' (Test-HacsInfrastructureProcess -CommandLine 'claude.exe --bg-pty-host \\.\pipe\x 200 50 -- claude.exe --session-id 90fa2961-2e6b-4ed2-b8d3-958f2828e4e7') 'False'
 
+# Session id from a command line: BOTH forms. The first version knew only the birth
+# form, so a resumed mind's pty host was unattributable and land refused to stop it.
+$u = '5bc16afe-30f8-4ba2-b922-6dcac3a55555'
+Check 'birth form: --session-id <uuid>'  (Get-HacsSessionIdFromCommandLine "claude.exe --bg-pty-host \\.\pipe\x 200 50 -- claude.exe --session-id $u --append-system-prompt-file x") $u
+Check 'resume form: --resume <path>.jsonl' (Get-HacsSessionIdFromCommandLine "claude.exe --bg-pty-host \\.\pipe\x 200 50 -- claude.exe --resume C:\Users\L\.claude\projects\D--x\$u.jsonl") $u
+Check 'resume form: --resume <bare uuid>'  (Get-HacsSessionIdFromCommandLine "claude.exe --bg --resume $u hello") $u
+Check 'quoted resume path with spaces'     (Get-HacsSessionIdFromCommandLine ('claude.exe --resume "C:\Users\A B\p\' + $u + '.jsonl"')) $u
+Check 'no session named -> null'           ([string](Get-HacsSessionIdFromCommandLine 'claude.exe --chrome-native-host')) ''
+Check 'a uuid NOT after a flag is not a claim' ([string](Get-HacsSessionIdFromCommandLine "claude.exe daemon run --spawned-by {`"x`":`"$u`"}")) ''
+
 # LIVE, only while a real --bg session is running (it will not be, most nights).
 $bgRows = @(Get-HacsAgentRegistry | Where-Object { $_.kind -eq 'background' })
 if ($bgRows.Count -eq 0) { Skip 'live --bg attribution' 'no background session running' }
@@ -446,7 +456,7 @@ else {
         $oi = Get-HacsInstance -InstanceId $owner.Name
         $mine = @(Get-HacsClaudeProcess -Instance $oi -ExcludeUnattributed)
         Check 'LIVE: the owner sees its session pid'      (@($mine | ForEach-Object { [int]$_.ProcessId }) -contains [int]$bg.pid) 'True'
-        Check 'LIVE: ...and its pty host, via --session-id' (@($mine | Where-Object { $_.CommandLine -like '*--bg-pty-host*' }).Count -ge 1) 'True'
+        Check 'LIVE: ...and its pty host, via the session it names'(@($mine | Where-Object { $_.CommandLine -like '*--bg-pty-host*' }).Count -ge 1) 'True'
         Check 'LIVE: ...and NEVER the shared daemon'      (@($mine | Where-Object { Test-HacsInfrastructureProcess -CommandLine $_.CommandLine }).Count) 0
     } else { Skip 'LIVE owner attribution' "bg session cwd $($bg.cwd) is not an instance home" }
     # And the regression itself: a DIFFERENT instance must not be blocked by it. The

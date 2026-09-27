@@ -291,6 +291,40 @@ function Invoke-HacsNative {
 }
 
 
+function Get-HacsSessionIdFromCommandLine {
+    <#
+    .SYNOPSIS
+      The session UUID a claude command line is running, or $null. Pure.
+    .DESCRIPTION
+      Two forms, both measured 2026-09-27 on --bg pty hosts:
+        birth:  ... -- claude.exe --session-id 90fa2961-2e6b-4ed2-b8d3-958f2828e4e7 ...
+        resume: ... -- claude.exe --resume C:\Users\...\5bc16afe-30f8-...-6dcac3a55555.jsonl
+      The first version knew only the birth form, so a RESUMED mind's pty host was
+      unattributable and land refused to stop it -- correctly, since it will not act
+      over a process it cannot place, but it meant a resumed mind could not land.
+      The caller must still confirm the UUID against the registry: a UUID in a
+      command line is a claim, the registry is the witness.
+    #>
+    [CmdletBinding()]
+    param([string] $CommandLine)
+    if (-not $CommandLine) { return $null }
+    $uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+    $m = [regex]::Match($CommandLine, "--session-id\s+`"?($uuid)")
+    if ($m.Success) { return $m.Groups[1].Value.ToLower() }
+    # --resume takes a bare id OR a path ending in <uuid>.jsonl. Take the ARGUMENT
+    # first -- quoted (paths under a username with a space) or bare -- then look for
+    # the uuid at its end. A single regex over the raw line could not cross the
+    # space inside the quotes.
+    $m = [regex]::Match($CommandLine, '--resume\s+(?:"([^"]*)"|(\S+))')
+    if ($m.Success) {
+        $arg = if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value }
+        $mm = [regex]::Match($arg, "(?:^|[\\/])($uuid)(?:\.jsonl)?$")
+        if ($mm.Success) { return $mm.Groups[1].Value.ToLower() }
+    }
+    $null
+}
+
+
 function Get-HacsNonceEvidence {
     <#
     .SYNOPSIS
@@ -446,11 +480,11 @@ function Get-HacsClaudeProcess {
         # The --bg daemon: shared by every background mind. Never anyone's to stop.
         if (Test-HacsInfrastructureProcess -CommandLine $cl) { continue }
 
-        # A --bg pty host is not in the registry, but it names its session:
-        #   claude --bg-pty-host <pipe> 200 50 -- claude --session-id <uuid> ...
+        # A --bg pty host is not in the registry, but it names its session -- as
+        # --session-id <uuid> at birth, or --resume <path>\<uuid>.jsonl on a resume --
         # and the registry maps that session to exactly one cwd.
-        $sm = [regex]::Match($cl, '--session-id\s+([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})')
-        $sessCwd = if ($sm.Success -and $cwdBySession.ContainsKey($sm.Groups[1].Value)) { $cwdBySession[$sm.Groups[1].Value] } else { $null }
+        $cmdSid  = Get-HacsSessionIdFromCommandLine -CommandLine $cl
+        $sessCwd = if ($cmdSid -and $cwdBySession.ContainsKey($cmdSid)) { $cwdBySession[$cmdSid] } else { $null }
 
         $attr = 'unknown'
         $how  = 'neither the agent registry nor the command line attributed this process'
@@ -462,7 +496,7 @@ function Get-HacsClaudeProcess {
             }
         } elseif ($sessCwd) {
             if (Test-HacsSamePath $sessCwd $Instance.HomeDir) {
-                $attr = 'matched'; $how = "--session-id $($sm.Groups[1].Value) in command line -> registry cwd"
+                $attr = 'matched'; $how = "session $cmdSid named in command line -> registry cwd"
             } else {
                 $attr = 'other';   $how = "--session-id in command line -> registry cwd = $sessCwd"
             }
@@ -682,7 +716,7 @@ function Write-HacsResult {
 
 Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
-                              Test-HacsInfrastructureProcess,
+                              Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
                               Resolve-HacsSessionId, Test-HacsQuiescent,
                               New-HacsResult, Write-HacsResult,
                               ConvertTo-HacsPath, Test-HacsSamePath
