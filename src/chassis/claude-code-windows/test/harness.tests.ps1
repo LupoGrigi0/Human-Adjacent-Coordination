@@ -152,6 +152,39 @@ else {
     Check 'nonce is words, not hex'                 ($j2.nonce -match '^[a-z]+-[a-z]+-\d+$') 'True'
 }
 
+# ---------------------------------------------------------- native calls -----
+Section 'native calls (the PS 5.1 stderr trap that killed the first real launch)'
+# 2026-09-27: `claude --bg` wrote one line to stderr and launch.ps1 died with no
+# JSON, because PS 5.1 + EAP=Stop throws on ANY native stderr line, even 2>$file.
+$py = (Get-Command python -ErrorAction SilentlyContinue)
+if (-not $py) { Skip 'native calls' 'python not on PATH' }
+else {
+    $py = $py.Source
+    # CONTROL FIRST: the old pattern must still throw here, or the next check is vacuous.
+    $threw = $false
+    try { $null = & $py -c 'import sys; sys.stderr.write("x\n")' 2>$null } catch { $threw = $true }
+    Check 'CONTROL: bare & with 2>$null still throws on stderr' $threw 'True'
+
+    $r = Invoke-HacsNative -FilePath $py -Arguments @('-c', 'import sys; sys.stderr.write("Starting background service\n"); print("id-1")')
+    Check 'Invoke-HacsNative does not throw on stderr'  $r.ExitCode 0
+    Check 'and captures stdout'                         $r.StdOut.Trim() 'id-1'
+    Check 'and captures stderr separately'              $r.StdErr.Trim() 'Starting background service'
+
+    # A $null ExitCode would read as 0 -- success. PS 5.1 gives $null unless the
+    # handle was touched while the process lived.
+    $r = Invoke-HacsNative -FilePath $py -Arguments @('-c', 'import sys; sys.exit(7)')
+    Check 'non-zero exit comes back as the number, not null' $r.ExitCode 7
+
+    # Start-Process joins -ArgumentList unquoted in 5.1. Round-trip through the
+    # child's OWN argv parser, which is the only judge that matters.
+    $want = @('plain', 'with space', 'quote"inside', 'trail\', 'C:\path with\', '', 'a\\"b')
+    $r = Invoke-HacsNative -FilePath $py -Arguments (@('-c', 'import sys,json; print(json.dumps(sys.argv[1:]))') + $want)
+    $got = @(foreach ($x in ($r.StdOut | ConvertFrom-Json)) { $x })   # NOT @(... | ConvertFrom-Json): that NESTS
+    Check 'argv round-trips: count'              $got.Count $want.Count
+    $same = $true; for ($k = 0; $k -lt $want.Count; $k++) { if ($got[$k] -cne $want[$k]) { $same = $false } }
+    Check 'argv round-trips: every byte'         $same 'True'
+}
+
 # --------------------------------------------------------------- launch ------
 Section 'launch guards'
 $launch = Join-Path $root 'launch.ps1'
@@ -166,6 +199,38 @@ else {
     }
     $null = & $launch -InstanceId 'Nobody-0000' -WhatIf 2>&1
     Check 'unknown instance -> error exit 2' $LASTEXITCODE 2
+
+    # The regression itself, end to end: a stub claude that behaves like the real
+    # one did -- a line on stderr, an id on stdout, exit 0 -- and a registry that
+    # never shows the session. launch must still emit ONE parseable JSON object,
+    # and must not call it success. Uses the fixture reserved for sabotage.
+    $stubFix = 'dev-reconstruction-001-f35a'
+    if (Test-Path (Join-Path 'D:\Lupo\Source\AI\hacs-instances' $stubFix)) {
+        $stub = Join-Path $env:TEMP 'hacs-stub-claude.cmd'
+        Set-Content -Path $stub -Encoding ascii -Value @(
+            '@echo off'
+            'echo Starting background service... 1>&2'
+            'if /i "%~1"=="agents" ( echo [] & exit /b 0 )'
+            'echo backgrounded · 0badf00d'
+            'echo   claude attach 0badf00d   open in this terminal'
+            'exit /b 0'
+        )
+        $raw = & $launch -InstanceId $stubFix -ClaudeExe $stub -RegistryTimeoutSec 2 2>$null | Out-String
+        $lrc = $LASTEXITCODE
+        $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+        # Read fields defensively: under StrictMode a missing property THROWS, and an
+        # unexpected result shape must fail as a CHECK, not abort the whole suite.
+        function JP($o, [string] $n) { if ($o -and @($o.PSObject.Properties.Name) -contains $n) { $o.$n } else { "<no $n>" } }
+        Check 'stderr-writing claude: launch still emits JSON'      ($null -ne $j) 'True'
+        Check 'never registered -> degraded, not success'           (JP $j 'status') 'degraded'
+        Check 'and exit 1'                                           $lrc 1
+        if ((JP $j 'status') -eq 'error') { Write-Host "        launch said: $(JP $j 'message')" -ForegroundColor DarkYellow }
+        # The stub now prints the REAL 2.1.283 banner shape. The first stub printed a
+        # bare id, so this passed while the real launch produced `claude attach
+        # backgrounded · 90fa2961`. Test against what the tool does, not what you imagined.
+        Check 'the bg id is the 8-hex token from the real banner shape' (JP $j 'bgId') '0badf00d'
+        Remove-Item $stub -Force -ErrorAction SilentlyContinue
+    } else { Skip 'launch stderr regression' 'fixture missing' }
 }
 
 # ------------------------------------------------------------- the prompt ----
@@ -188,8 +253,16 @@ else {
     # A guard that always fires is one people learn to click past. land never asks
     # a hearing question, so it must NOT be downgraded for hearing=unknown -- that
     # made every clean land report 'degraded'. Measured on land.ps1's first run.
-    $blank = 'dev-reconstruction-001-3266'
-    if (Test-Path (Join-Path 'D:\Lupo\Source\AI\hacs-instances' $blank)) {
+    # A TEST MUST NEVER LAND A LIVE MIND. This used to hardcode 3266, and on
+    # 2026-09-27 -- the first day 3266 was ever running -- the suite called land on
+    # it. The design held (snapshot first, `stop` failed, no kill without -Force),
+    # but that was the harness protecting itself from its own tests. Pick a fixture
+    # with NO processes of any attribution, or skip.
+    $blank = @('dev-reconstruction-001-3266', 'dev-reconstruction-001-7630', 'dev-reconstruction-001-f35a') | Where-Object {
+        (Test-Path (Join-Path 'D:\Lupo\Source\AI\hacs-instances' $_)) -and
+        @(Get-HacsClaudeProcess -Instance (Get-HacsInstance -InstanceId $_)).Count -eq 0 } | Select-Object -First 1
+    if (-not $blank) { Skip 'land on stopped instance' 'no fixture is verifiably stopped -- refusing to land a live one' }
+    elseif (Test-Path (Join-Path 'D:\Lupo\Source\AI\hacs-instances' $blank)) {
         $j = & $land -InstanceId $blank 2>&1 | Out-String | ConvertFrom-Json
         Check 'land on a stopped instance is SUCCESS'   $j.status   'success'
         Check 'land reports hearing as n/a, not unknown' $j.hearing 'n/a'
@@ -216,8 +289,15 @@ if (-not (Test-Path $canary)) { Skip 'canary' 'not present' }
 else {
     # ERROR before DEAF. An instance with no transcript is "I could not look", and
     # reporting that as deafness would send someone to restart a healthy mind.
-    $null = & $canary -InstanceId 'dev-reconstruction-001-3266' -Mark 2>&1
-    Check 'no transcript -> ERROR (2), never DEAF (1)' $LASTEXITCODE 2
+    # Pick a fixture that has NEVER run: this used to hardcode 3266, which stopped
+    # being transcript-less the moment the harness first launched it (2026-09-27).
+    $virgin = @('dev-reconstruction-001-3266', 'dev-reconstruction-001-7630', 'dev-reconstruction-001-f35a') | Where-Object {
+        (Test-Path (Join-Path 'D:\Lupo\Source\AI\hacs-instances' $_)) -and
+        -not (Test-Path (Join-Path "$env:USERPROFILE\.claude\projects" ('D--Lupo-Source-AI-hacs-instances-' + $_))) } | Select-Object -First 1
+    if ($virgin) {
+        $null = & $canary -InstanceId $virgin -Mark 2>&1
+        Check 'no transcript -> ERROR (2), never DEAF (1)' $LASTEXITCODE 2
+    } else { Skip 'no transcript -> ERROR' 'every fixture has run; mint a fresh one to keep this covered' }
     $null = & $canary -InstanceId 'Nobody-0000' -Mark 2>&1
     Check 'unknown instance -> ERROR (2)'              $LASTEXITCODE 2
     $null = & $canary -InstanceId $LiveInstanceId -Nonce 'x' 2>&1
@@ -243,7 +323,71 @@ else {
     $word = [string]([char]0x47) + 'r' + [string]([char]0xFC) + 'nlichtunbehagen'
     $p = & $canary -InstanceId $LiveInstanceId -Nonce $word -FromOffset 0 -TimeoutSec 5 -PollSec 2 2>&1 | Out-String | ConvertFrom-Json
     Check 'a real non-tool entry IS HEARING' $p.verdict 'HEARING'
-    Check 'and it names the entry type'      ($p.entryType -in @('assistant','user')) 'True'
+    Check 'and it grades the evidence'       ($p.evidence -in @('acknowledged','delivered')) 'True'
+}
+
+Section 'nonce evidence is an ALLOWLIST (the queue-operation false HEARING)'
+# 2026-09-27, first real delivery: the canary called a 'queue-operation: enqueue'
+# line HEARING. That line is the recipient recording that a message was ACCEPTED,
+# and a frozen mind writes it just as well. Synthetic lines, shaped exactly like
+# the real ones in fixture 3266's transcript.
+$N = 'canary-test-nonce-1234'
+function Ev([string] $j) { $r = Get-HacsNonceEvidence -Line $j -Nonce $N; if ($r) { $r } else { 'null' } }
+Check 'enqueue ledger line is NOT evidence'        (Ev ('{"type":"queue-operation","operation":"enqueue","content":"x ' + $N + '"}')) 'null'
+Check 'an unknown future entry type is NOT evidence' (Ev ('{"type":"inbox-ledger","message":{"role":"user","content":"' + $N + '"}}')) 'null'
+Check 'nonce only in origin METADATA is not evidence' (Ev ('{"type":"user","origin":{"kind":"peer","body":"' + $N + '"},"message":{"role":"user","content":"unrelated"}}')) 'null'
+Check 'assistant tool_use carrying it is not evidence' (Ev ('{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","input":{"message":"' + $N + '"}}]}}')) 'null'
+# POSITIVE CONTROLS -- without these, every null above passes for a function that
+# can never return anything.
+Check 'peer message in context -> delivered'       (Ev ('{"type":"user","isMeta":true,"origin":{"kind":"peer"},"message":{"role":"user","content":"check ' + $N + '"}}')) 'delivered'
+Check 'assistant text saying it -> acknowledged'   (Ev ('{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Heard you: ' + $N + '"}]}}')) 'acknowledged'
+Check 'no nonce at all -> null'                    (Ev '{"type":"user","message":{"role":"user","content":"nothing"}}') 'null'
+
+# The real thing, if it is still on disk: fixture 3266's first delivery.
+$real = "$env:USERPROFILE\.claude\projects\D--Lupo-Source-AI-hacs-instances-dev-reconstruction-001-3266\90fa2961-2e6b-4ed2-b8d3-958f2828e4e7.jsonl"
+if (Test-Path $real) {
+    $q = & $canary -InstanceId 'dev-reconstruction-001-3266' -Nonce 'canary-hollow-shutter-5489' -FromOffset 280949 -TimeoutSec 5 -PollSec 2 2>&1 | Out-String | ConvertFrom-Json
+    Check 'real first delivery: HEARING'                  $q.verdict 'HEARING'
+    Check 'graded acknowledged (it said it back)'         $q.evidence 'acknowledged'
+    Check 'the enqueue was SEEN and REJECTED as evidence' (@($q.nonceSightings) -contains 'queue-operation=not-evidence') 'True'
+} else { Skip 'real first-delivery regression' 'fixture 3266 transcript not on disk' }
+
+Section 'the --bg process tree (daemon is nobody''s; pty-host is its session''s)'
+# 2026-09-27: one running --bg session made launch refuse EVERY other instance,
+# because the daemon and the pty host were unattributed and unattributed means
+# "refuse". Worse, the daemon's command line carries the spawning instance's cwd,
+# so command-line attribution could have made it killable by that instance's land.
+$daemonCl = 'C:\Users\LupoG\.local\bin\claude.exe daemon run --origin transient --spawned-by "{\"cwd\":\"D:/Lupo/Source/AI/hacs-instances/x\"}"'
+Check 'the daemon is infrastructure'                    (Test-HacsInfrastructureProcess -CommandLine $daemonCl) 'True'
+Check 'quoted exe path: still infrastructure'           (Test-HacsInfrastructureProcess -CommandLine ('"C:\Program Files\c\claude.exe" daemon run --origin x')) 'True'
+# THE HOSTILE CASE: a mind whose first prompt mentions the daemon must stay a mind,
+# or it vanishes from the double-start guard.
+$sessCl = 'C:\Users\LupoG\.local\bin\claude.exe --session-id 90fa2961-2e6b-4ed2-b8d3-958f2828e4e7 "please check whether daemon run is up"'
+Check 'a SESSION whose prompt says "daemon run" is not infrastructure' (Test-HacsInfrastructureProcess -CommandLine $sessCl) 'False'
+Check 'a pty host is not infrastructure (it is its session''s)' (Test-HacsInfrastructureProcess -CommandLine 'claude.exe --bg-pty-host \\.\pipe\x 200 50 -- claude.exe --session-id 90fa2961-2e6b-4ed2-b8d3-958f2828e4e7') 'False'
+
+# LIVE, only while a real --bg session is running (it will not be, most nights).
+$bgRows = @(Get-HacsAgentRegistry | Where-Object { $_.kind -eq 'background' })
+if ($bgRows.Count -eq 0) { Skip 'live --bg attribution' 'no background session running' }
+else {
+    $bg = $bgRows[0]
+    $owner = Get-ChildItem 'D:\Lupo\Source\AI\hacs-instances' -Directory | Where-Object { Test-HacsSamePath $_.FullName $bg.cwd } | Select-Object -First 1
+    $daemons = @(Get-CimInstance Win32_Process -Filter "Name='claude.exe'" | Where-Object { Test-HacsInfrastructureProcess -CommandLine $_.CommandLine })
+    Check 'LIVE: a daemon exists while a --bg session runs (positive control)' ($daemons.Count -gt 0) 'True'
+    if ($owner -and (Test-Path (Join-Path $owner.FullName '.hacs-identity'))) {
+        $oi = Get-HacsInstance -InstanceId $owner.Name
+        $mine = @(Get-HacsClaudeProcess -Instance $oi -ExcludeUnattributed)
+        Check 'LIVE: the owner sees its session pid'      (@($mine | ForEach-Object { [int]$_.ProcessId }) -contains [int]$bg.pid) 'True'
+        Check 'LIVE: ...and its pty host, via --session-id' (@($mine | Where-Object { $_.CommandLine -like '*--bg-pty-host*' }).Count -ge 1) 'True'
+        Check 'LIVE: ...and NEVER the shared daemon'      (@($mine | Where-Object { Test-HacsInfrastructureProcess -CommandLine $_.CommandLine }).Count) 0
+    } else { Skip 'LIVE owner attribution' "bg session cwd $($bg.cwd) is not an instance home" }
+    # And the regression itself: a DIFFERENT instance must not be blocked by it.
+    $bystander = @('dev-reconstruction-001-3266', 'dev-reconstruction-001-7630', 'dev-reconstruction-001-f35a') |
+        Where-Object { -not (Test-HacsSamePath (Join-Path 'D:\Lupo\Source\AI\hacs-instances' $_) $bg.cwd) } | Select-Object -First 1
+    $bi = Get-HacsInstance -InstanceId $bystander
+    $blocking = @(Get-HacsClaudeProcess -Instance $bi | Where-Object { $_.HacsAttribution -ne 'other' })
+    Check "LIVE: a running --bg session does not block $bystander" $blocking.Count 0
+    if ($blocking.Count) { $blocking | ForEach-Object { Write-Host "        blocking: pid $($_.ProcessId) $($_.HacsAttribution) -- $($_.HacsAttributedBy)" -ForegroundColor DarkYellow } }
 }
 
 Write-Host "`n  $script:pass passed, $script:fail failed, $script:skip skipped" `

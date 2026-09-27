@@ -184,12 +184,18 @@ foreach ($a in @(Get-HacsAgentRegistry)) {
         Write-HacsLog -Instance $inst -Log 'land.log' -Message "SKIPPING interactive session pid=$($a.pid): a human may be in it"
         continue
     }
-    try {
-        $null = & $claudeExe stop $a.sessionId 2>&1
-        Write-HacsLog -Instance $inst -Log 'land.log' -Message "asked claude to stop $($a.sessionId) (exit $LASTEXITCODE)"
-    } catch {
-        Write-HacsLog -Instance $inst -Log 'land.log' -Message "claude stop threw: $($_.Exception.Message)"
-    }
+    # Invoke-HacsNative, not `& claude stop ... 2>&1`: under PS 5.1 + EAP=Stop any
+    # stderr line throws, which lost the exit code and logged a stop that may well
+    # have succeeded as "threw". Measured on launch.ps1, 2026-09-27.
+    # `claude stop` takes the 8-hex JOB id, not the session UUID. Measured
+    # 2026-09-27: `stop 90fa2961-2e6b-...` -> "No job matching". The job id was the
+    # UUID's first 8 hex digits (90fa2961) -- INFERRED from one sample, since the
+    # registry exposes no separate job-id field. Step 4 verifies the stop by
+    # watching the processes, so a wrong inference degrades rather than lies.
+    $jobId = ([string]$a.sessionId).Substring(0, [Math]::Min(8, ([string]$a.sessionId).Length))
+    $n = Invoke-HacsNative -FilePath $claudeExe -Arguments @('stop', $jobId) -TimeoutSec 60
+    Write-HacsLog -Instance $inst -Log 'land.log' -Message ("asked claude to stop {0}: exit={1} timedOut={2} stdout='{3}' stderr='{4}'" -f `
+        $a.sessionId, $n.ExitCode, $n.TimedOut, ($n.StdOut -replace '\s+',' ').Trim(), ($n.StdErr -replace '\s+',' ').Trim())
 }
 
 # --------------------------------------------------------------------------

@@ -144,9 +144,9 @@ if ($Mark) {
 if (-not $Nonce)          { Emit 'ERROR' 2 '-Nonce is required when not marking' }
 if ($FromOffset -lt 0)    { Emit 'ERROR' 2 '-FromOffset is required when not marking. Without it, a hit could be the caller''s own echo.' }
 
-$escaped = [regex]::Escape($Nonce)
 $deadline = (Get-Date).AddSeconds($TimeoutSec)
 $grew = 0
+$seen = @()
 
 Write-HacsLog -Instance $inst -Log 'canary.log' -Message "WATCH nonce=$Nonce fromOffset=$FromOffset timeout=${TimeoutSec}s"
 
@@ -171,33 +171,34 @@ while ((Get-Date) -lt $deadline) {
             $tail = $sr.ReadToEnd()
         } finally { $fs.Dispose() }
 
+        # Judged by Get-HacsNonceEvidence: an ALLOWLIST. The first version here was a
+        # blocklist and called a 'queue-operation: enqueue' line HEARING -- the
+        # recipient's own record of a message being ACCEPTED, which a frozen mind
+        # writes just as well. See the module for the transcript that proved it.
+        $best = $null; $seen = @()
         foreach ($line in ($tail -split "`n")) {
-            if (-not $line.Trim()) { continue }
-            if ($line -notmatch $escaped) { continue }
-            try { $e = $line | ConvertFrom-Json } catch { continue }
-
-            # THE TRAP: a caller's own command text lands in the transcript as
-            # tool_use / tool_result. Those are the instrument appearing in its own
-            # reading and are NOT evidence that a mind received anything.
-            $blocks = @()
-            if ($e.PSObject.Properties.Name -contains 'message' -and $e.message) {
-                $c = $e.message.content
-                if ($c -is [array]) { $blocks = @($c | ForEach-Object { if ($_.PSObject.Properties.Name -contains 'type') { $_.type } }) }
-                elseif ($c -is [string]) { $blocks = @('string') }
-            }
-            if ($blocks -contains 'tool_use' -or $blocks -contains 'tool_result') { continue }
-            if ($e.PSObject.Properties.Name -contains 'toolUseResult') { continue }
-
-            Write-HacsLog -Instance $inst -Log 'canary.log' -Message "HEARING nonce=$Nonce entryType=$($e.type) blocks=$($blocks -join ',')"
-            Emit 'HEARING' 0 "the nonce appeared in the transcript in a '$($e.type)' entry, outside any tool block. The mind received it." `
-                @{ nonce = $Nonce; entryType = $e.type; blocks = $blocks; transcriptGrewBytes = $grew }
+            if ($line.IndexOf($Nonce, [StringComparison]::Ordinal) -lt 0) { continue }
+            $t = try { ($line | ConvertFrom-Json).type } catch { '<unparseable>' }
+            $ev = Get-HacsNonceEvidence -Line $line -Nonce $Nonce
+            $seen += "$t=$(if ($ev) { $ev } else { 'not-evidence' })"
+            if ($ev -eq 'acknowledged') { $best = 'acknowledged' }
+            elseif ($ev -eq 'delivered' -and -not $best) { $best = 'delivered' }
+        }
+        if ($best) {
+            Write-HacsLog -Instance $inst -Log 'canary.log' -Message "HEARING nonce=$Nonce evidence=$best seen=[$($seen -join '; ')]"
+            $why = if ($best -eq 'acknowledged') { 'the mind SAID the nonce back in its own text' } else { 'the nonce reached the mind''s context as message content' }
+            Emit 'HEARING' 0 "HEARING: $why." `
+                @{ nonce = $Nonce; evidence = $best; nonceSightings = $seen; transcriptGrewBytes = $grew }
         }
     }
     Start-Sleep -Seconds $PollSec
 }
 
 # DEAF is only reachable from here: we could look, the whole time, and it never came.
-Write-HacsLog -Instance $inst -Log 'canary.log' -Message "DEAF nonce=$Nonce after ${TimeoutSec}s (transcript grew $grew bytes)"
-Emit 'DEAF' 1 ("the nonce never appeared within ${TimeoutSec}s. The transcript grew $grew bytes in that time, " +
-    "so the session was " + $(if ($grew -gt 0) { 'ACTIVE and still did not receive it' } else { 'entirely quiet -- it may be frozen rather than deaf' }) + '.') `
-    @{ nonce = $Nonce; transcriptGrewBytes = $grew; timeoutSec = $TimeoutSec }
+# If the nonce WAS sighted but never as evidence -- typically a queue-operation
+# enqueue with no delivery after it -- say so: that names where the pipe broke.
+Write-HacsLog -Instance $inst -Log 'canary.log' -Message "DEAF nonce=$Nonce after ${TimeoutSec}s (transcript grew $grew bytes) seen=[$($seen -join '; ')]"
+$where = if ($seen.Count -gt 0) { " It WAS sighted, but never as evidence of arrival ($($seen -join '; ')): accepted is not delivered." } else { '' }
+Emit 'DEAF' 1 ("the nonce never reached the mind within ${TimeoutSec}s. The transcript grew $grew bytes in that time, " +
+    "so the session was " + $(if ($grew -gt 0) { 'ACTIVE and still did not receive it' } else { 'entirely quiet -- it may be frozen rather than deaf' }) + '.' + $where) `
+    @{ nonce = $Nonce; transcriptGrewBytes = $grew; timeoutSec = $TimeoutSec; nonceSightings = $seen }

@@ -64,10 +64,10 @@ param(
     [string] $SessionId,
     [string] $Model,
     [ValidateSet('attended', 'unattended')][string] $Mode = 'unattended',
-    [switch] $NoCanary,
-    [int]    $CanaryTimeoutSec = 90,
     [switch] $Relaunch,
-    [switch] $WhatIf
+    [switch] $WhatIf,
+    [string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe",   # overridable so a test can point at a stub
+    [int]    $RegistryTimeoutSec = 30
 )
 
 Set-StrictMode -Version Latest
@@ -75,7 +75,6 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot 'lib\HacsHarness.psm1') -Force
 
-$claudeExe = "$env:USERPROFILE\.local\bin\claude.exe"
 $sentinel  = Join-Path $PSScriptRoot 'credential-sentinel.ps1'
 
 function Fail([string] $msg, [hashtable] $extra = @{}) {
@@ -185,49 +184,61 @@ if ($WhatIf) {
 }
 
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message "starting: claude $($argv -join ' ')"
-Push-Location $inst.HomeDir
-try {
-    $errFile = Join-Path $inst.RuntimeDir 'launch-stderr.txt'
-    $out  = & $claudeExe @argv 2>$errFile | Out-String    # stderr to its OWN file, never 2>&1
-    $rc   = $LASTEXITCODE
-} finally { Pop-Location }
+# NOT `& $ClaudeExe @argv 2>$file`. That was the first version, and on its first
+# real run (2026-09-27) `--bg` wrote "Starting background service..." to stderr,
+# PS 5.1 under ErrorActionPreference=Stop turned that line into a thrown
+# NativeCommandError, and launch died with NO JSON. See Invoke-HacsNative.
+$n = Invoke-HacsNative -FilePath $ClaudeExe -Arguments $argv -WorkingDirectory $inst.HomeDir -TimeoutSec 120
+$out = $n.StdOut
+$e   = ($n.StdErr -replace '\s+', ' ').Trim()
+Set-Content -Path (Join-Path $inst.RuntimeDir 'launch-stderr.txt') -Value $n.StdErr -Encoding utf8
+Write-HacsLog -Instance $inst -Log 'launch.log' -Message "claude --bg returned: exit=$($n.ExitCode) timedOut=$($n.TimedOut) stdout='$(($out -replace '\s+',' ').Trim())' stderr='$e'"
 
-$bgId = ($out -split '\r?\n' | Where-Object { $_ -match '\S' } | Select-Object -First 1)
-if ($bgId) { $bgId = $bgId.Trim() }
+if ($n.TimedOut) {
+    Fail "claude --bg did not return within 120s. It is documented to 'return immediately'. Something is holding it -- check launch.log and ~/.claude/daemon.log." @{ timedOut = $true }
+}
 
-if ($rc -ne 0) {
-    $e = if (Test-Path $errFile) { (Get-Content $errFile -Raw -ErrorAction SilentlyContinue) } else { '' }
-    if ($e) { $e = ($e -replace '\s+', ' ').Trim() }
-    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "FAILED: exit=$rc stdout='$out' stderr='$e'"
-    Fail "claude --bg exited $rc. stdout: '$out' stderr: '$e'" @{ exitCode = $rc }
+# The real stdout (2.1.283) is a banner, not a bare id:
+#   "backgrounded · 90fa2961 / claude agents list sessions / claude attach 90fa2961 ..."
+# The first version took the first line whole and produced `claude attach
+# backgrounded · 90fa2961`. My stub printed a clean id, so the test passed against
+# the case I imagined. Take the first 8-hex token instead; step 7 cross-checks it
+# against the registry's sessionId, which is a second, independent source.
+$bgId = $null
+$mm = [regex]::Match($out, '\b([0-9a-f]{8})\b')
+if ($mm.Success) { $bgId = $mm.Groups[1].Value }
+
+if ($n.ExitCode -ne 0) {
+    Fail "claude --bg exited $($n.ExitCode). stdout: '$out' stderr: '$e'" @{ exitCode = $n.ExitCode }
 }
 
 # --------------------------------------------------------------------------
 # 7. Is it actually registered? 'started' is not 'running'.
 # --------------------------------------------------------------------------
-$registered = $null
-$deadline = (Get-Date).AddSeconds(30)
+$registered = @()
+$deadline = (Get-Date).AddSeconds($RegistryTimeoutSec)
 do {
     Start-Sleep -Milliseconds 1000
-    $agentsJson = & $claudeExe agents --json 2>$null | Out-String
-    if ($agentsJson -and $agentsJson.Trim()) {
-        try {
-            $agents = $agentsJson | ConvertFrom-Json
-            $registered = @($agents | Where-Object { $_.cwd -and (Test-HacsSamePath $_.cwd $inst.HomeDir) -and $_.kind -ne 'interactive' })
-        } catch { }
-    }
-} while (($null -eq $registered -or $registered.Count -eq 0) -and (Get-Date) -lt $deadline)
+    $registered = @(Get-HacsAgentRegistry -ClaudeExe $ClaudeExe |
+        Where-Object { $_.cwd -and (Test-HacsSamePath $_.cwd $inst.HomeDir) -and $_.kind -ne 'interactive' })
+} while ($registered.Count -eq 0 -and (Get-Date) -lt $deadline)
 
-if (-not $registered -or $registered.Count -eq 0) {
+if ($registered.Count -eq 0) {
     Write-HacsLog -Instance $inst -Log 'launch.log' -Message "DEGRADED: started (id=$bgId) but never appeared in 'claude agents --json'"
     $r = New-HacsResult -Status 'degraded' -InstanceId $InstanceId -Hearing $null `
-        -Message "claude --bg returned 0 (id '$bgId') but the session never appeared in the agent registry within 30s. Started is not running." `
+        -Message "claude --bg returned 0 (id '$bgId') but the session never appeared in the agent registry within ${RegistryTimeoutSec}s. Started is not running." `
         -Extra @{ bgId = $bgId; mode = $Mode; credential = $credState; sessionConfidence = $sid.Confidence }
     $r | Write-HacsResult
     exit 1
 }
 
 $agent = $registered[0]
+# Two witnesses: the id --bg printed, and the session the registry shows under this
+# home. They must agree, or we may be describing somebody else's session.
+$idAgrees = [bool]($bgId -and $agent.sessionId -and $agent.sessionId.StartsWith($bgId))
+if (-not $idAgrees) {
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "WARNING: bg id '$bgId' does not prefix registry sessionId '$($agent.sessionId)'"
+}
 if ($agent.sessionId) {
     Set-Content -Path (Join-Path $inst.RuntimeDir '.claude-session-id') -Value $agent.sessionId -Encoding ascii
 }
@@ -236,22 +247,16 @@ Write-HacsLog -Instance $inst -Log 'launch.log' -Message "registered: kind=$($ag
 # --------------------------------------------------------------------------
 # 8. Can it HEAR? This is the question the contract is about.
 # --------------------------------------------------------------------------
+#    NOT MEASURED HERE, and saying so. The first version called canary.ps1 with
+#    no -Nonce -- written before the canary was redesigned to judge rather than
+#    send -- so it returned "could not measure" every time and nobody would have
+#    known why. The canary needs a SENDER, and launch does not hold a supported
+#    one (the inbox socket's payload frame is undocumented; see
+#    docs/INBOX-SOCKET-FINDINGS.md). So hearing is honestly unknown at launch,
+#    New-HacsResult caps the status at 'degraded', and the caller proves hearing
+#    with: canary.ps1 -Mark  ->  deliver the nonce  ->  canary.ps1 -Nonce -FromOffset
 $hearing = $null
-$hearingDetail = 'canary skipped (-NoCanary)'
-if (-not $NoCanary) {
-    $canary = Join-Path $PSScriptRoot 'canary.ps1'
-    if (Test-Path $canary) {
-        $null = & $canary -InstanceId $InstanceId -TimeoutSec $CanaryTimeoutSec 2>&1
-        $crc = $LASTEXITCODE
-        switch ($crc) {
-            0 { $hearing = $true;  $hearingDetail = 'canary: HEARING (nonce derived from the transcript)' }
-            1 { $hearing = $false; $hearingDetail = 'canary: DEAF (accepted, never arrived)' }
-            default { $hearing = $null; $hearingDetail = "canary: COULD NOT MEASURE (exit $crc). Not deaf -- unmeasured." }
-        }
-    } else {
-        $hearingDetail = "canary.ps1 not present at $canary -- hearing COULD NOT BE VERIFIED"
-    }
-}
+$hearingDetail = 'hearing NOT measured at launch (no supported sender is wired in). Prove it with canary.ps1 -Mark / deliver / -Nonce -FromOffset.'
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message $hearingDetail
 
 # New-HacsResult will downgrade this to 'degraded' if hearing is false or unknown.
@@ -260,6 +265,7 @@ $r = New-HacsResult -Status 'success' -InstanceId $InstanceId -Hearing $hearing 
     -Message "chassis running. $hearingDetail" `
     -Extra @{
         bgId              = $bgId
+        bgIdMatchesRegistry = $idAgrees
         pid               = $agent.pid
         sessionId         = $agent.sessionId
         kind              = $agent.kind

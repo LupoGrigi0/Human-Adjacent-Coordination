@@ -38,6 +38,44 @@ $script:InstancesRoot = if ($env:HACS_INSTANCES_ROOT) { $env:HACS_INSTANCES_ROOT
 # and the heartbeat skips forever.
 $script:NotASession = @('--chrome-native-host', '--ide', 'mcp serve')
 
+# Machine-wide INFRASTRUCTURE: belongs to no instance, is shared by every background
+# session, and must NEVER be stopped by land -- that would take down every mind on
+# the box at once. Measured 2026-09-27 on the first real --bg launch:
+#
+#   claude daemon run --origin transient --spawned-by {"cwd":"<whoever spawned it>"}
+#     (parent: WmiPrvSE.exe -- started via WMI to escape the caller)
+#    +- claude --bg-pty-host \\.\pipe\cc-daemon-...-pty-<id> 200 50 -- claude --session-id <uuid> ...
+#        +- claude --session-id <uuid> ...          <- the mind; the only one in the registry
+#
+# The daemon's command line CONTAINS the spawning instance's home dir, so the
+# command-line attribution rule would have called it that instance's process, and
+# `land -Force` would have killed it. Only JSON's doubled backslashes prevented that.
+#
+# Matched on the LEADING arguments only, never anywhere in the line: a session's
+# command line carries its first prompt verbatim, and a prompt that merely mentions
+# "daemon run" must not turn a mind into infrastructure and hide it from the
+# double-start guard.
+$script:InfrastructureArgPrefix = @('daemon run')
+
+
+function Test-HacsInfrastructureProcess {
+    <#
+    .SYNOPSIS
+      True if a claude.exe command line is shared infrastructure (the --bg daemon),
+      judged on its LEADING arguments only. Pure; unit-testable.
+    #>
+    [CmdletBinding()]
+    param([string] $CommandLine)
+    if (-not $CommandLine) { return $false }
+    # Strip the executable: either "quoted path" or an unquoted first token.
+    $m = [regex]::Match($CommandLine, '^\s*(?:"[^"]*"|\S+)\s*(.*)$', 'Singleline')
+    $rest = if ($m.Success) { $m.Groups[1].Value } else { '' }
+    foreach ($pfx in $script:InfrastructureArgPrefix) {
+        if ($rest.StartsWith($pfx, [StringComparison]::Ordinal)) { return $true }
+    }
+    $false
+}
+
 
 function ConvertTo-HacsPath {
     <#
@@ -148,6 +186,154 @@ function Write-HacsLog {
 }
 
 
+function ConvertTo-HacsArgString {
+    <#
+    .SYNOPSIS
+      Quote an argv array into ONE Windows command line, by the MSVCRT rules.
+    .DESCRIPTION
+      Start-Process in Windows PowerShell 5.1 joins -ArgumentList with spaces and
+      quotes NOTHING, so an argument containing a space silently becomes two. This
+      applies the rules CommandLineToArgvW / the C runtime use to split it back:
+      wrap in quotes when needed, double any backslashes that precede a quote, and
+      double trailing backslashes so they do not escape the closing quote.
+    #>
+    [CmdletBinding()]
+    param([string[]] $Arguments = @())
+    $parts = foreach ($a in $Arguments) {
+        $a = [string]$a
+        if ($a -ne '' -and $a -notmatch '[\s"]') { $a; continue }
+        $s = [regex]::Replace($a, '(\\*)"', { param($m) ($m.Groups[1].Value * 2) + '\"' })
+        $s = [regex]::Replace($s, '(\\+)$', { param($m) $m.Groups[1].Value * 2 })
+        '"' + $s + '"'
+    }
+    ($parts -join ' ')
+}
+
+
+function Invoke-HacsNative {
+    <#
+    .SYNOPSIS
+      Run a native executable safely. Returns ExitCode, StdOut, StdErr, TimedOut.
+    .DESCRIPTION
+      WHY THIS EXISTS -- measured 2026-09-27, on the first real launch:
+      `claude --bg` writes "Starting background service..." to STDERR. Under Windows
+      PowerShell 5.1 with $ErrorActionPreference = 'Stop', ANY stderr line from a
+      native command -- even one redirected with 2>$file or 2>$null -- is wrapped as
+      a NativeCommandError and THROWN. launch.ps1 died on that line and emitted no
+      JSON at all, breaking the one promise of the contract. land.ps1's
+      `claude stop ... 2>&1` and the registry read carried the same latent fault.
+
+      So nothing in this harness calls a native command with & any more. This does:
+        - stdout and stderr go to FILES, not pipes. `--bg` starts a daemon; a
+          daemon that inherits a pipe handle keeps it open and a reader waiting for
+          EOF waits forever. A file handle held open costs nothing.
+        - $p.Handle is touched immediately. In PS 5.1 a Start-Process -PassThru
+          object reports ExitCode as $null after exit unless the handle was cached
+          while the process was alive. $null would then read as 0 -- success.
+        - WaitForExit waits for THIS process only, not its descendants (unlike
+          Start-Process -Wait, which would wait for the daemon and never return).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $FilePath,
+        [string[]] $Arguments = @(),
+        [string]   $WorkingDirectory = (Get-Location).Path,
+        [int]      $TimeoutSec = 60
+    )
+    $tag  = [guid]::NewGuid().ToString('N').Substring(0, 12)
+    $outF = Join-Path $env:TEMP "hacs-native-$tag.out"
+    $errF = Join-Path $env:TEMP "hacs-native-$tag.err"
+    $sp = @{
+        FilePath               = $FilePath
+        WorkingDirectory       = $WorkingDirectory
+        RedirectStandardOutput = $outF
+        RedirectStandardError  = $errF
+        NoNewWindow            = $true
+        PassThru               = $true
+    }
+    $argString = ConvertTo-HacsArgString -Arguments $Arguments
+    if ($argString) { $sp.ArgumentList = $argString }   # an empty -ArgumentList throws in 5.1
+
+    $p = Start-Process @sp
+    $null = $p.Handle                                   # see .DESCRIPTION -- do not remove
+    $done = $p.WaitForExit($TimeoutSec * 1000)
+    if (-not $done) { try { $p.Kill() } catch { } }
+
+    $read = {
+        param($f)
+        if (-not (Test-Path $f)) { return '' }
+        # FileShare.ReadWrite: a daemon child may still hold the handle open.
+        $fs = [IO.File]::Open($f, 'Open', 'Read', 'ReadWrite')
+        try { (New-Object IO.StreamReader($fs, [Text.Encoding]::UTF8)).ReadToEnd() } finally { $fs.Dispose() }
+    }
+    $out = & $read $outF
+    $err = & $read $errF
+    foreach ($f in $outF, $errF) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+
+    [pscustomobject]@{
+        ExitCode = if ($done) { $p.ExitCode } else { $null }
+        StdOut   = $out
+        StdErr   = $err
+        TimedOut = -not $done
+    }
+}
+
+
+function Get-HacsNonceEvidence {
+    <#
+    .SYNOPSIS
+      Does this ONE transcript line prove a mind received the nonce? Returns
+      'acknowledged', 'delivered', or $null.
+    .DESCRIPTION
+      AN ALLOWLIST, NOT A BLOCKLIST -- measured 2026-09-27, first real canary run.
+      The first version skipped tool blocks and accepted everything else. The very
+      first real delivery produced this, in the recipient's own transcript:
+
+          queue-operation  enqueue   <- nonce here. ACCEPTED, not delivered.
+          queue-operation  dequeue
+          user (isMeta, origin.kind=peer)   <- nonce here. DELIVERED into context.
+          assistant tool_use                <- the mind acting on it
+          assistant text                    <- nonce here. ACKNOWLEDGED.
+
+      The canary said HEARING off line one: the queue ledger, which a frozen mind
+      writes just as well. It was right that time by luck. A blocklist fails OPEN on
+      every entry type its author never saw; this fails CLOSED. A new entry type is
+      not evidence until someone decides it is.
+
+      Rules, each one paid for:
+        - only 'user' and 'assistant' entries count
+        - the nonce must be in the message CONTENT, not metadata (origin.body is a
+          description of the send, not the arrival)
+        - no tool_use / tool_result anywhere in the entry: in a canary on my own
+          transcript that is the instrument appearing in its own reading
+        - 'assistant' text  -> acknowledged (the mind said it back)
+          'user' content    -> delivered   (it is in the mind's context)
+    #>
+    [CmdletBinding()]
+    param([string] $Line, [Parameter(Mandatory)][string] $Nonce)
+    if (-not $Line -or $Line.IndexOf($Nonce, [StringComparison]::Ordinal) -lt 0) { return $null }
+    try { $e = $Line | ConvertFrom-Json } catch { return $null }
+    $names = @($e.PSObject.Properties.Name)
+    if ($names -notcontains 'type' -or $e.type -notin @('user', 'assistant')) { return $null }
+    if ($names -contains 'toolUseResult') { return $null }
+    if ($names -notcontains 'message' -or -not $e.message) { return $null }
+    if (@($e.message.PSObject.Properties.Name) -notcontains 'content') { return $null }
+
+    $c = $e.message.content
+    $text = $null
+    if ($c -is [string]) { $text = $c }
+    else {
+        $blocks = @(foreach ($b in $c) { $b })
+        foreach ($b in $blocks) {
+            if (@($b.PSObject.Properties.Name) -contains 'type' -and $b.type -in @('tool_use', 'tool_result')) { return $null }
+        }
+        $text = (@(foreach ($b in $blocks) { if (@($b.PSObject.Properties.Name) -contains 'text') { $b.text } }) -join "`n")
+    }
+    if (-not $text -or $text.IndexOf($Nonce, [StringComparison]::Ordinal) -lt 0) { return $null }
+    if ($e.type -eq 'assistant') { 'acknowledged' } else { 'delivered' }
+}
+
+
 function Get-HacsAgentRegistry {
     <#
     .SYNOPSIS
@@ -163,7 +349,9 @@ function Get-HacsAgentRegistry {
     param([string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe")
     if (-not (Test-Path $ClaudeExe)) { return }
     try {
-        $raw = & $ClaudeExe agents --json 2>$null | Out-String
+        $n = Invoke-HacsNative -FilePath $ClaudeExe -Arguments @('agents', '--json') -TimeoutSec 30
+        if ($n.TimedOut -or $n.ExitCode -ne 0) { return }
+        $raw = $n.StdOut
         if (-not $raw -or -not $raw.Trim()) { return }
         $parsed = $raw | ConvertFrom-Json
 
@@ -230,10 +418,11 @@ function Get-HacsClaudeProcess {
 
     $registry = @(Get-HacsAgentRegistry)
     $cwdByPid = @{}
+    $cwdBySession = @{}
     foreach ($a in $registry) {
-        if ($a.PSObject.Properties.Name -contains 'pid' -and $a.PSObject.Properties.Name -contains 'cwd') {
-            $cwdByPid[[int]$a.pid] = $a.cwd
-        }
+        $names = @($a.PSObject.Properties.Name)
+        if ($names -contains 'pid' -and $names -contains 'cwd') { $cwdByPid[[int]$a.pid] = $a.cwd }
+        if ($names -contains 'sessionId' -and $names -contains 'cwd' -and $a.sessionId) { $cwdBySession[[string]$a.sessionId] = $a.cwd }
     }
 
     $out = @()
@@ -242,6 +431,14 @@ function Get-HacsClaudeProcess {
         $isHelper = $false
         foreach ($h in $script:NotASession) { if ($cl -like "*$h*") { $isHelper = $true } }
         if ($isHelper) { continue }
+        # The --bg daemon: shared by every background mind. Never anyone's to stop.
+        if (Test-HacsInfrastructureProcess -CommandLine $cl) { continue }
+
+        # A --bg pty host is not in the registry, but it names its session:
+        #   claude --bg-pty-host <pipe> 200 50 -- claude --session-id <uuid> ...
+        # and the registry maps that session to exactly one cwd.
+        $sm = [regex]::Match($cl, '--session-id\s+([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})')
+        $sessCwd = if ($sm.Success -and $cwdBySession.ContainsKey($sm.Groups[1].Value)) { $cwdBySession[$sm.Groups[1].Value] } else { $null }
 
         $attr = 'unknown'
         $how  = 'neither the agent registry nor the command line attributed this process'
@@ -250,6 +447,12 @@ function Get-HacsClaudeProcess {
                 $attr = 'matched'; $how = 'agent registry cwd'
             } else {
                 $attr = 'other';   $how = "agent registry cwd = $($cwdByPid[[int]$p.ProcessId])"
+            }
+        } elseif ($sessCwd) {
+            if (Test-HacsSamePath $sessCwd $Instance.HomeDir) {
+                $attr = 'matched'; $how = "--session-id $($sm.Groups[1].Value) in command line -> registry cwd"
+            } else {
+                $attr = 'other';   $how = "--session-id in command line -> registry cwd = $sessCwd"
             }
         } elseif ($cl -like "*$($Instance.HomeDir)*" -or $cl -like "*$($Instance.HomeDir -replace '\\','/')*") {
             $attr = 'matched'; $how = 'command line'
@@ -466,6 +669,8 @@ function Write-HacsResult {
 
 
 Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry,
+                              Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
+                              Test-HacsInfrastructureProcess,
                               Resolve-HacsSessionId, Test-HacsQuiescent,
                               New-HacsResult, Write-HacsResult,
                               ConvertTo-HacsPath, Test-HacsSamePath
