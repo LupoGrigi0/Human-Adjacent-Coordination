@@ -59,6 +59,22 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# One JSON object, always -- enforced, not remembered. See the same trap in
+# launch.ps1 for the two no-JSON crashes that made it necessary. land's version
+# matters more: a land that dies mid-way must still SAY so, because the caller's
+# next move depends on whether a mind is still running.
+trap {
+    $why = "UNHANDLED: $($_.Exception.Message) (land.ps1 line $($_.InvocationInfo.ScriptLineNumber)). STATE UNKNOWN -- check processes before acting."
+    try {
+        $i = Get-Variable -Name inst -ValueOnly -ErrorAction SilentlyContinue
+        if ($i) { Write-HacsLog -Instance $i -Log 'land.log' -Message $why }
+        (New-HacsResult -Status 'error' -InstanceId $InstanceId -HearingNotApplicable -Message $why) | Write-HacsResult
+    } catch {
+        [pscustomobject]@{ status = 'error'; instanceId = $InstanceId; hearing = 'n/a'; message = $why } | ConvertTo-Json -Compress
+    }
+    exit 2
+}
+
 Import-Module (Join-Path $PSScriptRoot 'lib\HacsHarness.psm1') -Force
 $claudeExe = "$env:USERPROFILE\.local\bin\claude.exe"
 

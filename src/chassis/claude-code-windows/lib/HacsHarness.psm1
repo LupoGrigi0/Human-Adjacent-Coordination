@@ -232,6 +232,15 @@ function Invoke-HacsNative {
           while the process was alive. $null would then read as 0 -- success.
         - WaitForExit waits for THIS process only, not its descendants (unlike
           Start-Process -Wait, which would wait for the daemon and never return).
+        - stdin is ALWAYS an empty file. Measured 2026-09-27: launched from inside
+          Start-Job, `claude --bg` hung for 120s with no output at all, while the
+          identical call from an interactive shell returned in 1s. A child that
+          inherits stdin inherits the CALLER's stdin -- in a PowerShell job that is
+          a remoting pipe that never reaches EOF, and a program that reads piped
+          stdin as input waits on it forever. Proved with a Python child that reads
+          stdin: inherited -> never returned; empty file -> returned instantly. The
+          same code must behave identically whether it is called from a terminal,
+          a job, or Task Scheduler, so the caller does not get a say.
     #>
     [CmdletBinding()]
     param(
@@ -243,9 +252,12 @@ function Invoke-HacsNative {
     $tag  = [guid]::NewGuid().ToString('N').Substring(0, 12)
     $outF = Join-Path $env:TEMP "hacs-native-$tag.out"
     $errF = Join-Path $env:TEMP "hacs-native-$tag.err"
+    $inF  = Join-Path $env:TEMP "hacs-native-$tag.in"
+    [IO.File]::WriteAllText($inF, '')                   # see .DESCRIPTION: stdin is never inherited
     $sp = @{
         FilePath               = $FilePath
         WorkingDirectory       = $WorkingDirectory
+        RedirectStandardInput  = $inF
         RedirectStandardOutput = $outF
         RedirectStandardError  = $errF
         NoNewWindow            = $true
@@ -268,7 +280,7 @@ function Invoke-HacsNative {
     }
     $out = & $read $outF
     $err = & $read $errF
-    foreach ($f in $outF, $errF) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+    foreach ($f in $outF, $errF, $inF) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
 
     [pscustomobject]@{
         ExitCode = if ($done) { $p.ExitCode } else { $null }

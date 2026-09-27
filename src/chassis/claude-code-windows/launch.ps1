@@ -73,6 +73,25 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# THE CONTRACT'S ONE PROMISE IS "ONE JSON OBJECT", AND IT IS NOW ENFORCED HERE.
+# On 2026-09-27 launch died with NO JSON twice in one hour, from two unrelated
+# causes (a native stderr line; a registry row with no 'pid' under StrictMode).
+# Each was patched -- and patching the cause each time is exactly the "remember to
+# be careful" that fails at 3am. This trap turns ANY unhandled exception into a
+# well-formed 'error' result, so the promise no longer depends on every line.
+trap {
+    $why = "UNHANDLED: $($_.Exception.Message) (launch.ps1 line $($_.InvocationInfo.ScriptLineNumber))"
+    try {
+        $i = Get-Variable -Name inst -ValueOnly -ErrorAction SilentlyContinue
+        if ($i) { Write-HacsLog -Instance $i -Log 'launch.log' -Message $why }
+        (New-HacsResult -Status 'error' -InstanceId $InstanceId -Hearing $null -Message $why) | Write-HacsResult
+    } catch {
+        # The module itself may be what failed. Emit by hand, still valid JSON.
+        [pscustomobject]@{ status = 'error'; instanceId = $InstanceId; hearing = 'unknown'; message = $why } | ConvertTo-Json -Compress
+    }
+    exit 2
+}
+
 Import-Module (Join-Path $PSScriptRoot 'lib\HacsHarness.psm1') -Force
 
 $sentinel  = Join-Path $PSScriptRoot 'credential-sentinel.ps1'
@@ -153,31 +172,67 @@ $isFirstLaunch = ($sid.Confidence -eq 'error' -and -not $SessionId)
 # --------------------------------------------------------------------------
 # 5. System prompt: the mode decision, made once, permanently.
 # --------------------------------------------------------------------------
+#
+#    RESUME TAKES NO FLAGS. Measured 2026-09-27, and Claude Code said so itself, on
+#    stderr: "background session 90fa2961 keeps its own saved options, so the flags
+#    you passed started a copy as 5bc16afe. Without flags, the same command
+#    continues 90fa2961 itself." A background session SAVES the options it was born
+#    with. Relaunching it WITH any flag -- the prompt file, --model, --name --
+#    FORKS it: a new session id carrying a copy of the whole conversation. Every
+#    relaunch would have branched the mind, silently, and the recorded id would
+#    have followed the copy. Mode really is baked in at birth: Claude Code enforces
+#    it too. So flags are for birth only, and a resume that asks for a different
+#    mode or a model is REFUSED rather than quietly forking.
+$isResume  = [bool](-not $isFirstLaunch -and $sid.SessionId)
+$birthFile = Join-Path $inst.RuntimeDir '.birth-mode'
+$birthMode = if (Test-Path $birthFile) { (Get-Content $birthFile -Raw).Trim() } else { $null }
+
 $sysPromptArgs = @()
-if ($Mode -eq 'unattended') {
+$effMode = $Mode          # what this session actually IS; differs from $Mode on a resume
+if ($isResume) {
+    if ($Model) {
+        Fail "-Model on a RESUME would fork the session (a background session keeps its birth options; flags start a copy). Nothing was started. Switch model inside the session, or launch a new session deliberately." @{ wouldFork = $true }
+    }
+    if ($PSBoundParameters.ContainsKey('Mode') -and $birthMode -and $Mode -ne $birthMode) {
+        Fail "this session was born '$birthMode'; -Mode $Mode on a resume would fork it. Mode is baked in at birth. Nothing was started." @{ wouldFork = $true; birthMode = $birthMode }
+    }
+    # NOT assigned back to $Mode: its [ValidateSet] stays attached to the VARIABLE
+    # for the whole script, so $Mode = 'unrecorded' throws. Found by the trap above,
+    # on its first real outing, as a clean error JSON instead of a stack trace.
+    $effMode = if ($birthMode) { $birthMode } else { 'unrecorded' }
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "RESUME: no flags (they would fork it). Birth mode: $effMode -- carried by the session's own saved options."
+} elseif ($Mode -eq 'unattended') {
     $p = Join-Path $PSScriptRoot 'prompts\unattended-system-prompt.txt'
     if (-not (Test-Path $p)) {
         Fail "mode=unattended but the anti-early-stopping paragraph is missing at $p. It must be VERBATIM from Anthropic's docs -- a mitigation reworded is a mitigation untested. See prompts/opus-5-5-unattended.md."
     }
     $sysPromptArgs = @('--append-system-prompt-file', $p)
-    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "mode=unattended: appending $p (pinned for this session's life by --system-prompt-snapshot)"
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "BIRTH mode=unattended: appending $p (pinned for this session's life)"
 } else {
-    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "mode=attended: NO anti-early-stopping paragraph. A human is expected to answer."
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "BIRTH mode=attended: NO anti-early-stopping paragraph. A human is expected to answer."
 }
 
 # --------------------------------------------------------------------------
 # 6. Start it.
 # --------------------------------------------------------------------------
-$argv = @('--bg')
-if (-not $isFirstLaunch -and $sid.SessionId) { $argv += @('--resume', $sid.SessionId) }
-if ($Model) { $argv += @('--model', $Model) }
-$argv += $sysPromptArgs
-$argv += 'You have been launched by the claude-code-windows harness. Acknowledge in one short line and stop.'
+$prompt = 'You have been launched by the claude-code-windows harness. Acknowledge in one short line and stop.'
+if ($isResume) {
+    $argv = @('--bg', '--resume', $sid.SessionId, $prompt)
+} else {
+    # --name: the display name is how other minds ADDRESS it (SendMessage,
+    # ListAgents). Unset, it auto-titles from the first prompt, and every
+    # harness-launched mind converged on "claude-code-windows harness launch" --
+    # two fixtures, one address. The instance id is unique by construction.
+    $argv = @('--bg', '--name', $InstanceId)
+    if ($Model) { $argv += @('--model', $Model) }
+    $argv += $sysPromptArgs
+    $argv += $prompt
+}
 
 if ($WhatIf) {
     $r = New-HacsResult -Status 'degraded' -InstanceId $InstanceId -Hearing $null `
         -Message 'WhatIf: nothing was started.' `
-        -Extra @{ wouldRun = "$claudeExe $($argv -join ' ')"; cwd = $inst.HomeDir; mode = $Mode
+        -Extra @{ wouldRun = "$claudeExe $($argv -join ' ')"; cwd = $inst.HomeDir; mode = $effMode
                   sessionConfidence = $sid.Confidence; credential = $credState }
     $r | Write-HacsResult
     exit 1
@@ -219,25 +274,45 @@ $registered = @()
 $deadline = (Get-Date).AddSeconds($RegistryTimeoutSec)
 do {
     Start-Sleep -Milliseconds 1000
-    $registered = @(Get-HacsAgentRegistry -ClaudeExe $ClaudeExe |
-        Where-Object { $_.cwd -and (Test-HacsSamePath $_.cwd $inst.HomeDir) -and $_.kind -ne 'interactive' })
+    # A row can appear BEFORE it has a pid (shaped like a finished row: id/state,
+    # no pid/status). Measured 2026-09-27 under a concurrent launch. Registered is
+    # not running: keep polling until there is a process to point at.
+    $registered = @(Get-HacsAgentRegistry -ClaudeExe $ClaudeExe | Where-Object {
+        $nm = @($_.PSObject.Properties.Name)
+        ($nm -contains 'cwd') -and ($nm -contains 'pid') -and $_.pid -and
+        ($nm -contains 'kind') -and $_.kind -ne 'interactive' -and (Test-HacsSamePath $_.cwd $inst.HomeDir) })
 } while ($registered.Count -eq 0 -and (Get-Date) -lt $deadline)
 
 if ($registered.Count -eq 0) {
     Write-HacsLog -Instance $inst -Log 'launch.log' -Message "DEGRADED: started (id=$bgId) but never appeared in 'claude agents --json'"
     $r = New-HacsResult -Status 'degraded' -InstanceId $InstanceId -Hearing $null `
         -Message "claude --bg returned 0 (id '$bgId') but the session never appeared in the agent registry within ${RegistryTimeoutSec}s. Started is not running." `
-        -Extra @{ bgId = $bgId; mode = $Mode; credential = $credState; sessionConfidence = $sid.Confidence }
+        -Extra @{ bgId = $bgId; mode = $effMode; credential = $credState; sessionConfidence = $sid.Confidence }
     $r | Write-HacsResult
     exit 1
 }
 
+# On a resume, prefer the row that IS the resumed session, if there is one.
 $agent = $registered[0]
+if ($isResume) {
+    $same = @($registered | Where-Object { $_.sessionId -eq $sid.SessionId })
+    if ($same.Count -gt 0) { $agent = $same[0] }
+}
 # Two witnesses: the id --bg printed, and the session the registry shows under this
 # home. They must agree, or we may be describing somebody else's session.
 $idAgrees = [bool]($bgId -and $agent.sessionId -and $agent.sessionId.StartsWith($bgId))
 if (-not $idAgrees) {
     Write-HacsLog -Instance $inst -Log 'launch.log' -Message "WARNING: bg id '$bgId' does not prefix registry sessionId '$($agent.sessionId)'"
+}
+# A resume must CONTINUE the mind, not copy it. If the running session is not the
+# one we resumed, it forked -- and a fork cannot be quietly undone, so say so.
+$forked = [bool]($isResume -and $agent.sessionId -and $agent.sessionId -ne $sid.SessionId)
+if ($forked) {
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "FORKED: resumed $($sid.SessionId) but the running session is $($agent.sessionId). claude said: $e"
+    Set-Content -Path (Join-Path $inst.RuntimeDir '.forked-from') -Value $sid.SessionId -Encoding ascii
+}
+if (-not $isResume) {
+    Set-Content -Path $birthFile -Value $Mode -Encoding ascii        # mode is fixed from here on
 }
 if ($agent.sessionId) {
     Set-Content -Path (Join-Path $inst.RuntimeDir '.claude-session-id') -Value $agent.sessionId -Encoding ascii
@@ -261,15 +336,24 @@ Write-HacsLog -Instance $inst -Log 'launch.log' -Message $hearingDetail
 
 # New-HacsResult will downgrade this to 'degraded' if hearing is false or unknown.
 # That is the point: I am allowed to ask for success and not allowed to get it.
-$r = New-HacsResult -Status 'success' -InstanceId $InstanceId -Hearing $hearing `
-    -Message "chassis running. $hearingDetail" `
+# Anything claude said on stderr beyond its startup chatter is worth surfacing:
+# the fork warning above arrived ONLY there.
+$claudeSaid = ($e -replace '^Starting background service\S*\s*', '').Trim()
+$ask = if ($forked) { 'degraded' } else { 'success' }
+$msg = if ($forked) { "FORKED: resumed $($sid.SessionId) but a COPY is running as $($agent.sessionId). The original transcript is untouched. $hearingDetail" }
+       else { "chassis running. $hearingDetail" }
+$r = New-HacsResult -Status $ask -InstanceId $InstanceId -Hearing $hearing `
+    -Message $msg `
     -Extra @{
+        resumed           = $isResume
+        forked            = $forked
+        claudeSaid        = $claudeSaid
         bgId              = $bgId
         bgIdMatchesRegistry = $idAgrees
         pid               = $agent.pid
         sessionId         = $agent.sessionId
         kind              = $agent.kind
-        mode              = $Mode
+        mode              = $effMode
         credential        = $credState
         sessionConfidence = $sid.Confidence
         homeDir           = $inst.HomeDir

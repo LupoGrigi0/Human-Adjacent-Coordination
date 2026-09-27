@@ -149,8 +149,12 @@ catch { Complete-Sentinel 'unknown' 2 "cannot create scratch dir ${ScratchDir}: 
 # transcript. The prompt is ONE argument; splitting it on spaces is the bug that
 # produced the original false pass.
 $prompt = "Reply with exactly this and nothing else: $nonce"
-$outFile = Join-Path $ScratchDir 'probe.out'
-$errFile = Join-Path $ScratchDir 'probe.err'
+$outFile = Join-Path $ScratchDir 'probe.out'      # last result, best-effort record only
+# stderr file is PER INVOCATION. Measured 2026-09-27: two launches ran this sentinel
+# at the same instant, both opened the one fixed probe.err, and one lost the lock ->
+# "probe could not be launched" -> UNKNOWN. Harmless in direction (unknown is never
+# auth), but a fixed scratch path is a single-tenant assumption in a multi-tenant box.
+$errFile = Join-Path $ScratchDir ('probe-{0}.err' -f [guid]::NewGuid().ToString('N').Substring(0, 12))
 
 $t0 = Get-Date
 try {
@@ -183,7 +187,10 @@ $result.elapsedSec = [int]((Get-Date) - $t0).TotalSeconds
 
 $text = if ($out) { ([string]$out).Trim() } else { '' }
 $errText = ''
-if (Test-Path $errFile) { $errText = (Get-Content $errFile -Raw -ErrorAction SilentlyContinue) }
+if (Test-Path $errFile) {
+    $errText = (Get-Content $errFile -Raw -ErrorAction SilentlyContinue)
+    Remove-Item $errFile -Force -ErrorAction SilentlyContinue      # per-invocation; do not let them accumulate
+}
 if ($errText) { $errText = ($errText -replace '\s+', ' ').Trim() }
 
 try { Set-Content -Path $outFile -Value $text -Encoding utf8 } catch { }

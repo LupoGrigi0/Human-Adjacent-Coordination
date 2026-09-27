@@ -183,6 +183,20 @@ else {
     Check 'argv round-trips: count'              $got.Count $want.Count
     $same = $true; for ($k = 0; $k -lt $want.Count; $k++) { if ($got[$k] -cne $want[$k]) { $same = $false } }
     Check 'argv round-trips: every byte'         $same 'True'
+
+    # STDIN, from a caller that is not a terminal. 2026-09-27: `claude --bg` from
+    # inside Start-Job hung 120s with no output, because the child inherited the
+    # job's remoting pipe as stdin and waited for an EOF that never comes. Task
+    # Scheduler is not a terminal either. Run a stdin-reading child from a job.
+    $mod = Join-Path $root 'lib\HacsHarness.psm1'
+    $sj = Start-Job -ArgumentList $mod, $py -ScriptBlock {
+        param($mod, $py)
+        Import-Module $mod -Force
+        $r = Invoke-HacsNative -FilePath $py -Arguments @('-c', 'import sys; d=sys.stdin.read(); print(len(d))') -TimeoutSec 15
+        "$($r.TimedOut)|$($r.ExitCode)|$($r.StdOut.Trim())"
+    }
+    $jr = [string]($sj | Wait-Job -Timeout 60 | Receive-Job); $sj | Remove-Job -Force
+    Check 'from a Start-Job: a stdin-reading child RETURNS (empty stdin, not the job pipe)' $jr 'False|0|0'
 }
 
 # --------------------------------------------------------------- launch ------
@@ -211,7 +225,7 @@ else {
             '@echo off'
             'echo Starting background service... 1>&2'
             'if /i "%~1"=="agents" ( echo [] & exit /b 0 )'
-            'echo backgrounded · 0badf00d'
+            'echo backgrounded - 0badf00d'
             'echo   claude attach 0badf00d   open in this terminal'
             'exit /b 0'
         )
@@ -229,8 +243,52 @@ else {
         # bare id, so this passed while the real launch produced `claude attach
         # backgrounded · 90fa2961`. Test against what the tool does, not what you imagined.
         Check 'the bg id is the 8-hex token from the real banner shape' (JP $j 'bgId') '0badf00d'
+
+        # A registry row with NO pid (seen live under a concurrent launch) must not
+        # count as running -- and must not crash launch under StrictMode.
+        Set-Content -Path $stub -Encoding ascii -Value @(
+            '@echo off'
+            'if /i "%~1"=="agents" ( echo [{"id":"0badf00d","cwd":"D:\\Lupo\\Source\\AI\\hacs-instances\\' + $stubFix + '","kind":"background","sessionId":"0badf00d-0000-0000-0000-000000000000","state":"starting"}] & exit /b 0 )'
+            'echo backgrounded - 0badf00d'
+            'exit /b 0'
+        )
+        $raw = & $launch -InstanceId $stubFix -ClaudeExe $stub -RegistryTimeoutSec 2 2>$null | Out-String
+        $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+        Check 'pid-less registry row: launch still emits JSON'    ($null -ne $j) 'True'
+        Check 'pid-less registry row is NOT running -> degraded'  (JP $j 'status') 'degraded'
         Remove-Item $stub -Force -ErrorAction SilentlyContinue
+
+        # THE TRAP ITSELF, with a deliberate crash: a -ClaudeExe that exists but is a
+        # DIRECTORY passes Test-Path and then throws inside Start-Process. Without the
+        # trap that is a stack trace and no JSON.
+        $raw = & $launch -InstanceId $stubFix -ClaudeExe $env:TEMP -RegistryTimeoutSec 2 2>$null | Out-String
+        $lrc = $LASTEXITCODE
+        $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+        Check 'deliberate crash: launch STILL emits one JSON object' ($null -ne $j) 'True'
+        Check 'deliberate crash: status error'                       (JP $j 'status') 'error'
+        Check 'deliberate crash: says it was unhandled'              ((JP $j 'message') -like 'UNHANDLED:*') 'True'
+        Check 'deliberate crash: exit 2'                             $lrc 2
     } else { Skip 'launch stderr regression' 'fixture missing' }
+
+    # RESUME MUST NOT FORK. 2026-09-27: `--bg --resume X --append-system-prompt-file ...`
+    # started a COPY under a new id, because a background session keeps its birth
+    # options and any flag forks it. A resume that asks for a model must be refused,
+    # not quietly forked. Needs a fixture that is resumable and NOT running.
+    $resumable = @('dev-reconstruction-001-3266', 'dev-reconstruction-001-7630', 'dev-reconstruction-001-f35a') | Where-Object {
+        (Test-Path "D:\Lupo\hacs-runtime\$_\.claude-session-id") -and
+        @(Get-HacsClaudeProcess -Instance (Get-HacsInstance -InstanceId $_)).Count -eq 0 } | Select-Object -First 1
+    if (-not $resumable) { Skip 'resume-must-not-fork guards' 'no fixture is both resumable and stopped' }
+    else {
+        $raw = & $launch -InstanceId $resumable -Model 'haiku' -WhatIf 2>$null | Out-String; $lrc = $LASTEXITCODE
+        $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+        Check 'resume + -Model is REFUSED (it would fork)' (JP $j 'wouldFork') 'True'
+        Check 'and exits 2, starting nothing'              $lrc 2
+        $raw = & $launch -InstanceId $resumable -WhatIf 2>$null | Out-String
+        $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+        $wr = [string](JP $j 'wouldRun')
+        Check 'plain resume passes --resume'               ($wr -like '*--resume *') 'True'
+        Check 'plain resume passes NO flags that fork'     ($wr -notmatch '--append-system-prompt-file|--model|--name') 'True'
+    }
 }
 
 # ------------------------------------------------------------- the prompt ----
@@ -345,12 +403,22 @@ Check 'no nonce at all -> null'                    (Ev '{"type":"user","message"
 
 # The real thing, if it is still on disk: fixture 3266's first delivery.
 $real = "$env:USERPROFILE\.claude\projects\D--Lupo-Source-AI-hacs-instances-dev-reconstruction-001-3266\90fa2961-2e6b-4ed2-b8d3-958f2828e4e7.jsonl"
+# Read BY PATH, not through the canary's session resolution: the canary follows the
+# recorded session id, which moved when a resume forked 3266 (2026-09-27), and this
+# test silently started reading a different file. A regression test pinned to a
+# fact must be pinned to the fact, not to whatever currently points at it.
 if (Test-Path $real) {
-    $q = & $canary -InstanceId 'dev-reconstruction-001-3266' -Nonce 'canary-hollow-shutter-5489' -FromOffset 280949 -TimeoutSec 5 -PollSec 2 2>&1 | Out-String | ConvertFrom-Json
-    Check 'real first delivery: HEARING'                  $q.verdict 'HEARING'
-    Check 'graded acknowledged (it said it back)'         $q.evidence 'acknowledged'
-    Check 'the enqueue was SEEN and REJECTED as evidence' (@($q.nonceSightings) -contains 'queue-operation=not-evidence') 'True'
-} else { Skip 'real first-delivery regression' 'fixture 3266 transcript not on disk' }
+    $fs = [IO.File]::Open($real, 'Open', 'Read', 'ReadWrite')
+    try { $null = $fs.Seek(280949, 'Begin'); $tail = (New-Object IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
+    $sight = @(foreach ($ln in ($tail -split "`n")) {
+        if ($ln.IndexOf('canary-hollow-shutter-5489', [StringComparison]::Ordinal) -lt 0) { continue }
+        $t = try { ($ln | ConvertFrom-Json).type } catch { '<unparseable>' }
+        $ev = Get-HacsNonceEvidence -Line $ln -Nonce 'canary-hollow-shutter-5489'
+        "$t=$(if ($ev) { $ev } else { 'not-evidence' })" })
+    Check 'real first delivery: the ENQUEUE is seen and rejected' ($sight -contains 'queue-operation=not-evidence') 'True'
+    Check 'real first delivery: DELIVERED into context'           ($sight -contains 'user=delivered') 'True'
+    Check 'real first delivery: ACKNOWLEDGED in its own words'    ($sight -contains 'assistant=acknowledged') 'True'
+} else { Skip 'real first-delivery regression' 'original 3266 transcript not on disk' }
 
 Section 'the --bg process tree (daemon is nobody''s; pty-host is its session''s)'
 # 2026-09-27: one running --bg session made launch refuse EVERY other instance,
@@ -381,13 +449,20 @@ else {
         Check 'LIVE: ...and its pty host, via --session-id' (@($mine | Where-Object { $_.CommandLine -like '*--bg-pty-host*' }).Count -ge 1) 'True'
         Check 'LIVE: ...and NEVER the shared daemon'      (@($mine | Where-Object { Test-HacsInfrastructureProcess -CommandLine $_.CommandLine }).Count) 0
     } else { Skip 'LIVE owner attribution' "bg session cwd $($bg.cwd) is not an instance home" }
-    # And the regression itself: a DIFFERENT instance must not be blocked by it.
-    $bystander = @('dev-reconstruction-001-3266', 'dev-reconstruction-001-7630', 'dev-reconstruction-001-f35a') |
-        Where-Object { -not (Test-HacsSamePath (Join-Path 'D:\Lupo\Source\AI\hacs-instances' $_) $bg.cwd) } | Select-Object -First 1
-    $bi = Get-HacsInstance -InstanceId $bystander
-    $blocking = @(Get-HacsClaudeProcess -Instance $bi | Where-Object { $_.HacsAttribution -ne 'other' })
-    Check "LIVE: a running --bg session does not block $bystander" $blocking.Count 0
-    if ($blocking.Count) { $blocking | ForEach-Object { Write-Host "        blocking: pid $($_.ProcessId) $($_.HacsAttribution) -- $($_.HacsAttributedBy)" -ForegroundColor DarkYellow } }
+    # And the regression itself: a DIFFERENT instance must not be blocked by it. The
+    # bystander must have NO background session of its own -- the first version of
+    # this test assumed only one mind could be running, and failed the moment two
+    # were, by correctly attributing the second mind to its own home.
+    $bystander = @('dev-reconstruction-001-3266', 'dev-reconstruction-001-7630', 'dev-reconstruction-001-f35a') | Where-Object {
+        $h = Join-Path 'D:\Lupo\Source\AI\hacs-instances' $_
+        -not @($bgRows | Where-Object { Test-HacsSamePath $h $_.cwd }).Count } | Select-Object -First 1
+    if (-not $bystander) { Skip 'LIVE bystander not blocked' 'every fixture has its own background session' }
+    else {
+        $bi = Get-HacsInstance -InstanceId $bystander
+        $blocking = @(Get-HacsClaudeProcess -Instance $bi | Where-Object { $_.HacsAttribution -ne 'other' })
+        Check "LIVE: $($bgRows.Count) running --bg session(s) do not block $bystander" $blocking.Count 0
+        if ($blocking.Count) { $blocking | ForEach-Object { Write-Host "        blocking: pid $($_.ProcessId) $($_.HacsAttribution) -- $($_.HacsAttributedBy)" -ForegroundColor DarkYellow } }
+    }
 }
 
 Write-Host "`n  $script:pass passed, $script:fail failed, $script:skip skipped" `
