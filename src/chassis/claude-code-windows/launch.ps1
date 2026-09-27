@@ -156,6 +156,17 @@ if (Test-Path $sentinel) {
 # --------------------------------------------------------------------------
 # 4. Which transcript? Labelled, never laundered.
 # --------------------------------------------------------------------------
+# -SessionId must be the FULL lowercase UUID. Measured 2026-09-27: `--bg --resume
+# <session name>` does not continue the session -- "started a copy of that
+# conversation as 7d2e3aa3. To continue a session under its own id, pass its full
+# session id (lowercase...)". A name here would fork the mind. Callers say the
+# instance's NAME (-InstanceId) and the harness supplies the id from its records.
+if ($SessionId) {
+    if ($SessionId -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') {
+        Fail "-SessionId '$SessionId' is not a full session UUID. Resuming by name or short id STARTS A COPY (Claude Code forks it). Omit -SessionId and launch will use the recorded id, or pass the full id from 'claude agents --json'." @{ wouldFork = $true }
+    }
+    $SessionId = $SessionId.ToLower()
+}
 $sid = Resolve-HacsSessionId -Instance $inst -SessionId $SessionId
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message "session: confidence=$($sid.Confidence) id=$($sid.SessionId) -- $($sid.Reason)"
 if ($sid.Confidence -eq 'ambiguous') {

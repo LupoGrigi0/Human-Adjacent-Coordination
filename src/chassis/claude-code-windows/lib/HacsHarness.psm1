@@ -57,12 +57,21 @@ $script:NotASession = @('--chrome-native-host', '--ide', 'mcp serve')
 # double-start guard.
 $script:InfrastructureArgPrefix = @('daemon run')
 
+# VIEWERS: `claude attach <id>` is a human's terminal looking at a mind, not a mind.
+# Measured 2026-09-27, the first time anyone attached: Lupo's attach client was
+# unattributed, so the double-start guard counted it as "might be anyone's" and
+# refused to launch EVERY instance. It must never block a launch, and land must
+# never kill it -- that would be killing a person's terminal. Leading args only, for
+# the same reason as the daemon: a prompt must not be able to disguise a mind.
+$script:ViewerArgPrefix = @('attach ')
+
 
 function Test-HacsInfrastructureProcess {
     <#
     .SYNOPSIS
-      True if a claude.exe command line is shared infrastructure (the --bg daemon),
-      judged on its LEADING arguments only. Pure; unit-testable.
+      True if a claude.exe command line is NOT a mind: shared infrastructure (the
+      --bg daemon) or a viewer (`claude attach`, a human's terminal). Judged on its
+      LEADING arguments only. Pure; unit-testable.
     #>
     [CmdletBinding()]
     param([string] $CommandLine)
@@ -70,7 +79,7 @@ function Test-HacsInfrastructureProcess {
     # Strip the executable: either "quoted path" or an unquoted first token.
     $m = [regex]::Match($CommandLine, '^\s*(?:"[^"]*"|\S+)\s*(.*)$', 'Singleline')
     $rest = if ($m.Success) { $m.Groups[1].Value } else { '' }
-    foreach ($pfx in $script:InfrastructureArgPrefix) {
+    foreach ($pfx in @($script:InfrastructureArgPrefix) + @($script:ViewerArgPrefix)) {
         if ($rest.StartsWith($pfx, [StringComparison]::Ordinal)) { return $true }
     }
     $false

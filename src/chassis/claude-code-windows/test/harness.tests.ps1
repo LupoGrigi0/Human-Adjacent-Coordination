@@ -56,6 +56,9 @@ function Check {
 function Skip { param([string] $Name, [string] $Why)
     $script:skip++; Write-Host ("  SKIP  " + $Name + " -- " + $Why) -ForegroundColor Yellow }
 function Section { param([string] $N) Write-Host "`n=== $N ===" -ForegroundColor Cyan }
+# Read a result field defensively: under StrictMode a missing property THROWS, and an
+# unexpected result shape must fail as a CHECK, not abort the whole suite.
+function JP($o, [string] $n) { if ($o -and @($o.PSObject.Properties.Name) -contains $n) { $o.$n } else { "<no $n>" } }
 
 # ---------------------------------------------------------------- identity ---
 Section 'identity'
@@ -234,7 +237,6 @@ else {
         $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
         # Read fields defensively: under StrictMode a missing property THROWS, and an
         # unexpected result shape must fail as a CHECK, not abort the whole suite.
-        function JP($o, [string] $n) { if ($o -and @($o.PSObject.Properties.Name) -contains $n) { $o.$n } else { "<no $n>" } }
         Check 'stderr-writing claude: launch still emits JSON'      ($null -ne $j) 'True'
         Check 'never registered -> degraded, not success'           (JP $j 'status') 'degraded'
         Check 'and exit 1'                                           $lrc 1
@@ -277,6 +279,13 @@ else {
     $resumable = @('dev-reconstruction-001-3266', 'dev-reconstruction-001-7630', 'dev-reconstruction-001-f35a') | Where-Object {
         (Test-Path "D:\Lupo\hacs-runtime\$_\.claude-session-id") -and
         @(Get-HacsClaudeProcess -Instance (Get-HacsInstance -InstanceId $_)).Count -eq 0 } | Select-Object -First 1
+    # --resume <name> or <short id> FORKS (measured: "started a copy"). Refuse it
+    # before anything else can happen. Runs on any fixture, running or not.
+    foreach ($bad in 'dev-reconstruction-001-f35a', 'b77d2cd8') {
+        $raw = & $launch -InstanceId 'dev-reconstruction-001-f35a' -SessionId $bad -WhatIf 2>$null | Out-String
+        $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+        Check "-SessionId '$bad' (not a full uuid) is refused as a fork" (JP $j 'wouldFork') 'True'
+    }
     if (-not $resumable) { Skip 'resume-must-not-fork guards' 'no fixture is both resumable and stopped' }
     else {
         $raw = & $launch -InstanceId $resumable -Model 'haiku' -WhatIf 2>$null | Out-String; $lrc = $LASTEXITCODE
@@ -329,12 +338,21 @@ else {
 
     # WhatIf must describe what would ACTUALLY happen. It listed interactive
     # sessions as things it would stop, while the real loop skips them.
-    $live = @(Get-HacsClaudeProcess -Instance $i)
-    if ($live.Count -gt 0) {
-        $j2 = & $land -InstanceId $LiveInstanceId -WhatIf 2>&1 | Out-String | ConvertFrom-Json
-        Check 'WhatIf does not claim it would stop an interactive session' (@($j2.wouldStop).Count) 0
-        Check 'WhatIf names the interactive session it would SKIP'         (@($j2.wouldSkipInteractive).Count -ge 1) 'True'
-    } else { Skip 'land WhatIf interactive skip' 'no live session' }
+    # Branch on what the live session IS. This assumed "interactive" and broke the day
+    # Lodestone stepped into the harness (2026-09-27) and became kind=background --
+    # when a WhatIf that lists it under wouldStop is the CORRECT answer.
+    $liveRow = @(Get-HacsAgentRegistry | Where-Object { $_.cwd -and (Test-HacsSamePath $_.cwd $i.HomeDir) -and @($_.PSObject.Properties.Name) -contains 'pid' })
+    if ($liveRow.Count -eq 0) { Skip 'land WhatIf on live session' 'no live session' }
+    else {
+        $j2 = & $land -InstanceId $LiveInstanceId -WhatIf 2>$null | Out-String | ConvertFrom-Json
+        if ($liveRow[0].kind -eq 'interactive') {
+            Check 'WhatIf does not claim it would stop an interactive session' (@(JP $j2 'wouldStop' | ? { $_ -notlike '<no *' }).Count) 0
+            Check 'WhatIf names the interactive session it would SKIP'         (@(JP $j2 'wouldSkipInteractive' | ? { $_ -notlike '<no *' }).Count -ge 1) 'True'
+        } else {
+            Check 'WhatIf on a BACKGROUND session lists it under wouldStop' (@(JP $j2 'wouldStop') -contains [int]$liveRow[0].pid) 'True'
+            Check 'WhatIf on a background session is still only a WhatIf'   ((JP $j2 'message') -like '*WhatIf*') 'True'
+        }
+    }
 
     $null = & $land -InstanceId 'Nobody-0000' 2>&1
     Check 'land on unknown instance -> error exit 2' $LASTEXITCODE 2
@@ -432,6 +450,8 @@ Check 'quoted exe path: still infrastructure'           (Test-HacsInfrastructure
 # or it vanishes from the double-start guard.
 $sessCl = 'C:\Users\LupoG\.local\bin\claude.exe --session-id 90fa2961-2e6b-4ed2-b8d3-958f2828e4e7 "please check whether daemon run is up"'
 Check 'a SESSION whose prompt says "daemon run" is not infrastructure' (Test-HacsInfrastructureProcess -CommandLine $sessCl) 'False'
+Check 'an attach client is a VIEWER, not a mind'        (Test-HacsInfrastructureProcess -CommandLine '"C:\Users\LupoG\.local\bin\claude.exe" attach 816e33e1') 'True'
+Check 'a SESSION whose prompt says "attach" is still a mind' (Test-HacsInfrastructureProcess -CommandLine 'claude.exe --resume 816e33e1-30e3-4201-8d1b-69866ebbee54 "please attach the file"') 'False'
 Check 'a pty host is not infrastructure (it is its session''s)' (Test-HacsInfrastructureProcess -CommandLine 'claude.exe --bg-pty-host \\.\pipe\x 200 50 -- claude.exe --session-id 90fa2961-2e6b-4ed2-b8d3-958f2828e4e7') 'False'
 
 # Session id from a command line: BOTH forms. The first version knew only the birth
