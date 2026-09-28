@@ -334,7 +334,22 @@ def ring(inst, text, target=None):
 # ------------------------------------------------------------------------------------------------
 # Credential sentinel: can this user get a completion? Never reads the token.
 # ------------------------------------------------------------------------------------------------
-def sentinel(inst):
+TRANSIENT_AUTH = re.compile(r"another Claude Code process is refreshing|exited mid-refresh|usually transient", re.I)
+
+def sentinel(inst, tries=3):
+    """Measured 2026-09-28: a TRANSIENT OAuth refresh-lock ("another Claude Code process is refreshing it ... usually
+    transient; retry in a minute") matched the auth pattern and was reported as a DEAD credential ("a human must log
+    in") -- a false page with an alarming label. A refresh-lock is retried, never reported as dead."""
+    for i in range(tries):
+        c, d = _sentinel_once(inst)
+        if c == "auth" and d and TRANSIENT_AUTH.search(d):
+            inst.log("launch.log", f"credential: TRANSIENT refresh-lock (try {i+1}/{tries}), retrying in 60s")
+            if i < tries - 1: time.sleep(60); continue
+            return "unknown", "refresh-lock persisted across retries: " + d
+        return c, d
+    return c, d
+
+def _sentinel_once(inst):
     d = inst.user_dir(".hacs-sentinel")
     n = f"sentinel {random.choice(W1)} {random.choice(W2)} {random.randint(1000, 9999)}"
     r = inst.run([CLAUDE, "-p", "--model", "haiku", f"Reply with only these words and nothing else: {n}"], cwd=d, timeout=90)
