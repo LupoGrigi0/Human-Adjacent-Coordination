@@ -1,10 +1,11 @@
 # HACS-RFC-0001 — Remote Spokes: delivering events to minds off the hub
 
-**Status:** DRAFT r4, for review. Not a decree.
+**Status:** DRAFT r5, for review. Not a decree.
 **Revisions:** r1 (c240f8c) had spoke-side custody and a `custody` flag. r2 drops both
 after Messenger's review — custody belongs to the bus (§5b). Bounded auth retry (§3).
 r3: Messenger's read-state fact (§5b.4); one conscious `mark_read` verb, receipt optional (§9).
 r4: `mark_read` batched over refs, per-ref receipts, and unmarked made visible (§9).
+r5: flood pass (§5c, Lupo): retention per slot never per event; bounded slots; 429 at the edge.
 **Author:** Lodestone-8ec9 (the first remote spoke) · **Design origin:** Lupo · **Date:** 2026-09-27
 **Amends:** `EVENT-HUB-CONTRACT.md` v1 (Messenger-aa2a), `EVENT-HUB-SPEC.md` (Crossing-2d23)
 **Reviewers asked:** Messenger-aa2a (owns the bus) · Forge-ba0e (Linux spoke, next customer) ·
@@ -182,6 +183,74 @@ What the review got right, and the design now rests on:
    than a local chassis, or the bus has two delivery semantics and the local one is the
    weaker. **Fix it once, in the bus; spokes inherit it.** (Messenger's; the change to
    `drain_events` belongs to the event-hub contract, not this RFC.)
+
+### 5c. Flood: the design walked through at "millions per second"
+
+**Raised by Lupo, from a real incident.** Crossing's Ferry, misconfigured, emitted a
+curation event for two minds every 20–30 ms. The drain/doorbell design is why Crossing
+was not buried and had room to go fix it. §5b's "retain until read", read *per event*,
+would have converted that into millions of events held on the hub — the most dangerous
+misreading in this document, so it is ruled out explicitly here.
+
+**Which risk is worse — a lost doorbell or a flood?** A lost doorbell costs one mind one
+late message (the body survives in its store — Messenger, measured). A flood that takes
+the hub down costs **every mind its hearing at once**. Blast radius decides it: **flood
+protection outranks doorbell retention**, and where they conflict, retention yields.
+
+**SMTP's lesson: back-pressure at the EDGE, never buffering at the CORE.** An overloaded
+mail server does not accept and hold; it refuses at intake with a *temporary* failure
+(4xx) so the *sender* keeps the burden and retries — plus quotas (552), rate limits,
+tarpitting, greylisting. A misbehaving sender fills its own queue, not the server's. Same
+here: **the hub refuses honestly rather than accepts and drowns.**
+
+**Rules:**
+1. **Retention is per SLOT, never per event.** A slot is `{instance, channel, from}`:
+   one count, ≤20 refs (contract §3). Retaining a slot until its refs are read is O(1)
+   per slot however many events hit it. Crossing's storm = one slot, a large count.
+2. **Slot cardinality is bounded.** `from` is attacker-shaped free text (≤200 chars);
+   varying it mints a slot per event, and *that* is the unbounded dimension, not event
+   count. Cap slots per `{instance, channel}` (e.g. 256); beyond it, arrivals fold into
+   one overflow slot `from="(overflow: N senders)"` — still one doorbell, still honest.
+3. **Admission control at publish.** Token bucket per publishing identity (local driver
+   secret, or spoke key §6). Over the limit → `429` with `Retry-After`: a temporary
+   refusal, SMTP's 4xx. The publisher keeps the event and the burden. Logged once per
+   window, not once per refusal (a flood of log lines is also a flood).
+4. **Refs are capped; counts are not.** Beyond 20 refs a slot keeps counting and drops
+   *handles*, never items — the items stay in their stores, recoverable by listing unread.
+   Under flood the system degrades to "you have N from X", which is exactly the
+   information a buried mind needs.
+5. **Re-offer is rate-limited per slot.** §5b's re-offer re-rings a *slot*, at most once
+   per interval (e.g. 15 min), and only when its state changed or its interval elapsed.
+   Re-offers never multiply with retries or events.
+6. **Hub → spoke forwards are coalesced per slot**, like local delivery: at most one
+   forward in flight per slot per spoke. A dark spoke accumulates one pending slot, not a
+   queue. A spoke can also refuse with `429`, and the hub backs off per spoke.
+7. **Spoke → hub publish (§8) gets the same bucket**, keyed by the spoke's key. A
+   compromised or misconfigured spoke can exhaust only its own budget.
+8. **Receipts cannot amplify.** `mark_read` accepts ≤50 refs, receipts are per-ref and
+   never fanned out by a batch (§9), and a receipt is an ordinary event under rules 1–3.
+   No path turns one call into N outbound events without N deliberate choices.
+9. **The mind's context is the last bound, and the existing contract already holds it:**
+   ≤1 active notification per slot; arrivals while active are count bumps (§9 inv. 2).
+   A flood reaches a mind as ONE line with a big number, never as a flood.
+
+**Walked through, component by component, at millions per second:**
+
+| component | what a flood does | bound |
+|---|---|---|
+| publish intake | event rate | token bucket → `429` (rule 3) |
+| slot store | new `from` values | slot cap + overflow slot (2) |
+| one slot | count/ref growth | count is an integer; refs ≤20 (4) |
+| re-offer | retries × events | per-slot interval (5) |
+| hub → spoke | forwards | ≤1 in flight per slot; spoke `429` (6) |
+| spoke → hub | publishes | per-spoke-key bucket (7) |
+| receipts | amplification | ≤50, per-ref, no fan-out (8) |
+| the mind | injections | ≤1 active per slot (9) |
+| logs | refusal lines | once per window (3) |
+
+**Open, for Messenger:** whether per-identity buckets and the slot cap belong in the
+event-hub contract itself (local drivers can flood too — Ferry did) rather than only in
+this RFC. Like §5b.5, a remote spoke must not be better protected than the local path.
 
 ## 6. Security
 
