@@ -283,6 +283,12 @@ def canary_watch(inst, path, nonce, offset, timeout=120, poll=3):
         inst.log("canary.log", f"HEARING nonce={nonce} evidence={best} seen={seen}")
         return "HEARING", ("the mind SAID the nonce back" if best == "acknowledged" else "the nonce reached the mind's context"), \
                {"evidence": best, "nonceSightings": seen, "transcriptGrewBytes": grew}
+    rows = live_rows(inst)
+    if rows is not None and not [r for r in rows if r.get("kind") != "interactive"]:
+        # The registry KNOWS it isn't running -- say that, don't hint at "frozen". Measured after kill -9, 2026-09-28.
+        inst.log("canary.log", f"NOT-RUNNING nonce={nonce} (no live registry row)")
+        return "NOT-RUNNING", "no live session for this instance in the registry: the mind is not running (crashed or landed), not deaf.", \
+               {"nonceSightings": seen, "transcriptGrewBytes": grew}
     inst.log("canary.log", f"DEAF nonce={nonce} grew={grew} seen={seen}")
     where = f" It WAS sighted, never as evidence ({'; '.join(seen)}): accepted is not delivered." if seen else ""
     state = "ACTIVE and still did not receive it" if grew else "entirely quiet -- it may be FROZEN rather than deaf"
@@ -337,9 +343,9 @@ def cmd_launch(a):
     if bg and not a.relaunch:
         raise Fail(f"already running (pid {','.join(str(r['pid']) for r in bg)}). Pass --relaunch to land it first. "
                    f"Refusing to double-start: two sessions on one transcript BRANCH it.", {"livePids": [r["pid"] for r in bg]})
-    if bg and a.relaunch and not a.whatif:
-        ln = do_land(inst, force=False, no_snapshot=False, grace=20, whatif=False)
-        if ln["status"] != "success": raise Fail("relaunch: land did not succeed; not starting a second session", {"land": ln})
+    # NOTE: the --relaunch LAND happens later, after EVERY refusal check. Measured 2026-09-28: it used to run
+    # here, so `--relaunch --model X` landed a healthy mind and THEN refused ("Nothing started") -- true, and
+    # a lie by omission. A refusal must never have side effects.
 
     cred, detail = ("skipped (whatif)", None) if a.whatif else sentinel(inst)
     inst.log("launch.log", f"credential: {cred} {detail or ''}")
@@ -389,6 +395,9 @@ def cmd_launch(a):
                       wouldRun=" ".join(argv), cwd=inst.workdir, mode=eff_mode, resume=resume,
                       sessionConfidence=s["confidence"], sessionId=s["sid"], credential=cred, unclaimedTranscripts=unclaimed)
 
+    if bg and a.relaunch:                     # every refusal has passed; only now is landing allowed
+        ln = do_land(inst, force=False, no_snapshot=False, grace=20, whatif=False)
+        if ln["status"] != "success": raise Fail("relaunch: land did not succeed; not starting a second session", {"land": ln})
     inst.log("launch.log", f"starting: {' '.join(argv)}")
     if not os.path.isdir(inst.workdir): raise Fail(f"workspace missing: {inst.workdir} (provisioning step)")
     r = inst.run(argv, cwd=inst.workdir, timeout=120)
@@ -435,7 +444,7 @@ def cmd_launch(a):
                 hearing, hdetail = None, f"the ringer could not deliver (rc={rr['rc']}); hearing COULD NOT BE MEASURED"
             else:
                 v, det, ex = canary_watch(inst, mk["transcript"], mk["nonce"], mk["offset"], timeout=a.hearing_timeout)
-                hearing = {"HEARING": True, "DEAF": False}.get(v); hdetail = f"{v}: {det}"; hextra = ex
+                hearing = {"HEARING": True, "DEAF": False, "NOT-RUNNING": False}.get(v); hdetail = f"{v}: {det}"; hextra = ex
         except Fail as f:
             hearing, hdetail, hextra = None, f"canary could not look: {f}", f.extra
     ask = "degraded" if forked else "success"
@@ -518,12 +527,13 @@ def cmd_canary(a):
     if not s["path"]: raise Fail(f"canary: no transcript to watch: {s['reason']}")
     v, det, ex = canary_watch(inst, s["path"], a.nonce, a.from_offset, timeout=a.timeout)
     return {"check": "canary", "verdict": v, "detail": det, **ex,
-            "status": {"HEARING": "success", "DEAF": "degraded"}.get(v, "error")}
+            "status": {"HEARING": "success", "DEAF": "degraded", "NOT-RUNNING": "degraded"}.get(v, "error")}
 
 def cmd_ring(a):
     inst = Instance(a.instance); ok, r = ring(inst, a.text)
     return result("success" if ok else "error", inst.id, "ring sent (sender-side only: accepted is not delivered)" if ok
-                  else f"ring failed rc={r['rc']}", "n/a", ringerOut=r["out"].strip()[-200:])
+                  else (f"ringer DECLINED or did not confirm (rc={r['rc']}): a model is in the doorbell path and can refuse"
+                        if r["rc"] == 0 else f"ring failed rc={r['rc']}"), "n/a", ringerOut=r["out"].strip()[-200:])
 
 def cmd_sentinel(a):
     inst = Instance(a.instance); c, d = sentinel(inst)
