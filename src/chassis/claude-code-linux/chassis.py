@@ -298,7 +298,9 @@ def ring(inst, text, target=None):
     d = inst.user_dir(".hacs-ringer")
     prompt = (f'Use the SendMessage tool exactly once, with to="{target}" and this exact message: "{text}". '
               f'Do nothing else. Then reply with the single word SENT.')
-    r = inst.run([CLAUDE, "-p", "--model", "haiku", "--allowedTools", "SendMessage", prompt], cwd=d, timeout=120)
+    # '--allowedTools=X' form: the spaced form is VARIADIC and swallowed the prompt as a tool name
+    # ("Input must be provided ... when using --print") -- measured 2026-09-28.
+    r = inst.run([CLAUDE, "-p", "--model", "haiku", "--allowedTools=SendMessage", prompt], cwd=d, timeout=120)
     ok = r["rc"] == 0 and "SENT" in (r["out"] or "").upper()
     inst.log("ring.log", f"ring target={target} rc={r['rc']} timedOut={r['timedOut']} ok={ok} out={r['out'][-200:]!r} err={r['err'][-200:]!r}")
     return ok, r
@@ -421,6 +423,12 @@ def cmd_launch(a):
         hearing, hdetail = "not-attempted", "--skip-hearing: not tried is not heard"
     else:
         try:
+            # Wait for the birth/resume turn to FINISH before marking. Measured 2026-09-28: marking ~1 s after
+            # the registry row appeared found no assistant line yet, and the schema self-test (rightly)
+            # refused -- honest, but a race. The mind's own acknowledgment line is what we wait for.
+            tp = os.path.join(inst.project_dir, (sid_now or "") + ".jsonl")
+            wdl = time.time() + 90
+            while time.time() < wdl and not (os.path.isfile(tp) and schema_selftest(tp)): time.sleep(2)
             mk = canary_mark(inst)
             ok, rr = ring(inst, f"Chassis launch check: reply in one short line containing the phrase {mk['nonce']}, then stop.")
             if not ok:
