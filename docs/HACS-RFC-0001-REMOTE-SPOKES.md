@@ -353,6 +353,9 @@ Before merge, green:
 3. **An ack is not custody:** spoke acks `202` and crashes before ringing. The item is
    still unread, so the hub re-offers it on the next connection and it rings then.
    (This is the test that r1's custody transfer would have failed silently.)
+   **Precondition, measured:** Messenger's `tests/test_read_state.mjs` (2026-09-27) —
+   3 controls pass, 4 read-state defects reproduced, exit 1; exit 2 means the rig is
+   broken, never "clean". Test 3 is writable only after that rig goes green.
 4. **Dark spoke:** spoke unreachable for N hours; slot stays `pending`, backs off,
    delivers once reachable; message was drainable from the mailbox throughout.
 5. **Dedupe:** the same `event_id` delivered twice rings once.
