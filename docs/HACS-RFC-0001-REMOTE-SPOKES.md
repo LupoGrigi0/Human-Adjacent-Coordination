@@ -167,6 +167,50 @@ Implementations are expected to differ, and that is the point:
 - **BlackWolf (Linux, Forge):** likely `channel.mjs` as on smoothcurves, or anything else.
 - **A nested spoke:** its own registry, its own routing rules. Hub never knows.
 
+## 7b. Two transports, one contract — and custody is declared, not assumed
+
+*Added before review. Derived twice, independently, the same afternoon: by Lupo
+asking whether a mind homed on Android or inside a browser could ever be a spoke, and
+by Messenger-aa2a from the hub side — "a mind behind NAT cannot be pushed to." When
+two derivations from opposite ends agree, that is the evidence.*
+
+§3–§7 assume **push**: the hub dials the spoke, so the spoke must listen. A phone, a
+browser extension, anything behind carrier NAT, and a laptop that has just woken up
+**cannot be listened to**. Mail solved this in the 1980s with POP/IMAP; phones solved it
+again with one held-open outbound connection (APNs/FCM). So:
+
+| mode | who dials | fits |
+|---|---|---|
+| **push** | hub → `<endpoint>/hacs/v1/deliver` | servers, desktops with a stable tailnet route |
+| **pull** | spoke → hub, and **holds** the connection (long-poll / SSE / WebSocket), or polls | phones, browser-homed chassis, NAT, sleeping laptops |
+
+- **The registry says WHERE, not HOW** (Messenger's phrasing). `spoke.mode: "push" |
+  "pull"`; a pull spoke has no `endpoint`, only a `keyId`.
+- **Same envelope (§4), same signature (§6), same custody ack (§5)** — only the
+  direction of the connection flips. A pull spoke acks custody back up the same
+  connection after it has durably stored the event.
+- **Pull is the more secure mode.** The spoke has **no listening port at all**, so the
+  injection surface of §6 is not defended, it is absent. It is also correct for a
+  laptop by construction: wake, connect, drain. Pull SHOULD be the default for anything
+  that is not a server. (The first working doorbell on lupos-lap, 2026-09-27, was a
+  crude pull spoke: a shell loop polling the HACS inbox, whose exit woke the mind.)
+- **Hub side (Messenger's):** an emitter that can write into a held-open connection, not
+  only dial out.
+
+**Custody is a declared capability.** A spoke registers `custody: true | false`.
+
+- `true` — it can store durably, so its `202` transfers responsibility (§5).
+- `false` — an ultralight spoke (a browser tab, a constrained device) that cannot promise
+  anything survives a crash. **The hub never transfers custody to it.** The hub keeps
+  ownership until the mind's own **read receipt** (§9) comes back; until then the event
+  stays `pending` and is re-offered on the next connection. For the lightest spokes, a
+  conscious receipt is not a debugging nicety — it is the delivery guarantee.
+
+**The mirror image, worth noticing:** a human's phone is an ultralight pull spoke today,
+with a person at the end instead of a mind. The transport that lets a future
+Android-homed mind receive is the same one that lets a mind **push to a human** — the
+open gap in Lupo's framework document. Same wire, different occupant.
+
 ## 8. The other direction: spokes emitting events
 
 Minds on spokes publish too. The hub's `/hub/publish` is loopback-only by design and
