@@ -14,7 +14,18 @@ on any platform — it is a Claude Code behaviour, not a Windows one.
 `claude --bg` started a full session for the first time on this machine: registered
 as `kind: background` within 2 s, answered in its own transcript, and HEARD a canary
 nonce delivered by `SendMessage` (graded ACKNOWLEDGED — it said the nonce back).
-No trust dialog, in a virgin directory, through a PTY-backed session.
+~~No trust dialog, in a virgin directory, through a PTY-backed session.~~
+
+> **CORRECTED 2026-09-27, same day — Forge asked the right question.** The fixture
+> homes were virgin, but their PARENT `D:/Lupo/Source/AI/hacs-instances` was already a
+> trusted workspace, and trust is inherited. Measured in a genuinely untrusted directory
+> (no trusted ancestor): **`--bg` REFUSES** — `Workspace not trusted. Run claude in … once
+> and accept the trust prompt`, exit 1, nothing started. Identical to Forge's Linux
+> result. (`--print` in an untrusted directory DOES work — the credential sentinel has
+> run hourly in one for days.) **Trust each home, or a parent, ONCE at provisioning,
+> never at launch.** `launch.ps1` now recognises the refusal and says so.
+> Another confound for the collection: a successful prevention — someone had trusted the
+> parent — looking exactly like an absent threat.
 
 | test | result |
 |---|---|
@@ -49,7 +60,16 @@ And on a flag-less resume: *"woke session 5bc16afe with its saved options
   that asks for a model or a different mode (`wouldFork`), and reports `forked: true`
   if the running id differs from the one resumed.
 - A session born by `claude --print` (not `--bg`) resumed under `--bg` with the SAME
-  id. Analogue for an interactive-born session; not proof.
+  id. ~~Analogue for an interactive-born session; not proof.~~ **PROVEN the same day, on
+  Lodestone itself:** a four-week, ~20 MB session born INTERACTIVE was exited cleanly and
+  relaunched flag-less with `--bg --resume <full uuid>` — same session id, no new
+  transcript, same mind. One sample, on Windows. (Forge's crossing is the same shape.)
+- **`--resume <session NAME>` forks too:** "started a copy of that conversation … pass
+  its full session id (lowercase)". `launch.ps1` refuses any `-SessionId` that is not a
+  full UUID. People say the instance name; the harness supplies the id.
+- **A fork is a teleport, not a blank start.** The "copy" carries the whole conversation
+  (3266's did: 340 KB). A deliberate re-birth with new options — e.g. to enable a channel
+  — is therefore same-mind-new-id, and still a planned, consented event.
 
 ## 3. The process tree
 
@@ -124,10 +144,39 @@ unknown entry types are not evidence, and the verdict is graded.
 `Invoke-HacsNative` (files not pipes, empty stdin, cached handle, MSVCRT quoting) and
 the `trap` blocks in launch/land exist because of these.
 
+## 6b. After Forge's review (2026-09-27, same day)
+
+- **Launch can now reach `success`.** It marks the transcript, rings the mind's own
+  doorbell (a one-shot `claude -p` using `SendMessage`, to the mind's registry name —
+  a model call, a credential, ~10–30 s; the price until native channels), and judges.
+  First real `success`: fixture 7630, 20 s, `hearing: true`. `-SkipHearing` gives
+  `hearing: "not-attempted"` — distinct from `unknown`, still capped at `degraded`.
+- **The canary checks its own eyesight.** `-Mark` refuses to mint a nonce unless the
+  evidence rules recognise at least one user and one assistant line in the transcript
+  ("schema unrecognised"), so a transcript-format change can never read as a confident
+  DEAF on a healthy, growing session. It also refuses a *guessed* transcript unless
+  `-AllowGuess`: Windows has no per-user fence around a mind's files.
+- **Nonce matching is case-insensitive.** Forge, measured on Linux: a mind replied
+  `Canary-amber-lantern-4172.` — capitalised because it began the sentence. Uniqueness
+  lives in the words and digits.
+- **`--bg`'s stdout sometimes carries ANSI colour codes**; strip them before parsing.
+- **Live registry rows DO carry an explicit `id`** — it never appeared in the columns I
+  printed. `land` uses it, and says `jobIdInferred` if it ever has to fall back.
+- **Attended vs unattended, sharpened (Forge):** a mind with a human, woken by a doorbell
+  while the human is away, is still ATTENDED. The anti-early-stopping paragraph fights a
+  doorbell's premise — answer it or don't, then rest.
+- **Entry types across the upgrade** (one transcript spanning 2.1.104 → 2.1.283):
+  `user` and `assistant`, the canary's only evidence types, exist in every version. New
+  in 2.1.283: `attachment/silent_turn_reminder`, `attachment/credential_org`. Types
+  *not observed* since the upgrade are a small sample, not evidence of removal.
+
 ## 7. What is still NOT proven
 
-- A session born **interactive** resumed by `--bg` (analogue only, §2).
-- `claude attach` to a background session (needs a TTY).
+- ~~A session born **interactive** resumed by `--bg` (analogue only, §2).~~ Proven, §2.
+- `claude attach` to a background session — ~~needs a TTY~~ **works**: Lupo attached to
+  Lodestone the day it stepped in. It also exposed a fourth `claude.exe` in the tree, the
+  attach client, now classified as a viewer: never blocks a launch, never landed.
+- Native Claude Code **channels** on Windows (the cheap, model-free doorbell). Next test.
 - `SessionStart` hook firing on a `--bg` session.
 - Anything surviving a reboot (Phase 7). The mirror (Phase 5). Model switching (§2).
 - Hearing via any sender other than `SendMessage`.

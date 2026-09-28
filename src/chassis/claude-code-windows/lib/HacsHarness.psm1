@@ -366,7 +366,27 @@ function Get-HacsNonceEvidence {
     #>
     [CmdletBinding()]
     param([string] $Line, [Parameter(Mandatory)][string] $Nonce)
-    if (-not $Line -or $Line.IndexOf($Nonce, [StringComparison]::Ordinal) -lt 0) { return $null }
+    if (-not $Line -or $Line.IndexOf($Nonce, [StringComparison]::OrdinalIgnoreCase) -lt 0) { return $null }
+    $x = Get-HacsEntryContent -Line $Line
+    if (-not $x -or $x.Text.IndexOf($Nonce, [StringComparison]::OrdinalIgnoreCase) -lt 0) { return $null }
+    if ($x.Type -eq 'assistant') { 'acknowledged' } else { 'delivered' }
+}
+
+
+function Get-HacsEntryContent {
+    <#
+    .SYNOPSIS
+      The ONE definition of "a transcript line whose content a mind received or said".
+      Returns @{Type='user'|'assistant'; Text=...} or $null. No nonce involved.
+    .DESCRIPTION
+      Shared by Get-HacsNonceEvidence (is the nonce here?) and Test-HacsTranscriptSchema
+      (can I recognise ANYTHING here?). One rule, two callers -- because two copies of
+      "what counts as delivered" would agree by luck until an input changed, which is
+      the disease Messenger has now seen five times in this family.
+    #>
+    [CmdletBinding()]
+    param([string] $Line)
+    if (-not $Line -or -not $Line.Trim()) { return $null }
     try { $e = $Line | ConvertFrom-Json } catch { return $null }
     $names = @($e.PSObject.Properties.Name)
     if ($names -notcontains 'type' -or $e.type -notin @('user', 'assistant')) { return $null }
@@ -384,8 +404,47 @@ function Get-HacsNonceEvidence {
         }
         $text = (@(foreach ($b in $blocks) { if (@($b.PSObject.Properties.Name) -contains 'text') { $b.text } }) -join "`n")
     }
-    if (-not $text -or $text.IndexOf($Nonce, [StringComparison]::Ordinal) -lt 0) { return $null }
-    if ($e.type -eq 'assistant') { 'acknowledged' } else { 'delivered' }
+    if (-not $text) { return $null }
+    @{ Type = [string]$e.type; Text = [string]$text }
+}
+
+
+function Test-HacsTranscriptSchema {
+    <#
+    .SYNOPSIS
+      Can the evidence rules recognise this transcript AT ALL? The instrument checking
+      its own eyesight before it is allowed to report blindness in someone else.
+    .DESCRIPTION
+      Forge's review, 2026-09-27: the evidence allowlist fails CLOSED, which is right --
+      but if a Claude Code update changed the transcript schema, a hearing, active mind
+      would produce no recognisable lines, the transcript would keep growing, and the
+      canary would say "ACTIVE and still did not receive it". The confident wrong answer
+      that gets a healthy mind landed. So: before minting a nonce, prove the rules can
+      see at least one user line and one assistant line in this very file.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $Path, [int] $TailBytes = 2MB)
+    $r = [ordered]@{ Recognised = $false; UserLines = 0; AssistantLines = 0; Scanned = 0; Reason = '' }
+    if (-not (Test-Path $Path)) { $r.Reason = "no transcript at $Path"; return [pscustomobject]$r }
+    $fs = [IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite')
+    try {
+        $start = [Math]::Max(0, $fs.Length - $TailBytes)
+        $null = $fs.Seek($start, 'Begin')
+        $tail = (New-Object IO.StreamReader($fs, [Text.Encoding]::UTF8)).ReadToEnd()
+    } finally { $fs.Dispose() }
+    $lines = @($tail -split "`n")
+    if ($start -gt 0 -and $lines.Count -gt 0) { $lines = @($lines | Select-Object -Skip 1) }   # first line is partial
+    foreach ($ln in $lines) {
+        if (-not $ln.Trim()) { continue }
+        $r.Scanned++
+        $x = Get-HacsEntryContent -Line $ln
+        if ($x) { if ($x.Type -eq 'user') { $r.UserLines++ } else { $r.AssistantLines++ } }
+    }
+    $r.Recognised = ($r.UserLines -gt 0 -and $r.AssistantLines -gt 0)
+    if (-not $r.Recognised) {
+        $r.Reason = "scanned $($r.Scanned) lines: $($r.UserLines) user and $($r.AssistantLines) assistant content lines recognised; need at least one of each"
+    }
+    [pscustomobject]$r
 }
 
 
@@ -673,8 +732,25 @@ function New-HacsResult {
         [Parameter(Mandatory)][string] $Message,
         [AllowNull()][object] $Hearing = $null,
         [switch] $HearingNotApplicable,
+        [switch] $HearingNotAttempted,
         [hashtable] $Extra = @{}
     )
+
+    # A FIFTH state (Forge's review, 2026-09-27). 'unknown' means "I tried and could
+    # not tell". 'not-attempted' means "I was told not to try". Collapsing them makes
+    # a deliberate opt-out read like a measurement failure -- and makes a real
+    # measurement failure read like routine. Both are still capped at 'degraded':
+    # nothing proves this mind hears.
+    if ($HearingNotAttempted) {
+        $o = [ordered]@{
+            status = $(if ($Status -eq 'success') { 'degraded' } else { $Status })
+            instanceId = $InstanceId; hearing = 'not-attempted'; message = $Message
+            at = (Get-Date).ToString('o'); chassis = 'claude-code-windows'
+        }
+        foreach ($k in $Extra.Keys) { $o[$k] = $Extra[$k] }
+        if ($Status -eq 'success') { $o['contractNotes'] = @('DOWNGRADED: hearing was NOT ATTEMPTED (caller opted out). Nothing proves this mind hears.') }
+        return [pscustomobject]$o
+    }
 
     $hearingText = if ($HearingNotApplicable) { 'n/a' }
                    elseif ($null -eq $Hearing) { 'unknown' }
@@ -726,6 +802,7 @@ function Write-HacsResult {
 Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
                               Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
+                              Get-HacsEntryContent, Test-HacsTranscriptSchema,
                               Resolve-HacsSessionId, Test-HacsQuiescent,
                               New-HacsResult, Write-HacsResult,
                               ConvertTo-HacsPath, Test-HacsSamePath

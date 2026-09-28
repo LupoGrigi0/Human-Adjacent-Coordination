@@ -120,6 +120,11 @@ Check 'hearing NULL  forces degraded'  ((New-HacsResult -Status success  -Instan
 Check 'unknown is NOT reported as deaf' ((New-HacsResult -Status success -InstanceId T -Message m -Hearing $null).hearing) 'unknown'
 Check 'a downgrade explains itself'    (@((New-HacsResult -Status success -InstanceId T -Message m -Hearing $false).contractNotes).Count -ge 1) 'True'
 Check 'error stays error'              ((New-HacsResult -Status error -InstanceId T -Message m -Hearing $true).status) 'error'
+# not-attempted (Forge's review): distinct from unknown, and still never success.
+$na = New-HacsResult -Status success -InstanceId T -Message m -HearingNotAttempted
+Check 'not-attempted is its OWN state, not "unknown"' $na.hearing 'not-attempted'
+Check 'not-attempted still forces degraded'           $na.status  'degraded'
+Check 'and the downgrade explains itself'             (@($na.contractNotes).Count -ge 1) 'True'
 
 # ------------------------------------------------------ credential sentinel --
 Section 'credential sentinel (alarm paths before the success path)'
@@ -228,8 +233,10 @@ else {
             '@echo off'
             'echo Starting background service... 1>&2'
             'if /i "%~1"=="agents" ( echo [] & exit /b 0 )'
-            'echo backgrounded - 0badf00d'
-            'echo   claude attach 0badf00d   open in this terminal'
+            # The REAL 2.1.283 shape, colour codes and all, and ONLY once -- so the id
+            # can only be found if the ANSI is stripped (it once was found by luck, via
+            # a second occurrence later in the banner).
+            ('echo backgrounded - ' + [char]27 + '[36m0badf00d' + [char]27 + '[39m')
             'exit /b 0'
         )
         $raw = & $launch -InstanceId $stubFix -ClaudeExe $stub -RegistryTimeoutSec 2 2>$null | Out-String
@@ -419,6 +426,37 @@ Check 'peer message in context -> delivered'       (Ev ('{"type":"user","isMeta"
 Check 'assistant text saying it -> acknowledged'   (Ev ('{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Heard you: ' + $N + '"}]}}')) 'acknowledged'
 Check 'no nonce at all -> null'                    (Ev '{"type":"user","message":{"role":"user","content":"nothing"}}') 'null'
 
+# CASE (Forge, measured on Linux 2026-09-27): a haiku mind replied
+# "Canary-amber-lantern-4172." -- it capitalised the nonce because it began the
+# sentence, and an ordinal match graded a mind that heard AND said it back as merely
+# "delivered". Uniqueness lives in the words and digits, not the case.
+$FN = 'canary-amber-lantern-4172'
+function EvF([string] $j) { $r = Get-HacsNonceEvidence -Line $j -Nonce $FN; if ($r) { $r } else { 'null' } }
+Check 'Forge''s real reply, capitalised, is ACKNOWLEDGED' (EvF '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Canary-amber-lantern-4172."}]}}') 'acknowledged'
+Check 'ALL CAPS is still acknowledged'                  (EvF '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"CANARY-AMBER-LANTERN-4172"}]}}') 'acknowledged'
+Check 'CONTROL: one digit off is still NOT a match'     (EvF '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Canary-amber-lantern-4173."}]}}') 'null'
+
+# SCHEMA SELF-TEST (Forge's review): the canary must be able to report its OWN
+# blindness. If a Claude Code update renamed the entry types, the allowlist would
+# see nothing, the transcript would still grow, and a healthy mind would read
+# "ACTIVE and still did not receive it".
+$sd = Join-Path $env:TEMP 'hacs-schema-test'; $null = New-Item -ItemType Directory -Force $sd
+$okF   = Join-Path $sd 'ok.jsonl';   $newF = Join-Path $sd 'renamed.jsonl';   $halfF = Join-Path $sd 'user-only.jsonl'
+Set-Content $okF -Encoding utf8 -Value @(
+    '{"type":"queue-operation","operation":"enqueue","content":"x"}',
+    '{"type":"user","message":{"role":"user","content":"hello"}}',
+    '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"hi"}]}}')
+Set-Content $newF -Encoding utf8 -Value @(          # the same conversation after a hypothetical rename
+    '{"type":"human_turn","message":{"role":"user","content":"hello"}}',
+    '{"type":"model_turn","message":{"role":"assistant","content":[{"type":"text","text":"hi"}]}}')
+Set-Content $halfF -Encoding utf8 -Value @('{"type":"user","message":{"role":"user","content":"hello"}}')
+Check 'POSITIVE CONTROL: a normal transcript is recognised'       (Test-HacsTranscriptSchema -Path $okF).Recognised 'True'
+Check 'renamed entry types: the canary reports its own blindness'  (Test-HacsTranscriptSchema -Path $newF).Recognised 'False'
+Check 'user lines but no assistant line is not "recognised"'      (Test-HacsTranscriptSchema -Path $halfF).Recognised 'False'
+Check 'a missing file is not recognised either'                    (Test-HacsTranscriptSchema -Path (Join-Path $sd 'nope.jsonl')).Recognised 'False'
+Check 'LIVE: this mind''s own transcript IS recognised'            (Test-HacsTranscriptSchema -Path (Resolve-HacsSessionId -Instance $i).Path).Recognised 'True'
+Remove-Item $sd -Recurse -Force -ErrorAction SilentlyContinue
+
 # The real thing, if it is still on disk: fixture 3266's first delivery.
 $real = "$env:USERPROFILE\.claude\projects\D--Lupo-Source-AI-hacs-instances-dev-reconstruction-001-3266\90fa2961-2e6b-4ed2-b8d3-958f2828e4e7.jsonl"
 # Read BY PATH, not through the canary's session resolution: the canary follows the
@@ -429,7 +467,7 @@ if (Test-Path $real) {
     $fs = [IO.File]::Open($real, 'Open', 'Read', 'ReadWrite')
     try { $null = $fs.Seek(280949, 'Begin'); $tail = (New-Object IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() }
     $sight = @(foreach ($ln in ($tail -split "`n")) {
-        if ($ln.IndexOf('canary-hollow-shutter-5489', [StringComparison]::Ordinal) -lt 0) { continue }
+        if ($ln.IndexOf('canary-hollow-shutter-5489', [StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
         $t = try { ($ln | ConvertFrom-Json).type } catch { '<unparseable>' }
         $ev = Get-HacsNonceEvidence -Line $ln -Nonce 'canary-hollow-shutter-5489'
         "$t=$(if ($ev) { $ev } else { 'not-evidence' })" })

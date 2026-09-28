@@ -67,7 +67,11 @@ param(
     [switch] $Relaunch,
     [switch] $WhatIf,
     [string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe",   # overridable so a test can point at a stub
-    [int]    $RegistryTimeoutSec = 30
+    [int]    $RegistryTimeoutSec = 30,
+    [switch] $SkipHearing,                                           # -> hearing 'not-attempted'
+    [int]    $HearingTimeoutSec = 120,
+    [string] $SenderModel = 'haiku',
+    [string] $SenderDir = 'D:\Lupo\hacs-runtime\_liveness-probe'   # never a repo or a home
 )
 
 Set-StrictMode -Version Latest
@@ -271,10 +275,21 @@ if ($n.TimedOut) {
 # the case I imagined. Take the first 8-hex token instead; step 7 cross-checks it
 # against the registry's sessionId, which is a second, independent source.
 $bgId = $null
-$mm = [regex]::Match($out, '\b([0-9a-f]{8})\b')
+# Strip ANSI colour codes first. Measured 2026-09-27: the banner sometimes arrives as
+# "backgrounded · ESC[36m241b4264ESC[39m" -- the 'm' glued to the id kills the word
+# boundary, and the first occurrence is missed. It only still worked because the id
+# appears again later in the banner. Working by luck is not working.
+$plain = $out -replace "$([char]27)\[[0-9;]*m", ''
+$mm = [regex]::Match($plain, '\b([0-9a-f]{8})\b')
 if ($mm.Success) { $bgId = $mm.Groups[1].Value }
 
 if ($n.ExitCode -ne 0) {
+    # Measured 2026-09-27 (Forge on Linux, then here): --bg REFUSES an untrusted
+    # workspace, exit 1, nothing started. The fixtures only ever worked because their
+    # parent directory was trusted. Say what to do, not just what happened.
+    if ($e -match 'Workspace not trusted') {
+        Fail "the home directory is not a TRUSTED workspace, and claude --bg refuses to start in one (nothing was started). Trust it ONCE, at provisioning, never at launch: run 'claude' interactively in $($inst.HomeDir) (or a parent) and accept the prompt. claude said: '$e'" @{ exitCode = $n.ExitCode; untrustedWorkspace = $true }
+    }
     Fail "claude --bg exited $($n.ExitCode). stdout: '$out' stderr: '$e'" @{ exitCode = $n.ExitCode }
 }
 
@@ -333,16 +348,54 @@ Write-HacsLog -Instance $inst -Log 'launch.log' -Message "registered: kind=$($ag
 # --------------------------------------------------------------------------
 # 8. Can it HEAR? This is the question the contract is about.
 # --------------------------------------------------------------------------
-#    NOT MEASURED HERE, and saying so. The first version called canary.ps1 with
-#    no -Nonce -- written before the canary was redesigned to judge rather than
-#    send -- so it returned "could not measure" every time and nobody would have
-#    known why. The canary needs a SENDER, and launch does not hold a supported
-#    one (the inbox socket's payload frame is undocumented; see
-#    docs/INBOX-SOCKET-FINDINGS.md). So hearing is honestly unknown at launch,
-#    New-HacsResult caps the status at 'degraded', and the caller proves hearing
-#    with: canary.ps1 -Mark  ->  deliver the nonce  ->  canary.ps1 -Nonce -FromOffset
+#    MEASURED BY DEFAULT (Forge's review, 2026-09-27). The previous version never
+#    measured, so launch could NEVER return success -- a guard that always fires,
+#    which teaches people that "degraded" means "normal", and then the day it means
+#    "deaf" nobody looks. Now: mark the transcript, ring the mind's own doorbell
+#    through the supported sender, and judge from the transcript.
+#
+#    The sender is a one-shot `claude -p` that calls SendMessage, addressed to the
+#    mind's registry name. That costs a model call, a live credential and ~10-30 s.
+#    It is the price until native channels make a doorbell free (Forge's Q1). It runs
+#    in the sentinel's scratch dir so it never plants a transcript in a repo or a home.
+#
+#    -SkipHearing opts out and yields hearing 'not-attempted' -- distinct from
+#    'unknown', so "did not try" can never read like "could not tell".
 $hearing = $null
-$hearingDetail = 'hearing NOT measured at launch (no supported sender is wired in). Prove it with canary.ps1 -Mark / deliver / -Nonce -FromOffset.'
+$notAttempted = $false
+$hearingEvidence = $null
+$ringName = if ($agent.PSObject.Properties.Name -contains 'name' -and $agent.name) { [string]$agent.name } else { $InstanceId }
+if ($SkipHearing) {
+    $notAttempted = $true
+    $hearingDetail = 'hearing NOT ATTEMPTED (-SkipHearing). Prove it with canary.ps1 -Mark / deliver / -Nonce -FromOffset.'
+} else {
+    $canary = Join-Path $PSScriptRoot 'canary.ps1'
+    $markRaw = & $canary -InstanceId $InstanceId -Mark 2>$null | Out-String
+    $mark = $null; try { $mark = $markRaw | ConvertFrom-Json } catch { }
+    if (-not $mark -or @($mark.PSObject.Properties.Name) -notcontains 'nonce') {
+        $why = if ($mark -and @($mark.PSObject.Properties.Name) -contains 'detail') { $mark.detail } else { ($markRaw -replace '\s+', ' ').Trim() }
+        $hearingDetail = "hearing COULD NOT BE MEASURED: canary could not mark ($why)"
+    } else {
+        $null = New-Item -ItemType Directory -Force -Path $SenderDir -ErrorAction SilentlyContinue
+        $ask2 = "Use the SendMessage tool to send this exact text to the session named '$ringName': Harness hearing check at launch. Please reply in one short line containing this word exactly: $($mark.nonce)"
+        Write-HacsLog -Instance $inst -Log 'launch.log' -Message "ringing '$ringName' via claude -p (model $SenderModel) from $SenderDir; mark offset=$($mark.offset)"
+        $snd = Invoke-HacsNative -FilePath $ClaudeExe -Arguments @('--print', '--model', $SenderModel, $ask2) -WorkingDirectory $SenderDir -TimeoutSec 180
+        Write-HacsLog -Instance $inst -Log 'launch.log' -Message "sender: exit=$($snd.ExitCode) timedOut=$($snd.TimedOut) said='$(($snd.StdOut -replace '\s+',' ').Trim())'"
+        if ($snd.TimedOut -or $snd.ExitCode -ne 0) {
+            $hearingDetail = "hearing COULD NOT BE MEASURED: the sender failed (exit $($snd.ExitCode), timedOut $($snd.TimedOut)). That is a fault in the ringer, not evidence about the mind."
+        } else {
+            $judgeRaw = & $canary -InstanceId $InstanceId -Nonce $mark.nonce -FromOffset $mark.offset -TimeoutSec $HearingTimeoutSec 2>$null | Out-String
+            $judge = $null; try { $judge = $judgeRaw | ConvertFrom-Json } catch { }
+            $verdict = if ($judge -and @($judge.PSObject.Properties.Name) -contains 'verdict') { $judge.verdict } else { 'ERROR' }
+            if ($judge -and @($judge.PSObject.Properties.Name) -contains 'evidence') { $hearingEvidence = $judge.evidence }
+            switch ($verdict) {
+                'HEARING' { $hearing = $true;  $hearingDetail = "HEARING, proven at launch ($hearingEvidence): its own doorbell was rung and the nonce reached it." }
+                'DEAF'    { $hearing = $false; $hearingDetail = "DEAF at launch: the doorbell was rung and the nonce never reached the mind. $(if ($judge) { $judge.detail })" }
+                default   { $hearingDetail = "hearing COULD NOT BE MEASURED: the canary could not judge. $(if ($judge) { $judge.detail })" }
+            }
+        }
+    }
+}
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message $hearingDetail
 
 # New-HacsResult will downgrade this to 'degraded' if hearing is false or unknown.
@@ -353,9 +406,11 @@ $claudeSaid = ($e -replace '^Starting background service\S*\s*', '').Trim()
 $ask = if ($forked) { 'degraded' } else { 'success' }
 $msg = if ($forked) { "FORKED: resumed $($sid.SessionId) but a COPY is running as $($agent.sessionId). The original transcript is untouched. $hearingDetail" }
        else { "chassis running. $hearingDetail" }
-$r = New-HacsResult -Status $ask -InstanceId $InstanceId -Hearing $hearing `
+$r = New-HacsResult -Status $ask -InstanceId $InstanceId -Hearing $hearing -HearingNotAttempted:$notAttempted `
     -Message $msg `
     -Extra @{
+        hearingEvidence   = $hearingEvidence
+        ringName          = $ringName
         resumed           = $isResume
         forked            = $forked
         claudeSaid        = $claudeSaid

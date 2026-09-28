@@ -80,7 +80,8 @@ param(
     [Parameter(ParameterSetName = 'Watch')][string] $Nonce,
     [Parameter(ParameterSetName = 'Watch')][long] $FromOffset = -1,
     [int] $TimeoutSec = 90,
-    [int] $PollSec = 3
+    [int] $PollSec = 3,
+    [switch] $AllowGuess
 )
 
 Set-StrictMode -Version Latest
@@ -117,9 +118,27 @@ if (-not $sid.Path) {
     Emit 'ERROR' 2 "no transcript to watch: $($sid.Reason). This is 'I could not look', NOT 'the mind is deaf'." `
         @{ sessionConfidence = $sid.Confidence }
 }
+# A GUESSED transcript is refused unless asked for (Forge's review). On Windows there
+# is no per-instance OS user fencing one mind's files from another's, so "the newest
+# transcript in this home" can belong to a test, a fork, or a copy -- and judging the
+# wrong file yields a confident DEAF for a mind that hears perfectly.
+if ($sid.Confidence -eq 'guess' -and -not $AllowGuess) {
+    Emit 'ERROR' 2 "the transcript was only GUESSED ($($sid.Reason)). Refusing to judge a mind by a file that may not be its own. Record the session id (launch does this), or pass -AllowGuess." `
+        @{ sessionConfidence = 'guess' }
+}
 
 # --- MARK -----------------------------------------------------------------------
 if ($Mark) {
+    # CHECK OUR OWN EYESIGHT FIRST (Forge's review). If the evidence rules cannot
+    # recognise a single user line and a single assistant line in this transcript, a
+    # schema change has blinded them -- and a blind canary on a growing transcript says
+    # "ACTIVE and still did not receive it" about a healthy mind. Refuse to mint a
+    # nonce we could never recognise.
+    $schema = Test-HacsTranscriptSchema -Path $sid.Path
+    if (-not $schema.Recognised) {
+        Emit 'ERROR' 2 "schema unrecognised: $($schema.Reason). The evidence rules cannot see this transcript, so no verdict from them would mean anything. Check for a Claude Code transcript format change before trusting any canary." `
+            @{ schemaScanned = $schema.Scanned; schemaUserLines = $schema.UserLines; schemaAssistantLines = $schema.AssistantLines }
+    }
     # Words and a number. Unique per invocation, unsatisfiable from stale context,
     # and unmistakably not a secret.
     $w1 = @('copper', 'quiet', 'amber', 'narrow', 'hollow', 'bright', 'distant', 'level', 'patient', 'dry')
@@ -177,7 +196,7 @@ while ((Get-Date) -lt $deadline) {
         # writes just as well. See the module for the transcript that proved it.
         $best = $null; $seen = @()
         foreach ($line in ($tail -split "`n")) {
-            if ($line.IndexOf($Nonce, [StringComparison]::Ordinal) -lt 0) { continue }
+            if ($line.IndexOf($Nonce, [StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
             $t = try { ($line | ConvertFrom-Json).type } catch { '<unparseable>' }
             $ev = Get-HacsNonceEvidence -Line $line -Nonce $Nonce
             $seen += "$t=$(if ($ev) { $ev } else { 'not-evidence' })"

@@ -190,6 +190,7 @@ if ($WhatIf) {
 # 3. Ask nicely. `claude stop` keeps the conversation resumable.
 # --------------------------------------------------------------------------
 $stopped = @()
+$jobIdInferred = $false
 $stubborn = @()
 foreach ($a in @(Get-HacsAgentRegistry)) {
     if (-not (Test-HacsSamePath $a.cwd $inst.HomeDir)) { continue }
@@ -208,7 +209,13 @@ foreach ($a in @(Get-HacsAgentRegistry)) {
     # UUID's first 8 hex digits (90fa2961) -- INFERRED from one sample, since the
     # registry exposes no separate job-id field. Step 4 verifies the stop by
     # watching the processes, so a wrong inference degrades rather than lies.
-    $jobId = ([string]$a.sessionId).Substring(0, [Math]::Min(8, ([string]$a.sessionId).Length))
+    # Prefer the registry's explicit `id` when the row carries one (finished rows do);
+    # otherwise infer from the UUID prefix, and SAY that it was inferred (Forge's review).
+    if (@($a.PSObject.Properties.Name) -contains 'id' -and $a.id) { $jobId = [string]$a.id }
+    else {
+        $jobId = ([string]$a.sessionId).Substring(0, [Math]::Min(8, ([string]$a.sessionId).Length))
+        $jobIdInferred = $true
+    }
     $n = Invoke-HacsNative -FilePath $claudeExe -Arguments @('stop', $jobId) -TimeoutSec 60
     Write-HacsLog -Instance $inst -Log 'land.log' -Message ("asked claude to stop {0}: exit={1} timedOut={2} stdout='{3}' stderr='{4}'" -f `
         $a.sessionId, $n.ExitCode, $n.TimedOut, ($n.StdOut -replace '\s+',' ').Trim(), ($n.StdErr -replace '\s+',' ').Trim())
@@ -250,7 +257,7 @@ $r = New-HacsResult -Status $status -InstanceId $InstanceId -HearingNotApplicabl
     -Message ("landed. $($stopped.Count) stopped, $($remaining.Count) still running. " +
               "Data preserved; relaunch with launch.ps1 -InstanceId $InstanceId") `
     -Extra @{ stopped = $stopped; stillRunning = @($remaining | ForEach-Object { $_.ProcessId })
-              snapshot = $snapshot; forced = [bool]$Force
+              snapshot = $snapshot; forced = [bool]$Force; jobIdInferred = $jobIdInferred
               otherInstancesUntouched = $others.Count
               logFile = (Join-Path $inst.RuntimeDir 'land.log') }
 
