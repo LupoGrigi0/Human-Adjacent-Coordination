@@ -170,6 +170,31 @@ the `trap` blocks in launch/land exist because of these.
   in 2.1.283: `attachment/silent_turn_reminder`, `attachment/credential_org`. Types
   *not observed* since the upgrade are a small sample, not evidence of removal.
 
+## 6c. Forge's Linux bugs, checked on Windows (second ledger, 2026-09-27)
+
+- **A guess was resumed.** With nothing recorded, launch resumed the newest transcript.
+  Now only an explicit or recorded id resumes; a guess is refused. *Present here: yes.*
+- **`-Relaunch` was worse here than on Linux:** it did nothing but skip the double-start
+  guard, so following the refusal's own advice would have started a second process on a
+  live mind's transcript. It now lands first — deferred until after every other check,
+  so a refused relaunch never lands anything. Measured: a relaunch refused for
+  `-Model` left the mind running; a real relaunch landed it and brought back the same
+  session, hearing proven, `success`.
+- **The registry shows a TRANSIENT session id right after a resume.** 2 s after
+  `--bg --resume 5bc16afe`, the registry said `5dace46a` — no transcript, no history
+  row — while `--bg` printed `5bc16afe`, stderr said "woke session 5bc16afe" and that
+  transcript kept growing. Launch believed the registry over three witnesses, reported
+  FORKED, and **recorded the phantom id**. Now: `--bg`'s own job id and words are
+  authoritative, launch waits for the registry row that matches it, and **no id is ever
+  recorded without a transcript behind it**. (Forge's birth race is the same family.)
+- **A ringer that does not deliver is not a deaf mind.** A real doorbell always leaves an
+  enqueue in the target's transcript; no sighting at all means the ringer declined
+  (Forge measured haiku refusing a bare nonce as a "tracking probe"), was misaddressed, or
+  failed — reported as `unknown`. Measured with a deliberately misaddressed ringer.
+- **(Not applicable here:** `--allowedTools` swallowing the ringer's prompt — this ringer
+  relies on the box's permission mode. On a box without bypass, use the `=` form:
+  `--allowedTools=SendMessage`.)
+
 ## 7. What is still NOT proven
 
 - ~~A session born **interactive** resumed by `--bg` (analogue only, §2).~~ Proven, §2.

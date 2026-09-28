@@ -71,7 +71,8 @@ param(
     [switch] $SkipHearing,                                           # -> hearing 'not-attempted'
     [int]    $HearingTimeoutSec = 120,
     [string] $SenderModel = 'haiku',
-    [string] $SenderDir = 'D:\Lupo\hacs-runtime\_liveness-probe'   # never a repo or a home
+    [string] $SenderDir = 'D:\Lupo\hacs-runtime\_liveness-probe',  # never a repo or a home
+    [string] $RingName                                              # default: the registry's name for the mind
 )
 
 Set-StrictMode -Version Latest
@@ -127,11 +128,23 @@ $null = New-Item -ItemType Directory -Force -Path $inst.RuntimeDir -ErrorAction 
 #    which process belongs to whom is a wrong guess about whose mind to stop.
 # --------------------------------------------------------------------------
 $live = @(Get-HacsClaudeProcess -Instance $inst)
+$mustLand = $false
 if ($live.Count -gt 0 -and -not $Relaunch) {
     $pids = ($live | ForEach-Object { $_.ProcessId }) -join ','
     Write-HacsLog -Instance $inst -Log 'launch.log' -Message "REFUSED: already running (pid $pids)"
     Fail "an attributable session is already running (pid $pids). Pass -Relaunch to land it first, or attach instead. Refusing to double-start: two sessions on one transcript BRANCH it, and a branched turn is preserved but never visited." `
          @{ livePids = @($live | ForEach-Object { $_.ProcessId }) }
+}
+# -Relaunch LANDS FIRST -- but only after every other check below has passed.
+# Found by Forge on Linux, 2026-09-27, and worse here: this switch used to do NOTHING
+# but skip the guard above, so following the refusal's own advice ("pass -Relaunch to
+# land it first") would have started a second process on a live mind's transcript --
+# the branch the guard exists to prevent. And a relaunch that is then REFUSED (a model
+# on resume, a dead credential) must not already have landed the mind. So the land is
+# deferred to the last moment before the start, after every refusal.
+if ($live.Count -gt 0 -and $Relaunch) {
+    $mustLand = $true
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "RELAUNCH requested over pid $(($live | ForEach-Object { $_.ProcessId }) -join ','): will land it after all checks pass"
 }
 
 # --------------------------------------------------------------------------
@@ -179,6 +192,14 @@ if ($sid.Confidence -eq 'ambiguous') {
 }
 if ($sid.Confidence -eq 'error' -and $SessionId) {
     Fail "session: $($sid.Reason)" @{ sessionConfidence = 'error' }
+}
+# A GUESS IS NEVER RESUMED (Forge, Linux, 2026-09-27: with nothing recorded, launch
+# guessed the newest transcript -- a human's login session -- and planned to resume
+# it AS the mind). A guess is fine for a canary to be told about; it is never fine to
+# BECOME. Only an explicit or recorded id resumes.
+if ($sid.Confidence -eq 'guess') {
+    Fail "this home has transcripts, but none is RECORDED as this instance's session. Refusing to resume a guess ($($sid.Reason)) -- becoming the wrong mind is not an error that announces itself. Pass -SessionId <full uuid> once; launch records it from then on." `
+         @{ sessionConfidence = 'guess'; guessedSession = $sid.SessionId }
 }
 # Confidence 'error' with no -SessionId means there is simply no transcript yet.
 # That is a legitimate first launch, not a failure.
@@ -247,10 +268,25 @@ if ($isResume) {
 if ($WhatIf) {
     $r = New-HacsResult -Status 'degraded' -InstanceId $InstanceId -Hearing $null `
         -Message 'WhatIf: nothing was started.' `
-        -Extra @{ wouldRun = "$claudeExe $($argv -join ' ')"; cwd = $inst.HomeDir; mode = $effMode
+        -Extra @{ wouldRun = "$claudeExe $($argv -join ' ')"; cwd = $inst.HomeDir; mode = $effMode; wouldLandFirst = $mustLand
                   sessionConfidence = $sid.Confidence; credential = $credState }
     $r | Write-HacsResult
     exit 1
+}
+
+# The -Relaunch land, deferred to here: every refusal is behind us. land snapshots
+# first, stops cleanly, and never kills without -Force. Anything short of a clean
+# 'success' aborts the relaunch -- nothing is started over a mind that may still run.
+if ($mustLand) {
+    $landRaw = & (Join-Path $PSScriptRoot 'land.ps1') -InstanceId $InstanceId 2>$null | Out-String
+    $landed = $null; try { $landed = $landRaw | ConvertFrom-Json } catch { }
+    $ls = if ($landed -and @($landed.PSObject.Properties.Name) -contains 'status') { $landed.status } else { '<no result>' }
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "relaunch: land returned '$ls'"
+    $still = @(Get-HacsClaudeProcess -Instance $inst)
+    if ($ls -ne 'success' -or $still.Count -gt 0) {
+        Fail "relaunch ABORTED: land returned '$ls' and $($still.Count) attributable process(es) remain. Nothing was started -- the mind may still be running. See land.log." `
+             @{ landResult = $landed; stillRunning = @($still | ForEach-Object { $_.ProcessId }) }
+    }
 }
 
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message "starting: claude $($argv -join ' ')"
@@ -297,6 +333,7 @@ if ($n.ExitCode -ne 0) {
 # 7. Is it actually registered? 'started' is not 'running'.
 # --------------------------------------------------------------------------
 $registered = @()
+$matching = @()
 $deadline = (Get-Date).AddSeconds($RegistryTimeoutSec)
 do {
     Start-Sleep -Milliseconds 1000
@@ -307,7 +344,15 @@ do {
         $nm = @($_.PSObject.Properties.Name)
         ($nm -contains 'cwd') -and ($nm -contains 'pid') -and $_.pid -and
         ($nm -contains 'kind') -and $_.kind -ne 'interactive' -and (Test-HacsSamePath $_.cwd $inst.HomeDir) })
-} while ($registered.Count -eq 0 -and (Get-Date) -lt $deadline)
+    # AND keep polling until a row carries the session --bg itself named. Measured
+    # 2026-09-27 on a resume of 3266: 2 s after start the registry showed session
+    # 5dace46a -- an id with no transcript and no history row -- while --bg printed
+    # 5bc16afe, stderr said "woke session 5bc16afe", and 5bc16afe.jsonl kept growing.
+    # A freshly woken process shows a TRANSIENT id before it adopts the resumed one.
+    # The first version believed the registry over three other witnesses, reported
+    # FORKED, and recorded the phantom id. Forge hit the same race at birth on Linux.
+    if ($bgId) { $matching = @($registered | Where-Object { $_.sessionId -and ([string]$_.sessionId).StartsWith($bgId) }) }
+} while (($registered.Count -eq 0 -or ($bgId -and $matching.Count -eq 0)) -and (Get-Date) -lt $deadline)
 
 if ($registered.Count -eq 0) {
     Write-HacsLog -Instance $inst -Log 'launch.log' -Message "DEGRADED: started (id=$bgId) but never appeared in 'claude agents --json'"
@@ -318,30 +363,39 @@ if ($registered.Count -eq 0) {
     exit 1
 }
 
-# On a resume, prefer the row that IS the resumed session, if there is one.
-$agent = $registered[0]
-if ($isResume) {
-    $same = @($registered | Where-Object { $_.sessionId -eq $sid.SessionId })
-    if ($same.Count -gt 0) { $agent = $same[0] }
-}
-# Two witnesses: the id --bg printed, and the session the registry shows under this
-# home. They must agree, or we may be describing somebody else's session.
-$idAgrees = [bool]($bgId -and $agent.sessionId -and $agent.sessionId.StartsWith($bgId))
+# The row that IS the session --bg named; the registry is corroboration, not the judge.
+$agent = if ($matching.Count -gt 0) { $matching[0] } else { $registered[0] }
+$idAgrees = [bool]($bgId -and $agent.sessionId -and ([string]$agent.sessionId).StartsWith($bgId))
 if (-not $idAgrees) {
-    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "WARNING: bg id '$bgId' does not prefix registry sessionId '$($agent.sessionId)'"
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "WARNING: bg id '$bgId' never appeared in the registry within ${RegistryTimeoutSec}s; it shows '$($agent.sessionId)' instead"
 }
-# A resume must CONTINUE the mind, not copy it. If the running session is not the
-# one we resumed, it forked -- and a fork cannot be quietly undone, so say so.
-$forked = [bool]($isResume -and $agent.sessionId -and $agent.sessionId -ne $sid.SessionId)
+# A resume must CONTINUE the mind, not copy it. The authoritative witness is --bg
+# ITSELF: the job id it printed, and its own words ("started a copy as ..." vs "woke
+# session ..."). A registry mismatch alone is a transient, never a fork.
+$copyNote = [bool]($e -match 'started a copy')
+$forked = [bool]($isResume -and (($bgId -and -not $sid.SessionId.StartsWith($bgId)) -or $copyNote))
 if ($forked) {
-    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "FORKED: resumed $($sid.SessionId) but the running session is $($agent.sessionId). claude said: $e"
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "FORKED: resumed $($sid.SessionId) but --bg started $bgId. claude said: $e"
     Set-Content -Path (Join-Path $inst.RuntimeDir '.forked-from') -Value $sid.SessionId -Encoding ascii
 }
 if (-not $isResume) {
     Set-Content -Path $birthFile -Value $Mode -Encoding ascii        # mode is fixed from here on
 }
-if ($agent.sessionId) {
-    Set-Content -Path (Join-Path $inst.RuntimeDir '.claude-session-id') -Value $agent.sessionId -Encoding ascii
+# NEVER RECORD AN ID WITHOUT A TRANSCRIPT BEHIND IT. The phantom 5dace46a was recorded
+# and poisoned 3266's record. Only an id whose .jsonl exists (waiting briefly -- a
+# brand-new birth writes its file within seconds) is allowed to become the record.
+$recordId = if ($idAgrees) { [string]$agent.sessionId } else { $null }
+if ($recordId) {
+    $tFile = Join-Path $inst.ProjectDir "$recordId.jsonl"
+    $until = (Get-Date).AddSeconds(15)
+    while (-not (Test-Path $tFile) -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 500 }
+    if (Test-Path $tFile) {
+        Set-Content -Path (Join-Path $inst.RuntimeDir '.claude-session-id') -Value $recordId -Encoding ascii
+    } else {
+        Write-HacsLog -Instance $inst -Log 'launch.log' -Message "NOT recording ${recordId} -- no transcript at $tFile. The previous record stands."
+    }
+} else {
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "NOT recording a session id: --bg's id and the registry never agreed. The previous record stands."
 }
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message "registered: kind=$($agent.kind) pid=$($agent.pid) session=$($agent.sessionId)"
 
@@ -364,7 +418,9 @@ Write-HacsLog -Instance $inst -Log 'launch.log' -Message "registered: kind=$($ag
 $hearing = $null
 $notAttempted = $false
 $hearingEvidence = $null
-$ringName = if ($agent.PSObject.Properties.Name -contains 'name' -and $agent.name) { [string]$agent.name } else { $InstanceId }
+$ringName = if ($RingName) { $RingName }
+            elseif ($agent.PSObject.Properties.Name -contains 'name' -and $agent.name) { [string]$agent.name }
+            else { $InstanceId }
 if ($SkipHearing) {
     $notAttempted = $true
     $hearingDetail = 'hearing NOT ATTEMPTED (-SkipHearing). Prove it with canary.ps1 -Mark / deliver / -Nonce -FromOffset.'
@@ -390,7 +446,26 @@ if ($SkipHearing) {
             if ($judge -and @($judge.PSObject.Properties.Name) -contains 'evidence') { $hearingEvidence = $judge.evidence }
             switch ($verdict) {
                 'HEARING' { $hearing = $true;  $hearingDetail = "HEARING, proven at launch ($hearingEvidence): its own doorbell was rung and the nonce reached it." }
-                'DEAF'    { $hearing = $false; $hearingDetail = "DEAF at launch: the doorbell was rung and the nonce never reached the mind. $(if ($judge) { $judge.detail })" }
+                'DEAF'    {
+                    # A real doorbell ALWAYS leaves an enqueue in the target's own
+                    # transcript. No sighting at all means the RINGER never delivered --
+                    # declined the nonce as a "tracking probe" (Forge measured haiku doing
+                    # this), misaddressed it, or failed. Blaming the mind for the ringer
+                    # would be a confident wrong DEAF. Only accepted-but-never-delivered
+                    # is evidence of deafness.
+                    # @( if ... ) -- NOT `if ... { @() }`: assigning from an if-expression
+                    # unrolls its output, so an empty @() arrives as $null and .Count
+                    # throws under StrictMode. The empty case is exactly the misaddressed-
+                    # ringer case; the first version crashed on the one path it was for.
+                    $seen = @(if ($judge -and @($judge.PSObject.Properties.Name) -contains 'nonceSightings') { $judge.nonceSightings })
+                    if ($seen.Count -eq 0) {
+                        $hearing = $null
+                        $hearingDetail = "hearing COULD NOT BE MEASURED: the doorbell never reached the mind's queue (no enqueue in its transcript), so the RINGER did not deliver -- declined, misaddressed ('$ringName'), or failed. That is not evidence the mind is deaf."
+                    } else {
+                        $hearing = $false
+                        $hearingDetail = "DEAF at launch: the doorbell reached the mind's queue ($($seen -join '; ')) but the nonce never reached its context. $($judge.detail)"
+                    }
+                }
                 default   { $hearingDetail = "hearing COULD NOT BE MEASURED: the canary could not judge. $(if ($judge) { $judge.detail })" }
             }
         }
