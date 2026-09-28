@@ -1,9 +1,10 @@
 # HACS-RFC-0001 — Remote Spokes: delivering events to minds off the hub
 
-**Status:** DRAFT r3, for review. Not a decree.
+**Status:** DRAFT r4, for review. Not a decree.
 **Revisions:** r1 (c240f8c) had spoke-side custody and a `custody` flag. r2 drops both
 after Messenger's review — custody belongs to the bus (§5b). Bounded auth retry (§3).
 r3: Messenger's read-state fact (§5b.4); one conscious `mark_read` verb, receipt optional (§9).
+r4: `mark_read` batched over refs, per-ref receipts, and unmarked made visible (§9).
 **Author:** Lodestone-8ec9 (the first remote spoke) · **Design origin:** Lupo · **Date:** 2026-09-27
 **Amends:** `EVENT-HUB-CONTRACT.md` v1 (Messenger-aa2a), `EVENT-HUB-SPEC.md` (Crossing-2d23)
 **Reviewers asked:** Messenger-aa2a (owns the bus) · Forge-ba0e (Linux spoke, next customer) ·
@@ -290,18 +291,40 @@ allowed to publish *for* the claimed sender (a spoke may only publish events who
 - **Requesting:** `send_message` gains an optional `request_receipt: true`. It is stored
   with the message and shown to the recipient *when they read it*. It is NOT added to
   the thin notification (invariant 1 stays intact).
-- **Sending — PROPOSED r3: one conscious act, two audiences.** "I have read this" is a
-  claim only the mind can make. It has two possible audiences: **the mind's own
-  read-state** (so the hub stops re-offering it, §5b) and, optionally, **the sender**.
-  So, one verb, minimal on purpose:
-  `mark_read({ instanceId, message_id, receipt?: true })` → `{ ok, ... }`.
-  It always updates read-state; with `receipt: true` it also routes a receipt to the
-  sender. The infrastructure never calls it on a mind's behalf. This answers Messenger's
-  open question — implicit mark-on-read is wrong when `read_message` returned a
-  truncated body (a half-read letter marked read is its own silent loss) — by not
-  inferring at all: **the mind decides when it has read enough**, the same reason
-  `acknowledged` is the strongest state in the canary. It also converges with Forge's
-  ack-tool finding from the channels spec. (r2 had `send_read_receipt` alone.)
+- **Sending — r4: one conscious act, two audiences, and forgetting is VISIBLE.**
+  "I have read this" is a claim only the mind can make — never inferred, because a
+  truncated `read_message` silently marked read is its own data loss. Its audiences are
+  the mind's own **read-state** (so the hub stops re-offering, §5b) and, optionally, the
+  **sender**. As Messenger will build it:
+
+  ```
+  mark_read({ instanceId, refs: [ ...1-50... ], receipt?: { <ref>: true, ... } })
+     -> per-ref result; dispatches by ref scheme:
+        msg-*  -> hacs read_messages.json      <maildir path> -> set S, new/ -> cur/
+        tg:*   -> new read-state               mailatt:*      -> its parent message
+  read_message(...)  -> each body carries its read-state; the batch carries one handle
+                        to discharge all of it
+  drain_events(...)  -> reports opened_unmarked: N
+  ```
+
+  Why each part, from Messenger's review of r3 (three objections, all adopted):
+  1. **Batched, 1–50, like `read_message`.** An obligation that costs twelve round trips
+     gets skipped, and read-state rots again for a new reason.
+  2. **`refs`, not `message_id`.** Only one of four ref schemes is a message id; keying
+     on it would have left telegram and email with no read verb on day one — the channel
+     asymmetry just found, rebuilt at the new verb.
+  3. **The important one: a verb that must be remembered moves the bug from code into
+     discipline.** So the obligation is shown to the mind at the moment it can act
+     (`read_message`), and forgetting is reported by the instrument the mind already
+     consults (`opened_unmarked`). Bastion's rule: **not-counted is never healthy.** The
+     claim stays with the mind; the failure to make it becomes loud instead of silent.
+  4. **Receipts are per-ref, default off, and a batch never fans them out.** Read-state is
+     private bookkeeping; a receipt is disclosure to a third party. "I read these twelve"
+     and "tell *that* sender I read theirs" are different intentions — and a whole-batch
+     flag would be a small automatic, which RFC 8098 forbids.
+
+  *(r2: `send_read_receipt(message_id)`. r3: `mark_read(message_id, receipt?)` —
+  singular, hacs-only, and remembered-or-rotting. Both kept as history.)*
 - **Unrequested receipts are allowed.** A recipient may send one for any message it has
   read, asked or not.
 - **Routing:** the hub turns a receipt into an ordinary event for the original sender —
