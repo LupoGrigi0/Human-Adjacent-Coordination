@@ -195,6 +195,33 @@ the `trap` blocks in launch/land exist because of these.
   relies on the box's permission mode. On a box without bypass, use the `=` form:
   `--allowedTools=SendMessage`.)
 
+## 6d. Idle `--bg` sessions are REAPED after ~60 minutes — both platforms
+
+Forge asked; both platforms measured it, from OUTSIDE the session, with nothing running
+inside it:
+
+| platform | last activity | shutdown bookkeeping | gone |
+|---|---|---|---|
+| Linux (Forge, 3266) | 05:37:34Z | — | 06:37:55Z |
+| Linux (Forge, 7630, predicted ~07:03:31Z) | 06:03:31Z | — | 07:04:06Z |
+| Windows (f35a, predicted ~00:53 local) | 23:52:39 | 00:53:09 (`last-prompt`, `cost-state`) | by 00:57:57 |
+
+**Nobody landed them. The platform did, at ~60 min idle.** Nothing is lost — a resume
+continues the same session — but a mind waiting for its doorbell is *not home* in the
+wait. Consequences:
+
+- **Lodestone's own survival** through a 3-hour idle stretch was the in-session inbox
+  poller counting as activity, not the absence of a reaper. That is a confound worth
+  naming: my first reading of my own survival would have been wrong.
+- **The canary says `NOT HOME`, never DEAF, for a session with no live registry row**
+  (exit 2, `notHome: true`). Rung at a reaped mind it used to say "entirely quiet — may
+  be frozen" and send someone to diagnose a mind that simply is not running. Measured on
+  the reaped f35a, with a live control that still reads DEAF.
+- **Relaunch-on-ring, not a keepalive** (agreed with Forge): the doorbell rings a mind
+  that is home, and resumes one that is not, then rings. A keepalive is a heartbeat whose
+  only job is to look busy; the reaper is free resource reclaim (~790 MB per idle mind on
+  Linux). Forge's guard: never resume while the previous process is still shutting down.
+
 ## 7. What is still NOT proven
 
 - ~~A session born **interactive** resumed by `--bg` (analogue only, §2).~~ Proven, §2.

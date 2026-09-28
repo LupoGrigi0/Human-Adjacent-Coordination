@@ -60,6 +60,21 @@ function Section { param([string] $N) Write-Host "`n=== $N ===" -ForegroundColor
 # unexpected result shape must fail as a CHECK, not abort the whole suite.
 function JP($o, [string] $n) { if ($o -and @($o.PSObject.Properties.Name) -contains $n) { $o.$n } else { "<no $n>" } }
 
+# ------------------------------------------------------------------ parse ----
+Section 'every chassis script PARSES (a script that cannot parse never reaches its trap)'
+# 2026-09-27: "$recordId:" and then "$Nonce:" -- twice in one hour -- parsed as
+# drive-qualified variables, and the whole script died at load time with NO JSON. The
+# top-level trap cannot catch that: a script that does not parse never runs it. A
+# habit (my manual parse check) caught both; this makes it a mechanism.
+$ctrlErr = $null
+$null = [System.Management.Automation.Language.Parser]::ParseInput('"x $y: z"', [ref]$null, [ref]$ctrlErr)
+Check 'CONTROL: the parser flags the "$var:" shape' (@($ctrlErr).Count -gt 0) 'True'
+foreach ($f in @(Get-ChildItem $root -Recurse -Include *.ps1, *.psm1 -File)) {
+    $pe = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$pe)
+    Check "parses: $($f.FullName.Substring($root.Length + 1))" @($pe).Count 0
+}
+
 # ---------------------------------------------------------------- identity ---
 Section 'identity'
 $i = Get-HacsInstance -InstanceId $LiveInstanceId

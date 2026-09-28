@@ -213,6 +213,23 @@ while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds $PollSec
 }
 
+# NOT HOME is not DEAF. Measured 2026-09-27/28, on both platforms (Forge on Linux, f35a
+# here): an idle --bg session is REAPED by Claude Code after ~60 minutes -- shutdown
+# bookkeeping in the transcript (last-prompt, cost-state), then no process and no
+# registry row. Nobody landed it. A canary rung at a reaped (or landed) mind would
+# otherwise say "entirely quiet -- it may be frozen", sending someone to diagnose a
+# mind that is simply not running. The right response to "not home" is to RELAUNCH
+# (a resume loses nothing), not to diagnose. So: is this session running at all?
+$liveRow = @(Get-HacsAgentRegistry | Where-Object {
+    @($_.PSObject.Properties.Name) -contains 'pid' -and $_.pid -and $_.sessionId -and
+    ([string]$_.sessionId) -eq ([string]$sid.SessionId) })
+if ($liveRow.Count -eq 0) {
+    Write-HacsLog -Instance $inst -Log 'canary.log' -Message "NOT-HOME nonce=${Nonce} -- session $($sid.SessionId) is not running (no live registry row)"
+    Emit 'ERROR' 2 ("NOT HOME: session $($sid.SessionId) is not running -- no live registry row. Landed, or reaped by " +
+        "Claude Code after ~60 minutes idle. That is not deafness; relaunch it (launch.ps1 resumes the recorded id, losing nothing) and ring again.") `
+        @{ nonce = $Nonce; notHome = $true; nonceSightings = $seen }
+}
+
 # DEAF is only reachable from here: we could look, the whole time, and it never came.
 # If the nonce WAS sighted but never as evidence -- typically a queue-operation
 # enqueue with no delivery after it -- say so: that names where the pipe broke.
