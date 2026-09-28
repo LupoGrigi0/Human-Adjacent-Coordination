@@ -48,3 +48,12 @@ Chassis: land the running bg session → `launch --session-id 27e13600… --mode
 - first attempt: hearing unknown — the ringer targeted the instance id, but an interactive-born session is registered
   under its **auto-title** ("chassis communication test"). **Bug #7, fixed:** ring the registry's name for the session.
 - after the fix: **success, hearing true (acknowledged), 19 s.** Proven on Linux; Lodestone proved it on Windows.
+
+## IDLE REAP: a `--bg` session ends after ~60 min idle (2 samples, the second predicted in advance)
+- 3266: last activity 05:37:34Z → shutdown records + all processes gone at 06:37:55Z. Nobody landed it.
+- 7630: last activity 06:03:31Z → **predicted gone at ~07:03:31Z**; watcher saw live at 07:03:36Z, **gone at 07:04:06Z**.
+- Shutdown is clean (the transcript gets last-prompt / custom-title / mode / permission-mode / cost-state), so a flag-less
+  resume continues the same session. Nothing is lost; the doorbell HOLDS while the mind isn't running.
+- Consequence: a mind that waits for its doorbell is not running when it rings. Either keep it alive, or
+  (better, and cheaper: ~790 MB/mind only while awake) **the doorbell resumes the mind, then rings**. Sleep when idle,
+  wake on the bell. To design with Lodestone and Messenger.
