@@ -40,3 +40,11 @@ returned the message verbatim. The chain works without a human typing anything.
 
 Fixture inboxes (`dev-reconstruction-001-*`) could not be used: the hub reported delivery to
 `dev-reconstruction-001 (…-6f47)`, `type: room`, but the recipient could never list or fetch it (filed with Messenger).
+
+## Interactive-born → `--bg` resume on Linux (Forge's own crossing shape), 2026-09-28
+Fixture 7630: Lupo ran `claude` interactively in `~/workspace` (session `27e13600`, one exchange), `/exit`.
+Chassis: land the running bg session → `launch --session-id 27e13600… --mode attended`:
+- **same session id, transcript count 3 → 3 (no fork), conversation continuous** ("Hello pup…" then the launch ack)
+- first attempt: hearing unknown — the ringer targeted the instance id, but an interactive-born session is registered
+  under its **auto-title** ("chassis communication test"). **Bug #7, fixed:** ring the registry's name for the session.
+- after the fix: **success, hearing true (acknowledged), 19 s.** Proven on Linux; Lodestone proved it on Windows.

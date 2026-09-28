@@ -439,7 +439,12 @@ def cmd_launch(a):
             wdl = time.time() + 90
             while time.time() < wdl and not (os.path.isfile(tp) and schema_selftest(tp)): time.sleep(2)
             mk = canary_mark(inst)
-            ok, rr = ring(inst, f"Chassis launch check: reply in one short line containing the phrase {mk['nonce']}, then stop.")
+            # Ring the name the REGISTRY shows for this session, not the one we assume. Measured 2026-09-28: an
+            # interactive-born session resumed under --bg is registered by its auto-title ("chassis communication
+            # test"), not the instance id -- and the ringer found "no agent named dev-reconstruction-001-7630".
+            ring_name = agent.get("name") or iid
+            ok, rr = ring(inst, f"Chassis launch check: reply in one short line containing the phrase {mk['nonce']}, then stop.",
+                          target=ring_name)
             if not ok:
                 hearing, hdetail = None, f"the ringer could not deliver (rc={rr['rc']}); hearing COULD NOT BE MEASURED"
             else:
@@ -450,7 +455,7 @@ def cmd_launch(a):
     ask = "degraded" if forked else "success"
     msg = (f"FORKED: resumed {s['sid']} but a COPY runs as {sid_now}. Original untouched. " if forked else "chassis running. ") + hdetail
     return result(ask, iid, msg, hearing, resumed=resume, forked=forked, bgId=bg_id, bgIdMatchesRegistry=bool(bg_id and (sid_now or "").startswith(bg_id)),
-                  pid=agent.get("pid"), sessionId=sid_now, mode=eff_mode, credential=cred, sessionConfidence=s["confidence"],
+                  pid=agent.get("pid"), sessionId=sid_now, registryName=agent.get("name"), mode=eff_mode, credential=cred, sessionConfidence=s["confidence"],
                   hearingEvidence=hextra, unclaimedTranscripts=unclaimed, home=inst.home, attach=f"sudo -iu {inst.user} claude attach {bg_id}")
 
 # ------------------------------------------------------------------------------------------------
