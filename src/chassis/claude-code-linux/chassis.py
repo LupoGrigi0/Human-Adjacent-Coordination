@@ -77,7 +77,18 @@ def emit(o):
 class Instance:
     def __init__(self, iid):
         self.id = iid
-        self.user = iid.lower()
+        # Default: the unix user IS the lowercased instance id, working in ~/workspace. A mind that predates the
+        # chassis (Forge: user 'forge', four months in ~/BlackWolf-Forge) is described by a root-owned record,
+        # /etc/hacs-chassis/instances/<InstanceId>.json = {"user": ..., "workdir": ...}. Root-owned on purpose:
+        # a mind must not be able to re-point its own chassis at someone else's home.
+        rec = {}
+        rp = os.path.join("/etc/hacs-chassis/instances", iid + ".json")
+        if os.path.isfile(rp):
+            st = os.stat(rp)
+            if st.st_uid != 0 or st.st_mode & 0o022:
+                raise Fail(f"identity: {rp} must be root-owned and not group/world-writable")
+            rec = json.load(open(rp))
+        self.user = rec.get("user") or iid.lower()
         try:
             pw = pwd.getpwnam(self.user)
         except KeyError:
@@ -89,7 +100,9 @@ class Instance:
         # fixture's HOME and accepted trust, all three configs still read hasTrustDialogAccepted=false for
         # the home dir -- and `--bg` refuses an untrusted workspace. A subdirectory holds trust (Forge's own
         # instance has always lived in ~/BlackWolf-Forge, never ~).
-        self.workdir = os.path.join(self.home, "workspace")
+        self.workdir = rec.get("workdir") or os.path.join(self.home, "workspace")
+        if not os.path.realpath(self.workdir).startswith(os.path.realpath(self.home) + os.sep):
+            raise Fail(f"identity: workdir {self.workdir} is outside {self.user}'s home -- refusing")
         self.slug = re.sub(r"[^A-Za-z0-9]", "-", self.workdir)
         self.project_dir = os.path.join(self.home, ".claude", "projects", self.slug)
         self.state = os.path.join(STATE_ROOT, iid)
