@@ -302,6 +302,13 @@ def canary_watch(inst, path, nonce, offset, timeout=120, poll=3):
         inst.log("canary.log", f"NOT-RUNNING nonce={nonce} (no live registry row)")
         return "NOT-RUNNING", "no live session for this instance in the registry: the mind is not running (crashed or landed), not deaf.", \
                {"nonceSightings": seen, "transcriptGrewBytes": grew}
+    if not seen:
+        # A real doorbell ALWAYS leaves a queue-operation enqueue in the target's transcript (measured, Linux and
+        # Windows). No sighting at all means the SENDER never delivered -- that says nothing about the mind's
+        # hearing. Lodestone, 2026-09-28, measured with a deliberately misaddressed ringer.
+        inst.log("canary.log", f"NO-SIGHTING nonce={nonce} grew={grew}: the ringer did not deliver")
+        return "ERROR", f"the nonce was never sighted in the transcript at all within {timeout}s: the RINGER did not deliver. " \
+                        "Hearing could not be measured -- this is NOT a deafness finding.", {"nonceSightings": [], "transcriptGrewBytes": grew}
     inst.log("canary.log", f"DEAF nonce={nonce} grew={grew} seen={seen}")
     where = f" It WAS sighted, never as evidence ({'; '.join(seen)}): accepted is not delivered." if seen else ""
     state = "ACTIVE and still did not receive it" if grew else "entirely quiet -- it may be FROZEN rather than deaf"
@@ -422,17 +429,27 @@ def cmd_launch(a):
     if r["rc"] != 0: raise Fail(f"claude --bg exited {r['rc']}: {r['err'].strip()[-300:]}", {"exitCode": r["rc"]})
     m = re.search(r"\b([0-9a-f]{8})\b", r["out"]); bg_id = m.group(1) if m else None
 
+    # The id `--bg` PRINTS is authoritative. Lodestone, 2026-09-28 (Windows): two seconds after a resume the
+    # registry showed a transient PHANTOM session id (no transcript) while --bg printed and woke the real one;
+    # trusting the registry reported FORKED and recorded the phantom. So: wait for the registry row that matches
+    # the printed id, and never record an id that has no transcript behind it.
     agent, deadline = None, time.time() + 30
     while time.time() < deadline and not agent:
         time.sleep(1)
-        rows = live_rows(inst) or []
-        cand = [x for x in rows if x.get("kind") == "background"]
-        if resume: cand = [x for x in cand if x.get("sessionId") == s["sid"]] or cand
-        agent = cand[0] if cand else None
+        rows = [x for x in (live_rows(inst) or []) if x.get("kind") == "background"]
+        if bg_id: rows = [x for x in rows if (x.get("sessionId") or "").startswith(bg_id)]
+        elif resume: rows = [x for x in rows if x.get("sessionId") == s["sid"]]
+        agent = rows[0] if rows else None
     if not agent:
-        return result("degraded", iid, f"claude --bg returned 0 (id {bg_id}) but no live registry row within 30s. Started is not running.",
+        return result("degraded", iid, f"claude --bg returned 0 (id {bg_id}) but no matching live registry row within 30s. Started is not running.",
                       None, bgId=bg_id, mode=eff_mode, credential=cred)
     sid_now = agent.get("sessionId")
+    if sid_now and not os.path.isfile(os.path.join(inst.project_dir, sid_now + ".jsonl")):
+        tdl = time.time() + 20                # a birth may not have written its transcript yet
+        while time.time() < tdl and not os.path.isfile(os.path.join(inst.project_dir, sid_now + ".jsonl")): time.sleep(1)
+        if not os.path.isfile(os.path.join(inst.project_dir, sid_now + ".jsonl")):
+            return result("degraded", iid, f"registry shows session {sid_now} but it has NO transcript -- refusing to record a phantom id.",
+                          None, bgId=bg_id, phantomSessionId=sid_now, mode=eff_mode, credential=cred)
     forked = bool(resume and sid_now and sid_now != s["sid"])
     if forked:
         inst.write_state(".forked-from", s["sid"])
