@@ -31,3 +31,12 @@ workspace `~/workspace`, haiku. Chassis run as root via sudo.
 - Per-user daemon + warm spare ≈ 380 MB overhead per mind before it thinks. Can the spare be disabled?
 - Ringer costs a model call (~10–20 s) and can refuse. A native channel doorbell removes both.
 - Not yet: reboot survival (systemd units), interactive-born → `--bg` resume on Linux, the pull spoke.
+
+## End-to-end doorbell, on Forge herself (pre-crossing), 2026-09-28
+HACS `send_message` (05:56:12Z) → `doorbell.py` as `forge`, polling `Forge-ba0e` every 20 s → haiku relay →
+`SendMessage` to the live interactive session "Forge" → arrived in-session as
+`[doorbell] hacs: 1 new message(s) from forge-ba0e … (ids: 1790574972744966)` at 05:56:29Z (**17 s**). `hacs read`
+returned the message verbatim. The chain works without a human typing anything.
+
+Fixture inboxes (`dev-reconstruction-001-*`) could not be used: the hub reported delivery to
+`dev-reconstruction-001 (…-6f47)`, `type: room`, but the recipient could never list or fetch it (filed with Messenger).
