@@ -506,6 +506,26 @@ def cmd_launch(a):
 # ------------------------------------------------------------------------------------------------
 # land
 # ------------------------------------------------------------------------------------------------
+INFRA = re.compile(r"systemd --user|\(sd-pam\)|hacs-chassis/doorbell\.py|claude\.exe daemon run|bg-pty-host|--bg-spare")
+
+def find_orphans(inst, exclude=()):
+    """Processes of this uid that are NOT the mind and NOT infrastructure meant to outlive it (linger's systemd --user,
+    the doorbell, the Claude Code daemon/pty/spare). Measured 2026-09-29: the first version counted all of those."""
+    out = subprocess.run(["ps", "-u", str(inst.uid), "-o", "pid=,args="], capture_output=True, text=True).stdout
+    res = []
+    for l in out.splitlines():
+        parts = l.strip().split(None, 1)
+        if len(parts) < 2 or int(parts[0]) in exclude or INFRA.search(parts[1]): continue
+        if "claude" in parts[1] and "session" not in parts[1]:
+            pass
+        res.append({"pid": int(parts[0]), "args": parts[1][:120]})
+    return res
+
+def kill_orphans(inst, orphans):
+    for o in orphans:
+        try: os.kill(o["pid"], signal.SIGTERM); inst.log("land.log", f"FORCE: terminated orphan {o['pid']} {o['args']!r}")
+        except ProcessLookupError: pass
+
 def snapshot(inst):
     s = resolve_session(inst)
     if not s["path"]: return {"taken": False, "reason": s["reason"]}
@@ -530,6 +550,15 @@ def do_land(inst, force, no_snapshot, grace, whatif):
     inter = [r for r in rows if r.get("kind") == "interactive"]
     mine = [r for r in rows if r.get("kind") != "interactive"]
     if not mine:
+        orphans = find_orphans(inst, exclude=[r["pid"] for r in inter])
+        if orphans and force:
+            kill_orphans(inst, orphans); time.sleep(1)
+            left = [o for o in orphans if pid_alive(o["pid"])]
+            return result("success" if not left else "degraded", iid, f"no mind running; terminated {len(orphans) - len(left)} orphan(s).",
+                          "n/a", orphansTerminated=orphans, stillRunning=left)
+        if orphans:
+            return result("degraded", iid, f"no mind running, but {len(orphans)} process(es) it left behind are STILL RUNNING. "
+                          "Not killed without --force.", "n/a", orphans=orphans)
         return result("success", iid, "nothing running for this instance. Already landed, or never launched -- this does not distinguish the two.",
                       "n/a", stopped=[], skippedInteractive=[r["pid"] for r in inter])
     snap = {"taken": False, "reason": "skipped (--no-snapshot)"}
@@ -560,6 +589,15 @@ def do_land(inst, force, no_snapshot, grace, whatif):
         inst.log("land.log", f"FORCE kill {p}"); os.kill(p, signal.SIGKILL)
     time.sleep(2)
     left = [p for p in pids if pid_alive(p)]
+    # ORPHANS: a mind's own background tasks (e.g. a poller it started with run_in_background) SURVIVE its stop.
+    # Measured 2026-09-28/29 on 6f47: land said "0 still running" while the pup's poll.sh kept looping and calling
+    # HACS. Report them; kill them only with --force (they may be work the mind meant to outlive it -- its call).
+    orphans = find_orphans(inst, exclude=pids)
+    if orphans and force: kill_orphans(inst, orphans)
+    if orphans and not left and not force:
+        return result("degraded", iid, f"mind stopped, but {len(orphans)} process(es) it left behind are STILL RUNNING "
+                      f"(its own background tasks). Not killed without --force.", "n/a",
+                      stopped=[p for p in pids if p not in left], orphans=orphans, stops=stops, snapshot=snap)
     return result("success" if not left else "degraded", iid,
                   f"landed. {len(pids) - len(left)} stopped, {len(left)} still running. Data preserved; relaunch with launch.",
                   "n/a", stopped=[p for p in pids if p not in left], stillRunning=left, stops=stops, snapshot=snap,
