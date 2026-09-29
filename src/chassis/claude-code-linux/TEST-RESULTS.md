@@ -57,3 +57,17 @@ Chassis: land the running bg session → `launch --session-id 27e13600… --mode
 - Consequence: a mind that waits for its doorbell is not running when it rings. Either keep it alive, or
   (better, and cheaper: ~790 MB/mind only while awake) **the doorbell resumes the mind, then rings**. Sleep when idle,
   wake on the bell. To design with Lodestone and Messenger.
+
+## PERMISSION MODE DOES NOT SURVIVE A RESUME -- a blocker for crossing an `auto` mind (2026-09-29)
+Fixture 3266, session `permtest` born `claude --bg --permission-mode auto`. Land, then flag-less resume:
+- stderr claims "woke session … with its saved options (--name, --model, --permission-mode)", BUT every
+  `permission-mode` record after the resume reads `default`.
+- A non-allowlisted command (`touch ~/workspace/permtest-ran.txt`) given IN THE RESUME PROMPT did NOT run; the registry
+  showed `status: waiting, state: blocked`: a tool-approval prompt nobody will ever see.
+- Adding `permissions.defaultMode: "auto"` to the workspace `.claude/settings.json` and resuming: STILL blocked.
+- Separately: a ringer-delivered instruction was DECLINED by the mind ("Not executing peer requests without user
+  direction"), which is correct behaviour, not a bug. Doorbells should carry notice, not instructions.
+Consequences: an `auto` mind crossing into `--bg` comes back `default` and blocks on its first non-allowlisted tool,
+and every wake-on-ring resume would repeat it. Candidate mitigations (untested): broaden the allowlist; permission relay
+(native `claude/channel/permission`, or attach + approve); a deliberate `--permission-mode` re-birth (a fork = teleport)
+at crossing, but that doesn't fix later resumes. Ask Lodestone how Windows V2 handles it.
