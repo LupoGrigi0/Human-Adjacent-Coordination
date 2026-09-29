@@ -5,6 +5,9 @@ hacs — minimal HACS mail for a chassis-hosted mind. Stdlib only. Identity from
     hacs inbox [--limit N]            list recent messages (id, from, date, subject)
     hacs read <message-id>            print one message in full
     hacs send <to> <subject> <body>   send; VERIFIES delivered_to matches <to> (see below)
+    hacs send <to> <subject> -        body from STDIN -- use with a quoted heredoc (<<'EOF') so no shell
+                                      ever interprets it (Messenger, 2026-09-29: a shell ate a backticked
+                                      command out of a message body, and the reader silently repaired it)
     hacs whoami
 
 Why send verifies the recipient: on 2026-09-27 a client read a flag as the recipient, the server
@@ -41,6 +44,7 @@ def main(a):
         print(f'From: {m.get("from")}\nDate: {m.get("date")}\nSubject: {m.get("subject")}\n\n{m.get("body")}'); return 0
     if cmd == "send" and len(a) == 4:
         to, subject, text = a[1], a[2], a[3]
+        if text == "-": text = sys.stdin.read()
         if to.startswith("-"): sys.exit(f"hacs: refusing flag-shaped recipient {to!r}")
         if len(text) > 8000: sys.exit("hacs: body over 8000 chars (hub limit 8192); shorten it")
         d = call("send_message", {"from": iid, "to": to, "subject": subject, "body": text})
