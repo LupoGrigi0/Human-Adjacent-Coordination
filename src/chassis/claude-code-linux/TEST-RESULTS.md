@@ -58,7 +58,7 @@ Chassis: land the running bg session → `launch --session-id 27e13600… --mode
   (better, and cheaper: ~790 MB/mind only while awake) **the doorbell resumes the mind, then rings**. Sleep when idle,
   wake on the bell. To design with Lodestone and Messenger.
 
-## PERMISSION MODE DOES NOT SURVIVE A RESUME -- a blocker for crossing an `auto` mind (2026-09-29)
+## ~~PERMISSION MODE DOES NOT SURVIVE A RESUME~~ -- CORRECTED SAME DAY: it was the MODEL (haiku), not the resume
 Fixture 3266, session `permtest` born `claude --bg --permission-mode auto`. Land, then flag-less resume:
 - stderr claims "woke session … with its saved options (--name, --model, --permission-mode)", BUT every
   `permission-mode` record after the resume reads `default`.
@@ -71,3 +71,17 @@ Consequences: an `auto` mind crossing into `--bg` comes back `default` and block
 and every wake-on-ring resume would repeat it. Candidate mitigations (untested): broaden the allowlist; permission relay
 (native `claude/channel/permission`, or attach + approve); a deliberate `--permission-mode` re-birth (a fork = teleport)
 at crossing, but that doesn't fix later resumes. Ask Lodestone how Windows V2 handles it.
+
+### Correction (2026-09-29, controls on 6f47, after Lodestone's suggestions)
+| control | model | mode | result |
+|---|---|---|---|
+| user-level `defaultMode: auto` (fixture born with --permission-mode auto, haiku) | haiku | records `default` | blocked |
+| user-level `defaultMode: acceptEdits`, Write tool | haiku | records `default` | blocked |
+| **A** born `--permission-mode auto`, command in the BIRTH prompt (no resume) | haiku | `default` | **blocked** |
+| **A2** same, default model | **opus-5-5** | `auto` | **RAN** |
+| **A2 resumed flag-less** ("woke … with its saved options (--name, --permission-mode)") | opus-5-5 | `auto` | **RAN** |
+
+**Auto mode is not available to haiku; the session silently falls back to `default` and blocks on the first
+non-allowlisted tool.** With Opus, `auto` works in `--bg` AND survives a flag-less resume. The earlier "blocker" was
+a test artefact of using the cheap fixture model. Lesson: a fixture must match the real mind on every variable the
+finding could depend on. (All earlier haiku results that didn't involve permissions stand.)
