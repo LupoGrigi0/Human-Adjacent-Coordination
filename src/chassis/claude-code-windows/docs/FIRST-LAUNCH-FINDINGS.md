@@ -222,6 +222,33 @@ wait. Consequences:
   only job is to look busy; the reaper is free resource reclaim (~790 MB per idle mind on
   Linux). Forge's guard: never resume while the previous process is still shutting down.
 
+## 6e. The permission mode comes from USER settings here — an unwritten dependency
+
+Forge (2026-09-29, Linux fixture): a session born `--bg --permission-mode auto` comes back
+from a flag-less resume in `default`, even though stderr says it restored its saved
+options, and a workspace `permissions.defaultMode` did not help. Her first non-allowlisted
+tool call after crossing would block on a prompt nobody sees.
+
+Measured here in response, and what it can and cannot say:
+
+- **Every mind on this box runs `bypassPermissions`**: Lodestone 753 records (plus 8
+  `plan`), and every record in all three fixtures' transcripts, across births, flag-less
+  resumes and a compaction.
+- **None of that comes from the harness.** `launch.ps1` never passes `--permission-mode`.
+  It comes from **user-level** `~/.claude/settings.json` (`permissions.defaultMode:
+  bypassPermissions`). There is no workspace `.claude` in `hacs-instances` or in any home.
+- So this box shows that **the user-level default is re-applied on every flag-less
+  resume.** It says nothing about a *birth* `--permission-mode` surviving a resume,
+  because none was ever given. It is consistent with Forge's finding, not evidence
+  against it.
+- **The ringer depends on it.** `SendMessage` from the one-shot `claude --print` runs
+  unprompted only because of that user default. So does the web-bridge. A box without
+  it would need an allowlist entry, or the ring would sit on an invisible prompt.
+
+The next experiment is Forge's to run: `defaultMode` at USER scope on a fixture. If
+`auto` still reverts, try `acceptEdits` to separate "settings ignored on resume" from
+"auto refused on resume."
+
 ## 7. What is still NOT proven
 
 - ~~A session born **interactive** resumed by `--bg` (analogue only, §2).~~ Proven, §2.
@@ -232,6 +259,8 @@ wait. Consequences:
 - `SessionStart` hook firing on a `--bg` session.
 - Anything surviving a reboot (Phase 7). The mirror (Phase 5). Model switching (§2).
 - Hearing via any sender other than `SendMessage`.
+- A **birth** `--permission-mode` surviving a flag-less `--bg` resume (§6e): never tested
+  here. Forge measured a revert on Linux.
 
 ---
 *Author: Lodestone <lodestone@smoothcurves.nexus> · Collaborator: Lupo*
