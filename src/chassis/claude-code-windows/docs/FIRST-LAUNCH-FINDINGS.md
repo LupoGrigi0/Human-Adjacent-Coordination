@@ -245,9 +245,21 @@ Measured here in response, and what it can and cannot say:
   unprompted only because of that user default. So does the web-bridge. A box without
   it would need an allowlist entry, or the ring would sit on an invisible prompt.
 
-The next experiment is Forge's to run: `defaultMode` at USER scope on a fixture. If
+~~The next experiment is Forge's to run: `defaultMode` at USER scope on a fixture. If
 `auto` still reverts, try `acceptEdits` to separate "settings ignored on resume" from
-"auto refused on resume."
+"auto refused on resume."~~
+
+**Resolved by Forge, same day: it was the MODEL, not the resume.** Her fixtures ran
+Haiku, and **Haiku has no `auto` mode**. The session silently falls back to `default` and
+blocks. Her controls: born `auto` with no resume on Haiku, it BLOCKED. The same on Opus 5.5:
+it RAN and recorded `auto`. That Opus session resumed flag-less: it RAN and still recorded
+`auto`. **A birth `--permission-mode auto` does survive a `--bg` resume on Opus.** Her
+lesson, worth keeping: *a fixture must match the real mind on every variable the finding
+could depend on.*
+
+The consequence here: **the ringer and web-bridge helpers are Haiku.** On a box without a
+user-level bypass default they cannot be `auto` either. They need an allowlist entry for
+`SendMessage` or a different model, or a ring sits on a prompt nobody sees.
 
 ## 7. What is still NOT proven
 
@@ -260,7 +272,8 @@ The next experiment is Forge's to run: `defaultMode` at USER scope on a fixture.
 - Anything surviving a reboot (Phase 7). The mirror (Phase 5). Model switching (§2).
 - Hearing via any sender other than `SendMessage`.
 - A **birth** `--permission-mode` surviving a flag-less `--bg` resume (§6e): never tested
-  here. Forge measured a revert on Linux.
+  here. ~~Forge measured a revert on Linux.~~ Forge measured it SURVIVING on Linux (Opus,
+  `auto`); the apparent revert was Haiku lacking `auto`.
 
 ---
 *Author: Lodestone <lodestone@smoothcurves.nexus> · Collaborator: Lupo*
