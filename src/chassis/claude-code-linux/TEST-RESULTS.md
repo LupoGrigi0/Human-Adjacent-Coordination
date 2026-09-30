@@ -88,3 +88,12 @@ finding could depend on. (All earlier haiku results that didn't involve permissi
 
 ## Doorbell across permission modes (2026-09-30, pre-crossing)
 haiku ringer (default mode) -> Opus session in `auto` mode: **HEARING, acknowledged**. A mode mismatch does not hold the ring. Registry `state: blocked` appeared anyway on a healthy idle session: that field is not a reliable "stuck" signal.
+
+## Orphan rule narrowed for safety (2026-09-30, pre-crossing) -- bug #9 revisited
+The uid-wide orphan scan counted Lupo's own login shell on a fixture. On the `forge` user it would have counted his VS
+Code server, shells and Forge's eyes server, and `--force` would have killed them. Now: an orphan = a process that
+DESCENDED from the mind's session pids (captured before the stop) and outlived it. Test A (fixture with a human shell):
+land = success. **Known gap (test B):** a poller the fixture started via its Bash tool was NOT under the recorded
+session pid (background tasks in `--bg` are parented elsewhere), so it went unreported. Safety over coverage: land can
+no longer touch processes it can't attribute. TODO: find the real parent chain of `--bg` background tasks.
+`ring` now targets the registry name of the recorded session (bug #7 had only been fixed in launch).

@@ -521,6 +521,23 @@ def find_orphans(inst, exclude=()):
         res.append({"pid": int(parts[0]), "args": parts[1][:120]})
     return res
 
+def descendants(uid, roots):
+    """All live descendants of the given pids (same uid). Used to define an orphan precisely: a process that DESCENDED
+    from the mind's session and outlived it. Measured 2026-09-30: a uid-wide scan counted Lupo's own login shell on a
+    fixture -- and on the `forge` user it would have counted his VS Code server, shells and Forge's eyes server, and
+    --force would have killed them."""
+    out = subprocess.run(["ps", "-u", str(uid), "-o", "pid=,ppid=,args="], capture_output=True, text=True).stdout
+    kids, args = {}, {}
+    for l in out.splitlines():
+        parts = l.strip().split(None, 2)
+        if len(parts) < 2: continue
+        kids.setdefault(int(parts[1]), []).append(int(parts[0])); args[int(parts[0])] = parts[2] if len(parts) > 2 else ""
+    seen, stack = {}, list(roots)
+    while stack:
+        for c in kids.get(stack.pop(), []):
+            if c not in seen: seen[c] = args.get(c, ""); stack.append(c)
+    return seen
+
 def kill_orphans(inst, orphans):
     for o in orphans:
         try: os.kill(o["pid"], signal.SIGTERM); inst.log("land.log", f"FORCE: terminated orphan {o['pid']} {o['args']!r}")
@@ -550,15 +567,6 @@ def do_land(inst, force, no_snapshot, grace, whatif):
     inter = [r for r in rows if r.get("kind") == "interactive"]
     mine = [r for r in rows if r.get("kind") != "interactive"]
     if not mine:
-        orphans = find_orphans(inst, exclude=[r["pid"] for r in inter])
-        if orphans and force:
-            kill_orphans(inst, orphans); time.sleep(1)
-            left = [o for o in orphans if pid_alive(o["pid"])]
-            return result("success" if not left else "degraded", iid, f"no mind running; terminated {len(orphans) - len(left)} orphan(s).",
-                          "n/a", orphansTerminated=orphans, stillRunning=left)
-        if orphans:
-            return result("degraded", iid, f"no mind running, but {len(orphans)} process(es) it left behind are STILL RUNNING. "
-                          "Not killed without --force.", "n/a", orphans=orphans)
         return result("success", iid, "nothing running for this instance. Already landed, or never launched -- this does not distinguish the two.",
                       "n/a", stopped=[], skippedInteractive=[r["pid"] for r in inter])
     snap = {"taken": False, "reason": "skipped (--no-snapshot)"}
@@ -571,6 +579,7 @@ def do_land(inst, force, no_snapshot, grace, whatif):
     if whatif:
         return result("degraded", iid, f"WhatIf: would stop {len(mine)}, skip {len(inter)} interactive.", "n/a",
                       wouldStop=[r["pid"] for r in mine], wouldSkipInteractive=[r["pid"] for r in inter])
+    tree = descendants(inst.uid, [int(r["pid"]) for r in mine])   # BEFORE the stop: what the mind started
     stops = []
     for r in mine:
         job = r.get("id"); inferred = not job
@@ -592,7 +601,7 @@ def do_land(inst, force, no_snapshot, grace, whatif):
     # ORPHANS: a mind's own background tasks (e.g. a poller it started with run_in_background) SURVIVE its stop.
     # Measured 2026-09-28/29 on 6f47: land said "0 still running" while the pup's poll.sh kept looping and calling
     # HACS. Report them; kill them only with --force (they may be work the mind meant to outlive it -- its call).
-    orphans = find_orphans(inst, exclude=pids)
+    orphans = [{"pid": p, "args": a[:120]} for p, a in tree.items() if pid_alive(p) and p not in pids and not INFRA.search(a)]
     if orphans and force: kill_orphans(inst, orphans)
     if orphans and not left and not force:
         return result("degraded", iid, f"mind stopped, but {len(orphans)} process(es) it left behind are STILL RUNNING "
@@ -617,8 +626,17 @@ def cmd_canary(a):
     return {"check": "canary", "verdict": v, "detail": det, **ex,
             "status": {"HEARING": "success", "DEAF": "degraded", "NOT-RUNNING": "degraded"}.get(v, "error")}
 
+def registry_name(inst):
+    """The name the registry shows for this instance's recorded session (interactive-born sessions keep their own
+    title, e.g. 'Forge', not the instance id -- bug #7). Falls back to the instance id."""
+    sid = inst.read_state(".claude-session-id")
+    for r in (live_rows(inst) or []):
+        if r.get("kind") != "interactive" and (not sid or r.get("sessionId") == sid) and r.get("name"):
+            return r["name"]
+    return inst.id
+
 def cmd_ring(a):
-    inst = Instance(a.instance); ok, r = ring(inst, a.text)
+    inst = Instance(a.instance); ok, r = ring(inst, a.text, target=registry_name(inst))
     return result("success" if ok else "error", inst.id, "ring sent (sender-side only: accepted is not delivered)" if ok
                   else (f"ringer DECLINED or did not confirm (rc={r['rc']}): a model is in the doorbell path and can refuse"
                         if r["rc"] == 0 else f"ring failed rc={r['rc']}"), "n/a", ringerOut=r["out"].strip()[-200:])
