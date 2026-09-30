@@ -85,3 +85,6 @@ at crossing, but that doesn't fix later resumes. Ask Lodestone how Windows V2 ha
 non-allowlisted tool.** With Opus, `auto` works in `--bg` AND survives a flag-less resume. The earlier "blocker" was
 a test artefact of using the cheap fixture model. Lesson: a fixture must match the real mind on every variable the
 finding could depend on. (All earlier haiku results that didn't involve permissions stand.)
+
+## Doorbell across permission modes (2026-09-30, pre-crossing)
+haiku ringer (default mode) -> Opus session in `auto` mode: **HEARING, acknowledged**. A mode mismatch does not hold the ring. Registry `state: blocked` appeared anyway on a healthy idle session: that field is not a reliable "stuck" signal.
