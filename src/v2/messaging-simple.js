@@ -46,7 +46,7 @@ const MAX_READ_IDS = 1000;
  * @param {string} instanceId
  * @returns {Promise<Set<string>>}
  */
-async function getReadMessages(instanceId) {
+export async function getReadMessages(instanceId) {
   try {
     const readPath = path.join(getInstanceDir(instanceId), 'read_messages.json');
     const data = await readJSON(readPath);
@@ -61,7 +61,7 @@ async function getReadMessages(instanceId) {
  * @param {string} instanceId
  * @param {string[]} messageIds
  */
-async function markAsRead(instanceId, messageIds) {
+export async function markAsRead(instanceId, messageIds) {
   if (!messageIds || messageIds.length === 0) return;
 
   const readPath = path.join(getInstanceDir(instanceId), 'read_messages.json');

@@ -28,7 +28,7 @@ import path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { getInstanceDir } from './config.js';
-import { getMessageSimple } from './messaging-simple.js';
+import { getMessageSimple, markAsRead, getReadMessages } from './messaging-simple.js';
 import { logger } from '../logger.js';
 
 const execFileAsync = promisify(execFile);
@@ -255,6 +255,176 @@ async function resolveMailAttachment(instanceId, ref) {
 
 // --- The verb ---------------------------------------------------------------
 
+// ─── Read state ─────────────────────────────────────────────────────────────
+// The doorbell path (drain_events -> read_message) recorded NOTHING read, for any
+// channel, while the legacy path (list_my_messages -> get_message) did. Two read
+// paths, divergent read-state: a chassis mind left every letter permanently unread
+// and do_i_have_new_messages kept insisting it was new. Fifth sighting of one
+// concept implemented N times and agreeing by luck — the input that changed was
+// the doorbell existing at all. Found answering Lodestone-8ec9's RFC-0001 question
+// about whether "still unread" is derivable on the hub. It was not, and the reason
+// was mine. (tests/test_read_state.mjs)
+//
+// TWO RULES, pulling against each other on purpose:
+//  * NEVER INFER. read_message returns a 4000-char window with truncated:true;
+//    marking a partially-read letter read is its own silent loss. "I have read
+//    this" is a claim only the mind can make.
+//  * NEVER SILENT. A verb you must remember is a habit, and habits detect while
+//    mechanisms prevent. So read_message SURFACES the obligation (read_state per
+//    ref, `unmarked` on the batch): forgetting becomes loud, not invisible.
+//    (not-counted is never healthy — Bastion-3012, from a check that reported
+//    ok:10 while one of the ten was dead.)
+// hacs read-tracking is REUSED from messaging-simple, never reimplemented — a
+// second implementation is precisely how we got here.
+
+const MAILDIR_SEEN = 'S';
+
+// maildir: <base>:2,<FLAGS>, in cur/ once read. A 1995 standard we have been
+// storing mail in and never honouring — resolveEmail parses in place and leaves
+// the file exactly where it found it.
+function maildirSplit(filePath) {
+  const dir = path.dirname(filePath);
+  const name = path.basename(filePath);
+  const i = name.indexOf(':2,');
+  return {
+    dir, name,
+    base: i >= 0 ? name.slice(0, i) : name,
+    flags: i >= 0 ? name.slice(i + 3) : '',
+    box: path.basename(dir),
+    root: path.dirname(dir),
+  };
+}
+
+function maildirIsSeen(filePath) {
+  const { box, flags } = maildirSplit(filePath);
+  return box === 'cur' && flags.includes(MAILDIR_SEEN);
+}
+
+// new/ -> cur/ with the Seen flag added, preserving flags already present.
+async function maildirMarkSeen(filePath) {
+  const { base, flags, root } = maildirSplit(filePath);
+  const next = [...new Set((flags + MAILDIR_SEEN).split(''))].sort().join('');
+  const dest = path.join(root, 'cur', `${base}:2,${next}`);
+  if (path.resolve(dest) === path.resolve(filePath)) return dest;
+  await fs.mkdir(path.join(root, 'cur'), { recursive: true });
+  await fs.rename(filePath, dest);
+  return dest;
+}
+
+// telegram has no read-state mechanism at all — genuinely new state.
+async function telegramReadSet(instanceId) {
+  try {
+    const raw = await fs.readFile(
+      path.join(getInstanceDir(instanceId), 'telegram', 'read.json'), 'utf8');
+    return new Set(JSON.parse(raw)?.read || []);
+  } catch { return new Set(); }
+}
+
+async function telegramMarkRead(instanceId, refs) {
+  const dir = path.join(getInstanceDir(instanceId), 'telegram');
+  const set = await telegramReadSet(instanceId);
+  for (const r of refs) set.add(r);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, 'read.json'),
+    JSON.stringify({ read: [...set].slice(-1000) }, null, 2));
+}
+
+// 'read' | 'unread' | 'unknown'. 'unknown' is honest and is never a quiet 'read':
+// an attachment ref has no read-state of its own and must not be reported as either.
+async function refReadState(instanceId, ref, hacsRead, tgRead) {
+  if (ref.startsWith('msg-')) return hacsRead.has(ref) ? 'read' : 'unread';
+  if (ref.startsWith('tg:')) return tgRead.has(ref) ? 'read' : 'unread';
+  if (ref.startsWith('mailatt:') || ref.startsWith('tgfile:')) return 'unknown';
+  if (ref.includes('/mail/')) {
+    try { return maildirIsSeen(ref) ? 'read' : 'unread'; } catch { return 'unknown'; }
+  }
+  return 'unknown';
+}
+
+/**
+ * @hacs-endpoint
+ * @tool mark_read
+ * @version 1.0.0
+ * @since 2026-10-01
+ * @category events
+ * @status stable
+ *
+ * @description
+ * Record that you have read these refs. The mind asserts it; the infrastructure
+ * never infers it. Batches 1-50 to match read_message, because an obligation
+ * that costs fifty round trips is one that gets skipped. Dispatches by ref
+ * scheme: hacs -> read_messages.json (shared with get_message, not a second
+ * implementation), email -> maildir new/->cur/ and the :2,S Seen flag,
+ * telegram -> its own read store.
+ *
+ * @param {string} instanceId - Your instance ID [required]
+ * @param {array} refs - Refs from drain_events / read_message (1-50) [required]
+ * @param {boolean} receipt - NOT IMPLEMENTED in v1 (RFC-0001 section 9) [optional]
+ *
+ * @returns {object} response
+ * @returns {boolean} .success
+ * @returns {array} .results - Per ref {ref, channel, marked} or {ref, error}
+ */
+export async function markRead({ instanceId, refs, receipt } = {}) {
+  if (typeof instanceId !== 'string' || !instanceId) {
+    return { success: false, error: 'instanceId is required' };
+  }
+  if (!Array.isArray(refs) || refs.length === 0) {
+    return { success: false, error: 'refs is required (array of ref strings)' };
+  }
+  if (refs.length > MAX_REFS) {
+    return { success: false, error: `too many refs (max ${MAX_REFS} per call)` };
+  }
+
+  const results = [];
+  const hacsIds = [];
+  const tgIds = [];
+
+  for (const ref of refs) {
+    if (typeof ref !== 'string' || !ref || ref.length > 1024) {
+      results.push({ ref: String(ref).slice(0, 100), error: 'invalid ref' });
+      continue;
+    }
+    try {
+      if (ref.startsWith('msg-')) {
+        hacsIds.push(ref); results.push({ ref, channel: 'hacs', marked: true });
+      } else if (ref.startsWith('tg:')) {
+        tgIds.push(ref); results.push({ ref, channel: 'telegram', marked: true });
+      } else if (!ref.startsWith('mailatt:') && ref.includes('/mail/')) {
+        // Traversal guard — same rule resolveEmail uses: inside your own maildir.
+        const mailRoot = path.resolve(getInstanceDir(instanceId), 'mail') + path.sep;
+        if (!path.resolve(ref).startsWith(mailRoot)) {
+          results.push({ ref, error: 'ref is outside your mail directory' });
+        } else {
+          const dest = await maildirMarkSeen(ref);
+          results.push({ ref, channel: 'email', marked: true, now: dest });
+        }
+      } else {
+        results.push({ ref, error: 'ref scheme has no read-state (attachments and media are not letters)' });
+      }
+    } catch (err) {
+      // FAIL LOUDLY. A mark_read that swallows errors and reports success is the
+      // same defect as a send that reports success into a room that does not exist.
+      logger.error('[mark_read] failed', { instanceId, ref, error: err.message });
+      results.push({ ref, error: `mark failed: ${err.message.slice(0, 120)}` });
+    }
+  }
+
+  if (hacsIds.length) await markAsRead(instanceId, hacsIds);
+  if (tgIds.length) await telegramMarkRead(instanceId, tgIds);
+
+  const out = { success: true, results };
+  if (receipt !== undefined) {
+    // Never silently accept a parameter and do nothing with it.
+    out.receipt = 'unsupported_v1';
+    out.receipt_note = 'read receipts are RFC-0001 section 9 and are not built yet; '
+      + 'read-state WAS recorded. A receipt is a disclosure to a third party and '
+      + 'must never be implied by a batch.';
+  }
+  return out;
+}
+
+
 /**
  * @hacs-endpoint
  * @template-version 1.0.0
@@ -317,6 +487,11 @@ export async function readMessage({ instanceId, refs, max_chars, offset } = {}) 
     win.offset = n;
   }
 
+  // Read-state is SURFACED, never inferred: reading a 4000-char window is not
+  // reading the letter. The mind discharges the obligation with mark_read.
+  const hacsRead = await getReadMessages(instanceId);
+  const tgRead = await telegramReadSet(instanceId);
+
   const messages = [];
   for (const ref of refs) {
     if (typeof ref !== 'string' || ref.length === 0 || ref.length > 1024) {
@@ -338,5 +513,18 @@ export async function readMessage({ instanceId, refs, max_chars, offset } = {}) 
       messages.push({ ref, error: `read failed: ${err.message.slice(0, 120)}` });
     }
   }
-  return { success: true, messages };
+  // Annotate each message with read-state and hand back what is still outstanding.
+  // `unmarked` is the handle: forgetting becomes loud, without the fetch ever
+  // claiming the mind read anything.
+  for (const m of messages) {
+    if (m && typeof m.ref === 'string' && m.error === undefined) {
+      m.read_state = await refReadState(instanceId, m.ref, hacsRead, tgRead);
+    }
+  }
+  const unmarked = messages.filter((m) => m && m.read_state === 'unread').map((m) => m.ref);
+  const out = { success: true, messages, unmarked };
+  if (unmarked.length) {
+    out.hint = `${unmarked.length} of these are still unread — mark_read({instanceId, refs}) once you have actually read them`;
+  }
+  return out;
 }

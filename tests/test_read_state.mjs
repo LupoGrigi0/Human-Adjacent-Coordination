@@ -131,10 +131,16 @@ check('mark_read verb exists and is exported', typeof markRead === 'function');
 
 if (typeof markRead === 'function') {
   await markRead({ instanceId: INST, refs: [HACS_REF] });
-  let tracked = [];
+  // read_messages.json is {read:[...]} — this rig guessed wrong TWICE about the
+  // shape (bare array, then a map) and only running it against the real
+  // implementation settled it. Accept any of the three so the assertion is about
+  // read-state, not about a format I mis-remembered.
+  let tracked = null;
   try { tracked = JSON.parse(fs.readFileSync(readPath, 'utf8')); } catch { /* none */ }
-  check('mark_read: hacs ref lands in read_messages.json',
-    Array.isArray(tracked) ? tracked.includes(HACS_REF) : !!tracked?.[HACS_REF]);
+  const isTracked = (t, ref) => Array.isArray(t) ? t.includes(ref)
+    : Array.isArray(t?.read) ? t.read.includes(ref)
+    : !!t?.[ref];
+  check('mark_read: hacs ref lands in read_messages.json', isTracked(tracked, HACS_REF));
 
   await markRead({ instanceId: INST, refs: [mailNew] });
   check('mark_read: email leaves new/ (maildir standard, unhonoured since 1995)',

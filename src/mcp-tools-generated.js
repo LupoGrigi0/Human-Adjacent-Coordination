@@ -3,8 +3,8 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-08-19T19:06:24.724Z                           ║
- * ║  Tool Count: 115                                                        ║
+ * ║  Generated: 2026-10-01T16:01:04.480Z                           ║
+ * ║  Tool Count: 116                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  *
@@ -1186,6 +1186,10 @@ export const mcpTools = [
     "inputSchema": {
       "type": "object",
       "properties": {
+        "value": {
+          "type": "string",
+          "description": "any JSON-serialisable value"
+        },
         "targetInstanceId": {
           "type": "string",
           "description": "Instance ID to look up"
@@ -2028,6 +2032,31 @@ export const mcpTools = [
       },
       "required": [
         "name"
+      ]
+    }
+  },
+  {
+    "name": "mark_read",
+    "description": "Record that you have read these refs. The mind asserts it; the infrastructure never infers it. Batches 1-50 to match read_message, because an obligation that costs fifty round trips is one that gets skipped. Dispatches by ref scheme: hacs -> read_messages.json (shared with get_message, not a second implementation), email -> maildir new/->cur/ and the :2,S Seen flag, telegram -> its own read store. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "refs": {
+          "type": "array",
+          "description": "Refs from drain_events / read_message (1-50)"
+        },
+        "receipt": {
+          "type": "boolean",
+          "description": "NOT IMPLEMENTED in v1 (RFC-0001 section 9)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "refs"
       ]
     }
   },

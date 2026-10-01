@@ -122,7 +122,7 @@ import { launchInstance, landInstance } from './v2/launchInstance.js';
 import { initBroker } from './v2/event-broker.js';
 // Event Hub — thin-notification counter core (docs/EVENT-HUB-CONTRACT.md, 2026-08-02)
 import { hub, initHub } from './v2/event-hub.js';
-import { readMessage } from './v2/read-message.js';
+import { readMessage, markRead } from './v2/read-message.js';
 // Semantic Memory — Qdrant-backed remember/store/stats (Axiom-2615, 2026-03-13)
 import { rememberHandler, storeMemoryHandler, rememberStatsHandler, indexDiaryEntry } from './v2/memory.js';
 
@@ -693,6 +693,13 @@ class MCPCoordinationServer {
           return hub.setNotificationPolicy(params);
         case 'read_message':
           return readMessage(params);
+
+        // The mind asserts that it read; the infrastructure never infers it.
+        // read_message surfaces the obligation (read_state + unmarked), this
+        // discharges it. Two verbs because reading a 4000-char window is not
+        // reading the letter. (tests/test_read_state.mjs)
+        case 'mark_read':
+          return markRead(params);
 
         default:
           return {
