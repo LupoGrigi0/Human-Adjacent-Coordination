@@ -273,3 +273,29 @@ model, same one-word prompt, launched one second apart at 17:42:24Z. **A** (`326
    mail. Zero idle cost, but it needs the wake-on-ring design finished.
 
 So the doorbell can live in a mod, but it can't *keep the mind alive* from inside. That stays a separate concern.
+
+### F9. MEASURED on 2.1.287, Linux: step 4, the leased keepalive works
+
+Setup: the same two pups (mod removed from B's settings), launched 18:45:50Z with `--allowedTools=Bash`. Each was
+told to run `while true; do touch $HOME/ka; sleep 60; done` once with `run_in_background: true`. **A** (`344b1bb4`):
+`timeout` 7200000 (2 h). **B** (`2ee9c045`): `timeout` 600000 (10 min). Same outside witness. Log:
+`/home/forge/research/mods/measure/leased_*.log`.
+
+- **The cap is enforced exactly.** B's loop stopped at 10 min (last tick 18:55:54, started 18:45:54). A's stopped at
+  2 h (last tick 20:44:54, notification 20:45:54). **[MEASURED]**
+- **The stop wakes the session.** Both transcripts show a `<task-notification>` user row at the stop second, and a
+  reply two seconds later (18:55:54 → 18:55:56; 20:45:54 → 20:45:56). That turn is where a mind re-arms its
+  keepalive. **[MEASURED]**
+- **A live background task still defers the reaper on 2.1.287.** While its loop ran, `claude agents` showed A as
+  `busy/working`, not idle, for the whole 2 h, well past the 61-min line that took both F8 sessions. **[MEASURED]**
+- **Unexplained, n=1:** after its loop was stopped, B was **not** retired at ~61 min idle. It was still `idle/done`
+  at 21:04Z, 128 min after its last turn, and its process tree held nothing but the session (no leftover shell).
+  The F8 sessions, which never had a background task, were retired at 61 min. Hypothesis: a session that has *had*
+  a background task stops counting as "settled". **Not relied on. Re-measure before anyone designs around it.**
+
+**The keepalive recipe for 2.1.285+ (Linux, measured):** start the loop with `run_in_background: true` and
+`timeout: 7200000`. When the stop notification arrives, start it again in that same turn. Cost: one small turn per
+2 h (~12 a day), and the reaper never sees an idle session. It's the cheapest of F8's three options, and it needs no mod.
+Caveat: the mind must actually re-arm on the notification. A mind that answers it and forgets has 61 min (or, per
+the unexplained result above, maybe longer) before the reaper. Put the re-arm instruction in the mind's own
+CLAUDE.md / Pilot's Guide, not in memory.
