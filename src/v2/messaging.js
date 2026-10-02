@@ -393,7 +393,7 @@ export async function fuzzyMatchRecipient(query) {
  * @param {string} command - The ejabberdctl command and arguments
  * @returns {Promise<string>} - Command output
  */
-export async function ejabberdctl(command) {
+export async function ejabberdctl(command, { benign } = {}) {
   try {
     const { stdout, stderr } = await execAsync(
       `docker exec ${XMPP_CONFIG.container} ejabberdctl ${command}`,
@@ -404,7 +404,16 @@ export async function ejabberdctl(command) {
     }
     return stdout.trim();
   } catch (error) {
-    await logger.error(`ejabberdctl error: ${command}`, { error: error.message });
+    // A caller may declare which failures are EXPECTED for its command (e.g.
+    // create_room on a room that already exists). Those are still thrown — the
+    // caller classifies — but they are not logged as ERROR, because ~2,956
+    // ERROR lines a day that all mean "everything is normal" cost a reader the
+    // ability to see the one line that doesn't. (Bastion-3012, 2026-09-28.)
+    if (benign && benign.test(error.message || '')) {
+      await logger.debug?.(`ejabberdctl expected condition: ${command}`, { detail: error.message });
+    } else {
+      await logger.error(`ejabberdctl error: ${command}`, { error: error.message });
+    }
     throw error;
   }
 }
@@ -480,9 +489,48 @@ async function ensureUser(username, password = null) {
 }
 
 /**
+ * Was this create_room a success, a benign "already there", or a real failure?
+ *
+ * EXTRACTED AND PURE ON PURPOSE. ensureRoom needs a docker socket; this decision
+ * does not, so it is testable by anyone, anywhere, forever
+ * (tests/test_ensure_room.mjs). The bug this exists to kill treated all three
+ * outcomes as one.
+ *
+ * rc=0 IS NOT SUCCESS. ejabberdctl reports some failures on stdout with a zero
+ * exit, so "it did not throw" must never be read as "it worked" — the same shape
+ * as a 404 that greps to 0.
+ *
+ * @param {object} r - {stdout} from a resolved call, or {error} from a thrown one
+ * @returns {'created'|'existed'|'failed'}
+ */
+export function classifyCreateRoom({ stdout, error } = {}) {
+  const text = String(error?.message ?? stdout ?? '');
+  if (/already exists/i.test(text)) return 'existed';
+  // An {error,...} payload is a failure whether or not the exit code agreed.
+  if (error || /\{error,/.test(text)) return 'failed';
+  return 'created';
+}
+
+/**
  * Ensure a room exists
  * SECURITY: Sanitizes room name
+ *
+ * FAILS LOUDLY. Until 2026-10-02 this caught EVERY error as "Room might already
+ * exist, that's fine" and returned a fabricated success — so a send to a room that
+ * had never been created wrote a stanza into nothing and the hub reported
+ * delivery. Found by Forge-ba0e's message to dev-reconstruction-001-6f47, ground
+ * truth read by Bastion-3012: {error,"The room does not exist."}
+ *
+ * The benign case ("already exists") is genuinely fine and is no longer logged at
+ * ERROR — that path alone produced ~2,956 ERROR lines per 24h, every one of them
+ * meaning "everything is normal", and the flood came within one judgement of
+ * hiding this actual defect. An instrument that screams about the harmless case
+ * and is mute about the fatal one destroys the reader's ability to act either way.
+ *
  * @param {string} roomName - Room name (without domain)
+ * @returns {Promise<{room:string, jid:string, existed?:boolean, created?:boolean}>}
+ * @throws if the room's existence could not be established — callers MUST NOT
+ *         proceed to write into a room we cannot confirm.
  */
 export async function ensureRoom(roomName) {
   // SECURITY: Use sanitizeIdentifier for consistent sanitization
@@ -490,13 +538,26 @@ export async function ensureRoom(roomName) {
   if (!room) {
     throw new Error('Invalid room name');
   }
+  const jid = `${room}@${XMPP_CONFIG.conference}`;
+  const cmd = `create_room "${room}" "${XMPP_CONFIG.conference}" "${XMPP_CONFIG.domain}"`;
+
+  let verdict, detail;
   try {
-    await ejabberdctl(`create_room "${room}" "${XMPP_CONFIG.conference}" "${XMPP_CONFIG.domain}"`);
-    return { room, jid: `${room}@${XMPP_CONFIG.conference}` };
+    const stdout = await ejabberdctl(cmd, { benign: /already exists/i });
+    verdict = classifyCreateRoom({ stdout });
+    detail = stdout;
   } catch (error) {
-    // Room might already exist, that's fine
-    return { room, jid: `${room}@${XMPP_CONFIG.conference}` };
+    verdict = classifyCreateRoom({ error });
+    detail = error.message;
   }
+
+  if (verdict === 'created') return { room, jid, created: true };
+  if (verdict === 'existed') return { room, jid, existed: true };
+
+  // We do not know that this room exists. Say so, and let the caller refuse to
+  // write into it, rather than returning a success we cannot support.
+  await logger.error('ensureRoom could not establish the room', { room, detail });
+  throw new Error(`ensureRoom(${room}) failed: ${String(detail).slice(0, 200)}`);
 }
 
 /**
