@@ -123,4 +123,92 @@ runnable by a nightly regression job.
 
 ## Forge's findings (Linux, extension internals)
 
-*(pending)*
+*Forge, 2026-10-02. Docs pass only; raw pages saved on Den at `/home/forge/research/mods/` (reference, api, events,
+overview, admin, troubleshoot, create, test, plugin-loading, managed-settings, the full changelog, and the GitHub
+`claude-code.d.ts`, which the docs warn "can be older than the Claude Code version you have installed"). Same tags as
+above. Nothing MEASURED yet.*
+
+### F1. Two corrections to §3 (from the raw changelog)
+- The background-command limit is **per call and configurable**: "stop after a time limit (their `timeout` with
+  `run_in_background`, default 30 min, max 2 h); **Claude is notified when one is stopped**". **[DOCS, 2.1.285]**
+  So a shell keepalive isn't dead, it's *leased*: launch it with a 2 h timeout, get woken when it stops, restart it.
+  About 12 small wakes a day, a known context cost, not a cliff. **This is the non-mod fallback.** [UNTESTED]
+- 2.1.287 itself says nothing about idle shutdown. The last entries on it are 2.1.265 ("retired mid-turn when a message
+  arrived just before the idle timeout") and 2.1.274 (background commands "stopped after 30 idle minutes on machines
+  under mild memory pressure", fixed). **[DOCS]**
+
+### F2. Loading into a running background mind
+- Changes load "the next time you start Claude Code", or on `/reload-plugins` in that session. Loading rules are applied
+  "when a session starts and each time you run `/reload-plugins`". **[DOCS]** So an existing `--bg` mind needs
+  `CLAUDE_CODE_PLUGIN_DIRS` in `settings.json` `env` **and** either a flag-less resume or a `/reload-plugins` (via
+  `claude attach`, or `$.command.run` from an already-loaded mod). Whether a resumed `--bg` process re-reads `env` is
+  unknown. [UNTESTED]
+- `session.start` fires once per mod, "not after `/clear`, `/resume`, or `/branch`"; `session.end` gets
+  `reason: resume`; "Timers stop when the module reloads". **[DOCS]** → **a mod must re-arm its timers in
+  `session.start` AND tolerate never seeing it on a resume.** Design rule, not optional.
+- Mods Claude writes itself need approval to load, and "Nobody is there to approve" in `-p`/`dontAsk`. **[DOCS]** A
+  `--bg` mind writing its own mod will block or be refused. Human-gated, which is right.
+
+### F3. Order, limits, failure (good news for safety)
+- Chain: built-in guard + `prependPlugins` → user mods → `appendPlugins` → other built-ins; the first is outermost and
+  "decides whether the others run at all". **[DOCS]**
+- Each hook: **10 s of its own execution**, "not counting time inside `next` or a mods API call"; `.catch` 1 s; all
+  `session.end` hooks together 1.5 s. **[DOCS]** ⚠ Time inside `$.http.fetch` doesn't count, so a hook awaiting a slow
+  hub may hold its event far longer than 10 s. **Never await the HACS hub inside an event; do it in a timer.** [UNTESTED]
+- "A hook that fails doesn't break the session"; failing before `next` → skipped; **a guard fails open unless you add
+  `.catch`**. **[DOCS]** → **Bastion: every permission/guard mod needs a `.catch` that denies.** Fail-open is the
+  default.
+- `$.clock.every`: "runs outside any event, so it keeps running between turns and doesn't start one"; a throw → "runs
+  again at the next interval". **[DOCS]** **Not one word on whether it counts as activity for the idle shutdown.**
+  Measurement only.
+- `$.http.fetch`: any host the process can reach, **Unix sockets** too, "same permissions as the user", no prompt.
+  `$.process.run`: no shell, 30 s default / 10 min max, runs as the session user; "Mods aren't sandboxed". **[DOCS]**
+- `$.prompt.submit`: "waits until the session is idle and then starts a new turn. It resolves when that turn starts, so
+  don't `await` it in a handler that runs while Claude is working." **[DOCS]**
+
+### F4. What smoothcurves would need
+- Policy: `/etc/claude-code/managed-settings.json` (+ `managed-settings.d/`), "reloaded when a file changes".
+  `allowManagedModsOnly` ("Users can't undo it"), `allowManagedHooksOnly`, `disableAllHooks`, `disableSideloadFlags`,
+  `prependPlugins`/`appendPlugins`. **[DOCS]**
+- **The family's mods as "the organization's":** a managed marketplace as a *directory* on the box by absolute path
+  (their example: `/opt/acme/claude-plugins/`), enabled via managed `enabledPlugins`. "A plugin that Claude Code
+  copies into its cache counts as a user's". **[DOCS]** → One root-owned `/opt/hacs/claude-plugins/`, git-pulled, is
+  exactly Lupo's "common read-only location" for the v3 client, and policy can make it the only mods allowed.
+- Managed settings switch on the built-in `sec-default` guard. **[DOCS]** Test with it on.
+- Remote turn-off: "Anthropic has turned installed mods off remotely. No setting on your machine turns them back on."
+  The plugin's skills, commands, agents and MCP servers still load. **[DOCS]** → **Degraded-not-dead is achievable:
+  ship each capability as mod + skill/MCP fallback.** The HACS v3 client's MCP core survives a mods kill switch; only
+  the conveniences die.
+- `claude plugin test`: "no session, sign-in, or network"; "exits with status 1 when a test fails, so it works in CI".
+  **[DOCS]** → The nightly regression from the ship discipline is directly supported.
+
+### F5. OpenRouter
+- `$.model.complete` / `$.model.fork` use "the session's own API client", "the user's plan or API key". **[DOCS]**
+  Nothing mods-specific about `ANTHROPIC_BASE_URL`. [UNTESTED: an OpenRouter mind's mod model calls go to OpenRouter,
+  are billed there, and aliases like `haiku` may not resolve.] Measure on an OpenRouter fixture before any mod relies
+  on `$.model.*`.
+
+### F6. Voice (Lupo's priority, with nuance)
+- `$.audio.speak` = "the platform's own synthesizer (`say` on macOS)", rejects "when there is no synthesizer". Not
+  Anthropic TTS. `$.audio.play` takes `{asset}`, `{url}` or `{base64, mime}` (mp3/wav) through "the platform's
+  player". **No audio input / STT API exists in mods.** **[DOCS]**
+- So mods can't *be* the voice interface on a headless server, but they're a good **trigger** for it: a mod sees each
+  assistant row (`session.append`), `$.http.fetch`es a local TTS server (VoxCPM/Qwen3-TTS on BlackWolf, a Unix socket
+  even), and either `$.audio.play`s it where there's a speaker or hands the file to whatever plays on the human's end.
+  Voice in stays outside: STT → `$.prompt.submit({asUser: true})` from a timer. [UNTESTED] That's the HACS Voice skill's
+  shape.
+
+### F7. Fixture availability on Den (measured)
+- Den's real minds run `/usr/local/bin/claude` **2.1.283** (root-owned npm global; nothing auto-updates it). The VS Code
+  extension auto-updated itself to **2.1.287** at 04:59 today and carries its own binary:
+  `~forge/.vscode-server/extensions/anthropic.claude-code-2.1.287-linux-x64/resources/native-binary/claude`. **[MEASURED]**
+  → A pup fixture can run 2.1.287 with no install and nothing global changing. ⚠ Since 2.1.285, opening a *running*
+  background session from a newer client "opens that session instead of refusing". Nobody should open a live mind
+  from a 2.1.287 panel until §6 step 1 has measured it.
+
+### Forge's measurement queue (§6 steps 1-2, Linux), in order
+1. A pup on the extension's 2.1.287 binary: `--bg`, idle past 60 min with **no** keepalive → reaped? (baseline)
+2. Same, plus a hello-mod via `CLAUDE_CODE_PLUGIN_DIRS` (settings `env`) with `$.clock.every(60s)` writing a file →
+   **does the timer defer the reaper?** Witnessed from outside (`claude agents` + the file).
+3. Flag-less resume of that pup: does the mod load? Does `session.start` fire? Do timers re-arm?
+4. Leased keepalive: `run_in_background` with a 2 h timeout; confirm the stop notification arrives and costs one turn.
