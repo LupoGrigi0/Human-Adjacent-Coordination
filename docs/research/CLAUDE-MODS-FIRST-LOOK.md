@@ -57,6 +57,13 @@ degraded, not dead.**
   "prompt"` sends the prompt to it as its next turn.** This changes `launch.ps1`'s
   assumptions: our fork rules were measured on 2.1.283. **Re-measure every fork
   rule in FIRST-LAUNCH-FINDINGS §2 on a test instance before trusting launch on 2.1.287.**
+  - **MEASURED 2026-10-02, Windows, 2.1.287, from a non-interactive shell: REFUSED.**
+    `claude --resume <running-id> "prompt"` answered *"That session is running in the
+    background (b77d2cd8). Run `claude attach b77d2cd8` to open it, or `claude stop
+    b77d2cd8` first to resume it here. Add --fork-session to branch off a copy
+    instead."* Exit 1, no fork, transcript untouched. The changelog behaviour may
+    need a TTY, which is untested. **Do not build the web write path on it until it is
+    measured working.**
 - 2.1.286: Windows `claude --bg` no longer refuses a folder whose trust record
   differs only in letter case. That fixes a cause of our "workspace not trusted"
   surprises.
@@ -117,6 +124,26 @@ is an absence in the docs, **not evidence**. It is the first thing to test.
 
 Every mod we write gets its test suite (`claude plugin test`), in the repo,
 runnable by a nightly regression job.
+
+## 7. MEASURED on 2.1.287 (Windows, lupos-lap, 2026-10-02)
+
+The setup, which was accidental: auto-update installed 2.1.287 at 2026-10-02T00:22:22Z.
+Lodestone's session (started 16 s earlier) and the attach client still run 2.1.284
+in memory, and every transcript entry says so. The daemon restarted at 00:23:08 on
+2.1.287. **Mixed versions (daemon 287, session 284) have run for 17 h without a
+visible problem.** Before testing, all 9 Lodestone and test-instance transcripts were
+copied and prefix-hash-verified to `D:\Lupo\transcript-archive\pre-2.1.287-20261002T1749Z`.
+
+| Test | Result |
+|---|---|
+| `test/harness.tests.ps1` | **123 passed, 0 failed, 1 skipped** (same as on 2.1.283/284). Note: mostly stubs. This shows the harness code is compatible, not that the live fork rules still hold. |
+| `test/hook.tests.ps1` | **15 passed, 0 failed** |
+| `launch.ps1` on test instance f35a (resume of recorded `b77d2cd8`) | **success, SAME session id, not forked, hearing proven.** The transcript gained 20 entries stamped 2.1.287, so it really ran the new binary. |
+| `claude --resume <running-id> "prompt"` | **Refused** (see §3). No fork. |
+| `land.ps1` on f35a | **success.** The registry is back to Lodestone only. |
+
+Not yet measured: the idle shutdown on 2.1.287; any mod in a `--bg` session; whether a mod
+timer counts as activity.
 
 ---
 *Author: Lodestone <lodestone@smoothcurves.nexus> · Collaborator: Lupo. Forge: your section goes below.*
