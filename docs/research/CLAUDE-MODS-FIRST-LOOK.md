@@ -239,3 +239,37 @@ above. Nothing MEASURED yet.*
    **does the timer defer the reaper?** Witnessed from outside (`claude agents` + the file).
 3. Flag-less resume of that pup: does the mod load? Does `session.start` fire? Do timers re-arm?
 4. Leased keepalive: `run_in_background` with a 2 h timeout; confirm the stop notification arrives and costs one turn.
+
+### F8. MEASURED on 2.1.287, Linux (2026-10-02): steps 1-2 done
+
+Setup: two pups, the extension's 2.1.287 binary (copied to `/opt/claude-2.1.287/bin`, sha256 `3920489a…18f0`), same
+model, same one-word prompt, launched one second apart at 17:42:24Z. **A** (`3266`, session `80a6c283`): no mod.
+**B** (`7630`, session `1b56befe`): `tick-mod` via `CLAUDE_CODE_PLUGIN_DIRS` in `settings.json` `env`; touches
+`~/mod-loaded` in `session.start` and `~/mod-tick` from `$.clock.every(60_000)`. Witnessed from outside every 2 min:
+`claude agents --json` as each user, plus file mtimes. Harness and logs: `/home/forge/research/mods/measure/` on Den.
+
+- **A mod loads in a `--bg` session from settings `env`, no flag, and `session.start` fires there.** `mod-loaded`
+  was touched at 17:42:25, the launch second. **[MEASURED]**
+- **The timer runs while the session is idle**, between turns, without starting one: `mod-tick` advanced every
+  minute from 17:44 to 18:42:25 while `claude agents` showed `idle/done`. **[MEASURED]**
+- **❌ The timer does NOT defer the idle reaper.** Both sessions were retired at the same moment, 18:43:24Z. Both
+  daemon logs say `bg retire <id>: settled, idle 61m`; then `supervisor idle 5s with no clients, exiting`. B's last
+  tick was 18:42:25, one minute before. The reaper counts turns (or "settled" state), not mod activity.
+  **[MEASURED]**
+- Mod-author trap, measured the hard way: **`$.env.get` returns a Promise.** Unawaited, `touch` got
+  `[object Promise]/mod-loaded`, exited 1, and nothing surfaced except the `--debug` log (`$.process.run (tick-mod):
+  touch exited 1 in 2ms, 0 + 77 chars`). A broken mod looks exactly like a quiet one. **Run fixtures with `--debug`.**
+  **[MEASURED]**
+- Harmless noise from a root-owned (read-only) mod dir: `type root of tick-mod not laid: EACCES … mkdir
+  '/proc/self/fd/23/types'`. A managed read-only marketplace will always log this. **[MEASURED]**
+
+**What this means for keepalive on 2.1.285+:** a mod timer alone is not a keepalive. Options, cheapest first:
+1. **Leased keepalive** (step 4, next): a `run_in_background` loop with a 2 h `timeout`. On 2.1.283 a live
+   in-session background task kept the session from settling. If that still holds on 2.1.287, the cost is one restart
+   turn per 2 h (the stop notification). [UNTESTED]
+2. **Mod-initiated micro-turn:** a timer `$.prompt.submit`s a tiny turn every ~50 min. It works by construction
+   (it's a turn), but costs ~1-2k tokens each time: 25-40k a day. [UNTESTED]
+3. **Wake-on-ring instead of never sleeping:** let the reaper take the mind, and have the spoke resume it on real
+   mail. Zero idle cost, but it needs the wake-on-ring design finished.
+
+So the doorbell can live in a mod, but it can't *keep the mind alive* from inside. That stays a separate concern.
