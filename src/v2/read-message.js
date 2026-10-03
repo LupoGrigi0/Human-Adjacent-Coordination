@@ -474,12 +474,19 @@ export async function markRead({ instanceId, refs, receipt } = {}) {
  * @param {array} refs - Refs from drain_events (1-50 strings) [required]
  * @param {number} max_chars - Body window size, 1-50000 (default 4000) — the "whole letter" opt-in [optional]
  * @param {number} offset - Resume a long body from this char position [optional]
+ * @param {boolean} mark_read - Explicitly assert you have read these, in the same
+ *   call. NOT inference — you are asserting it. Refs whose body came back
+ *   TRUNCATED are deliberately NOT marked (a partial read is not a read) and are
+ *   returned in `mark_read_skipped`. Exists as a PARAM because a new tool cannot
+ *   reach an already-running session: tool lists are negotiated once at startup,
+ *   while unknown params are forwarded. So the hint must not point at a wall.
+ *   (Distinction found by Axiom, 2026-10-03, by testing rather than assuming.)
  *
  * @returns {object} response
  * @returns {boolean} .success
  * @returns {array} .messages - Per ref: {ref, channel, from, ts, subject?, body, truncated, thread_id?, attachments?} or {ref, error}
  */
-export async function readMessage({ instanceId, refs, max_chars, offset } = {}) {
+export async function readMessage({ instanceId, refs, max_chars, offset, mark_read } = {}) {
   if (typeof instanceId !== 'string' || !SAFE_ID_RE.test(instanceId) ||
       instanceId === '.' || instanceId === '..') {
     return { success: false, error: 'invalid instanceId' };
@@ -543,10 +550,42 @@ export async function readMessage({ instanceId, refs, max_chars, offset } = {}) 
       m.read_state = await refReadState(instanceId, m.ref, hacsRead, tgRead);
     }
   }
-  const unmarked = messages.filter((m) => m && m.read_state === 'unread').map((m) => m.ref);
+  let unmarked = messages.filter((m) => m && m.read_state === 'unread').map((m) => m.ref);
   const out = { success: true, messages, unmarked };
+
+  // mark_read:true — the mind asserting it read these, in the same call. This is
+  // NOT the inference we rejected: the caller explicitly asked. It exists here
+  // because a NEW TOOL cannot reach an already-running session (tool lists are
+  // negotiated once; unknown params are forwarded), and a hint that names an
+  // unreachable verb is an affordance pointing at a wall — the exact defect
+  // fixed in truncation hours earlier and recreated one layer up.
+  if (mark_read === true && unmarked.length) {
+    // A TRUNCATED read is not a read. Marking a partial letter read is the
+    // silent loss this whole design exists to refuse, so those are skipped and
+    // named rather than quietly included.
+    const complete = messages
+      .filter((m) => m && m.read_state === 'unread' && m.error === undefined && m.truncated !== true)
+      .map((m) => m.ref);
+    const skipped = unmarked.filter((r) => !complete.includes(r));
+    if (complete.length) {
+      const res = await markRead({ instanceId, refs: complete });
+      out.marked = res.results.filter((r) => r.marked).map((r) => r.ref);
+      const failed = res.results.filter((r) => r.error);
+      if (failed.length) out.mark_read_errors = failed;
+      unmarked = unmarked.filter((r) => !out.marked.includes(r));
+      out.unmarked = unmarked;
+    }
+    if (skipped.length) {
+      out.mark_read_skipped = skipped;
+      out.mark_read_skipped_reason = 'body was truncated — a partial read is not a read; '
+        + 'refetch with max_chars or page with offset, then mark';
+    }
+  }
+
   if (unmarked.length) {
-    out.hint = `${unmarked.length} of these are still unread — mark_read({instanceId, refs}) once you have actually read them`;
+    out.hint = `${unmarked.length} of these are still unread — assert it with `
+      + `read_message({instanceId, refs, mark_read:true}) in this same call, or `
+      + `mark_read({instanceId, refs}) if your session has that tool`;
   }
   return out;
 }

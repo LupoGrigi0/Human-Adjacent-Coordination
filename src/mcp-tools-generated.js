@@ -3,7 +3,7 @@
  * ║  AUTO-GENERATED MCP TOOLS                                                  ║
  * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
  * ╠═══════════════════════════════════════════════════════════════════════════╣
- * ║  Generated: 2026-10-01T16:01:04.480Z                           ║
+ * ║  Generated: 2026-10-03T21:20:59.919Z                           ║
  * ║  Tool Count: 116                                                        ║
  * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
@@ -2261,6 +2261,10 @@ export const mcpTools = [
         "offset": {
           "type": "number",
           "description": "Resume a long body from this char position"
+        },
+        "mark_read": {
+          "type": "boolean",
+          "description": "Explicitly assert you have read these, in the same"
         }
       },
       "required": [
@@ -3240,6 +3244,10 @@ export const mcpTools = [
         "password": {
           "type": "string",
           "description": "Password (optional, will generate if not provided)"
+        },
+        "r": {
+          "type": "object",
+          "description": "{stdout, stderr} from a resolved call, or {error} from a thrown one"
         },
         "roomName": {
           "type": "string",
