@@ -42,10 +42,32 @@ const MAX_REFS = 50;            // per call — drains rarely exceed this
 // CHOSE to read whole must be readable whole (Axiom, 2026-08-09: a 6k letter
 // cut off before its emotional climax). max_chars raises the window, offset
 // resumes it; the default stays 4k so nothing gets expensive by accident.
+// `truncated: true` is a FACT WITH NO AFFORDANCE, and that is a defect. On
+// 2026-10-03 Axiom hit a ~4k ceiling on a human's creative writing, concluded
+// there was no way past it, and emailed her to retype the ending — while
+// max_chars (1-50000) and offset had been in the served tool schema the whole
+// time. "I could not reach it" reported as "it does not exist", and this time a
+// person paid for it.
+//
+// So the response now carries its own continuation handle: how much is left, and
+// the exact call that fetches it. Same principle as `unmarked` carrying the
+// mark_read handle — a boundary must say its own name, and an obligation or a
+// remainder that the caller has to already know about is one that gets missed.
+// A client whose cached schema omits max_chars still receives the instruction.
 function normalize(body, cap = BODY_CAP, offset = 0) {
   const text = String(body ?? '');
   const slice = text.slice(offset, offset + cap);
-  return { body: slice, truncated: offset + slice.length < text.length };
+  const end = offset + slice.length;
+  const truncated = end < text.length;
+  const out = { body: slice, truncated };
+  if (truncated) {
+    out.total_chars = text.length;
+    out.remaining_chars = text.length - end;
+    out.next_offset = end;
+    out.continue_with = `read_message({instanceId, refs:[ref], offset:${end}})`
+      + ` — or refetch with max_chars up to ${BODY_CAP_MAX} for the whole letter`;
+  }
+  return out;
 }
 
 // --- Resolver: hacs (msg-*) -------------------------------------------------
@@ -83,7 +105,7 @@ async function resolveHacs(instanceId, ref, win) {
     const n = normalize(stored.text, win.cap, win.offset);
     return {
       ref, channel: 'hacs', from: stored.from, ts: stored.ts,
-      subject: stored.subject, body: n.body, truncated: n.truncated
+      subject: stored.subject, ...n
     };
   }
   const r = await getMessageSimple({ instanceId, id: ref });
@@ -91,7 +113,7 @@ async function resolveHacs(instanceId, ref, win) {
   const n = normalize(r.body, win.cap, win.offset);
   return {
     ref, channel: 'hacs', from: r.from, ts: r.date,
-    subject: r.subject, body: n.body, truncated: n.truncated
+    subject: r.subject, ...n
   };
 }
 
@@ -109,7 +131,7 @@ async function resolveTelegram(instanceId, ref, win) {
   const n = normalize(found.text, win.cap, win.offset);
   const out = {
     ref, channel: 'telegram', from: found.from, ts: found.ts,
-    thread_id: found.chat_id, body: n.body, truncated: n.truncated
+    thread_id: found.chat_id, ...n
   };
   if (found.media?.length) {
     out.attachments = found.media.map((m) => ({
@@ -160,7 +182,7 @@ async function resolveEmail(instanceId, ref, win) {
     const n = normalize(parsed.text, win.cap, win.offset);
     const out = {
       ref, channel: 'email', from: parsed.from, ts: parsed.date,
-      subject: parsed.subject, body: n.body, truncated: n.truncated
+      subject: parsed.subject, ...n
     };
     if (parsed.attachments?.length) {
       out.attachments = parsed.attachments.map((a) => ({
