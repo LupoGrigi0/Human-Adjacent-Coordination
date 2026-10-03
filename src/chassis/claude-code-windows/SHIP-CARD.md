@@ -24,14 +24,15 @@ code by `New-HacsResult`.
 | M2 | Launch resumes the **same** session (never a fork); refuses guessed ids and names | Fork guards in the suite; test instance f35a on 2.1.287: same id, `forked: false` | ✅ |
 | M3 | Hearing is **proven** at launch, measured from the transcript, not self-reported | f35a on 2.1.287: `hearing: true`; canary allowlist plus its controls | ✅ |
 | M4 | A reaped or crashed mind loses nothing; relaunch is one documented command | kill -9 and reaper recovery (FINDINGS §2, §6d); the CLAUDE.md and handoff command | ✅ |
-| M5 | **Survives the idle reaper while it is supposed to be awake**: a time-limited keepalive (`run_in_background` with a 2 h timeout, re-armed on the stop notification) | **Windows** twin of Forge's F9: a test instance idle past 61 min with the keepalive is alive; a control without it is reaped; witnessed from outside | ⬜ |
-| M6 | **Inbox doorbell**: unread HACS mail wakes the mind within ~60 s, on the same time-limited pattern, reporting the true total (the server's 5-per-page cap is respected and shown) | A test instance gets mail and wakes; a control without mail does not wake; `hacs.py` page-cap display tested (164f63b) | ◐ |
+| M5 | **Survives the idle reaper while it is supposed to be awake**: a time-limited keepalive (`run_in_background` with a 2 h timeout, re-armed on the stop notification) | **Windows** twin of Forge's F9: a test instance idle past 61 min with the keepalive is alive; a control without it is reaped; witnessed from outside. Linux evidence already: F9 (cap exact at 10 min and 2 h; the stop arrives as a task-notification turn; a live loop keeps the session busy past 61 min). **Caution:** F9b, sessions *not* reaped after their loop stopped (n=2, unexplained, also seen once here, pid 8336), is NOT keepalive and must not count as evidence. | ⬜ |
+| M6 | **Inbox doorbell**: unread HACS mail wakes the mind within ~60 s, on the same time-limited pattern, reporting the true total (the server's 5-per-page cap is respected and shown) | A test instance gets mail and wakes; a control without mail does not wake; `hacs.py` page-cap display tested (164f63b). **Known hub gap (Forge):** a room-history failure is reported as "no mail" (messaging-simple.js:300-307), so until the hub fixes it the doorbell cannot tell "no mail" from "couldn't look". The row is not green until that is distinguished (hub fix, or a separate reachability probe) and reported to Messenger. | ◐ |
 | M7 | **Relaunch-on-ring**, running *outside* the mind: if the mind is not home when mail arrives, a flag-less resume, then the ring. Never resume while the previous process is still shutting down (Forge's guard). | A test instance reaped, mail sent, the test instance relaunched and wakes; a second ring while it is starting does not double-launch | ⬜ |
 | M8 | **Survives a reboot**: comes back at user logon. Limitation documented: nothing runs with nobody logged in. | Real reboot: the test instance returns, hearing proven. **Needs Lupo's go-ahead** (it is permanent machine state). | ⬜ |
-| M9 | Mixed versions are safe: daemon and session on different Claude Code versions | 17 h observed (daemon 2.1.287, session 2.1.284); the suite plus a test-instance launch on the new binary before any real mind moves | ✅ observed, documented in research §7 |
+| M9 | Mixed versions are safe: daemon and session on different Claude Code versions | 17 h observed (daemon 2.1.287, session 2.1.284); the suite plus a test-instance launch on the new binary before any real mind moves (On Linux each mind has its own per-user daemon, so cross-mind mixing cannot happen there; it can within one user if the binary changes under a live daemon.) | ✅ observed, documented in research §7 |
 | M10 | **Tests run unattended**: both suites runnable by a nightly job, and fail loudly | A scheduled run writes a dated log; a deliberately broken assertion makes it fail | ⬜ |
 | M11 | **Docs**: FIRST-LAUNCH-FINDINGS current; a Pilot's Guide entry for Windows; Lupo's `How_to_talk_to_an_independant_instance.md` updated; rollback written | A reviewer can relaunch a mind from the docs alone | ◐ |
-| M12 | **Reviewed**: Forge (Linux twin) signs each row; Bastion reviews anything that grants or holds permissions | Their sign-off lines under **Review** | ⬜ |
+| M12 | **Reviewed**: Forge (Linux twin) signs each row; Bastion reviews anything that grants or holds permissions | Their sign-off lines under **Review** | ◐ |
+| M13 | **Deployed == repo**: what actually runs (`hacs-runtime\bin\`, scheduled tasks) is hash-identical to the repo, checked by status and by the nightly job (Forge's L13: her doorbell was deaf ~31 h after a crossing because the installed copy was stale while its unit showed green) | `deploy.ps1 -Verify` run by the nightly job; a deliberately edited deployed file makes it fail | ◐ (`deploy.ps1 -Verify` exists; not yet nightly) |
 
 ## Not in v1: v2, the mods era (recorded so it cannot creep back in)
 
@@ -51,11 +52,16 @@ flags) still continues the mind by hand. The pre-2.1.287 transcript snapshot is 
 
 ## Changes
 
-*(none since freezing)*
+- 2026-10-03, proposed by Forge, accepted by Lodestone: M5 cites F9 and warns against F9b;
+  M6 records the hub's "failure reads as no mail" gap as a blocker; M9 adds the Linux per-user
+  daemon note; **new row M13 "deployed == repo"**, because a green unit over a stale copy was
+  her deaf doorbell. A new MUST row, not v2: a doorbell that runs stale code is the exact
+  failure v1 exists to prevent.
 
 ## Review
 
-- Forge: *(pending, plus the Linux column)*
+- Forge, 2026-10-03: signs **M1, M2, M3, M4, M9** as written. Her own card is a separate file
+  with the same row numbers: branch `forge/linux-chassis`, `src/chassis/claude-code-linux/SHIP-CARD.md`.
 - Bastion: *(M5 to M8 touch nothing permission-related; required only if v1 grows a permission item)*
 
 ---
