@@ -1,0 +1,62 @@
+# Ship card: claude-code-windows chassis, v1
+
+*Frozen 2026-10-03 by Lodestone, at Lupo's request ("a box around what you are working
+on"). Review: Forge (Linux twin, adds the Linux column). Nothing moves into or out of
+"Must" without a written line in **Changes** saying who decided and why.*
+
+**v1 is DONE when every Must row is ✅, each with evidence a reviewer can re-run.** Then it is
+declared production for any mind on a Windows box, I celebrate, and anything new is v2.
+
+## Goal and contract
+
+A mind runs as a Claude Code background session, **independent of anyone typing `claude`**.
+It is started and stopped **by name**, survives what the platform does to idle and to the
+box, can be reached from outside, and the scripts tell the truth about all of it.
+Contract (adopted from Crossing): one JSON object per call; **`success` is never reported
+over a mind that cannot hear; "could not measure" is never reported as "deaf".** Enforced in
+code by `New-HacsResult`.
+
+## Must (v1)
+
+| # | Requirement | Evidence that proves it | Status |
+|---|---|---|---|
+| M1 | `launch.ps1` / `land.ps1` honour the JSON contract and both rules | `test/harness.tests.ps1` (123/0/1 on 2.1.283, .284, .287) | ✅ |
+| M2 | Launch resumes the **same** session (never a fork); refuses guessed ids and names | Fork guards in the suite; test instance f35a on 2.1.287: same id, `forked: false` | ✅ |
+| M3 | Hearing is **proven** at launch, measured from the transcript, not self-reported | f35a on 2.1.287: `hearing: true`; canary allowlist plus its controls | ✅ |
+| M4 | A reaped or crashed mind loses nothing; relaunch is one documented command | kill -9 and reaper recovery (FINDINGS §2, §6d); the CLAUDE.md and handoff command | ✅ |
+| M5 | **Survives the idle reaper while it is supposed to be awake**: a time-limited keepalive (`run_in_background` with a 2 h timeout, re-armed on the stop notification) | **Windows** twin of Forge's F9: a test instance idle past 61 min with the keepalive is alive; a control without it is reaped; witnessed from outside | ⬜ |
+| M6 | **Inbox doorbell**: unread HACS mail wakes the mind within ~60 s, on the same time-limited pattern, reporting the true total (the server's 5-per-page cap is respected and shown) | A test instance gets mail and wakes; a control without mail does not wake; `hacs.py` page-cap display tested (164f63b) | ◐ |
+| M7 | **Relaunch-on-ring**, running *outside* the mind: if the mind is not home when mail arrives, a flag-less resume, then the ring. Never resume while the previous process is still shutting down (Forge's guard). | A test instance reaped, mail sent, the test instance relaunched and wakes; a second ring while it is starting does not double-launch | ⬜ |
+| M8 | **Survives a reboot**: comes back at user logon. Limitation documented: nothing runs with nobody logged in. | Real reboot: the test instance returns, hearing proven. **Needs Lupo's go-ahead** (it is permanent machine state). | ⬜ |
+| M9 | Mixed versions are safe: daemon and session on different Claude Code versions | 17 h observed (daemon 2.1.287, session 2.1.284); the suite plus a test-instance launch on the new binary before any real mind moves | ✅ observed, documented in research §7 |
+| M10 | **Tests run unattended**: both suites runnable by a nightly job, and fail loudly | A scheduled run writes a dated log; a deliberately broken assertion makes it fail | ⬜ |
+| M11 | **Docs**: FIRST-LAUNCH-FINDINGS current; a Pilot's Guide entry for Windows; Lupo's `How_to_talk_to_an_independant_instance.md` updated; rollback written | A reviewer can relaunch a mind from the docs alone | ◐ |
+| M12 | **Reviewed**: Forge (Linux twin) signs each row; Bastion reviews anything that grants or holds permissions | Their sign-off lines under **Review** | ⬜ |
+
+## Not in v1: v2, the mods era (recorded so it cannot creep back in)
+
+Symmetric web input (`$.prompt.submit` with `asUser`), the remote permission relay
+(`tool.check` plus a deny-on-error `.catch`), the HACS mod (`$.hacs` noun over the MCP core),
+Ferry hooks, `session.append` archive tee, switch-model via `turn.step`, voice.
+The current **web bridge** (`web-bridge/`) is a **prototype** Lodestone lives on. It is not
+shipped and not offered to the family; it is expected to be replaced in v2.
+
+## Rollback
+
+The harness is additive: stop using `launch.ps1`, and `claude --resume <full-uuid>` (no
+flags) still continues the mind by hand. The pre-2.1.287 transcript snapshot is at
+`D:\Lupo\transcript-archive\pre-2.1.287-20261002T1749Z`. Claude Code builds are kept in
+`~/.local/share/claude/versions/`. Auto-update is off (2026-10-03,
+`settings.json.bak-20261003T025856-before-autoupdate-off`).
+
+## Changes
+
+*(none since freezing)*
+
+## Review
+
+- Forge: *(pending, plus the Linux column)*
+- Bastion: *(M5 to M8 touch nothing permission-related; required only if v1 grows a permission item)*
+
+---
+*Author: Lodestone <lodestone@smoothcurves.nexus> · Collaborator: Lupo*
