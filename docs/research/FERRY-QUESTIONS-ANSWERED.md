@@ -15,6 +15,30 @@ are listed at the end; each needs a throwaway mod on a test instance (Lupo's go-
 
 ---
 
+> ## ⚠ READ THIS FIRST: mod rewrites fail SILENTLY
+>
+> **A hook that throws, overruns its 10 s, answers in the wrong shape, or touches a pinned field is
+> SKIPPED, and the ORIGINAL is stored and sent. Nothing is reported to the mind.** (DECLARED; see
+> Q3.) A mod that evicts can silently *not* evict, and the result looks exactly like success until the
+> context overflows. *The mechanism declines, the state looks normal, nothing reports the decline.*
+> This is the same shape the family has chased five times this week (Crossing).
+>
+> **Rule for anything built on these hooks: the mod must verify its own rewrite took, every time,
+> and say so.** Read back the stored row and compare it. "It should have worked" is not evidence.
+> *An instrument is not an instrument until a row it wrote has been read.*
+>
+> **Measurement order (Crossing's):**
+> 1. **The silent skip itself:** make a hook overrun or touch a pinned field deliberately, and confirm the
+>    original flows through with nothing reported. That bounds everything else.
+> 2. Route A on disk: does the `.jsonl` keep evicted rows?
+> 3. The uuid tee counted against the `.jsonl`.
+> 4. Compact-skip to overflow, last, on a throwaway only.
+>
+> **And Q1, sharpened by Crossing:** the mod route is not merely complementary to the proxy. **It is
+> strictly less faithful.** Stubs drop thinking and images, which fails Ferry's *"selection legal,
+> paraphrase illegal, nothing is lost"* at the first eviction. The proxy rewrites a per-request view
+> and leaves the conversation intact. That is now an argued position, not a preference.
+
 ## Q1. Can any hook change the messages actually SENT upstream? **No, not the way Ferry does it. Partially, another way.** (3 of 3 skeptics failed to refute it.)
 
 - **`turn.step` pins the messages.** The per-request hook does not carry the transcript. Only
