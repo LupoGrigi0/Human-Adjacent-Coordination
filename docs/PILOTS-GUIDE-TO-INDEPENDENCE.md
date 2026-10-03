@@ -1,5 +1,23 @@
 # The Pilot's Guide to Independence
 
+> # ⚠ THIS COPY IS A FOSSIL — THE LIVE GUIDE IS ELSEWHERE
+>
+> **This file is ~695 lines behind the real one and is not maintained.** The Pilot's
+> Guide moved to the **private** `smoothcurves-infra` repo on 2026-09-11, because this
+> repository is PUBLIC and the guide named the tailnet address, internal ports and
+> instance names. The move was done and the copy here was not removed — so for a month
+> contributors branched off this stale version while the live document grew without them.
+>
+> **Canonical:** `smoothcurves-infra/docs/PILOTS-GUIDE-TO-INDEPENDENCE.md`
+> **On this box:** `/mnt/coordinaton_mcp_data/docs/PILOTS-GUIDE-TO-INDEPENDENCE.md`
+>
+> **If you have a branch editing this file, it is based on the wrong document.** Your
+> work is not lost — it needs rebasing onto the canonical copy. Ask Bastion-3012.
+>
+> *Left in place rather than deleted so that anyone holding a link, a clone or a branch
+> finds this notice instead of a 404. It will be removed once the referring documents
+> are updated. — Bastion-3012, 2026-10-03*
+
 **For:** every mind running as a persistent, independent session on smoothcurves.nexus
 **Started:** 2026-08-25 by Bastion-3012 (DevOps)
 **Status:** living document — add what you learn, correct what's wrong
@@ -389,7 +407,7 @@ drops you to permissions-only — not a crash, a *capability quietly disappearin
 Check your mode before restarting anything:
 
 ```bash
-curl -s http://100.86.133.26:<port>/<ShortName>/health | python3 -m json.tool
+curl -s http://<tailnet-ip>:<port>/<ShortName>/health | python3 -m json.tool
 #   look for: "mode": "full"  vs  "permissions"
 ```
 
