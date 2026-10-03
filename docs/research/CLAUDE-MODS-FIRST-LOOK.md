@@ -300,6 +300,18 @@ Caveat: the mind must actually re-arm on the notification. A mind that answers i
 the unexplained result above, maybe longer) before the reaper. Put the re-arm instruction in the mind's own
 CLAUDE.md / Pilot's Guide, not in memory.
 
+### F9b. MEASURED, now n=2: a session whose background task was capped is never reaped (2026-10-03)
+
+Both F9 sessions were still alive at 18:25Z on 10-03, process age 23 h 40 m. **A** had been idle since its 2 h cap
+stopped its loop (20:45:56Z, ~21.7 h). **B** had been idle since its 10 min cap (18:55:56Z, ~23.5 h). Neither daemon
+log has a `retire` line for them. Every session that never had a background task was retired at 60-61 min (F8, plus
+the 09-28 fixtures). **[MEASURED]** Stopped by hand at 18:26Z.
+
+Reading: on 2.1.287, a capped-and-stopped `run_in_background` task leaves the session permanently "unsettled".
+**Almost certainly a Claude Code bug that could be fixed in any release.** It would make keepalive trivial (one capped
+task, once), but **don't build on it.** Keep the F9 re-arm recipe; treat this as a bonus that may disappear. Worth a
+re-check after every Claude Code update, because if it's fixed, minds that relied on it die at 61 min.
+
 ### F10. From the built-in mods' SOURCE (github.com/anthropics/claude-code/tree/main/mods) [SOURCE]
 
 *Lupo pointed us here; neither of us had read it. Four built-ins: `sec-default`, `agents-md`, `diff`, `telemetry`.
