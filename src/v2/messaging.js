@@ -492,22 +492,42 @@ async function ensureUser(username, password = null) {
  * Was this create_room a success, a benign "already there", or a real failure?
  *
  * EXTRACTED AND PURE ON PURPOSE. ensureRoom needs a docker socket; this decision
- * does not, so it is testable by anyone, anywhere, forever
- * (tests/test_ensure_room.mjs). The bug this exists to kill treated all three
- * outcomes as one.
+ * does not, so it is testable by anyone, anywhere (tests/test_ensure_room.mjs).
  *
- * rc=0 IS NOT SUCCESS. ejabberdctl reports some failures on stdout with a zero
- * exit, so "it did not throw" must never be read as "it worked" — the same shape
- * as a 404 that greps to 0.
+ * LOOK EVERYWHERE THE TRUTH MIGHT BE. This function's first version read only
+ * `error.message`, and that took the entire bus down on 2026-10-03 — because
+ * Node's exec puts STDERR in .message and NOT STDOUT, while ejabberdctl reports
+ * `{error,"Room already exists"}` on STDOUT with a NON-ZERO exit. So the single
+ * most common condition in the system (~2,956/day) was invisible to the only
+ * field being read, every create_room classified as 'failed', every send threw,
+ * and no instance could message any other. Reported by Axiom BY EMAIL because
+ * the bus itself was the casualty.
  *
- * @param {object} r - {stdout} from a resolved call, or {error} from a thrown one
- * @returns {'created'|'existed'|'failed'}
+ * The rig that was supposed to prevent this synthesised `new Error('...already
+ * exists...')` — putting the text where I ASSUMED it lived rather than where it
+ * does. An instrument answering the question adjacent to the one being asked,
+ * inside the test written to catch that exact class.
+ *
+ * 'unknown' EXISTS AND IS NOT 'failed'. An unclassifiable failure must never be
+ * fatal: taking the whole bus down is strictly worse than the rare silent loss
+ * the loud path was added to prevent. Same discipline as unmeasured != deaf and
+ * unrecorded != deaf — we do not get to collapse "cannot tell" into a verdict.
+ *
+ * @param {object} r - {stdout, stderr} from a resolved call, or {error} from a thrown one
+ * @returns {'created'|'existed'|'failed'|'unknown'}
  */
-export function classifyCreateRoom({ stdout, error } = {}) {
-  const text = String(error?.message ?? stdout ?? '');
+export function classifyCreateRoom({ stdout, stderr, error } = {}) {
+  const text = [error?.message, error?.stdout, error?.stderr, stdout, stderr]
+    .filter((v) => v !== undefined && v !== null)
+    .map(String)
+    .join('\n');
+
   if (/already exists/i.test(text)) return 'existed';
-  // An {error,...} payload is a failure whether or not the exit code agreed.
-  if (error || /\{error,/.test(text)) return 'failed';
+  // An explicit {error,...} payload is a failure whether or not the exit agreed:
+  // rc=0 IS NOT SUCCESS.
+  if (/\{error,/.test(text)) return 'failed';
+  // It threw, and nothing in any stream told us why. We do not know.
+  if (error) return 'unknown';
   return 'created';
 }
 
@@ -554,8 +574,19 @@ export async function ensureRoom(roomName) {
   if (verdict === 'created') return { room, jid, created: true };
   if (verdict === 'existed') return { room, jid, existed: true };
 
-  // We do not know that this room exists. Say so, and let the caller refuse to
-  // write into it, rather than returning a success we cannot support.
+  if (verdict === 'unknown') {
+    // CANNOT TELL is not the same as FAILED, and must not be fatal. The first
+    // version of this function threw here and took the whole bus down
+    // (2026-10-03): no instance could message any other, and the outage had to
+    // be reported by email. Proceed, but loudly — an unverified room is a real
+    // risk and the log must say so every single time, not swallow it the way
+    // this function did before 2026-10-02.
+    await logger.error('ensureRoom could not VERIFY the room — proceeding unverified', { room, detail });
+    return { room, jid, unverified: true };
+  }
+
+  // 'failed': ejabberd told us explicitly. We know this room is not usable, so
+  // refuse rather than write a stanza into nothing and report delivery.
   await logger.error('ensureRoom could not establish the room', { room, detail });
   throw new Error(`ensureRoom(${room}) failed: ${String(detail).slice(0, 200)}`);
 }

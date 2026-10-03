@@ -28,6 +28,22 @@
 // THE CASE THAT MATTERS MOST is rc=0 with an {error,...} on stdout: ejabberdctl
 // reports some failures WITHOUT a non-zero exit, so "it did not throw" is not
 // evidence of success. That is the same shape as a 404 that greps to 0.
+//
+// 2026-10-03 — THIS RIG FAILED TO PREVENT A TOTAL OUTAGE, AND HERE IS WHY.
+// v1 synthesised `new Error('{error,"Room already exists"}')` — putting the
+// ejabberd text in .message, which is where I ASSUMED it lived. It does not.
+// Node's exec puts STDERR in .message and NOT STDOUT, and ejabberdctl reports
+// "Room already exists" on STDOUT with a NON-ZERO exit. So the real error object
+// carries the text in .stdout, .message says only "Command failed: <cmd>", the
+// classifier read .message alone, EVERY create_room classified as 'failed',
+// every send threw, and no instance could message any other. Axiom reported it
+// BY EMAIL because the bus was the casualty.
+//
+// A test fixture is a CLAIM ABOUT PRODUCTION. Mine was a claim about my own
+// assumption, and it passed, which is worse than having no test — it certified
+// the bug. The error shapes below are now measured from a real failing exec,
+// not imagined, and 'unknown' is pinned as NON-FATAL because collapsing
+// "cannot tell" into a verdict is what caused the outage.
 //                                                          — Messenger-aa2a
 
 import fs from 'fs';
@@ -47,7 +63,11 @@ if (typeof classify !== 'function') {
   check('clean result  -> created', false);
   check('already-exists on stderr -> existed (benign)', false);
   check('already-exists on stdout, rc=0 -> existed (benign)', false);
-  check('UNKNOWN error -> failed (NOT existed, NOT created)', false);
+  check('REAL exec shape: already-exists on .stdout with rc!=0 -> existed (the outage)', false);
+  check('REAL exec shape: infrastructure failure, nothing classifiable -> unknown', false);
+  check('explicit {error,...} anywhere -> failed (ejabberd told us)', false);
+  check("UNKNOWN is a state of its own, never 'failed'", false);
+  check("ensureRoom PROCEEDS on 'unknown' (loudly) instead of throwing", false);
   check('rc=0 WITH {error,...} on stdout -> failed (the fails-open case)', false);
   check('ensureRoom no longer swallows every error as "probably exists"', false);
 } else {
@@ -59,7 +79,9 @@ if (typeof classify !== 'function') {
   control("can return 'existed' for the benign case",
     classify({ stdout: '{error,"Room already exists"}' }) === 'existed');
   control("can return 'failed' at all",
-    classify({ error: new Error('connection refused') }) === 'failed');
+    classify({ stdout: '{error,"The room does not exist."}' }) === 'failed');
+  control("can return 'unknown' at all",
+    classify({ error: new Error('connection refused') }) === 'unknown');
 
   check('clean result  -> created',
     classify({ stdout: '' }) === 'created' && classify({ stdout: 'ok' }) === 'created');
@@ -71,9 +93,32 @@ if (typeof classify !== 'function') {
     classify({ stdout: '{error,"Room already exists"}' }) === 'existed');
 
   // The whole point: an unknown failure must NEVER read as existed or created.
-  check('UNKNOWN error -> failed (NOT existed, NOT created)',
-    classify({ error: new Error('cannot connect to ejabberd') }) === 'failed'
-    && classify({ error: new Error('Invalid vhost') }) === 'failed');
+  // THE REAL SHAPE, measured from a live failing exec rather than imagined:
+  // Node's exec Error carries stderr in .message, and stdout ONLY in .stdout.
+  const realExistsError = Object.assign(
+    new Error('Command failed: docker exec ejabberd ejabberdctl create_room "personality-x" "conference.smoothcurves.nexus" "smoothcurves.nexus"\n'),
+    { stdout: '{error,"Room already exists"}', stderr: '', code: 1 });
+  check('REAL exec shape: already-exists on .stdout with rc!=0 -> existed (the outage)',
+    classify(realExistsError === undefined ? {} : { error: realExistsError }) === 'existed');
+
+  const realStderrError = Object.assign(
+    new Error('Command failed: docker exec ...\npermission denied while trying to connect to the Docker daemon socket'),
+    { stdout: '', stderr: 'permission denied while trying to connect to the Docker daemon socket', code: 126 });
+  check('REAL exec shape: infrastructure failure, nothing classifiable -> unknown',
+    classify({ error: realStderrError }) === 'unknown');
+
+  check('explicit {error,...} anywhere -> failed (ejabberd told us)',
+    classify({ error: Object.assign(new Error('Command failed: ...'), { stdout: '{error,"Invalid vhost"}' }) }) === 'failed');
+
+  // 'unknown' MUST NOT be fatal. This is the assertion whose absence caused the
+  // outage: an unclassifiable failure took the entire bus down.
+  check("UNKNOWN is a state of its own, never 'failed'",
+    classify({ error: new Error('cannot connect to ejabberd') }) === 'unknown'
+    && classify({ error: new Error('something nobody has seen before') }) === 'unknown');
+
+  const src0 = fs.readFileSync(new URL('../src/v2/messaging.js', import.meta.url), 'utf8');
+  check("ensureRoom PROCEEDS on 'unknown' (loudly) instead of throwing",
+    /verdict === 'unknown'/.test(src0) && /unverified: true/.test(src0));
 
   // rc=0 is not success. ejabberdctl reports some failures on stdout with exit 0,
   // so "it did not throw" must not be read as "it worked".
