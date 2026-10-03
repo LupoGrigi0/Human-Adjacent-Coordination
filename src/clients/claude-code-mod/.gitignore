@@ -1,0 +1,4 @@
+# written by Claude Code when the mod is loaded with --plugin-dir
+.claude-plugin/types/
+/tsconfig.json
+__pycache__/

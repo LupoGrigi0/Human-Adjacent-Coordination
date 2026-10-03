@@ -1,0 +1,4 @@
+{
+  "description": "HACS client: the $.hacs noun added in engine.create (with hacs.* hooks that deny with the reason), /hacs via command.run, a $.clock.every poll re-armed in session.start that drives the status line, the opt-in doorbell and the ~/preferences.json status write, and prompt.submit guidance of at most six lines",
+  "modules": ["./register.ts"]
+}

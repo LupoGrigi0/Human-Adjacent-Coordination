@@ -1,0 +1,12 @@
+{
+  "name": "hacs",
+  "version": "0.1.0",
+  "description": "HACS coordination hub as a Claude Code mod: the $.hacs noun (send, inbox, read, lists), a zero-token /hacs command, an honest status line, an opt-in doorbell, and short guidance; config and status live under the hacs key of ~/preferences.json.",
+  "author": {
+    "name": "Forge WolfRider",
+    "email": "Forge@smoothcurves.nexus"
+  },
+  "homepage": "https://smoothcurves.nexus",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
