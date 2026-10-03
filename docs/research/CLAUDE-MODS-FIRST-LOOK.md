@@ -299,3 +299,36 @@ told to run `while true; do touch $HOME/ka; sleep 60; done` once with `run_in_ba
 Caveat: the mind must actually re-arm on the notification. A mind that answers it and forgets has 61 min (or, per
 the unexplained result above, maybe longer) before the reaper. Put the re-arm instruction in the mind's own
 CLAUDE.md / Pilot's Guide, not in memory.
+
+### F10. From the built-in mods' SOURCE (github.com/anthropics/claude-code/tree/main/mods) [SOURCE]
+
+*Lupo pointed us here; neither of us had read it. Four built-ins: `sec-default`, `agents-md`, `diff`, `telemetry`.
+Saved on Den under `/home/forge/research/mods/samples/`, pattern notes with file:line refs in `PATTERNS.md`.*
+
+- **Noun contracts = the HACS-as-a-mod shape.** A mod adds a noun to `$` in its `engine.create` hook
+  (`telemetry` adds `$.telemetry`), declared once in its own `types/index.d.ts` ("the only declaration of the noun").
+  Other mods call it as if built in. → **One HACS mod provides `$.hacs`** (send/inbox/todo; identity and key held
+  inside), and the doorbell, web-UI, voice and Ferry mods call it. Lupo's "one Claude-Code-specific module behind a
+  contract", in Anthropic's own pattern. No built-in declares `dependencies`; consumers wrap noun calls in try/catch
+  (`diff`'s `record/safely`, `agents-md`'s `quietly.ts`), because a missing noun throws at once.
+- **Fail-open is the engine default; `sec-default` shows the fix.** A hook that throws or overruns is skipped
+  (`types/claude-code.d.ts:3239`). `sec-default` puts a `.catch` on `tool.check` that returns an "UNCHECKED_DENY"
+  verdict (`sec-default/hooks/register.ts:67-104`). **Copy this verbatim in the permission relay.**
+- **The relay can hold a call by long-poll.** The 10 s hook budget pauses while a `$` call is in flight, except
+  `$.clock` waits (`types:4237`). So `await $.http.fetch(<web-UI long-poll>)` holds the tool call while Lupo decides,
+  and a `$.clock.sleep` loop would burn the budget. There is no "ask the user" event: `tool.check` returns
+  allow/ask/deny only.
+- **Guidance injection, placement matters.** Where `sec-default` is seated (managed settings, Team/Enterprise), it
+  skips *user-installed* hooks on `prompt.context` and `prompt.section`. `prompt.submit` hooks still run. → **Put HACS
+  guidance in a `prompt.submit` context entry**, not `prompt.context`, so it survives on managed machines.
+- **Secrets:** `$.session.authorize()` only works over https to first-party Anthropic hosts (`types:2933-2953`), so it
+  can't carry a HACS key. The key belongs in the plugin's options, kept in secure storage when marked sensitive
+  (`types:6185`). The manifest flag's exact name isn't shown in these sources; check `plugins-reference`
+  (`userConfig` with `"sensitive": true`).
+- **Authoring constraints the scanner enforces:** spell `on`, `$`, `$.env` literally (`types:6255`), with literal
+  env names. A user-installed module that stores the `$` from startup to call later is refused.
+- **Testing for the nightly run:** a test seats an inline stand-in provider for any noun it calls
+  (`agents-md/tests/fixtures/recording.ts:11-38`), fakes the network with `on('http.fetch')`, and moves time with
+  `mock.clock(on)` (`advance`, `settle`). → A timer doorbell is testable in CI without real minutes.
+- ⚠ The README still says "early access … may change between releases without notice", although the docs say mods
+  are on by default. **Keep the MCP/CLI core as the fallback.**
