@@ -129,3 +129,9 @@ build goes on the v0.2 list, unless it's data loss, security, or harm to a mind'
     subtrees; every status field stamped with when it was measured and what invalidates it; a test that marks a status
     field stale and asserts the mod re-measures instead of trusting it. The mod reads only config today; this is about
     every other reader.
+28. **The preferences helper should REFUSE secret-shaped keys, not merely never write them** (Cairn's row 8c,
+    2026-10-04). Bastion found 60 cleartext passwords in tracked `preferences.json` files on smoothcurves: a documented
+    rule failed sixty times. The file often sits in a version-controlled launch directory, and git history is
+    forever. `bin/hacs-prefs-merge.py` should reject any key matching a secret pattern (key/token/password/secret/
+    credential, and values shaped like keys), exit non-zero, and never write; plus a test asserting refusal.
+    **Do with #27, before first real adoption.**
