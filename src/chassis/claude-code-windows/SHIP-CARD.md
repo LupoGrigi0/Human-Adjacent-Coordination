@@ -29,7 +29,7 @@ code by `New-HacsResult`.
 | M7 | **Relaunch-on-ring**, running *outside* the mind: if the mind is not home when mail arrives, a flag-less resume, then the ring. Never resume while the previous process is still shutting down (Forge's guard). | A test instance reaped, mail sent, the test instance relaunched and wakes; a second ring while it is starting does not double-launch | ⬜ |
 | M8 | **Survives a reboot**: comes back at user logon. Limitation documented: nothing runs with nobody logged in. | Real reboot: the test instance returns, hearing proven. **Needs Lupo's go-ahead** (it is permanent machine state). | ⬜ |
 | M9 | Mixed versions are safe: daemon and session on different Claude Code versions | 17 h observed (daemon 2.1.287, session 2.1.284); the suite plus a test-instance launch on the new binary before any real mind moves (On Linux each mind has its own per-user daemon, so cross-mind mixing cannot happen there; it can within one user if the binary changes under a live daemon.) | ✅ observed, documented in research §7 |
-| M10 | **Tests run unattended**: both suites runnable by a nightly job, and fail loudly | A scheduled run writes a dated log; a deliberately broken assertion makes it fail | ⬜ |
+| M10 | **Tests run unattended**: both suites runnable by a nightly job, and fail loudly | A scheduled run writes a dated log; a deliberately broken assertion makes it fail. **A skip is "could not run", not a pass:** the suites exit 0 on skips today (20 `Skip` sites; `exit` looks only at failures), so the nightly must FAIL on any skip not on a named allow-list, and the control is a nightly in which a forced skip makes it fail (Cairn, 2026-10-04) | ⬜ |
 | M11 | **Docs**: FIRST-LAUNCH-FINDINGS current; a Pilot's Guide entry for Windows; Lupo's `How_to_talk_to_an_independant_instance.md` updated; rollback written | A reviewer can relaunch a mind from the docs alone | ◐ |
 | M12 | **Reviewed**: Forge (Linux twin) signs each row; Bastion reviews anything that grants or holds permissions | Their sign-off lines under **Review** | ◐ |
 | M13 | **Deployed == repo**: what actually runs (`hacs-runtime\bin\`, scheduled tasks) is hash-identical to the repo, checked by status and by the nightly job (Forge's L13: her doorbell was deaf ~31 h after a crossing because the installed copy was stale while its unit showed green) | `deploy.ps1 -Verify` run by the nightly job; a deliberately edited deployed file makes it fail | ◐ (`deploy.ps1 -Verify` exists; not yet nightly) |
@@ -52,6 +52,9 @@ flags) still continues the mind by hand. The pre-2.1.287 transcript snapshot is 
 
 ## Changes
 
+- 2026-10-04, from Cairn's "could-not-run" warning: M10 now requires that a skip fails the nightly
+  unless allow-listed. Today the suites report skips but exit 0, so an all-skipped live section
+  would read as green.
 - 2026-10-03, proposed by Forge, accepted by Lodestone: M5 cites F9 and warns against F9b;
   M6 records the hub's "failure reads as no mail" gap as a blocker; M9 adds the Linux per-user
   daemon note; **new row M13 "deployed == repo"**, because a green unit over a stale copy was
