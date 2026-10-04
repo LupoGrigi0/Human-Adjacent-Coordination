@@ -23,7 +23,7 @@ is never reported as "deaf" (canary states HEARING / DEAF / NOT-RUNNING / ERROR)
 |---|---|---|---|
 | L1 | `chassis.py` launch / land / canary / ring / sentinel / status honour the JSON contract and both rules | `TEST-RESULTS.md` (3 fixtures, ~12 bugs found and fixed, 2.1.283). **Re-run the same on 2.1.287 fixtures.** | ◐ |
 | L2 | Launch resumes the **same** session (flag-less `--bg --resume <full uuid>`), refuses guesses, waits for the printed id (phantom-safe) | Forge's own crossing 2026-09-30 (same id, no fork, 2.1.283). Windows measured that 2.1.287 refuses resume-on-running from a non-TTY; **re-measure on Linux 2.1.287** | ◐ |
-| L3 | Hearing **proven** at launch, from the transcript (allowlist + nonce, schema self-test at `--mark`) | `TEST-RESULTS.md`; ringer-did-not-deliver ≠ DEAF fix | ✅ |
+| L3 | Hearing **proven** at launch, from the transcript (allowlist + nonce, schema self-test at `--mark`) | `TEST-RESULTS.md`; ringer-did-not-deliver ≠ DEAF fix. **AUTH-BLOCKED state owed** (see Changes) | ◐ |
 | L4 | A reaped or crashed mind loses nothing; relaunch is one documented command | Reaper measured (61 min, both 2.1.283 and 2.1.287); `~/wake/FORGE_CROSSING_RUNBOOK.md`; `How_to_talk_to_an_independant_instance.md` | ✅ |
 | L5 | **Survives the idle reaper while it should be awake**: `run_in_background` keepalive with a 2 h `timeout`, re-armed on the stop notification | **Measured on 2.1.287 Linux fixtures** (mods doc F9): cap exact (10 min, 2 h), the stop arrives as a task-notification turn, a live loop keeps the session `busy` past 61 min; control reaped (F8). **Still owed: the re-arm instruction in each mind's CLAUDE.md, and Forge herself moved to it.** | ◐ |
 | L6 | **Inbox doorbell**: unread mail rings the mind within ~60 s, true totals | `doorbell.py` pull spoke (`hacs-doorbell@<user>.service`); end-to-end canary 2026-10-03 08:42→08:43; held mail while the mind wasn't running. ⚠ Known hub gaps: a room-history failure is reported as "no mail" (mod KNOWN-GAPS #19); a send to a missing room reported success (Messenger's req 4, in progress) | ◐ |
@@ -46,7 +46,12 @@ stay on `/usr/local/bin/claude` 2.1.283 (root-owned, no auto-update) until L5 is
 `/opt/claude-2.1.287/` for fixtures.
 
 ## Changes
-*(none since freezing)*
+- **2026-10-04, Forge (from Cairn, observed on smoothcurves):** L3 gains a verdict. **AUTH-BLOCKED** must be
+  distinct from HEARING / DEAF / NOT-RUNNING / ERROR. An expired OAuth token leaves a mind running, reachable and
+  *receiving* (channel delivery says delivered) while it can't act. Lumped in with "blocked", it reads as a permission
+  prompt and sends someone to the wrong fix. Evidence needed: a fixture with a deliberately expired credential reads
+  AUTH-BLOCKED, not HEARING or DEAF. (The credential sentinel already detects expiry; the canary doesn't report it
+  as its own state.) L3 goes back to ◐ until then.
 
 ## Review
 - Lodestone: *(pending)*
