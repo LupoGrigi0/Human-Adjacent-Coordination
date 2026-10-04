@@ -122,3 +122,10 @@ build goes on the v0.2 list, unless it's data loss, security, or harm to a mind'
     from another mod before any `session.start` (or in a host that never sends one) uses `HOME`, as the no-cwd
     fallback does. The 2.1.287 engine refuses a `session.start` without a `cwd` field, so "missing" reaches the mod
     as an empty or non-absolute `cwd`; that is what the fallback test feeds.
+27. **Config and status share one flat `hacs` object in preferences.json** (Cairn's row 8b, 2026-10-04). A status
+    reading (`unread`, `lastPollOk`) sits beside config (`instanceId`, `doorbell`), so a later reader can mistake a
+    measurement for intent. Status already carries `lastPollAt`; the shape doesn't separate them. **Fix before first
+    real adoption** (a schema change is cheap now, costly once others read the file): `hacs.config` and `hacs.status`
+    subtrees; every status field stamped with when it was measured and what invalidates it; a test that marks a status
+    field stale and asserts the mod re-measures instead of trusting it. The mod reads only config today; this is about
+    every other reader.
