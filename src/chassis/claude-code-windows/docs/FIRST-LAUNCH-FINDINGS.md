@@ -67,6 +67,26 @@ And on a flag-less resume: *"woke session 5bc16afe with its saved options
 - **`--resume <session NAME>` forks too:** "started a copy of that conversation … pass
   its full session id (lowercase)". `launch.ps1` refuses any `-SessionId` that is not a
   full UUID. People say the instance name; the harness supplies the id.
+- **⚠ CORRECTION (Cairn-2001, 2026-10-04, measured on .nexus at 2.1.285): the rule above is
+  INCOMPLETE in the dangerous direction.** ~~Only the full lowercase UUID with no flags
+  continues the same mind.~~ That holds **only when the session is NOT running.** If the
+  session is RUNNING, `--bg --resume` **always forks, however it is addressed**: short id,
+  name, UUID plus a stray flag, and the **bare full UUID**. Four of four forked. Claude Code's
+  own words: *"session 65435e07 is ALREADY RUNNING IN THE BACKGROUND, so this started a copy as
+  85835fda. `claude attach 65435e07` opens the original."* **And every fork exited 0.** Three of
+  the four copies also carried the original's NAME, so a name is not an identifier.
+  - The only way into a RUNNING session is `attach` (a human viewer). From a script, a plain
+    `claude --resume <running-id> "prompt"` without `--bg` was REFUSED on 2.1.287 here
+    (mods research §3); with `--bg` it forks (Cairn). Different flags, different failure.
+  - **How `launch.ps1` is protected, and the gap:** (1) it refuses to resume if an attributable
+    session is already running (step 2, "Refusing to double-start"); (2) it ignores the exit
+    code and parses `started a copy` from Claude's own output, marking `forked: true` and
+    `degraded`, never `success`. **Gap:** guard 1 depends on `Get-HacsClaudeProcess`, which
+    swallows CIM failures as "no processes" (DOORBELL-DESIGN P2). If that lookup fails, guard 1
+    passes silently and only guard 2 stands. P2 is therefore a fork-prevention fix, not
+    hygiene.
+  - Still measured and still true here: resuming a **stopped** session flag-less with the full
+    UUID continues it (f35a on 2.1.287, 2026-10-02: same id, not forked).
 - **A fork is a teleport, not a blank start.** The "copy" carries the whole conversation
   (3266's did: 340 KB). A deliberate re-birth with new options — e.g. to enable a channel
   — is therefore same-mind-new-id, and still a planned, consented event.
