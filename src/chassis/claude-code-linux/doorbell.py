@@ -34,12 +34,47 @@ def call(name, args):
     d = json.loads(urllib.request.urlopen(urllib.request.Request(HUB, data=body, headers={"Content-Type": "application/json"}), timeout=30).read())
     return (d.get("result") or {}).get("data") or {}
 
-def mind_running(name):
+def registry():
+    """The agent registry as this user, or None when we could not look (never "nobody running")."""
     r = subprocess.run(["claude", "agents", "--json"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
-    if r.returncode != 0: return None                      # could not look -- not "not running"
-    try: rows = json.loads(r.stdout)
+    if r.returncode != 0: return None
+    try: return json.loads(r.stdout)
     except ValueError: return None
+
+def mind_running(name):
+    """Legacy, by NAME. Kept for callers that predate locate(); prefer locate()."""
+    rows = registry()
+    if rows is None: return None                           # could not look -- not "not running"
     return any(a.get("name") == name and a.get("pid") and (a.get("kind") != "interactive" or ALLOW_INTERACTIVE) for a in rows)
+
+def socket_of(pid):
+    return os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "cc-socks", f"{pid}.sock")
+
+def locate(ident, target):
+    """Where to ring, by IDENTITY, not by name (Cairn, 2026-10-04: resuming a RUNNING session forks it, and the
+    copy keeps the original's name, so a name can match several sessions). Returns (state, address, forks):
+      ("running", "uds:<socket>", [...])  ring exactly this process; a clone has another sessionId and pid
+      ("not-running", None, [...])        the recorded session is not in the registry
+      ("could-not-look", None, [])        registry unreadable, or the row has no socket: never "not running"
+    forks = other rows carrying the same name: a FORK, reported loudly, never rung.
+    Without a recorded sessionId, falls back to the name, refusing if the name is ambiguous.
+    SendMessage takes `to="uds:/run/user/<uid>/cc-socks/<pid>.sock"` (measured 2026-10-04); a session id is NOT
+    addressable ("No agent named '<id>' is reachable")."""
+    rows = registry()
+    if rows is None: return ("could-not-look", None, [])
+    ok = lambda a: a.get("pid") and (a.get("kind") != "interactive" or ALLOW_INTERACTIVE)
+    sid = ident.get("sessionId")
+    if sid:
+        mine = [a for a in rows if a.get("sessionId") == sid and ok(a)]
+        forks = [a for a in rows if a.get("name") == target and a.get("sessionId") != sid]
+    else:
+        named = [a for a in rows if a.get("name") == target and ok(a)]
+        mine, forks = named[:1], named[1:]
+        if forks: return ("could-not-look", None, forks)   # ambiguous name and nothing recorded: refuse to guess
+    if not mine: return ("not-running", None, forks)
+    sock = socket_of(mine[0]["pid"])
+    if not os.path.exists(sock): return ("could-not-look", None, forks)
+    return ("running", "uds:" + sock, forks)
 
 def ring(name, text):
     prompt = (f'You are a doorbell relay for a HACS mailbox. Use the SendMessage tool exactly once, with to="{name}" '
@@ -56,7 +91,9 @@ def main():
     # The session to ring may be named differently from the HACS id (Forge's interactive session is "Forge").
     target = os.environ.get("DOORBELL_TARGET") or ident.get("sessionName") or iid
     seen = set(json.load(open(SEEN))) if os.path.isfile(SEEN) else None
-    log(f"=== doorbell up for {iid} -> ring '{target}', poll {POLL}s ===")
+    forks_reported = set()
+    log(f"=== doorbell up for {iid} -> session {ident.get('sessionId') or '(none recorded: by name)'} "
+        f"'{target}', poll {POLL}s ===")
     while True:
         try:
             msgs = call("list_my_messages", {"instanceId": iid, "limit": 20}).get("messages", [])
@@ -65,17 +102,29 @@ def main():
                 seen = set(ids); json.dump(sorted(seen), open(SEEN, "w")); log(f"baseline: {len(seen)} existing message(s), not rung")
             new = [m for m in msgs if m["id"] not in seen]
             if new:
-                up = mind_running(target)
-                if up is False:
+                state, address, forks = locate(ident, target)
+                fresh = [f for f in forks if f.get("sessionId") not in forks_reported]
+                if fresh:
+                    desc = ", ".join(f"{f.get('id')} (pid {f.get('pid')}, {f.get('kind')})" for f in fresh)
+                    log(f"FORK DETECTED: other session(s) named '{target}': {desc}. Ringing only the recorded session.")
+                    forks_reported.update(f.get("sessionId") for f in fresh)
+                    try:
+                        call("send_message", {"from": iid, "to": iid, "subject": f"FORK DETECTED: another session is named '{target}'",
+                                              "body": f"The doorbell found session(s) named '{target}' that are not your recorded session "
+                                                      f"{ident.get('sessionId')}: {desc}. A resume of a running session forks it. Rings go only "
+                                                      f"to your recorded session's socket. Decide whether to stop the copy (claude stop <id>)."})
+                    except Exception as e:
+                        log(f"fork alert send failed: {e}")
+                if state == "not-running":
                     log(f"{len(new)} new, but the mind is NOT RUNNING -- holding (the letters wait in the mailbox)")
-                elif up is None:
-                    log(f"{len(new)} new, could not read the registry -- holding, will retry")
+                elif state == "could-not-look":
+                    log(f"{len(new)} new, could not locate the mind (registry unreadable, no socket, or ambiguous name) -- holding, will retry")
                 else:
                     senders = ", ".join(sorted({m["from"] for m in new}))
                     text = (f"[doorbell] hacs: {len(new)} new message(s) from {senders}. "
                             f"Read with: hacs read <id>  (ids: {' '.join(m['id'] for m in new)}). "
                             f"Reply with: hacs send <to> <subject> <body>. Answering is your choice.")
-                    if ring(target, text):
+                    if ring(address, text):
                         seen.update(m["id"] for m in new); json.dump(sorted(seen), open(SEEN, "w"))
                         log(f"RANG for {[m['id'] for m in new]}")
                     else:

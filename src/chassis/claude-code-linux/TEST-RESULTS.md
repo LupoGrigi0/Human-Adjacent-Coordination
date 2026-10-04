@@ -97,3 +97,19 @@ land = success. **Known gap (test B):** a poller the fixture started via its Bas
 session pid (background tasks in `--bg` are parented elsewhere), so it went unreported. Safety over coverage: land can
 no longer touch processes it can't attribute. TODO: find the real parent chain of `--bg` background tasks.
 `ring` now targets the registry name of the recorded session (bug #7 had only been fixed in launch).
+
+## Doorbell rings by IDENTITY, not name (2026-10-04, 2.1.283, measured on Forge)
+Why: Cairn measured on .nexus (2.1.285) that `--resume` of a RUNNING session forks it 4/4, even with a bare full
+UUID, and the copy keeps the original's NAME. A doorbell that checks "running" and rings by name could ring a clone,
+and the delivery would look fine.
+- `SendMessage to="6dda0c89"` (session id): **"No agent named '6dda0c89' is reachable."** Ids aren't addressable.
+- `SendMessage to="uds:/run/user/1000/cc-socks/455385.sock"` (the session's pid socket, the form seen as `from=` on
+  every inbound message): **SENT, arrived in exactly that session.**
+- `doorbell.locate()`: the recorded `sessionId` (now in `~/.hacs-identity`) → its registry row → its pid socket
+  (checked to exist). Another row with the same name → **FORK DETECTED**, logged plus one HACS alert per fork, never
+  rung. No recorded id and an ambiguous name → refuse. Registry unreadable or socket missing → could-not-look, never
+  "not running". 9/9 branch tests (`test_locate.py` in Forge's job dir), including a clone listed before the original.
+- Live: deployed (hash matches the repo), canary HACS message 08:41Z → located by id → rung at the pid socket →
+  arrived.
+- Still by name: the sunrise ring in `sky_capture.py` (uses the legacy `mind_running` / `ring`). Move it to
+  `locate()` next.
