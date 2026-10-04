@@ -2,7 +2,7 @@ import type { EngineInterface, On, Timer } from 'claude-code'
 
 import * as Api from './api.js'
 import type { Config } from './config.js'
-import { loadConfig } from './config.js'
+import { launchDirOf, loadConfig } from './config.js'
 import * as Format from './format.js'
 import type { PollState } from './format.js'
 import type { Host, HubHost } from './host.js'
@@ -24,14 +24,16 @@ import { scrub } from './secrets.js'
  * that spells `$`: every other piece takes the Host it returns.
  *
  * @param $ the mods API of the hook (or, for the noun, the engine beneath)
+ * @param launchDir the launch directory the mod recorded, if any
  * @returns the Host
  */
-function hostOf($: EngineInterface): Host {
+function hostOf($: EngineInterface, launchDir: () => string | undefined): Host {
   return {
     fetch: (url, init) => $.http.fetch(url, init),
     read: path => $.fs.read(path),
     list: path => $.fs.list(path),
     home: () => $.env.get('HOME'),
+    launchDir,
     now: () => $.clock.now(),
     sleep: (ms, signal) => $.clock.sleep(ms, signal ? { signal } : undefined),
     every: (ms, fn) => $.clock.every(ms, fn),
@@ -79,6 +81,13 @@ export function register(on: On) {
   let prefsNote = 'not written yet'
   let prefsSignature = ''
   let prefsWrittenAt = -Infinity
+  // The directory Claude Code was launched from: `e.cwd` of the FIRST
+  // session.start this mod sees, kept for the life of the mod. A later
+  // session.start (a reload, /resume, a cwd change) never moves it, so
+  // preferences.json and .hacs_secrets/ stay where they were found.
+  let launchDir: string | undefined
+  let hasSeenStart = false
+  const launchDirNow = (): string | undefined => launchDir
 
   const secretsOf = (): readonly string[] => config?.secrets ?? []
 
@@ -92,8 +101,8 @@ export function register(on: On) {
   }
 
   /**
-   * Merges status (and config defaults) into the `hacs` key of
-   * ~/preferences.json through the atomic helper, when status changed or
+   * Merges status (and config defaults) into the `hacs` key of the resolved
+   * preferences.json (cfg.prefsPath) through the atomic helper, when status changed or
    * the heartbeat is due. Only the hacs key is ever touched.
    */
   async function writePrefs(host: Host, cfg: Config): Promise<void> {
@@ -111,7 +120,7 @@ export function register(on: On) {
     if (signature === prefsSignature && now - prefsWrittenAt < PREFS_HEARTBEAT_MS) return
 
     if (cfg.prefsProblem !== null && cfg.prefsProblem !== 'missing') {
-      prefsNote = `~/preferences.json ${cfg.prefsProblem}: not written`
+      prefsNote = `${cfg.prefsPath} ${cfg.prefsProblem}: not written`
       return
     }
     const patch = {
@@ -267,6 +276,7 @@ export function register(on: On) {
       read: path => beneath.fs.read(path),
       list: path => beneath.fs.list(path),
       home: () => beneath.env.get('HOME'),
+      launchDir: launchDirNow,
       sleep: (ms, signal) => beneath.clock.sleep(ms, signal ? { signal } : undefined),
     }
     const hacs: EngineInterface['hacs'] = {
@@ -279,13 +289,17 @@ export function register(on: On) {
     return { ...added, ...beneath }
   })
 
-  on('hacs.send', ($, e) => answerOf(Api.send(hostOf($), e)))
-  on('hacs.inbox', ($, e) => answerOf(Api.inbox(hostOf($), e)))
-  on('hacs.read', ($, e) => answerOf(Api.read(hostOf($), e)))
-  on('hacs.lists', $ => answerOf(Api.lists(hostOf($))))
+  on('hacs.send', ($, e) => answerOf(Api.send(hostOf($, launchDirNow), e)))
+  on('hacs.inbox', ($, e) => answerOf(Api.inbox(hostOf($, launchDirNow), e)))
+  on('hacs.read', ($, e) => answerOf(Api.read(hostOf($, launchDirNow), e)))
+  on('hacs.lists', $ => answerOf(Api.lists(hostOf($, launchDirNow))))
 
   on('session.start', async ($, e, next) => {
-    const host = hostOf($)
+    if (!hasSeenStart) {
+      hasSeenStart = true
+      launchDir = launchDirOf(e.cwd) ?? undefined
+    }
+    const host = hostOf($, launchDirNow)
     try {
       // Re-armed on every start (a reload runs session.start again): the old
       // interval and first look are cancelled before new ones begin.
@@ -341,7 +355,7 @@ export function register(on: On) {
   })
 
   on('command.run', { command: 'hacs' }, async ($, e) => {
-    const host = hostOf($)
+    const host = hostOf($, launchDirNow)
     try {
       const text = await command(host, e.args)
       return { text: scrub(text, secretsOf()) }

@@ -8,7 +8,7 @@ const CANARY = 'CANARY-7f3a9c-do-not-leak'
 const CANARY_ENV = 'CANARY-env-41b2e8-do-not-leak'
 
 /**
- * Criterion 8: secrets live in ~/.hacs_secrets/; the mod reads them only in
+ * Criterion 8: secrets live in .hacs_secrets/ beside preferences.json; the mod reads them only in
  * its own code and never returns or logs them. A faked hub that echoes a
  * canary everywhere it can (an error, a subject, a body, a sender) must not
  * get it into any command output, status line, prompt context, preferences

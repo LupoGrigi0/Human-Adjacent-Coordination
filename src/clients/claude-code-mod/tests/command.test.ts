@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { COMMAND_MAX_LINES } from '../hooks/limits.js'
-import { ME, SESSION, hacs, linesOf, unreadReply, world } from './fixtures/world.js'
+import { ME, PREFS_PATH, SESSION, hacs, linesOf, unreadReply, world } from './fixtures/world.js'
 
 const manyMessages = Array.from({ length: 15 }, (_, i) => ({
   id: `m-${i}`,
@@ -55,7 +55,7 @@ describe('C3 the /hacs command', () => {
 
     const answer = await $.command.run(hacs(''))
 
-    expect(answer.text).toContain(`${ME} (from ~/preferences.json)`)
+    expect(answer.text).toContain(`${ME} (from ${PREFS_PATH})`)
     expect(answer.text).toContain('2 unread (ids: m-2, m-1)')
     expect(answer.text).toContain('doorbell: off')
     expect(answer.text).toContain('/hacs help')
@@ -135,7 +135,7 @@ describe('C3 the /hacs command', () => {
     const answer = await $.command.run(hacs('help'))
 
     expect(linesOf(answer.text) <= COMMAND_MAX_LINES).toBe(true)
-    expect(answer.text).toContain('~/preferences.json')
+    expect(answer.text).toContain('preferences.json in the launch directory')
     expect(answer.text).toContain('$.hacs.send({to, subject, body})')
   })
 })

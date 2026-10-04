@@ -12,10 +12,19 @@ export type IdentitySource = 'preferences' | 'hacs-identity' | 'none'
 
 /**
  * The mod's configuration as read now: from the `hacs` key of
- * ~/preferences.json, the identity falling back to ~/.hacs-identity.
+ * preferences.json in the launch directory (the directory Claude Code was
+ * started from: `e.cwd` of the first session.start), the identity falling
+ * back to ~/.hacs-identity in HOME. When the launch directory is unknown,
+ * preferences.json and .hacs_secrets/ are looked for in HOME, and `/hacs`
+ * says so.
  */
 export type Config = {
-  home: string
+  /** HOME, when set: where ~/.hacs-identity lives. */
+  home: string | null
+  /** The launch directory, or null when the mod has not seen it. */
+  launchDir: string | null
+  /** The directory holding preferences.json and .hacs_secrets/. */
+  configDir: string
   prefsPath: string
   secretsDir: string
   instanceId: string | null
@@ -35,17 +44,30 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const nonEmpty = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : null
 
+/** A launch directory the mod can use: a non-empty absolute path, no trailing slash. */
+export function launchDirOf(cwd: unknown): string | null {
+  if (typeof cwd !== 'string' || !cwd.startsWith('/')) return null
+  const trimmed = cwd.replace(/\/+$/, '')
+  return trimmed === '' ? '/' : trimmed
+}
+
+const join = (dir: string, name: string): string => (dir === '/' ? '/' + name : dir + '/' + name)
+
 /**
  * Reads the configuration. Never throws for a missing or broken file: it
  * says so in `prefsProblem` / `identitySource` so status can show it. Throws
- * only when HOME itself is unknown.
+ * only when neither the launch directory nor HOME is known.
  */
 export async function loadConfig(host: HubHost): Promise<Config> {
-  const home = await host.home()
-  if (!home) throw new Error('HOME is not set, so ~/preferences.json cannot be found')
+  const launchDir = launchDirOf(host.launchDir())
+  const home = nonEmpty(await host.home())
+  const configDir = launchDir ?? home
+  if (!configDir) {
+    throw new Error('launch dir unknown and HOME is not set, so preferences.json cannot be found')
+  }
 
-  const prefsPath = home + '/preferences.json'
-  const secretsDir = home + '/.hacs_secrets'
+  const prefsPath = join(configDir, 'preferences.json')
+  const secretsDir = join(configDir, '.hacs_secrets')
 
   let prefsProblem: string | null = null
   let hacs: Record<string, unknown> = {}
@@ -71,12 +93,12 @@ export async function loadConfig(host: HubHost): Promise<Config> {
 
   let instanceId = nonEmpty(hacs.instanceId)
   let identitySource: IdentitySource = instanceId ? 'preferences' : 'none'
-  // ~/.hacs-identity is read only when preferences.json is absent or valid
-  // without hacs.instanceId: a broken or unreadable file must not quietly
-  // swap in another identity.
-  if (!instanceId && (prefsProblem === null || prefsProblem === 'missing')) {
+  // ~/.hacs-identity (always in HOME, where chassis minds keep it) is read
+  // only when preferences.json is absent or valid without hacs.instanceId:
+  // a broken or unreadable file must not quietly swap in another identity.
+  if (home && !instanceId && (prefsProblem === null || prefsProblem === 'missing')) {
     try {
-      const identity: unknown = JSON.parse(await host.read(home + '/.hacs-identity'))
+      const identity: unknown = JSON.parse(await host.read(join(home, '.hacs-identity')))
       instanceId = isRecord(identity) ? nonEmpty(identity.instanceId) : null
       if (instanceId) identitySource = 'hacs-identity'
     } catch {
@@ -94,6 +116,8 @@ export async function loadConfig(host: HubHost): Promise<Config> {
 
   return {
     home,
+    launchDir,
+    configDir,
     prefsPath,
     secretsDir,
     instanceId,
@@ -108,9 +132,16 @@ export async function loadConfig(host: HubHost): Promise<Config> {
 
 /** How status names where the identity came from. */
 export function identityNote(config: Config): string {
-  if (config.identitySource === 'preferences') return 'from ~/preferences.json'
+  if (config.identitySource === 'preferences') return 'from ' + config.prefsPath
   if (config.identitySource === 'hacs-identity') {
-    return 'from ~/.hacs-identity (~/preferences.json is missing or has no hacs.instanceId)'
+    return `from ~/.hacs-identity (${config.prefsPath} is missing or has no hacs.instanceId)`
   }
   return 'none'
+}
+
+/** Where the configuration was looked for, in words for /hacs. */
+export function whereNote(config: Config): string {
+  return config.launchDir === null
+    ? `config: ${config.prefsPath} (launch dir unknown; using HOME)`
+    : `config: ${config.prefsPath} (launch dir)`
 }

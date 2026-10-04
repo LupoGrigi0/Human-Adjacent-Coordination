@@ -8,7 +8,8 @@ const PERIOD_MS = 60_000
 
 /**
  * Criterion 7: config and status live under the "hacs" key of
- * ~/preferences.json; writes go through the shipped atomic helper
+ * preferences.json in the launch directory (here HOME; tests/launchdir.test.ts
+ * covers a launch directory that is not HOME); writes go through the shipped atomic helper
  * (bin/hacs-prefs-merge.py, run by $.process.run with the patch on stdin),
  * which merges only the hacs key. The helper's own merge, atomicity and
  * refusal are tested in tests/helper/test_prefs_merge.py.
@@ -93,7 +94,7 @@ describe('C7 preferences.json', () => {
     const answer = await $.command.run(hacs(''))
 
     expect(w.runs).toEqual([])
-    expect(answer.text).toContain('~/preferences.json not valid JSON: not written')
+    expect(answer.text).toContain(`${PREFS_PATH} not valid JSON: not written`)
   })
 
   test('C7 a failed helper run is reported by /hacs, not swallowed', async ($, on) => {

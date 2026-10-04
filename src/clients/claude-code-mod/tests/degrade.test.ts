@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { SESSION, hacs, typed, unreadReply, world } from './fixtures/world.js'
+import { HOME, NO_CWD, SESSION, hacs, typed, unreadReply, world } from './fixtures/world.js'
 
 /**
  * Criterion 10 is checked live (a fixture with the mod directory removed
@@ -8,15 +8,15 @@ import { SESSION, hacs, typed, unreadReply, world } from './fixtures/world.js'
  * inside the mod, the session's own events go on unchanged.
  */
 describe('C10 degrades, never breaks the mind (design)', () => {
-  test('C10 with no HOME, no files and no hub the session still starts and prompts pass through', async ($, on) => {
-    const w = world(on, { isHomeless: true, hub: {} })
+  test('C10 with no HOME, no launch dir, no files and no hub the session still starts and prompts pass through', async ($, on) => {
+    const w = world(on, { isHomeless: true, prefs: null, hub: {} })
 
-    const started = await $.session.start(SESSION)
+    const started = await $.session.start(NO_CWD)
     await w.clock.settle()
     const prompt = await $.prompt.submit(typed('still here'))
     const answer = await $.command.run(hacs('inbox'))
 
-    expect(started).toEqual({ cwd: '/work' })
+    expect(started).toEqual({ cwd: '' })
     expect(prompt.text).toBe('still here')
     expect(prompt.context).toBeUndefined()
     expect(answer.text).toContain('HOME is not set')
@@ -29,7 +29,7 @@ describe('C10 degrades, never breaks the mind (design)', () => {
     const started = await $.session.start(SESSION)
     await w.clock.settle()
 
-    expect(started).toEqual({ cwd: '/work' })
+    expect(started).toEqual({ cwd: HOME })
     expect(w.statuses.at(-1)).toBe('1 unread')
   })
 

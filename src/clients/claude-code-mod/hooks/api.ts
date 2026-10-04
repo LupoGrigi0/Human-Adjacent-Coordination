@@ -8,7 +8,8 @@ import { scrub, scrubDeep } from './secrets.js'
 
 /**
  * The HACS operations, over a Host. Each reads the configuration afresh
- * (identity from ~/preferences.json, never from an argument), calls the hub,
+ * (identity from preferences.json in the launch directory, never from an
+ * argument), calls the hub,
  * checks the reply's shape, and rejects with a reason that carries no secret.
  */
 
@@ -24,8 +25,8 @@ export async function identified(host: HubHost): Promise<Config & { instanceId: 
     throw new HacsError(
       'identity',
       config.prefsProblem !== null && config.prefsProblem !== 'missing'
-        ? `no identity: ~/preferences.json ${config.prefsProblem} (fix it; no fallback is used)`
-        : 'no identity: set "hacs": { "instanceId": "Name-xxxx" } in ~/preferences.json',
+        ? `no identity: ${config.prefsPath} ${config.prefsProblem} (fix it; no fallback is used)`
+        : `no identity: set "hacs": { "instanceId": "Name-xxxx" } in ${config.prefsPath}`,
     )
   }
   return config as Config & { instanceId: string }

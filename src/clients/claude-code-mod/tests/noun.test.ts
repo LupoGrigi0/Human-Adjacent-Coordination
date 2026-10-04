@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { CONSUMER, useHacs } from './fixtures/consumer.js'
-import { HUB, ME, world } from './fixtures/world.js'
+import { HUB, ME, PREFS_PATH, world } from './fixtures/world.js'
 
 /**
  * Criterion 1: the `$.hacs` noun (send, inbox, read, lists), identity from
- * ~/preferences.json (hacs.instanceId), never from arguments; checked
+ * preferences.json (hacs.instanceId), never from arguments; checked
  * through another mod's calls against a faked hub (on('http.fetch')).
  */
 describe('C1 the $.hacs noun', () => {
@@ -87,7 +87,7 @@ describe('C1 the $.hacs noun', () => {
     const seen = await useHacs($, 'inbox')
 
     expect(seen.err).toContain('no identity')
-    expect(seen.err).toContain('~/preferences.json')
+    expect(seen.err, 'with no session seen, the HOME fallback path is named').toContain(PREFS_PATH)
     expect(w.calls).toEqual([])
   })
 

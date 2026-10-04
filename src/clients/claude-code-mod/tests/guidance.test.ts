@@ -107,6 +107,8 @@ describe('C6 guidance', () => {
   test('C6 the guidance text is held to 6 lines whatever it is given', () => {
     const config: Config = {
       home: '/h',
+      launchDir: '/h',
+      configDir: '/h',
       prefsPath: '/h/preferences.json',
       secretsDir: '/h/.hacs_secrets',
       instanceId: 'X-0000\nline\nline\nline\nline\nline\nline\nline',

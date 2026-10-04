@@ -2,7 +2,8 @@ import type { HubHost } from './host.js'
 import { REDACTED, SECRET_FILE_MAX_BYTES, SECRET_MIN_CHARS } from './limits.js'
 
 /**
- * Secrets live in ~/.hacs_secrets/ (chmod 700): one value per file,
+ * Secrets live in .hacs_secrets/ beside preferences.json, in the launch
+ * directory (chmod 700): one value per file,
  * KEY=VALUE or `key: value` lines, or a JSON object (every string in it). v0.1 sends none of them anywhere: the mod reads them only
  * so it can redact each one from everything that leaves it (command text,
  * the status line, prompt context, the preferences write, a rejection's

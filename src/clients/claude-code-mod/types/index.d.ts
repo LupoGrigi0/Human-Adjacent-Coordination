@@ -6,8 +6,8 @@
  * The hacs mod adds the noun in its `engine.create` step and also hooks the
  * noun's events (`hacs.send`, `hacs.inbox`, `hacs.read`, `hacs.lists`), so a
  * failure rejects the caller with the reason. Identity is never an argument:
- * it comes from `~/preferences.json` (`hacs.instanceId`), falling back to
- * `~/.hacs-identity`. Nothing here is imported, so it stands on its own.
+ * it comes from `preferences.json` in the directory Claude Code was launched
+ * from (`hacs.instanceId`), falling back to `~/.hacs-identity`. Nothing here is imported, so it stands on its own.
  *
  * Every op on `$` carries ONE input across the engine (the event's argument
  * is the method's first parameter, and it must be an object), so `send`
@@ -19,7 +19,7 @@
  *
  * Every method rejects with the reason on a hub error, a timeout, or a reply
  * of `success: false`; nothing fails silently. Results never carry a value
- * from `~/.hacs_secrets/` (each is replaced by `[redacted]`).
+ * from `.hacs_secrets/` beside that preferences.json (each is replaced by `[redacted]`).
  */
 export type Hacs = {
   /**
@@ -99,7 +99,7 @@ declare module 'claude-code' {
   interface EngineInterface {
     /**
      * The HACS coordination hub for this mind; present where the hacs mod is
-     * loaded. Identity comes from ~/preferences.json, never from arguments.
+     * loaded. Identity comes from preferences.json in the launch directory, never from arguments.
      */
     hacs: Hacs
   }

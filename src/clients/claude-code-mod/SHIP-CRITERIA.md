@@ -56,4 +56,12 @@ event push (`session.append`, Cairn); permission relay (Lodestone); voice trigge
   home), but the framework is for the community too, where most people don't give each session its own uid and
   home, and the software shouldn't impose that. Implementation: take the launch dir from `session.start` `e.cwd`
   (not `HOME`, and not a later cwd change). Still part of v0.1: it's a correction to a criterion, not a feature.
-  **Open until done.**
+  **Done (tests: `tests/launchdir.test.ts`: "LD preferences are read from the launch dir (e.cwd), not HOME, when
+  they differ", "LD a later session.start with another cwd does not move the preferences", "LD secrets are read
+  from <launchDir>/.hacs_secrets and the canary still never leaks", "LD the ~/.hacs-identity fallback still reads
+  from HOME, not the launch dir", "LD a session.start with no usable cwd falls back to HOME, and /hacs says so";
+  `tests/helper/test_prefs_merge.py`: `test_writes_the_path_it_is_given_never_home`).**
+  **Live proof, the check a `$HOME` implementation would FAIL** (Cairn's rule: test where the wrong implementation
+  fails; on our boxes home == launch dir, so unit tests alone can't tell them apart): `tests/live/launchdir_live.sh`,
+  2026-10-04 on fixture 7630, launched from `/tmp/hacs-launchdir-test`. `/hacs` reported that path; that file gained
+  all 11 status fields with its unrelated key kept; the home `preferences.json` was byte-identical before and after.

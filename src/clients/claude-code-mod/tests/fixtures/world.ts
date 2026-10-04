@@ -3,7 +3,8 @@ import { mock } from 'claude-code/testing'
 import type { MockClock } from 'claude-code/testing'
 
 /**
- * The world beneath the hacs mod in a test: HOME and its files, a faked HACS
+ * The world beneath the hacs mod in a test: HOME, the launch directory and
+ * their files, a faked HACS
  * hub behind `http.fetch`, the store, the status line, the prompt, and the
  * preferences helper behind `process.run`, on a mock clock.
  *
@@ -12,9 +13,15 @@ import type { MockClock } from 'claude-code/testing'
  */
 
 export const HOME = '/home/mind'
+/**
+ * By default the session is launched from HOME (each mind its own unix user,
+ * started from its home), so preferences.json is ~/preferences.json.
+ */
 export const PREFS_PATH = HOME + '/preferences.json'
 export const IDENTITY_PATH = HOME + '/.hacs-identity'
 export const SECRETS_DIR = HOME + '/.hacs_secrets'
+/** A launch directory that is not HOME (a shared box, a project checkout). */
+export const LAUNCH = '/srv/work/project'
 export const ME = 'Forge-ba0e'
 export const HUB = 'https://smoothcurves.nexus/mcp'
 
@@ -24,8 +31,18 @@ export const NOW = Date.UTC(2026, 9, 3, 12, 0, 0)
 export const SESSION: SessionStartInput = {
   surface: 'terminal',
   isInteractive: true,
-  cwd: '/work',
+  cwd: HOME,
 }
+
+/** A session.start launched from `cwd`. */
+export const startedIn = (cwd: string): SessionStartInput => ({ ...SESSION, cwd })
+
+/**
+ * A session.start with no usable cwd. The 2.1.287 engine refuses a
+ * session.start without the field ("next() passed an argument with no
+ * { cwd }"), so a missing launch directory reaches the mod as an empty one.
+ */
+export const NO_CWD: SessionStartInput = { ...SESSION, cwd: '' }
 
 /** `/hacs <args>` as the person types it. */
 export const hacs = (args: string): CommandRunInput => ({
@@ -81,13 +98,20 @@ export const defaultHub = (): HubTable => ({
 })
 
 export type WorldOptions = {
-  /** preferences.json: an object is written as JSON, a string as is, null for none. */
+  /**
+   * The directory holding preferences.json and .hacs_secrets (default HOME):
+   * where the session is launched from.
+   */
+  launchDir?: string
+  /** <launchDir>/preferences.json: an object is written as JSON, a string as is, null for none. */
   prefs?: unknown
+  /** More files anywhere, by absolute path (an object is written as JSON). */
+  files?: Record<string, unknown>
   /** ~/.hacs-identity: an object is written as JSON, null (default) for none. */
   identity?: unknown
-  /** Files in ~/.hacs_secrets, by name. */
+  /** Files in <launchDir>/.hacs_secrets, by name. */
   secrets?: Record<string, string>
-  /** Names in ~/.hacs_secrets that are symbolic links (listed as `other`). */
+  /** Names in <launchDir>/.hacs_secrets that are symbolic links (listed as `other`). */
   linkedSecrets?: readonly string[]
   /** Hub answers over the defaults. */
   hub?: HubTable
@@ -131,13 +155,17 @@ export function world(on: On, options: WorldOptions = {}): World {
   mock.env(on, options.isHomeless ? {} : { HOME })
 
   const files: Record<string, string> = {}
+  const asText = (value: unknown): string => (typeof value === 'string' ? value : JSON.stringify(value))
+  const launchDir = options.launchDir ?? HOME
+  const secretsDir = launchDir + '/.hacs_secrets'
+  for (const [path, value] of Object.entries(options.files ?? {})) files[path] = asText(value)
   const prefs = options.prefs === undefined ? { theme: 'dark', hacs: { instanceId: ME } } : options.prefs
-  if (prefs !== null) files[PREFS_PATH] = typeof prefs === 'string' ? prefs : JSON.stringify(prefs)
+  if (prefs !== null) files[launchDir + '/preferences.json'] = asText(prefs)
   if (options.identity !== undefined && options.identity !== null) {
     files[IDENTITY_PATH] = typeof options.identity === 'string' ? options.identity : JSON.stringify(options.identity)
   }
   const secrets = options.secrets ?? {}
-  for (const [name, text] of Object.entries(secrets)) files[SECRETS_DIR + '/' + name] = text
+  for (const [name, text] of Object.entries(secrets)) files[secretsDir + '/' + name] = text
 
   const hub: HubTable = { ...defaultHub(), ...options.hub }
   const calls: World['calls'] = []
@@ -162,7 +190,7 @@ export function world(on: On, options: WorldOptions = {}): World {
   })
 
   on('fs.list', ($, e) => {
-    if (e.path !== SECRETS_DIR || Object.keys(secrets).length === 0) {
+    if (e.path !== secretsDir || Object.keys(secrets).length === 0) {
       return { deny: `ENOENT: no such directory, scandir '${e.path}'` }
     }
     return {

@@ -50,6 +50,28 @@ class PrefsMergeTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(self.load(), {"hacs": {"doorbell": False, "lastPollOk": True, "unread": 2}})
 
+    def test_writes_the_path_it_is_given_never_home(self):
+        # The mod passes preferences.json in the launch directory; the helper
+        # must write exactly there, whatever HOME is (2026-10-04 change).
+        launch = os.path.join(self.dir.name, "launch", "project")
+        home = os.path.join(self.dir.name, "home")
+        os.makedirs(launch)
+        os.makedirs(home)
+        target = os.path.join(launch, "preferences.json")
+        done = subprocess.run(
+            [sys.executable, HELPER, target],
+            input=json.dumps({"set": {"unread": 1}}),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=dict(os.environ, HOME=home),
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        with open(target) as handle:
+            self.assertEqual(json.load(handle), {"hacs": {"unread": 1}})
+        self.assertTrue(os.path.exists(os.path.join(launch, ".preferences.json.hacs-lock")))
+        self.assertEqual(os.listdir(home), [])
+
     def test_keeps_every_other_key_exactly(self):
         others = {"theme": "dark", "nested": {"a": [1, 2, {"b": None}]}, "unicode": "Chile ñ"}
         self.write(dict(others, hacs={"instanceId": "Forge-ba0e"}))

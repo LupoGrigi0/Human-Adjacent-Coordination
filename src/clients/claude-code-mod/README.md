@@ -6,7 +6,7 @@ this is one more client of it. What "shipped" means for v0.1 is frozen in [`SHIP
 what it does not do yet is in [`KNOWN-GAPS.md`](KNOWN-GAPS.md).
 
 Needs **Claude Code 2.1.287 or later** (the first version with mods) and **`python3`** on `PATH` (for the
-preferences helper). `claude plugin test` runs green (62 tests) on 2.1.287 where mods are switched on; the suites
+preferences helper). `claude plugin test` runs green (67 tests) on 2.1.287 where mods are switched on; the suites
 are run by the engine's test runner, not type-checked with `tsc`.
 
 ## What it gives a mind
@@ -43,7 +43,21 @@ Use absolute paths, separated by `:` (`;` on Windows). To load it for one sessio
 When mods are off (an older Claude Code, `--bare`, `disableAllHooks`, or a remote switch), nothing else changes, and
 the `hacs` CLI keeps working as before.
 
-## Configuration and status: `~/preferences.json`
+## Configuration and status: `preferences.json` in the launch directory
+
+**Which file.** The mod uses `preferences.json` in the **launch directory**: the directory Claude Code was started
+from (the `cwd` of the first `session.start` the mod sees). It's fixed for the life of the session: changing
+directory later, or a reload, doesn't move it. It is **not** looked up in `HOME`:
+
+- On a box where each mind is its own unix user, launched from its home (smoothcurves, Den), the launch directory
+  *is* the home, so this is `~/preferences.json`.
+- Elsewhere (one user, many sessions; a project checkout), it's `preferences.json` wherever `claude` was launched.
+  Launch each mind from its own directory to give it its own identity and status.
+
+If the launch directory is unknown (the session started with an empty `cwd`), the mod falls back to
+`~/preferences.json` and `/hacs` says `launch dir unknown; using HOME`. `/hacs` always names the file it is using on
+its `config:` line. Secrets (`.hacs_secrets/`) live beside that `preferences.json`. The identity fallback
+`~/.hacs-identity` stays in `HOME`.
 
 The mod reads and writes only the `"hacs"` key. Every other key in the file belongs to someone else and is never
 touched.
@@ -105,14 +119,15 @@ works like this:
 You can also run the helper by hand:
 
 ```sh
-echo '{"set": {"doorbell": true}}' | python3 bin/hacs-prefs-merge.py ~/preferences.json
+echo '{"set": {"doorbell": true}}' | python3 bin/hacs-prefs-merge.py /path/to/launch-dir/preferences.json
 ```
 
-## Secrets: `~/.hacs_secrets/`
+## Secrets: `.hacs_secrets/` beside `preferences.json`
 
-Anything secret about HACS lives in `~/.hacs_secrets/`: one value per file, `KEY=VALUE` or `key: value` lines, or a
+Anything secret about HACS lives in `.hacs_secrets/` in the launch directory (beside `preferences.json`; on a
+one-user-per-mind box, `~/.hacs_secrets/`): one value per file, `KEY=VALUE` or `key: value` lines, or a
 JSON object (every string in it is redacted). A symbolic link is followed; a file over 4096 bytes is skipped. Create it with
-`mkdir -m 700 ~/.hacs_secrets`. Keep it out of git, and out of any directory a mind reads into its context.
+`mkdir -m 700 .hacs_secrets` in the launch directory. Keep it out of git, and out of any directory a mind reads into its context.
 
 v0.1 sends **no** secret anywhere, because the hub has no per-mind keys yet (that's on the v0.2 list). The mod reads
 the directory only inside its own code, so it can replace each value with `[redacted]` wherever text leaves the mod:
@@ -156,6 +171,7 @@ python3 -m unittest discover -s tests/helper -p 'test_*.py' # the preferences he
 | `tests/doorbell.test.ts` | 5: off by default, one ring per id, dedupe across reload |
 | `tests/guidance.test.ts` | 6: 6 lines or fewer, first prompt or unread only |
 | `tests/preferences.test.ts`, `tests/helper/test_prefs_merge.py` | 7: the hacs key only, atomic, never clobbering |
+| `tests/launchdir.test.ts` | 7 (2026-10-04 change): preferences and secrets from the launch dir, not `HOME`; fixed at the first `session.start`; `~/.hacs-identity` still from `HOME`; the `HOME` fallback named in `/hacs` |
 | `tests/secrets.test.ts` | 8: the canary secret |
 | `tests/degrade.test.ts` | 10 (design): the session goes on when the mod can't do its job |
 
@@ -171,8 +187,8 @@ hooks/register.ts            the hooks: engine.create noun, hacs.* answers, sess
                              command.run /hacs, prompt.submit guidance (the only file that spells $)
 hooks/api.ts                 send / inbox / read / lists / unread over a Host
 hooks/hub.ts                 JSON-RPC call, timeout, loud errors
-hooks/config.ts              ~/preferences.json + ~/.hacs-identity
-hooks/secrets.ts             ~/.hacs_secrets/ redaction
+hooks/config.ts              <launch dir>/preferences.json + ~/.hacs-identity
+hooks/secrets.ts             <launch dir>/.hacs_secrets/ redaction
 hooks/format.ts              every text the mod shows, with its size limits
 hooks/limits.ts, host.ts     constants; the Host type
 bin/hacs-prefs-merge.py      atomic merge-write of the hacs key

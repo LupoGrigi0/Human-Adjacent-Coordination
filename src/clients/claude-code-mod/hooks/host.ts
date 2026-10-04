@@ -2,7 +2,8 @@ import type { FsEntry, HttpInit, HttpResponse, ProcessRunInit, ProcessRunResult,
 
 /**
  * What the hub operations reach: the network, the files that hold the
- * configuration and the secrets, HOME, and a clock wait for timeouts.
+ * configuration and the secrets, the launch directory, HOME, and a clock
+ * wait for timeouts.
  *
  * register.ts builds one inline over the engine beneath it in engine.create
  * (the static analysis wants `beneath.noun.event(...)` spelled there), and
@@ -13,6 +14,12 @@ export type HubHost = {
   read: (path: string) => Promise<string>
   list: (path: string) => Promise<readonly FsEntry[]>
   home: () => Promise<string | undefined>
+  /**
+   * The directory Claude Code was launched from (`e.cwd` of the first
+   * session.start this mod saw), or undefined before then or when it
+   * carried none. preferences.json and .hacs_secrets/ live there.
+   */
+  launchDir: () => string | undefined
   sleep: (ms: number, signal?: AbortSignal) => Promise<void>
 }
 

@@ -1,6 +1,6 @@
 import type { HacsLetter, HacsList, HacsMessage } from '../types'
 import type { Config } from './config.js'
-import { identityNote } from './config.js'
+import { identityNote, whereNote } from './config.js'
 import {
   BODY_WRAP_COLUMNS,
   COMMAND_LINE_CHARS,
@@ -137,19 +137,20 @@ function inboxWords(state: PollState): string {
   }
 }
 
-/** `/hacs`: who, where, what the hub said, the doorbell, the preferences. */
+/** `/hacs`: who, the hub, where the config is, the doorbell, the preferences. */
 export function statusText(config: Config, state: PollState, prefsNote: string, doorbellNote = ''): string {
   const who = config.instanceId
     ? `hacs ${MOD_VERSION} - ${config.instanceId} (${identityNote(config)})`
     : config.prefsProblem !== null && config.prefsProblem !== 'missing'
-      ? `hacs ${MOD_VERSION} - no identity: ~/preferences.json ${config.prefsProblem}`
-      : `hacs ${MOD_VERSION} - no identity: set "hacs": {"instanceId": "Name-xxxx"} in ~/preferences.json`
+      ? `hacs ${MOD_VERSION} - no identity: ${config.prefsPath} ${config.prefsProblem}`
+      : `hacs ${MOD_VERSION} - no identity: set "hacs": {"instanceId": "Name-xxxx"} in ${config.prefsPath}`
   return commandText(
     [
       who,
       `hub ${config.hubUrl}: ${inboxWords(state)}`,
       `last look: ${iso(state.lastPollAt)}${state.phase === 'ok' ? ' (ok)' : ''}`,
-      `doorbell: ${config.doorbell ? 'on' : 'off (set hacs.doorbell: true in ~/preferences.json to turn it on)'}${doorbellNote ? '; ' + doorbellNote : ''}`,
+      whereNote(config),
+      `doorbell: ${config.doorbell ? 'on' : `off (set hacs.doorbell: true in ${config.prefsPath} to turn it on)`}${doorbellNote ? '; ' + doorbellNote : ''}`,
       `status line every ${config.pollSeconds} s; preferences: ${prefsNote}`,
       '/hacs help lists the commands',
     ].join('\n'),
@@ -166,8 +167,8 @@ export function helpText(prefix?: string): string {
       '/hacs read <id>    one message (the hub marks it read)',
       '/hacs lists        your personal task lists',
       '/hacs help         this help',
-      'Config: "hacs" key of ~/preferences.json: instanceId, hubUrl, pollSeconds, doorbell',
-      'Secrets: ~/.hacs_secrets/ (chmod 700); never shown, logged, or given to the model',
+      'Config: "hacs" key of preferences.json in the launch directory: instanceId, hubUrl, pollSeconds, doorbell',
+      'Secrets: .hacs_secrets/ beside it (chmod 700); never shown, logged, or given to the model',
       'Status line: "N unread", or "hub unreachable" / "hub error" (never shown as 0)',
       'Mods: $.hacs.send({to, subject, body}), inbox({limit}), read({id}), lists()',
       'Without mods, the hacs CLI works unchanged',
@@ -248,14 +249,14 @@ export function firstGuidance(config: Config, state: PollState): string {
   if (!config.instanceId) {
     return guidance([
       'HACS mod loaded, but this mind has no HACS identity yet.',
-      'Ask the user to set "hacs": {"instanceId": "Name-xxxx"} in ~/preferences.json; /hacs help explains more.',
+      `Ask the user to set "hacs": {"instanceId": "Name-xxxx"} in ${config.prefsPath}; /hacs help explains more.`,
     ])
   }
   return guidance([
     `HACS: you are ${config.instanceId} on the coordination hub (${hostOfUrl(config.hubUrl)}); inbox: ${inboxWords({ ...state, lastError: null })}.`,
     POINTER,
     ...(config.identitySource === 'hacs-identity'
-      ? ['Identity came from ~/.hacs-identity: ~/preferences.json has no hacs.instanceId.']
+      ? [`Identity came from ~/.hacs-identity: ${config.prefsPath} has no hacs.instanceId.`]
       : []),
   ])
 }

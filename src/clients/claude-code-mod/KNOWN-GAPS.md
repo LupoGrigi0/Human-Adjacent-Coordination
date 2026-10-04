@@ -76,7 +76,7 @@ build goes on the v0.2 list, unless it's data loss, security, or harm to a mind'
     until the tests run.
 13. **A taken `/hacs` name.** If another plugin or a skill already owns `/hacs`, registration fails quietly: the
     status line, the doorbell and the noun keep working, but there is no command and no message on screen.
-14. **`~/.hacs_secrets` permissions aren't checked.** `$.fs.stat` reports no mode, so the mod doesn't check for
+14. **`.hacs_secrets` permissions aren't checked** (the directory beside `preferences.json` in the launch dir). `$.fs.stat` reports no mode, so the mod doesn't check for
     0700; the README says to create the directory with `mkdir -m 700`. Redaction covers whole files, whole lines,
     `KEY=VALUE`, `key: value`, every string of a JSON file, and symbolic links. It skips, without a word: values
     shorter than 6 characters (too likely to match ordinary text), files over 4096 bytes, and subdirectories. It
@@ -109,7 +109,7 @@ build goes on the v0.2 list, unless it's data loss, security, or harm to a mind'
     while `/hacs inbox` shows fewer, or none (after which the next poll drops them too).
 21. **Turning the doorbell on rings what is already unread:** up to 5 ids at once, so up to 5 turns.
 22. **Secrets are read through `$.fs.read` on every poll, command and noun call.** Each read is an engine event that
-    another mod hooking `fs.read` could observe. Such a mod runs as the same user and can read `~/.hacs_secrets`
+    another mod hooking `fs.read` could observe. Such a mod runs as the same user and can read `.hacs_secrets`
     itself, so no new boundary is crossed, but reading once per session would shrink the exposure.
 23. **The status line shows no age.** If the interval ends (a refused period ends a `$.clock.every`) or polls stall
     (see 11), the last `N unread` stays up until a reload. `/hacs` shows `last look:` with its time.
@@ -118,3 +118,7 @@ build goes on the v0.2 list, unless it's data loss, security, or harm to a mind'
     `delivered_to_id` check (by the frozen rule); the error says the message was sent and to check who received it.
     Rooms and broadcasts (`project:`, `role:`, `all`) are refused before sending, since they carry no
     `delivered_to_id` to verify.
+26. **The launch directory is known only after the first `session.start`** (2026-10-04 change). A `$.hacs` call
+    from another mod before any `session.start` (or in a host that never sends one) uses `HOME`, as the no-cwd
+    fallback does. The 2.1.287 engine refuses a `session.start` without a `cwd` field, so "missing" reaches the mod
+    as an empty or non-absolute `cwd`; that is what the fallback test feeds.
