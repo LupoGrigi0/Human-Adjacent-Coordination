@@ -49,3 +49,11 @@ unless it's data loss, security, or harm to a mind's continuity.
 Goals and criteria with progressive disclosure (`/hacs goals`); projects; task create/complete; per-mind API keys
 (Bastion's design: blocked on the hub having keys); OpenRouter fixture verification of `$.model.*`-free paths; web-UI
 event push (`session.append`, Cairn); permission relay (Lodestone); voice trigger; `/hacs send` from the composer.
+
+## Changes (each with who decided and why)
+- **2026-10-04, Lupo:** criterion 7's file is **`preferences.json` in the directory Claude Code was launched from**,
+  not `~/preferences.json`. On smoothcurves and Den they're the same (each mind is its own user, launched from its
+  home), but the framework is for the community too, where most people don't give each session its own uid and
+  home, and the software shouldn't impose that. Implementation: take the launch dir from `session.start` `e.cwd`
+  (not `HOME`, and not a later cwd change). Still part of v0.1: it's a correction to a criterion, not a feature.
+  **Open until done.**
