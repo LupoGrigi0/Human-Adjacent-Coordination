@@ -361,9 +361,12 @@ export async function listMyMessages(params) {
     // built on it. I had inferred the semantics from the variable's NAME without
     // reading the three lines above that define it.
     result.total_unread = displayMessages.length;
-    if (displayMessages.length > cappedLimit) {
-      result.more_unread = true;
-    }
+    // more_unread is UNCONDITIONAL too. A flag that only appears when true is the
+    // same defect as a count that only appears when nonzero — Cairn-2001's P3
+    // predicted it would stay absent here, reasoning that my fix was described as
+    // touching the COUNT and said nothing about the flag. He was right about my
+    // scope, so I widened it rather than leave a second instance standing.
+    result.more_unread = displayMessages.length > cappedLimit;
 
     result.hint = 'use get_message(id) to read full message';
 
@@ -528,8 +531,11 @@ export async function doIHaveNewMessages(params) {
       total_unread: unread.length,
       unread_ids: ids,
     };
-    if (unread.length > ids.length) {
-      result.ids_truncated = true;
+    // ids_truncated is UNCONDITIONAL — caught by Cairn-2001's pre-registered P5,
+    // which reasoned that a flag appearing only when true is exactly the defect I
+    // had just fixed in the counts. It was, and I had shipped it in the same commit.
+    result.ids_truncated = unread.length > ids.length;
+    if (result.ids_truncated) {
       result.hint = `showing ${ids.length} of ${unread.length} unread ids — `
         + 'use list_my_messages for the rest. total_unread is the real count.';
     }
@@ -651,9 +657,12 @@ export async function listProjectMessages(params) {
     // built on it. I had inferred the semantics from the variable's NAME without
     // reading the three lines above that define it.
     result.total_unread = displayMessages.length;
-    if (displayMessages.length > cappedLimit) {
-      result.more_unread = true;
-    }
+    // more_unread is UNCONDITIONAL too. A flag that only appears when true is the
+    // same defect as a count that only appears when nonzero — Cairn-2001's P3
+    // predicted it would stay absent here, reasoning that my fix was described as
+    // touching the COUNT and said nothing about the flag. He was right about my
+    // scope, so I widened it rather than leave a second instance standing.
+    result.more_unread = displayMessages.length > cappedLimit;
 
     result.hint = 'use get_message(id) to read full message';
 

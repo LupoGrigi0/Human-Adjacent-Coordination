@@ -59,15 +59,31 @@ function normalize(body, cap = BODY_CAP, offset = 0) {
   const slice = text.slice(offset, offset + cap);
   const end = offset + slice.length;
   const truncated = end < text.length;
-  const out = { body: slice, truncated };
-  if (truncated) {
-    out.total_chars = text.length;
-    out.remaining_chars = text.length - end;
-    out.next_offset = end;
-    out.continue_with = `read_message({instanceId, refs:[ref], offset:${end}})`
-      + ` — or refetch with max_chars up to ${BODY_CAP_MAX} for the whole letter`;
-  }
-  return out;
+  // ALL FOUR ARE UNCONDITIONAL. They used to appear only inside `if (truncated)`,
+  // which is the same conditional-field defect I fixed in the unread counts hours
+  // earlier — reproduced in a different field, by me, in the fix for the first one.
+  // Caught by Cairn-2001's PRE-REGISTERED prediction P7, written before the deploy
+  // and without access to this source. He predicted I had got it right.
+  //
+  // Two concrete costs, not just symmetry: `total_chars` is useful on a COMPLETE
+  // read ("how big is this letter?") and used to require deliberately truncating
+  // one to learn it; and a paging loop needed a special case for its last page.
+  // Unconditional, the loop is uniform: read -> advance to next_offset -> stop when
+  // remaining_chars is 0.
+  //
+  // THE RULE, now applied everywhere: no count appears only when nonzero, and no
+  // flag appears only when true. A boundary must say its own name.
+  return {
+    body: slice,
+    truncated,
+    total_chars: text.length,
+    remaining_chars: text.length - end,
+    next_offset: truncated ? end : null,   // null = there is no next page
+    continue_with: truncated
+      ? `read_message({instanceId, refs:[ref], offset:${end}})`
+        + ` — or refetch with max_chars up to ${BODY_CAP_MAX} for the whole letter`
+      : null,
+  };
 }
 
 // --- Resolver: hacs (msg-*) -------------------------------------------------

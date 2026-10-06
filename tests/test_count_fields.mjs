@@ -38,8 +38,14 @@ control('rig can find total_unread in the source at all', /total_unread/.test(sr
 control('rig can find the page-slice machinery at all', /slice\(0, cappedLimit\)/.test(src));
 
 // --- always present -----------------------------------------------------------
-check('total_unread is assigned UNCONDITIONALLY (not inside the truncation branch)',
-  /result\.total_unread = displayMessages\.length;\s*\n\s*if \(displayMessages\.length > cappedLimit\)/.test(src));
+// v1 of this assertion pinned the INTERMEDIATE shape — the unconditional count
+// followed by an `if` for the flag. Widening the fix (P3) removed that `if`, so the
+// test went red on code that is strictly better. The TEST was the defect. Re-pinned
+// to the property rather than to the surrounding syntax, which is what it should
+// have asserted in the first place.
+check('total_unread is assigned UNCONDITIONALLY, never inside a branch',
+  /\n    result\.total_unread = displayMessages\.length;/.test(src)
+  && !/\n      result\.total_unread = displayMessages\.length;/.test(src));
 
 check('the truncation branch now sets ONLY more_unread',
   !/if \(displayMessages\.length > cappedLimit\) \{\s*\n\s*result\.more_unread = true;\s*\n\s*result\.total_unread/.test(src));
@@ -62,11 +68,32 @@ check('page and total come from DIFFERENT variables (so they can legitimately di
 check('the 5-id cap is a NAMED constant, not a bare literal',
   /const UNREAD_ID_CAP = 5/.test(src) && /slice\(0, UNREAD_ID_CAP\)/.test(src));
 
-check('a clipped id list SAYS it was clipped (ids_truncated), never silently',
-  /result\.ids_truncated = true/.test(src));
+check('a clipped id list SAYS it was clipped, and says so unconditionally',
+  /result\.ids_truncated = unread\.length > ids\.length;/.test(src));
 
 check('the clip hint names the real count so the list length is never the source',
   /total_unread is the real count/.test(src));
+
+// --- NO FLAG APPEARS ONLY WHEN TRUE (the same defect as a conditional count) ---
+// Caught by Cairn-2001's PRE-REGISTERED predictions P3 and P5, written before the
+// deploy, without source access. P5 reasoned that a flag appearing only when true
+// is exactly the defect I had just fixed in the counts — and I had shipped one in
+// the same commit. P3 correctly predicted I had left more_unread conditional
+// because my fix was described as touching only the count.
+check('more_unread is UNCONDITIONAL (a boolean, not a presence)',
+  /result\.more_unread = displayMessages\.length > cappedLimit;/.test(src)
+  && !/result\.more_unread = true;/.test(src));
+
+check('ids_truncated is UNCONDITIONAL',
+  /result\.ids_truncated = unread\.length > ids\.length;/.test(src)
+  && !/result\.ids_truncated = true;/.test(src));
+
+const rm = fs.readFileSync(new URL('../src/v2/read-message.js', import.meta.url), 'utf8');
+check('truncation fields are NOT inside an if (truncated) branch',
+  !/if \(truncated\) \{[\s\S]{0,400}?total_chars/.test(rm));
+check('a complete read still carries total_chars / remaining_chars / next_offset',
+  /total_chars: text\.length/.test(rm) && /remaining_chars: text\.length - end/.test(rm)
+  && /next_offset: truncated \? end : null/.test(rm));
 
 // --- the general property, stated as a test -----------------------------------
 check('no count field is left assigned only inside a conditional branch',
