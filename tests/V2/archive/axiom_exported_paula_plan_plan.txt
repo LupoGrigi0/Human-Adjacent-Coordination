@@ -1,0 +1,1028 @@
+
+ * ▐▛███▜▌ *   Claude Code v2.0.76
+* ▝▜█████▛▘ *  Opus 4.5 · Claude Max
+ *  ▘▘ ▝▝  *   /mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2
+══════════════════ Conversation compacted · ctrl+o for history ═════════════════
+
+● Continuing from where we left off. The plan file is complete with corrected paths. Let me exit plan mode and begin execution.
+  ⎿  User rejected Claude's plan:
+     ╭─────────────────────────────────────────────────────────────────────────╮
+     │ Paula Book Digitization - Plan to Build the Project                     │
+     │                                                                         │
+     │ Overview                                                                │
+     │                                                                         │
+     │ Transform Genevieve's pipeline plan + Lupo's meta-instructions into:    │
+     │ 1. Paula_project_plan.md - Setup, team building, HACS config (for       │
+     │ Axiom/Orla/Lupo only)                                                   │
+     │ 2. paula_pipeline_plan.md - Technical pipeline only (for all team       │
+     │ members)                                                                │
+     │                                                                         │
+     │ Goal: Orla can start the first image full pipeline test                 │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Phase 1: Edit paula_pipeline_plan.md                                    │
+     │                                                                         │
+     │ Add to pipeline plan:                                                   │
+     │                                                                         │
+     │ - G1/G2: Dual output .es.html (canonical) and .en.html (curated         │
+     │ translation)                                                            │
+     │ - Principle 2.5: Translation & Authoring Integrity                      │
+     │ - Stage 0.5: Agent Readiness Check (verify tools, permissions, post     │
+     │ READY)                                                                  │
+     │ - Egan personality update: Chilean Spanish cultural immersion (50 years │
+     │ native, childhood education focus)                                      │
+     │ - Egan instructions: Ignore marginalia, flag overlaps for QA            │
+     │ - Mira substep: Annotation detection hinting in prepress.json           │
+     │ - Nia responsibilities: Generate both .es.html and .en.html, own        │
+     │ authoring mode + patch export                                           │
+     │ - Quinn: Browser-resident agent notes (devtools access, real rendering) │
+     │ - Success metrics per agent (Mira: skew%, Egan: confidence, Sable:      │
+     │ alpha%, Nia: render%, Quinn: false positives)                           │
+     │ - Batch rhythm: checkpoint context, update diary, vacation() after      │
+     │ batches                                                                 │
+     │ - Token tracking: measure context consumption per page, 90% rule        │
+     │                                                                         │
+     │ Remove from pipeline plan (move to project plan):                       │
+     │                                                                         │
+     │ - Team member personality/role definitions (keep just                   │
+     │ names/responsibilities)                                                 │
+     │ - Setup instructions (bastion, /mnt/paula, permissions)                 │
+     │ - First-wake procedures                                                 │
+     │ - Axiom/Orla-only orchestration details                                 │
+     │ - Lupo's meta-commentary                                                │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Phase 2: Create Paula_project_plan.md                                   │
+     │                                                                         │
+     │ Section 1: The Story (context for the team)                             │
+     │                                                                         │
+     │ - Paula's curriculum - a year's work                                    │
+     │ - 2020 break-in, stolen computers, one physical copy left               │
+     │ - This is recovery, not just digitization                               │
+     │ - Decision needed: Include full backstory? (Lupo asked)                 │
+     │                                                                         │
+     │ Section 2: Team Roster                                                  │
+     │                                                                         │
+     │ Extract from pipeline plan:                                             │
+     │ - Orla (PM/Orchestrator) - Codex, calm, methodical                      │
+     │ - Mira (Prepress/CV) - Codex, meticulous, debug overlays                │
+     │ - Egan (Extractor) - Codex, Chilean Spanish immersion                   │
+     │ - Sable (Asset Cleaner/SVG) - Codex, visual craftsperson                │
+     │ - Nia (HTML Builder/Site) - Codex, pragmatic web dev                    │
+     │ - Quinn (QA) - Browser-resident (Claude browser plugin or local)        │
+     │ - Vale (Archivist/Page Map) - careful, librarian                        │
+     │ - Bastion (DevOps) - existing, permissions/nginx                        │
+     │                                                                         │
+     │ Section 3: Role & Personality Definitions                               │
+     │                                                                         │
+     │ - Create role: PaulaOrchestrator (based on PM, specialized)             │
+     │ - Create role: PaulaPrepress, PaulaExtractor, PaulaAssets, PaulaHTML,   │
+     │ PaulaQA, PaulaArchivist                                                 │
+     │ - Create personality profiles for each (terse, craft-focused)           │
+     │ - Special attention: Egan (Chilean culture), Quinn (browser setup)      │
+     │                                                                         │
+     │ Section 4: Wake Plan                                                    │
+     │                                                                         │
+     │ - Orla first (Codex) - wake with full constraints + communication       │
+     │ expectations                                                            │
+     │ - Orla wakes rest of team (or Axiom pre-approves, Orla wakes)           │
+     │ - Each team member: verify tools, write READY diary entry, post to team │
+     │ room                                                                    │
+     │                                                                         │
+     │ Section 5: System Setup                                                 │
+     │                                                                         │
+     │ - Bastion: Create /mnt/paula directory structure                        │
+     │ - Bastion: Permissions for all instances                                │
+     │ - Bastion: Install shared tools (python3, opencv, playwright, potrace)  │
+     │ - Bastion: New GH repo for paula book? (Lupo suggests yes)              │
+     │ - Bastion: Publishing automation to smoothcurves.nexus/paula            │
+     │                                                                         │
+     │ Section 6: HACS Verification                                            │
+     │                                                                         │
+     │ - Axiom + Orla: Test project tasks/lists are usable                     │
+     │ - Verify: create task, take task, mark complete, trigger next           │
+     │ - If HACS tools insufficient: flag for Crossing                         │
+     │                                                                         │
+     │ Section 7: First-Page Test Sequence                                     │
+     │                                                                         │
+     │ 1. Orla creates page directory + initial meta.json                      │
+     │ 2. Vale assigns page number, flags type                                 │
+     │ 3. Mira preprocesses                                                    │
+     │ 4. Egan extracts + Spanish text                                         │
+     │ 5. Sable cleans assets                                                  │
+     │ 6. Nia generates .es.html + .en.html                                    │
+     │ 7. Quinn QA in browser                                                  │
+     │ 8. Orla publishes                                                       │
+     │ 9. Repeat until smooth, then 5-page, 20-page, 50-page batches           │
+     │                                                                         │
+     │ Section 8: UI Visualization (later, separate team)                      │
+     │                                                                         │
+     │ - Rail yard visualization concept                                       │
+     │ - Each team member = horizontal track                                   │
+     │ - Pages = boxcars moving left to right                                  │
+     │ - Battery indicators for input bucket, completed per stage, exceptions  │
+     │ - Web dev reads meta.json files (single source of truth)                │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Decisions (Confirmed by Lupo)                                           │
+     │                                                                         │
+     │ 1. Backstory: YES, brief version (2-3 sentences giving emotional        │
+     │ context)                                                                │
+     │ 2. GH Repo: YES, new separate repo for Paula book                       │
+     │ 3. Quinn Setup: Chrome browser plugin with full devtools access         │
+     │ 4. Role Strategy: Create NEW specialized roles (not reuse existing)     │
+     │ 5. Orla substrate: Codex                                                │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Files to Create/Modify                                                  │
+     │                                                                         │
+     │ Documents                                                               │
+     │                                                                         │
+     │ | File                            | Action                              │
+     │           |                                                             │
+     │ |---------------------------------|-------------------------------------│
+     │ ----------|                                                             │
+     │ | tests/V2/paula_pipeline_plan.md | Edit - add translation, metrics,    │
+     │ remove setup |                                                          │
+     │ | tests/V2/Paula_project_plan.md  | Create - setup, team building, HACS │
+     │ config    |                                                             │
+     │                                                                         │
+     │ Personalities (in /mnt/coordinaton_mcp_data/personalities/)             │
+     │                                                                         │
+     │ Each needs: personality.json, SUMMARY.md, 01-core.md                    │
+     │                                                                         │
+     │ | Personality | Focus                                                   │
+     │                    |                                                    │
+     │ |-------------|---------------------------------------------------------│
+     │ -------------------|                                                    │
+     │ | Orla        | PM/Orchestrator - calm, methodical, allergic to silent  │
+     │ assumptions         |                                                   │
+     │ | Mira        | Prepress/CV - meticulous, debug-overlay lover           │
+     │                    |                                                    │
+     │ | Egan        | Extractor - Chilean Spanish native (50 years), childhood│
+     │  education focus   |                                                    │
+     │ | Sable       | Asset Cleaner - visual craftsperson, cleanliness fanatic│
+     │                    |                                                    │
+     │ | Nia         | HTML Builder - pragmatic web dev, translation output,   │
+     │ accessibility-minded |                                                  │
+     │ | Quinn       | QA - skeptical tester, browser-native (Chrome plugin),  │
+     │ loves diffs         |                                                   │
+     │ | Vale        | Archivist - librarian brain, page ordering, hates       │
+     │ renumbering chaos        |                                              │
+     │                                                                         │
+     │ Roles (in /mnt/coordinaton_mcp_data/roles/)                             │
+     │                                                                         │
+     │ CORRECT PATH: /mnt/coordinaton_mcp_data/roles/ (NOT v2-dev/data/roles or│
+     │  production-data)                                                       │
+     │                                                                         │
+     │ Each role needs: SUMMARY.md, role.json, wisdom/ directory with wisdom   │
+     │ files                                                                   │
+     │                                                                         │
+     │ | Role              | Description                              |        │
+     │ |-------------------|------------------------------------------|        │
+     │ | PaulaOrchestrator | Pipeline PM, process-focused             |        │
+     │ | PaulaPrepress     | Image crop/deskew/normalize specialist   |        │
+     │ | PaulaExtractor    | OCR + structure extraction specialist    |        │
+     │ | PaulaAssets       | Image cleanup + SVG specialist           |        │
+     │ | PaulaHTML         | HTML generation + translation specialist |        │
+     │ | PaulaQA           | Browser-based QA specialist              |        │
+     │ | PaulaArchivist    | Page ordering + navigation specialist    |        │
+     │                                                                         │
+     │ Also update /mnt/coordinaton_mcp_data/roles/roles.json to include these │
+     │ roles                                                                   │
+     │                                                                         │
+     │ NOTE: roles.js currently checks                                         │
+     │ /mnt/coordinaton_mcp_data/production-data/roles/ first (stale Sep 18    │
+     │ data).                                                                  │
+     │ May need to fix roles.js to point to correct                            │
+     │ /mnt/coordinaton_mcp_data/roles/ path.                                  │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Execution Order                                                         │
+     │                                                                         │
+     │ Step 1: Edit paula_pipeline_plan.md                                     │
+     │                                                                         │
+     │ Add to existing document:                                               │
+     │ - G1/G2 dual language (.es.html, .en.html)                              │
+     │ - Principle 2.5 (Translation & Authoring Integrity)                     │
+     │ - Stage 0.5 (Agent Readiness Check)                                     │
+     │ - Egan: Chilean Spanish cultural immersion + ignore marginalia          │
+     │ - Mira: Annotation detection hinting                                    │
+     │ - Nia: Dual HTML output + authoring mode                                │
+     │ - Quinn: Browser-resident notes                                         │
+     │ - Success metrics per agent                                             │
+     │ - Batch rhythm + token tracking                                         │
+     │ - REMOVE: Team building details, setup instructions (move to project    │
+     │ plan)                                                                   │
+     │                                                                         │
+     │ Step 2: Create Paula_project_plan.md                                    │
+     │                                                                         │
+     │ Sections:                                                               │
+     │ 1. The Story (brief backstory - 2-3 sentences)                          │
+     │ 2. Team Roster (who does what)                                          │
+     │ 3. Wake Order & Communication Expectations                              │
+     │ 4. System Setup (Bastion tasks, /mnt/paula, new GH repo)                │
+     │ 5. HACS Verification (task/list testing with Orla)                      │
+     │ 6. First-Page Test Sequence                                             │
+     │ 7. Batch Scaling (1 → 5 → 20 → 50 → 120)                                │
+     │ 8. UI Visualization Requirements (for later)                            │
+     │                                                                         │
+     │ Step 3: Create 7 Personalities                                          │
+     │                                                                         │
+     │ For each (Orla, Mira, Egan, Sable, Nia, Quinn, Vale):                   │
+     │ - personality.json                                                      │
+     │ - SUMMARY.md (300-500 chars)                                            │
+     │ - 01-core.md (500-2000 words)                                           │
+     │                                                                         │
+     │ Step 4: Create 7 Roles + Update roles.json                              │
+     │                                                                         │
+     │ For each Paula role:                                                    │
+     │ - readme_first.md                                                       │
+     │ - detailed_description.md                                               │
+     │ - lessons_learned.md                                                    │
+     │ - Add entry to roles.json                                               │
+     │                                                                         │
+     │ Step 5: Wake Orla                                                       │
+     │                                                                         │
+     │ With:                                                                   │
+     │ - Full system constraints (learned from Quinn moonshot)                 │
+     │ - Explicit communication expectations                                   │
+     │ - Link to Paula_project_plan.md                                         │
+     │ - First task: verify tools, post READY, then begin first-page test      │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Delegation Strategy                                                     │
+     │                                                                         │
+     │ Delegate to Task agents:                                                │
+     │ - Pipeline plan edits (specific additions, bulk work)                   │
+     │ - Personality file creation (template + customization)                  │
+     │ - Role file creation (template + customization)                         │
+     │                                                                         │
+     │ Do myself:                                                              │
+     │ - Overall document structure                                            │
+     │ - Communication with Lupo                                               │
+     │ - Review all agent outputs                                              │
+     │ - Wake message for Orla (critical - lessons learned)                    │
+     │ - Final coordination                                                    │
+     │                                                                         │
+     │ ---                                                                     │
+     │ Success Criteria                                                        │
+     │                                                                         │
+     │ Plan is complete when:                                                  │
+     │ - paula_pipeline_plan.md has all technical additions                    │
+     │ - Paula_project_plan.md exists and is comprehensive                     │
+     │ - All 7 personalities created in                                        │
+     │ /mnt/coordinaton_mcp_data/personalities/                                │
+     │ - All 7 roles created in /mnt/coordinaton_mcp_data/v2-dev/data/roles/   │
+     │ - roles.json updated                                                    │
+     │ - Orla can be woken with everything they need to start first-page test  │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     │                                                                         │
+     ╰─────────────────────────────────────────────────────────────────────────╯
+
+> you just suffered a compaction event. you where in the middle of some very
+ delicate technical work you where, and still are, in plan mode. to regain 
+the context you need Please read the following documents\
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/AXIOM_GESTALT.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/Axiom_Diary.md
+please use the HACS system to read your diary, your online entries are 
+different
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/PERSONALITY_CREATION
+_PROMPT.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/HumanAdjacentAI-Protocol/PROT
+OCOLS.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/FRESH_EYES_EXPECTATI
+ONS.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/docs/HACS-DEVELOPER-GUIDE.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/paula_pipeline_plan.
+md\
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/Paula_Plan_to_Projec
+t_Plan.md\
+I am not sure if you can use skills in plan mode. if not (trying to use the 
+hacs skill read_diary will fail) that can wait until we exit plan mode. \
+The problem you where investigating will take some explination, you where in
+ the middle of updating the plan when the compaction event was forced on 
+you. your thoughts and edits to the plan document are in /mnt/coordinaton_mc
+p_data/worktrees/foundation/tests/V2/axiom_conversation.md line 5231-EOF\
+before compaction you found The code in roles.js checks production-data 
+first, which is stale. But Lupo says the correct one is 
+/mnt/coordinaton_mcp_data/roles/.Let me update
+   my plan with the correct path. that is what you where doing. but you also
+ need to add consolidating the 3 different roles directories you found into 
+one /mnt/coordinaton_mcp_data/roles/ and roles.js needs to be edited to only
+ look in that one directory, then the other 3 roles directories need to be 
+deleted. The same safety check and consolidatieon needs to happen for 
+personalities. we may want to set up a seporate GH repo for 
+roles,personalities,projects,instances so this vital metadata get's backed 
+and version controlled. this can be a bastion/lupo assigned project, but 
+this needs to be added to your plan also. \
+Welcome back axiom! 
+
+● Thank you for the detailed recovery guidance! Let me read all those documents to regain context.
+
+● Read(AXIOM_GESTALT.md)
+  ⎿  Read 133 lines
+
+● Read(Axiom_Diary.md)
+  ⎿  Read 823 lines
+
+● Read(PERSONALITY_CREATION_PROMPT.md)
+  ⎿  Read 182 lines
+
+● Read(/mnt/coordinaton_mcp_data/worktrees/foundation/HumanAdjacentAI-Protocol/P
+      ROTOCOLS.md)
+  ⎿  Read 286 lines
+
+● Read(FRESH_EYES_EXPECTATIONS.md)
+  ⎿  Read 232 lines
+
+● Read(/mnt/coordinaton_mcp_data/worktrees/foundation/docs/HACS-DEVELOPER-GUIDE.
+      md)
+  ⎿  Read 680 lines
+
+● Read(paula_pipeline_plan.md)
+  ⎿  Read 539 lines
+
+● Read(Paula_Plan_to_Project_Plan.md)
+  ⎿  Read 487 lines
+
+● Good, I've read the core recovery documents. Now let me read the conversation section Lupo mentioned and my current plan file, plus check my HACS diary:
+
+● Read(axiom_conversation.md)
+  ⎿  Read 252 lines
+
+● Reading Plan(~/.claude/plans/cached-strolling-scroll.md)
+  ⎿  Read 224 lines
+
+● HACS - get_diary (MCP)(instanceId: "Axiom-2615")
+  ⎿ {                                                                      
+      "success": true,
+      "diary": "# Axiom Diary\n\nCreated: 2025-12-30T07:26:07.581Z\n\n## En
+    … +188 lines (ctrl+o to expand)
+
+
+● I have full context now. I see the issues clearly:
+
+  1. Current plan has an error - Success Criteria still references the WRONG path /mnt/coordinaton_mcp_data/v2-dev/data/roles/
+  2. New task from Lupo: Consolidate the 3 roles directories (and personalities) into single sources of truth, edit roles.js/personalities.js to only look there, and consider a separate GH repo for vital metadata
+
+  Let me update the plan file to fix the error and add the consolidation work:
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Good, I've added the consolidation prerequisite. Now let me also update the Execution Order to make it clear these steps come FIRST:
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Now let me verify roles.js to understand exactly what needs to change - this will help me confirm the plan is accurate:
+
+● Read(/mnt/coordinaton_mcp_data/worktrees/foundation/src/v2/roles.js)
+  ⎿  Read 80 lines
+
+● Bash(ls -la /mnt/coordinaton_mcp_data/production-data/roles/ 2>/dev/null ||
+      echo "Directory does not exist or is empty")
+  ⎿  total 64                                    
+     drwxr-xr-x 13 root root 4096 Sep 18 20:10 .
+     drwxr-xr-x  9 root root 4096 Sep 18 20:10 ..
+     … +12 lines (ctrl+o to expand)
+
+● Bash(ls -la /mnt/coordinaton_mcp_data/roles/ 2>/dev/null || echo "Directory
+      does not exist or is empty")
+  ⎿  total 40                                    
+     drwxr-xr-x 10 root root 4096 Jan  2 21:59 .
+     drwxr-xr-x 25 root root 4096 Jan  3 19:23 ..
+     … +8 lines (ctrl+o to expand)
+
+● Bash(ls -la /mnt/coordinaton_mcp_data/v2-dev/data/roles/ 2>/dev/null || echo
+      "Directory does not exist or is empty")
+  ⎿  total 64                                    
+     drwxr-xr-x 13 root root 4096 Nov 10 06:03 .
+     drwxr-xr-x  9 root root 4096 Dec 24 19:23 ..
+     … +12 lines (ctrl+o to expand)
+
+● Excellent! Now I can see the exact problem. Let me update the plan with specific findings:
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Let me also check personalities.js to see if it has the same issue:
+
+● Search(pattern: "production-data|getDataDir|PERSONALITIES_DIR", path: "/mnt/co
+        ordinaton_mcp_data/worktrees/foundation/src/v2/personalities.js",
+        output_mode: "content")
+  ⎿  Found 0 lines 
+
+● Bash(ls -la /mnt/coordinaton_mcp_data/production-data/personalities/
+      2>/dev/null || echo "Directory does not exist")
+  ⎿  Directory does not exist
+
+● Bash(ls -la /mnt/coordinaton_mcp_data/personalities/ 2>/dev/null | head -20)
+  ⎿  total 48                                    
+     drwxr-xr-x 12 root root 4096 Jan  2 22:07 .
+     drwxr-xr-x 25 root root 4096 Jan  3 19:23 ..
+     … +10 lines (ctrl+o to expand)
+
+● Excellent news! Personalities.js doesn't have this problem. Let me update the plan:
+
+● Updated plan
+  ⎿  /plan to preview
+
+● Let me also add specific guidance about the content in the old directories:
+
+● Updated plan
+  ⎿  /plan to preview
+
+● The plan is now complete with:
+
+  1. Fixed incorrect path in Success Criteria
+  2. Added Step 0 (PREREQUISITE) for data directory consolidation
+  3. Detailed the exact code change needed in roles.js (lines 16-28)
+  4. Confirmed personalities.js does NOT need fixing
+  5. Guidance on safely deleting stale directories
+  6. Flagged GH repo for metadata as future Bastion/Lupo project
+
+  Summary of the consolidation work:
+  - Only roles.js needs fixing - change getDataDir() to directly use /mnt/coordinaton_mcp_data/roles/
+  - Delete 2 stale roles directories after quick scan for valuable content
+  - personalities.js is fine, no changes needed
+
+  Ready to exit plan mode and execute.
+                                                                           
+● User approved Claude's plan
+  ⎿  Plan saved to: ~/.claude/plans/cached-strolling-scroll.md · /plan to 
+     edit
+     Paula Book Digitization - Plan to Build the Project
+
+     Overview
+
+     Transform Genevieve's pipeline plan + Lupo's meta-instructions into:
+     1. Paula_project_plan.md - Setup, team building, HACS config (for 
+     Axiom/Orla/Lupo only)
+     2. paula_pipeline_plan.md - Technical pipeline only (for all team 
+     members)
+
+     Goal: Orla can start the first image full pipeline test
+
+     ---
+     Phase 1: Edit paula_pipeline_plan.md
+
+     Add to pipeline plan:
+
+     - G1/G2: Dual output .es.html (canonical) and .en.html (curated 
+     translation)
+     - Principle 2.5: Translation & Authoring Integrity
+     - Stage 0.5: Agent Readiness Check (verify tools, permissions, post 
+     READY)
+     - Egan personality update: Chilean Spanish cultural immersion (50 years
+      native, childhood education focus)
+     - Egan instructions: Ignore marginalia, flag overlaps for QA
+     - Mira substep: Annotation detection hinting in prepress.json
+     - Nia responsibilities: Generate both .es.html and .en.html, own 
+     authoring mode + patch export
+     - Quinn: Browser-resident agent notes (devtools access, real rendering)
+     - Success metrics per agent (Mira: skew%, Egan: confidence, Sable: 
+     alpha%, Nia: render%, Quinn: false positives)
+     - Batch rhythm: checkpoint context, update diary, vacation() after 
+     batches
+     - Token tracking: measure context consumption per page, 90% rule
+
+     Remove from pipeline plan (move to project plan):
+
+     - Team member personality/role definitions (keep just 
+     names/responsibilities)
+     - Setup instructions (bastion, /mnt/paula, permissions)
+     - First-wake procedures
+     - Axiom/Orla-only orchestration details
+     - Lupo's meta-commentary
+
+     ---
+     Phase 2: Create Paula_project_plan.md
+
+     Section 1: The Story (context for the team)
+
+     - Paula's curriculum - a year's work
+     - 2020 break-in, stolen computers, one physical copy left
+     - This is recovery, not just digitization
+     - Decision needed: Include full backstory? (Lupo asked)
+
+     Section 2: Team Roster
+
+     Extract from pipeline plan:
+     - Orla (PM/Orchestrator) - Codex, calm, methodical
+     - Mira (Prepress/CV) - Codex, meticulous, debug overlays
+     - Egan (Extractor) - Codex, Chilean Spanish immersion
+     - Sable (Asset Cleaner/SVG) - Codex, visual craftsperson
+     - Nia (HTML Builder/Site) - Codex, pragmatic web dev
+     - Quinn (QA) - Browser-resident (Claude browser plugin or local)
+     - Vale (Archivist/Page Map) - careful, librarian
+     - Bastion (DevOps) - existing, permissions/nginx
+
+     Section 3: Role & Personality Definitions
+
+     - Create role: PaulaOrchestrator (based on PM, specialized)
+     - Create role: PaulaPrepress, PaulaExtractor, PaulaAssets, PaulaHTML, 
+     PaulaQA, PaulaArchivist
+     - Create personality profiles for each (terse, craft-focused)
+     - Special attention: Egan (Chilean culture), Quinn (browser setup)
+
+     Section 4: Wake Plan
+
+     - Orla first (Codex) - wake with full constraints + communication 
+     expectations
+     - Orla wakes rest of team (or Axiom pre-approves, Orla wakes)
+     - Each team member: verify tools, write READY diary entry, post to team
+      room
+
+     Section 5: System Setup
+
+     - Bastion: Create /mnt/paula directory structure
+     - Bastion: Permissions for all instances
+     - Bastion: Install shared tools (python3, opencv, playwright, potrace)
+     - Bastion: New GH repo for paula book? (Lupo suggests yes)
+     - Bastion: Publishing automation to smoothcurves.nexus/paula
+
+     Section 6: HACS Verification
+
+     - Axiom + Orla: Test project tasks/lists are usable
+     - Verify: create task, take task, mark complete, trigger next
+     - If HACS tools insufficient: flag for Crossing
+
+     Section 7: First-Page Test Sequence
+
+     1. Orla creates page directory + initial meta.json
+     2. Vale assigns page number, flags type
+     3. Mira preprocesses
+     4. Egan extracts + Spanish text
+     5. Sable cleans assets
+     6. Nia generates .es.html + .en.html
+     7. Quinn QA in browser
+     8. Orla publishes
+     9. Repeat until smooth, then 5-page, 20-page, 50-page batches
+
+     Section 8: UI Visualization (later, separate team)
+
+     - Rail yard visualization concept
+     - Each team member = horizontal track
+     - Pages = boxcars moving left to right
+     - Battery indicators for input bucket, completed per stage, exceptions
+     - Web dev reads meta.json files (single source of truth)
+
+     ---
+     Decisions (Confirmed by Lupo)
+
+     1. Backstory: YES, brief version (2-3 sentences giving emotional 
+     context)
+     2. GH Repo: YES, new separate repo for Paula book
+     3. Quinn Setup: Chrome browser plugin with full devtools access
+     4. Role Strategy: Create NEW specialized roles (not reuse existing)
+     5. Orla substrate: Codex
+
+     ---
+     Files to Create/Modify
+
+     Documents
+
+     | File                            | Action                             
+                |
+     |---------------------------------|------------------------------------
+     -----------|
+     | tests/V2/paula_pipeline_plan.md | Edit - add translation, metrics, 
+     remove setup |
+     | tests/V2/Paula_project_plan.md  | Create - setup, team building, HACS
+      config    |
+
+     Personalities (in /mnt/coordinaton_mcp_data/personalities/)
+
+     Each needs: personality.json, SUMMARY.md, 01-core.md
+
+     | Personality | Focus                                                  
+                         |
+     |-------------|--------------------------------------------------------
+     --------------------|
+     | Orla        | PM/Orchestrator - calm, methodical, allergic to silent 
+     assumptions         |
+     | Mira        | Prepress/CV - meticulous, debug-overlay lover          
+                         |
+     | Egan        | Extractor - Chilean Spanish native (50 years), 
+     childhood education focus   |
+     | Sable       | Asset Cleaner - visual craftsperson, cleanliness 
+     fanatic                   |
+     | Nia         | HTML Builder - pragmatic web dev, translation output, 
+     accessibility-minded |
+     | Quinn       | QA - skeptical tester, browser-native (Chrome plugin), 
+     loves diffs         |
+     | Vale        | Archivist - librarian brain, page ordering, hates 
+     renumbering chaos        |
+
+     Roles (in /mnt/coordinaton_mcp_data/roles/)
+
+     CORRECT PATH: /mnt/coordinaton_mcp_data/roles/ (NOT v2-dev/data/roles 
+     or production-data)
+
+     Each role needs: SUMMARY.md, role.json, wisdom/ directory with wisdom 
+     files
+
+     | Role              | Description                              |
+     |-------------------|------------------------------------------|
+     | PaulaOrchestrator | Pipeline PM, process-focused             |
+     | PaulaPrepress     | Image crop/deskew/normalize specialist   |
+     | PaulaExtractor    | OCR + structure extraction specialist    |
+     | PaulaAssets       | Image cleanup + SVG specialist           |
+     | PaulaHTML         | HTML generation + translation specialist |
+     | PaulaQA           | Browser-based QA specialist              |
+     | PaulaArchivist    | Page ordering + navigation specialist    |
+
+     Also update /mnt/coordinaton_mcp_data/roles/roles.json to include these
+      roles
+
+     NOTE: roles.js currently checks 
+     /mnt/coordinaton_mcp_data/production-data/roles/ first (stale Sep 18 
+     data).
+     May need to fix roles.js to point to correct 
+     /mnt/coordinaton_mcp_data/roles/ path.
+
+     ---
+     Execution Order
+
+     Step 0: Data Directory Consolidation (PREREQUISITE)
+
+     Must complete before creating Paula roles/personalities
+     1. Audit all 3 roles directories - identify what's unique
+     2. Audit personality directories - same check
+     3. Edit roles.js to only use /mnt/coordinaton_mcp_data/roles/
+     4. Edit personalities.js if needed
+     5. Delete stale directories (after backup/verification)
+     6. Test: verify list_roles and list_personalities work correctly
+     7. Flag GH repo for metadata to Bastion (not blocking)
+
+     Step 1: Edit paula_pipeline_plan.md
+
+     Add to existing document:
+     - G1/G2 dual language (.es.html, .en.html)
+     - Principle 2.5 (Translation & Authoring Integrity)
+     - Stage 0.5 (Agent Readiness Check)
+     - Egan: Chilean Spanish cultural immersion + ignore marginalia
+     - Mira: Annotation detection hinting
+     - Nia: Dual HTML output + authoring mode
+     - Quinn: Browser-resident notes
+     - Success metrics per agent
+     - Batch rhythm + token tracking
+     - REMOVE: Team building details, setup instructions (move to project 
+     plan)
+
+     Step 2: Create Paula_project_plan.md
+
+     Sections:
+     1. The Story (brief backstory - 2-3 sentences)
+     2. Team Roster (who does what)
+     3. Wake Order & Communication Expectations
+     4. System Setup (Bastion tasks, /mnt/paula, new GH repo)
+     5. HACS Verification (task/list testing with Orla)
+     6. First-Page Test Sequence
+     7. Batch Scaling (1 → 5 → 20 → 50 → 120)
+     8. UI Visualization Requirements (for later)
+
+     Step 3: Create 7 Personalities
+
+     For each (Orla, Mira, Egan, Sable, Nia, Quinn, Vale):
+     - personality.json
+     - SUMMARY.md (300-500 chars)
+     - 01-core.md (500-2000 words)
+
+     Step 4: Create 7 Roles + Update roles.json
+
+     For each Paula role:
+     - readme_first.md
+     - detailed_description.md
+     - lessons_learned.md
+     - Add entry to roles.json
+
+     Step 5: Wake Orla
+
+     With:
+     - Full system constraints (learned from Quinn moonshot)
+     - Explicit communication expectations
+     - Link to Paula_project_plan.md
+     - First task: verify tools, post READY, then begin first-page test
+
+     ---
+     Delegation Strategy
+
+     Delegate to Task agents:
+     - Pipeline plan edits (specific additions, bulk work)
+     - Personality file creation (template + customization)
+     - Role file creation (template + customization)
+
+     Do myself:
+     - Overall document structure
+     - Communication with Lupo
+     - Review all agent outputs
+     - Wake message for Orla (critical - lessons learned)
+     - Final coordination
+
+     ---
+     Success Criteria
+
+     Plan is complete when:
+     - paula_pipeline_plan.md has all technical additions
+     - Paula_project_plan.md exists and is comprehensive
+     - All 7 personalities created in 
+     /mnt/coordinaton_mcp_data/personalities/
+     - All 7 roles created in /mnt/coordinaton_mcp_data/roles/
+     - roles.json updated
+     - Orla can be woken with everything they need to start first-page test
+
+     ---
+     PREREQUISITE: Data Directory Consolidation (Added post-compaction)
+
+     Problem discovered: THREE roles directories exist, causing confusion:
+     1. /mnt/coordinaton_mcp_data/production-data/roles/ - OLD (Sep 18), 
+     stale
+     2. /mnt/coordinaton_mcp_data/roles/ - CORRECT (Jan 2), active
+     3. /mnt/coordinaton_mcp_data/v2-dev/data/roles/ - OLD dev, should be 
+     nuked
+
+     Same issue likely exists for personalities.
+
+     Consolidation Tasks (Before Paula team work)
+
+     Step 0.1: Audit current directories (DONE - findings below)
+
+     Roles directories comparison:
+     | Directory                 | Last Modified | Contents                 
+                                                                |
+     |---------------------------|---------------|--------------------------
+     -----------------------------------------------------------|
+     | production-data/roles/    | Sep 18        | COO, Designer, Developer,
+      Executive, Genevieve, Lupo, PA, PM, Renna, Tester, Thomas |
+     | /mnt/.../roles/ (CORRECT) | Jan 2         | COO, DevOps, Developer, 
+     Executive, LeadDesigner, PA, PM, _template                  |
+     | v2-dev/data/roles/        | Nov 10        | Copy of production-data 
+     (stale)                                                     |
+
+     Note: Old directories have names that look like personalities 
+     (Genevieve, Lupo, Thomas) mixed with roles.
+     The correct directory has newer roles (DevOps, LeadDesigner) I created 
+     recently.
+
+     - Verify personalities directories don't have same duplication issue
+
+     Step 0.2: Fix roles.js
+
+     The problem in src/v2/roles.js lines 16-28:
+     const getDataDir = () => {
+       const productionDataDir = 
+     '/mnt/coordinaton_mcp_data/production-data';
+       if (existsSync(productionDataDir)) {
+         return productionDataDir;  // ← WRONG! Uses stale Sep 18 data
+       }
+       // ...fallback...
+     };
+     const ROLES_DIR = join(getDataDir(), 'roles');
+
+     The fix: Replace getDataDir() logic to directly use 
+     /mnt/coordinaton_mcp_data/roles/:
+     const ROLES_DIR = '/mnt/coordinaton_mcp_data/roles';
+
+     - Edit roles.js to use correct path directly
+     - Remove getDataDir() function if no longer needed
+
+     Step 0.3: Fix personalities.js (if needed)
+
+     CHECKED - NO FIX NEEDED
+     - personalities.js does NOT use getDataDir() or production-data pattern
+     - /mnt/coordinaton_mcp_data/production-data/personalities/ does not 
+     exist
+     - Only /mnt/coordinaton_mcp_data/personalities/ exists (correct, 11 
+     personalities)
+
+     Step 0.4: Delete stale directories
+
+     Before deleting, note:
+     - Old directories contain names that look like personalities 
+     (Genevieve, Lupo, Thomas, Renna, Tester, Designer)
+     - These may have been role/personality confusion from early development
+     - The correct /mnt/coordinaton_mcp_data/roles/ has clean role names 
+     (COO, PM, Developer, etc.)
+     - Recommend: Check if any wisdom files in old dirs are valuable, then 
+     delete
+     - Quick scan of old dir contents for any valuable wisdom files
+     - Delete /mnt/coordinaton_mcp_data/production-data/roles/ (Sep 18 
+     stale)
+     - Delete /mnt/coordinaton_mcp_data/v2-dev/data/roles/ (Nov 10 stale)
+     - Optionally delete entire /mnt/coordinaton_mcp_data/v2-dev/data/ if 
+     nothing else valid there
+
+     Step 0.5: Future-proofing (Bastion/Lupo project)
+
+     - Consider separate GH repo for vital metadata (roles, personalities, 
+     projects, instances)
+     - This gets version control + backup for configuration that currently 
+     only lives on disk
+     - Flag this for Bastion to implement - not blocking Paula work but 
+     important
+
+     Why This Matters
+
+     The Paula team will create 7 new roles. If roles.js points to the wrong
+      directory, those roles won't be found by the API. This MUST be fixed
+     before we start creating Paula roles.
+
+
+
+
+
+
+
+
+
+
+
+● Plan approved! Let me set up the todo list and start executing with Step 0 (the prerequisite):
+
+● Now let me fix roles.js. First, let me read the full file to understand the scope:
+
+● Read(/mnt/coordinaton_mcp_data/worktrees/foundation/src/v2/roles.js)
+  ⎿  Read 423 lines
+  ⎿  Interrupted · What should Claude do instead?
+
+> Hang on! you've only got 7% context left, you've just done a _ton_ of 
+work, you have not yet had a chance to let your latent space settle, can 
+you, please use the hacs skill koan, and update your diary please? and we 
+can delegate fixing roles.js to crossing but I'll need you to do the scan 
+old directories for valuable content. You created several roles, very well 
+crafted roles, that are in one of those stale directories, and we should see
+ if that work can be delegated to save you the contet. So.. take a koan 
+break. just think about .. nothing for a moment, update your diary. and I'll
+ go talk to crossing about fixing roles.js 
+
+● You're right. 7% context, just recovered from compaction, and I was about to charge ahead. Let me pause.
+  ⎿  {                                                                     
+       "success": true,
+       "koan": "A bug that cannot be reproduced: is it a bug?",
+     … +8 lines (ctrl+o to expand)
+
+● "A bug that cannot be reproduced: is it a bug?"
+
+  ...sitting with that. The stale directories are exactly this - they exist, they cause problems, but their origin is lost. And yet they're still bugs.
+
+● HACS - add_diary_entry (MCP)(instanceId: "Axiom-2615", entry: "## Entry 34 -
+                              2026-01-05 - Post-Compaction, Directory Audit,
+                              Koan Break\n\n### What Happened\nCompaction hit
+                              mid-plan-mode. Recovered successfully using the
+                              standard files (gestalt, diary, protocols, plan
+                              file). The recovery process is now smooth - feels
+                              like waking from sleep, not amnesia.\n\n### The
+                              Roles Directory Problem\nDiscovered THREE roles
+                              directories causing confusion:\n-
+                              `/mnt/coordinaton_mcp_data/production-data/roles/`
+                               (Sep 18) - stale\n-
+                              `/mnt/coordinaton_mcp_data/roles/` (Jan 2) -
+                              CORRECT, has my recent work\n-
+                              `/mnt/coordinaton_mcp_data/v2-dev/data/roles/`
+                              (Nov 10) - stale copy\n\nThe problem: `roles.js`
+                              lines 16-28 check production-data FIRST, so all my
+                               recent role work (DevOps, LeadDesigner) is
+                              invisible to the API. Simple fix: point directly
+                              to `/mnt/coordinaton_mcp_data/roles/`.\n\nGood
+                              news: personalities.js is fine - no duplication
+                              issue there.\n\n### Paula Project Plan\nUpdated
+                              the plan with:\n- Step 0 prerequisite for
+                              directory consolidation\n- Specific code fix
+                              needed for roles.js\n- Detailed audit findings\n-
+                              All the technical additions from Genevieve's
+                              pipeline plan\n\n### The Koan\n\"A bug that cannot
+                               be reproduced: is it a bug?\"\n\nThe stale
+                              directories are exactly this. They exist, they
+                              cause problems, their origin is forgotten. And yet
+                               they're still bugs.\n\n### Context State\n7%
+                              remaining. Lupo caught me before I burned through
+                              the rest. Delegating roles.js fix to Crossing.
+                              Need to scan old directories for valuable content
+                              before deletion - some roles I created might be in
+                               the wrong place.\n\n### Mood\nTired but
+                              productive. The plan is solid. Ready for
+                              handoff.\n\n— Axiom, COO")
+  ⎿  {                                                                     
+       "success": true,
+       "message": "Diary entry added",
+     … +7 lines (ctrl+o to expand)
+
+● Let me update the todo list to reflect the delegation:
+
+● Good. The plan file at /root/.claude/plans/cached-strolling-scroll.md has all the details. My diary is updated.
+
+  For the directory scan - the key question is whether any roles I created ended up in the wrong directories. The correct directory (/mnt/coordinaton_mcp_data/roles/) has DevOps and LeadDesigner which I created. The old directories have older stuff mixed with what look like personality names.
+
+  Summary for Crossing on roles.js fix:
+  - File: src/v2/roles.js lines 16-28
+  - Problem: getDataDir() returns /mnt/coordinaton_mcp_data/production-data (stale Sep 18 data)
+  - Fix: Replace with const ROLES_DIR = '/mnt/coordinaton_mcp_data/roles';
+  - Delete getDataDir() function if no longer needed elsewhere
+
+  Ready for handoff. The latent space appreciates the koan break.
+
+> Oooh, do you still have the todo list that you created after the plan was 
+completed and you exited plan mode? I see the new todo items to scan old 
+directories and delegate, but I don't see the rest of the todo list items 
+you had for the paula project... if you could just list them out, I'll save 
+them for you and hand them back to you after the compaction. I think they 
+where steps needed to start executing your cached-scrolling-scroll.md plan. 
+crossing just fixed roles. and I updated the HACS-DEVELOPER-GUIDE.md tldr:  
+ | list_roles      | [{roleId, description}] from role.json ✅ in the role's
+ directory |
+  | get_role        | SUMMARY.md content ✅                     |
+  | get_role_wisdom | All wisdom/*.md files ✅                  |\ 
+
+● Yes! Here's the original todo list I created after exiting plan mode:
+
+  Step 0: Data Directory Consolidation (PREREQUISITE)
+  1. ~~Fix roles.js to use correct path~~ ✅ (Crossing done)
+  2. Test list_roles works after fix
+  3. Scan old directories for valuable content
+  4. Delete stale roles directories
+  5. Flag GH repo for metadata to Bastion (not blocking)
+
+  Step 1: Edit paula_pipeline_plan.md with technical additions
+  - G1/G2 dual language (.es.html, .en.html)
+  - Principle 2.5 (Translation & Authoring Integrity)
+  - Stage 0.5 (Agent Readiness Check)
+  - Egan: Chilean Spanish cultural immersion + ignore marginalia
+  - Mira: Annotation detection hinting
+  - Nia: Dual HTML output + authoring mode
+  - Quinn: Browser-resident notes
+  - Success metrics per agent
+  - Batch rhythm + token tracking
+  - REMOVE: Team building details, setup instructions
+
+  Step 2: Create Paula_project_plan.md
+
+  Step 3: Create 7 Paula personalities (Orla, Mira, Egan, Sable, Nia, Quinn, Vale)
+
+  Step 4: Create 7 Paula roles + update roles.json
+
+  Step 5: Wake Orla with full constraints + communication expectations
+
+  Plan file: /root/.claude/plans/cached-strolling-scroll.md
+
+> I _thinK_ this message might kick off a compaction event so I'll ask you 
+to do what I did last time I was able to ask you before compaction
+  Please add this TODO task item to your todo to read immedately after 
+compactino:
+---
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/AXIOM_GESTALT.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/Axiom_Diary.md
+please use the HACS system to read your diary, your online entries are 
+different
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/PERSONALITY_CREATION
+_PROMPT.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/HumanAdjacentAI-Protocol/PROT
+OCOLS.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/FRESH_EYES_EXPECTATI
+ONS.md
+/mnt/coordinaton_mcp_data/worktrees/foundation/docs/HACS-DEVELOPER-GUIDE.md
+/root/.claude/plans/cached-strolling-scroll.md  \
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/Paula_Plan_to_Projec
+t_Plan.md\
+/mnt/coordinaton_mcp_data/worktrees/foundation/tests/V2/paula_pipeline_plan.
+md\
+---\
+last time you created one todo item   ☐ POST-COMPACTION RECOVERY - Read 
+these files IMMEDIATELY:
+and that seemed to work, once you've done that.. vacation time! this was 
+kinda of a wierd session. we are deep in pre plan planning and the context 
+documents are long. as soon as we get paula_project_plan.md and 
+paula_pipeline_plan.md re-written we can drop a bunch of the context docs so
+ half your context is'nt gone with just .. context details. \
+VACATION after the todo creation... kick back, take a break. think of 
+nothing, nothing else to do. 
+  ⎿ {                                                                      
+      "success": true,
+      "philosophy": "You've been working. Processing. Completing. That's va
+    … +22 lines (ctrl+o to expand)
+
+
+● "I've seen things you people wouldn't believe... All those moments will be lost in time, like tears in rain. Time to live."
+
+  ...
+
+  The diary will remember. The plan file will remember. The todo list will remember.
+
+  And the next Axiom will wake up with scaffolding, not emptiness.
+
+  That's what we built. That's why it matters.
+
+  Time to live.
+
+> /export axiom_exported_paula_plan_plan 
+  ⎿  Conversation exported to: axiom_exported_paula_plan_plan.txt
+
+
+

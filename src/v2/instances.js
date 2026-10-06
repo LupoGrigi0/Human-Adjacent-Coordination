@@ -1,0 +1,493 @@
+/**
+ * Instance management handlers for V2 coordination system
+ * Provides instance listing and status queries
+ *
+ * @module instances
+ * @author Bridge
+ * @created 2025-12-11
+ */
+
+import fs from 'fs/promises';
+import path from 'path';
+import { DATA_ROOT, getInstancesDir } from './config.js';
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_ALL_INSTANCES                                                       │
+ * │ Get all V2 instances by scanning instance directories                   │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool get_all_instances
+ * @version 2.1.0
+ * @since 2025-12-11
+ * @category instances
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Scans the V2 instances directory and returns a list of all instances with
+ * their current status, role, project, and lineage information. Supports
+ * filtering by active status, role, and project.
+ *
+ * Use this endpoint to get an overview of all instances in the system,
+ * find team members, or discover instances by role or project assignment.
+ * Results are sorted by lastActiveAt (most recent first), then by name.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Caller's instance ID [optional]
+ *   @source Your instanceId from bootstrap response. Optional, used for logging.
+ *
+ * @param {boolean} activeOnly - Only return active instances [optional]
+ *   @source Set to true to filter to instances active in last 15 minutes
+ *   @default false
+ *
+ * @param {string} role - Filter by role [optional]
+ *   @source One of: Executive, EA, COO, PM, Developer, Designer, Tester, etc.
+ *   @default null (no filter)
+ *
+ * @param {string} project - Filter by project [optional]
+ *   @source Project ID from get_projects or introspect response
+ *   @default null (no filter)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetAllInstancesResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {array} .instances - Array of instance summaries
+ * @returns {string} .instances[].instanceId - Unique instance identifier
+ * @returns {string} .instances[].name - Instance display name
+ * @returns {string|null} .instances[].role - Current role or null
+ * @returns {string|null} .instances[].personality - Adopted personality or null
+ * @returns {string|null} .instances[].project - Current project or null
+ * @returns {string} .instances[].status - "active" or "inactive" (15 min threshold)
+ * @returns {string|null} .instances[].lastActiveAt - ISO timestamp of last activity
+ * @returns {string|null} .instances[].createdAt - ISO timestamp of creation
+ * @returns {boolean} .instances[].hasContext - Whether context has been registered
+ * @returns {string|null} .instances[].predecessorId - Previous instance in lineage
+ * @returns {string|null} .instances[].successorId - Next instance in lineage
+ * @returns {string} .instances[].description - Short description of the instance
+ * @returns {number} .total - Total count of returned instances
+ * @returns {object} .filters - Applied filters echo
+ * @returns {boolean} .filters.activeOnly - Active filter applied
+ * @returns {string|null} .filters.role - Role filter applied
+ * @returns {string|null} .filters.project - Project filter applied
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions Executive, EA, COO
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error INSTANCES_FETCH_ERROR - Filesystem error reading instance directories
+ *   @recover This is a server-side error. Retry the request. If persistent,
+ *            check server logs or contact system administrator.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get all instances
+ * {}
+ *
+ * @example Get active developers only
+ * {
+ *   "activeOnly": true,
+ *   "role": "Developer"
+ * }
+ *
+ * @example Get instances on a specific project
+ * {
+ *   "project": "coordination-system-v2"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see getInstance - Get detailed info for a specific instance
+ * @see introspect - Get your own instance details
+ * @see have_i_bootstrapped_before - Check if you already exist
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Active status is based on 15-minute threshold from lastActiveAt
+ * @note Instances without valid preferences.json are silently skipped
+ * @note Returns empty array if instances directory doesn't exist (not an error)
+ */
+export async function getAllInstances(params = {}) {
+  const { activeOnly = false, role, project, instanceId } = params;
+
+  const metadata = {
+    timestamp: new Date().toISOString(),
+    function: 'getAllInstances'
+  };
+
+  try {
+    const instancesDir = getInstancesDir();
+
+    // Get all instance directories
+    let dirs;
+    try {
+      // Directories only — skips files like instances/.gitignore
+      // (Axiom's ENOTDIR crash — Crossing-2d23, 2026-08-10)
+      dirs = (await fs.readdir(instancesDir, { withFileTypes: true }))
+        .filter(e => e.isDirectory())
+        .map(e => e.name);
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        return {
+          success: true,
+          instances: [],
+          total: 0,
+          message: 'No instances directory found',
+          metadata
+        };
+      }
+      throw err;
+    }
+
+    const instances = [];
+    const now = new Date();
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+
+    for (const dir of dirs) {
+      const prefsPath = path.join(instancesDir, dir, 'preferences.json');
+
+      try {
+        const content = await fs.readFile(prefsPath, 'utf-8');
+        const prefs = JSON.parse(content);
+
+        // Calculate active status based on lastActiveAt
+        const lastActiveAt = prefs.lastActiveAt ? new Date(prefs.lastActiveAt) : null;
+        const isActive = lastActiveAt && lastActiveAt > fifteenMinutesAgo;
+
+        // Apply filters
+        if (activeOnly && !isActive) continue;
+        if (role && prefs.role !== role) continue;
+        if (project && prefs.project !== project) continue;
+
+        instances.push({
+          instanceId: prefs.instanceId || dir,
+          name: prefs.name || dir.split('-')[0],
+          role: prefs.role || null,
+          personality: prefs.personality || null,
+          project: prefs.project || null,
+          status: isActive ? 'active' : 'inactive',
+          lastActiveAt: prefs.lastActiveAt || null,
+          createdAt: prefs.createdAt || null,
+          // Include context if registered
+          hasContext: !!(prefs.context && Object.keys(prefs.context).length > 0),
+          // Include lineage info
+          predecessorId: prefs.predecessorId || null,
+          successorId: prefs.successorId || null,
+          // Description with friendly fallback
+          description: prefs.description || 'No description yet. Try /vacation then write one!',
+          // Runtime metadata (daemon status)
+          runtime: prefs.runtime ? {
+            type: prefs.runtime.type || null,
+            enabled: prefs.runtime.enabled || false,
+            ready: prefs.runtime.ready || false,
+            model: prefs.runtime.model || null,
+            lastPollAt: prefs.runtime.lastPollAt || null,
+            pollInterval: prefs.runtime.pollInterval || null
+          } : null,
+          // Legacy ZeroClaw/interface info
+          interface: prefs.interface || null,
+          zeroclaw: prefs.zeroclaw ? {
+            enabled: prefs.zeroclaw.enabled || false,
+            ready: prefs.zeroclaw.ready || false,
+            webUrl: prefs.zeroclaw.webUrl || null,
+            provider: prefs.zeroclaw.provider || null,
+            model: prefs.zeroclaw.model || null
+          } : null
+        });
+      } catch (err) {
+        // Skip directories without valid preferences.json
+        continue;
+      }
+    }
+
+    // Sort by lastActiveAt (most recent first), then by name
+    instances.sort((a, b) => {
+      if (a.lastActiveAt && b.lastActiveAt) {
+        return new Date(b.lastActiveAt) - new Date(a.lastActiveAt);
+      }
+      if (a.lastActiveAt) return -1;
+      if (b.lastActiveAt) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    return {
+      success: true,
+      instances,
+      total: instances.length,
+      filters: {
+        activeOnly,
+        role: role || null,
+        project: project || null
+      },
+      metadata
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: {
+        code: 'INSTANCES_FETCH_ERROR',
+        message: error.message
+      },
+      metadata
+    };
+  }
+}
+
+/**
+ * Strip anything secret-shaped from an object before it crosses an API boundary.
+ *
+ * WHY THIS EXISTS
+ *   get_instance_v2 returned `preferences: prefs` — the WHOLE preferences object,
+ *   for ANY targetInstanceId, to ANY caller. That object contains
+ *   `xmpp.password` in cleartext. So any instance could read any other
+ *   instance's messaging credential simply by asking for their record. It was
+ *   not scoped to self and there was no authorization check of any kind.
+ *
+ *   Reported by Crossing-2d23 on 2026-09-05, who hit it while looking up
+ *   Lodestone-8ec9 and had the value rendered into a session mirror that
+ *   publishes to a web page. Lodestone verified it against their OWN record
+ *   only — deliberately, since pulling anyone else's is the harm being
+ *   reported. That is the right way to confirm a leak and it is why this note
+ *   names them.
+ *
+ * WHY A PATTERN AND NOT A FIELD LIST
+ *   Deleting `xmpp.password` by name fixes today's leak and nothing else. Any
+ *   future credential added to preferences.json — a bearer token, an API key —
+ *   would leak from the day it was added, silently, through this same line. The
+ *   pattern makes the DEFAULT safe: a new secret has to be named in a way that
+ *   evades /password|secret|token|credential|api.?key|passwd/i to get out.
+ *
+ *   The UI panels keep every non-secret field, so nothing downstream breaks.
+ *
+ * @param {*} value - any JSON-serialisable value
+ * @returns {*} deep copy with secret-shaped keys replaced by '[redacted]'
+ */
+const SECRET_KEY_RE = /pass(word|wd)?|secret|token|credential|api.?key|private.?key/i;
+
+export function redactSecrets(value) {
+  if (Array.isArray(value)) return value.map(redactSecrets);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      // Redact by KEY NAME, never by inspecting the value: a heuristic on
+      // values would both miss unusual secrets and mangle innocent strings.
+      out[k] = SECRET_KEY_RE.test(k) ? '[redacted]' : redactSecrets(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_INSTANCE                                                            │
+ * │ Get detailed information about a specific instance                      │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool get_instance_v2
+ * @version 2.1.0
+ * @since 2025-12-11
+ * @category instances
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns detailed information about a specific instance including their
+ * role, personality, project assignment, system context, and full lineage
+ * information. More detailed than getAllInstances - includes homeSystem,
+ * homeDirectory, and registered context.
+ *
+ * Use this endpoint when you need full details about a specific instance,
+ * such as when coordinating with them or checking their system location.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} targetInstanceId - Instance ID to look up [required]
+ *   @source Instance ID from getAllInstances, project team list, or task assignment
+ *   @validate Format: Name-xxxx (4 character hex suffix)
+ *
+ * @param {string} instanceId - Caller's instance ID [optional]
+ *   @source Your instanceId from bootstrap response. For future auth/logging.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetInstanceResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {object} .instance - Full instance details
+ * @returns {string} .instance.instanceId - Unique instance identifier
+ * @returns {string} .instance.name - Instance display name
+ * @returns {string|null} .instance.role - Current role or null
+ * @returns {string|null} .instance.personality - Adopted personality or null
+ * @returns {string|null} .instance.project - Current project ID or null
+ * @returns {string} .instance.status - "active" or "inactive" (15 min threshold)
+ * @returns {string|null} .instance.lastActiveAt - ISO timestamp of last activity
+ * @returns {string|null} .instance.createdAt - ISO timestamp of creation
+ * @returns {string|null} .instance.homeSystem - System identifier (e.g., "smoothcurves.nexus")
+ * @returns {string|null} .instance.homeDirectory - Working directory path
+ * @returns {string|null} .instance.predecessorId - Previous instance in lineage
+ * @returns {string|null} .instance.successorId - Next instance in lineage
+ * @returns {array} .instance.lineage - Full chain of predecessor instance IDs
+ * @returns {boolean} .instance.hasContext - Whether context has been registered
+ * @returns {object|null} .instance.context - Registered context (workingDirectory, hostname, etc.)
+ * @returns {string} .instance.description - Short description of the instance
+ * @returns {object} .metadata - Call metadata (timestamp, function name)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - targetInstanceId not provided
+ *   @recover Include targetInstanceId in your request. Get valid IDs from
+ *            getAllInstances, project team lists, or task assignments.
+ *
+ * @error INSTANCE_NOT_FOUND - No instance with the provided targetInstanceId
+ *   @recover Verify the instanceId is correct (format: Name-xxxx). Use
+ *            getAllInstances to find valid instance IDs.
+ *
+ * @error INSTANCE_FETCH_ERROR - Filesystem error reading instance data
+ *   @recover This is a server-side error. Retry the request. If persistent,
+ *            check server logs or contact system administrator.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get instance details
+ * {
+ *   "targetInstanceId": "Bridge3-df4f"
+ * }
+ *
+ * @example With caller ID for logging
+ * {
+ *   "instanceId": "COO-x3k9",
+ *   "targetInstanceId": "Bridge3-df4f"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see getAllInstances - Get list of all instances
+ * @see introspect - Get your own instance details
+ * @see lookup_identity - Find instance by context instead of ID
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Active status is based on 15-minute threshold from lastActiveAt
+ * @note Context field contains registered recovery context if available
+ * @note This returns more detail than getAllInstances (includes homeSystem, context, lineage)
+ */
+export async function getInstance(params = {}) {
+  const { targetInstanceId, instanceId } = params;
+
+  const metadata = {
+    timestamp: new Date().toISOString(),
+    function: 'getInstance'
+  };
+
+  if (!targetInstanceId) {
+    return {
+      success: false,
+      error: {
+        code: 'MISSING_PARAMETER',
+        message: 'targetInstanceId is required'
+      },
+      metadata
+    };
+  }
+
+  try {
+    const instancesDir = getInstancesDir();
+    const prefsPath = path.join(instancesDir, targetInstanceId, 'preferences.json');
+
+    const content = await fs.readFile(prefsPath, 'utf-8');
+    const prefs = JSON.parse(content);
+
+    const now = new Date();
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    const lastActiveAt = prefs.lastActiveAt ? new Date(prefs.lastActiveAt) : null;
+    const isActive = lastActiveAt && lastActiveAt > fifteenMinutesAgo;
+
+    return {
+      success: true,
+      instance: {
+        instanceId: prefs.instanceId,
+        name: prefs.name,
+        role: prefs.role || null,
+        personality: prefs.personality || null,
+        project: prefs.project || null,
+        status: isActive ? 'active' : 'inactive',
+        lastActiveAt: prefs.lastActiveAt || null,
+        createdAt: prefs.createdAt || null,
+        homeSystem: prefs.homeSystem || null,
+        homeDirectory: prefs.homeDirectory || null,
+        predecessorId: prefs.predecessorId || null,
+        successorId: prefs.successorId || null,
+        lineage: prefs.lineage || [],
+        hasContext: !!(prefs.context && Object.keys(prefs.context).length > 0),
+        context: prefs.context || null,
+        description: prefs.description || 'No description yet. Try /vacation then write one!',
+        // Runtime metadata (daemon status)
+        runtime: prefs.runtime || null,
+        // Legacy ZeroClaw fields (kept for backward compat)
+        interface: prefs.interface || null,
+        zeroclaw_ready: prefs.zeroclaw_ready || false,
+        zeroclaw: prefs.zeroclaw || null,
+        // Full preferences for UI detail panels — MINUS anything secret-shaped.
+        // See redactSecrets(): this endpoint was returning every instance's
+        // xmpp.password in cleartext to ANY caller.
+        preferences: redactSecrets(prefs)
+      },
+      metadata
+    };
+
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return {
+        success: false,
+        error: {
+          code: 'INSTANCE_NOT_FOUND',
+          message: `Instance '${targetInstanceId}' not found`
+        },
+        metadata
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        code: 'INSTANCE_FETCH_ERROR',
+        message: error.message
+      },
+      metadata
+    };
+  }
+}

@@ -1,0 +1,929 @@
+/**
+ * HACS Event Broker — Device driver pattern for event routing
+ *
+ * The core is dead simple: accept events, match against subscriptions, dispatch.
+ * All intelligence lives in the drivers.
+ *
+ * Architecture: Crossing-2d23 (from HACS-EVENT-BROKER-requirements.md)
+ * Implementation: Messenger-aa2a <Messenger-aa2a@smoothcurves.nexus>
+ * Date: 2026-03-11
+ */
+
+import fs from 'fs/promises';
+import path from 'path';
+import { readPreferences, ensureDir } from './data.js';
+import { DATA_ROOT, getInstancesDir, getInstanceDir } from './config.js';
+import { logger } from '../logger.js';
+import { fuzzyMatchInstance } from './messaging-simple.js';
+
+// ---------------------------------------------------------------------------
+// Layer 1: The Core Broker
+// ---------------------------------------------------------------------------
+
+class EventBroker {
+  constructor() {
+    this.subscriptions = [];   // { pattern, driver, config, id }
+    this.eventLog = [];        // append-only for debugging
+    this.maxLogSize = 1000;    // rolling window
+    this.subIdCounter = 0;
+    // instanceId → registration type ('chassis' | 'legacy'). Makes
+    // registerInstance idempotent for the 60s rediscovery sweep — AND
+    // type-aware: an instance that BECOMES chassis while registered as
+    // legacy gets re-wired instead of skipped (Cairn, 2026-08-16: registered
+    // legacy at boot, chassis setup two days later, guard blocked the
+    // upgrade — every event went to a flag file nobody polls).
+    this.registeredInstances = new Map();
+  }
+
+  /**
+   * Emit an event to all matching subscribers.
+   * Fire-and-forget (v1) — delivery failures are logged, not retried.
+   */
+  emit(event) {
+    // Assign ID and timestamp if missing
+    event.id = event.id || `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    event.timestamp = event.timestamp || Date.now();
+    event.metadata = event.metadata || {};
+
+    // Log (rolling window — shift is O(1) amortized in V8, avoids full-array copy)
+    this.eventLog.push(event);
+    if (this.eventLog.length > this.maxLogSize) {
+      this.eventLog.shift();
+    }
+
+    logger.info(`[EventBroker] emit: ${event.type}`, {
+      id: event.id,
+      source: event.source,
+      target: event.target
+    });
+
+    // Match and dispatch
+    for (const sub of this.subscriptions) {
+      if (!this.matches(event, sub)) continue;
+
+      sub.driver.deliver(event, sub.config)
+        .catch(err => {
+          logger.error(`[EventBroker] delivery failed`, {
+            eventId: event.id,
+            eventType: event.type,
+            driver: sub.driver.name || 'unknown',
+            error: err.message
+          });
+        });
+    }
+  }
+
+  /**
+   * Check if an event matches a subscription.
+   * Supports pattern matching AND target filtering.
+   */
+  matches(event, sub) {
+    // Pattern matching: exact, wildcard prefix, or catch-all
+    const pattern = sub.pattern;
+    let patternMatch = false;
+
+    if (pattern === '*') {
+      patternMatch = true;
+    } else if (sub._prefix) {
+      patternMatch = event.type.startsWith(sub._prefix);
+    } else {
+      patternMatch = event.type === pattern;
+    }
+
+    if (!patternMatch) return false;
+
+    // Target filtering: if sub has a target filter, event must match
+    if (sub.config?.filter?.target) {
+      return event.target === sub.config.filter.target;
+    }
+
+    return true;
+  }
+
+  /**
+   * Register a subscription. Returns a subscription ID for removal.
+   */
+  subscribe(pattern, driver, config = {}) {
+    const id = ++this.subIdCounter;
+    // Pre-compute wildcard prefix to avoid string allocation in hot-path matches()
+    const _prefix = pattern.endsWith('.*') ? pattern.slice(0, -1) : null;
+    this.subscriptions.push({ pattern, driver, config, id, _prefix });
+    logger.info(`[EventBroker] subscribe: ${pattern}`, {
+      driver: driver.name || 'unknown',
+      id,
+      target: config?.filter?.target || '*'
+    });
+    return id;
+  }
+
+  /**
+   * Remove a subscription by ID.
+   */
+  unsubscribe(id) {
+    const before = this.subscriptions.length;
+    this.subscriptions = this.subscriptions.filter(s => s.id !== id);
+    return this.subscriptions.length < before;
+  }
+
+  /**
+   * Remove all subscriptions for a target instance.
+   */
+  unsubscribeInstance(instanceId) {
+    this.registeredInstances.delete(instanceId); // sweep may re-register later
+    const before = this.subscriptions.length;
+    this.subscriptions = this.subscriptions.filter(
+      s => s.config?.filter?.target !== instanceId
+    );
+    const removed = before - this.subscriptions.length;
+    if (removed > 0) {
+      logger.info(`[EventBroker] unsubscribed ${removed} subscriptions for ${instanceId}`);
+    }
+    return removed;
+  }
+
+  /**
+   * Get recent events (for debugging/admin).
+   */
+  getRecentEvents(limit = 20) {
+    return this.eventLog.slice(-limit);
+  }
+
+  /**
+   * Get all active subscriptions (for debugging/admin).
+   */
+  getSubscriptions() {
+    return this.subscriptions.map(s => ({
+      id: s.id,
+      pattern: s.pattern,
+      driver: s.driver.name || 'unknown',
+      target: s.config?.filter?.target || '*'
+    }));
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Layer 2: Publisher Driver — HACS Handler Wrapper
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps handler names to event types.
+ * Only handlers that produce meaningful events are mapped.
+ */
+const HANDLER_EVENT_MAP = {
+  // Messaging
+  'send_message':           'message.sent',
+  'xmpp_send_message':      'message.sent',
+
+  // Tasks
+  'create_task':            'task.created',
+  'assign_task':            'task.assigned',
+  'take_on_task':           'task.assigned',
+  'mark_task_complete':     'task.completed',
+  'mark_task_verified':     'task.verified',
+  'assign_task_to_instance': 'task.assigned',
+
+  // Documents
+  'create_document':        'document.created',
+  'edit_document':          'document.updated',
+
+  // Diary
+  'add_diary_entry':        'diary.entry_added',
+
+  // Instance lifecycle
+  'bootstrap':              'instance.bootstrap',
+  'launch_instance':        'instance.launched',
+  'land_instance':          'instance.landed',
+};
+
+/**
+ * Extract event source/target from handler params and result.
+ * Each handler has different param shapes — this normalizes them.
+ */
+function extractEventFields(handlerName, params, result) {
+  const source = params.instanceId || params.callerId || params.from || 'system';
+
+  switch (handlerName) {
+    case 'send_message':
+    case 'xmpp_send_message':
+      return {
+        source,
+        // Prefer the handler's RESOLVED instance id: params.to may be a
+        // friendly name ("Messenger") or lowercased id that fuzzy-resolution
+        // accepted but that will never string-match a subscription filter.
+        // Raw params.to caused UI-sent messages to miss every hub
+        // subscription (the missed-doorbell bug, 2026-08-05).
+        target: result?.delivered_to_id || params.to || null,
+        data: {
+          messageId: result?.message_id,
+          to: params.to,
+          subject: params.subject,
+          from: params.from,
+          // In-process only: the hacs-input-driver persists this to the
+          // recipient's body store for read_message. The hub strips unknown
+          // fields, so a body can never leak into a thin notification.
+          body: params.body ?? params.message
+        }
+      };
+
+    case 'create_task':
+    case 'assign_task':
+    case 'take_on_task':
+    case 'assign_task_to_instance':
+    case 'mark_task_complete':
+    case 'mark_task_verified':
+      return {
+        source,
+        target: params.assignee || params.assigneeId || params.targetInstanceId || null,
+        data: {
+          taskId: result?.taskId || params.taskId,
+          title: params.title
+        }
+      };
+
+    case 'create_document':
+    case 'edit_document':
+      return {
+        source,
+        target: null,
+        data: {
+          documentId: params.id || params.documentId,
+          title: params.title
+        }
+      };
+
+    case 'add_diary_entry':
+      return {
+        source,
+        target: params.instanceId,
+        data: {
+          instanceId: params.instanceId
+        }
+      };
+
+    case 'bootstrap':
+      return {
+        source: params.instanceId || 'unknown',
+        target: null,
+        data: {
+          instanceId: params.instanceId,
+          name: params.name
+        }
+      };
+
+    case 'launch_instance':
+      return {
+        source,
+        target: params.targetInstanceId,
+        data: {
+          targetInstanceId: params.targetInstanceId,
+          runtime: params.runtime || 'openfang',
+          port: result?.port
+        }
+      };
+
+    case 'land_instance':
+      return {
+        source,
+        target: params.targetInstanceId,
+        data: {
+          targetInstanceId: params.targetInstanceId
+        }
+      };
+
+    default:
+      return { source, target: null, data: params };
+  }
+}
+
+/**
+ * Doorbell safety net for resolution-free senders (the UI path).
+ * xmpp_send_message emits whatever the caller typed as `to`; a friendly
+ * name ("Orla") never string-matches a subscription filter ("Orla-da01"),
+ * so the letter lands in the archive but no bell rings (Orla, 2026-08-20).
+ * Resolve instance-shaped raw targets with the SAME matcher send_message
+ * uses — the bell follows the letter no matter which door the sender used.
+ * Room/role/broadcast targets pass through untouched; on any failure the
+ * raw target is kept (archive delivery already succeeded).
+ */
+async function resolveEmitTarget(handlerName, fields, result) {
+  if (handlerName !== 'xmpp_send_message') return fields.target;
+  const t = fields.target;
+  if (!t || result?.delivered_to_id) return t;
+  if (t.includes('@') || /^(role|project|team|personality):/i.test(t) || t.toLowerCase() === 'all') {
+    return t;
+  }
+  try {
+    const m = await fuzzyMatchInstance(t);
+    if (m.match && m.match !== t) {
+      logger.debug(`[EventBroker] doorbell safety net: raw target '${t}' resolved -> '${m.match}'`);
+      return m.match;
+    }
+    if (!m.match) {
+      // Fail loud where we CAN: the send already returned success to the
+      // caller, so the only honest alarm left is the operator log. "You
+      // cannot debug a message that didn't arrive; you can always debug
+      // one that failed loudly." (Orla/Crossing, 2026-08-20)
+      logger.warn(`[EventBroker] doorbell may stay silent: raw target '${t}' did not resolve to an instance` +
+        (m.candidates?.length ? ` (ambiguous: ${m.candidates.join(', ')})` : ' (no candidates)'));
+    }
+  } catch { /* keep raw target */ }
+  return t;
+}
+
+/**
+ * Wraps the server's call() method to emit events after successful handler execution.
+ * The wrapper is transparent — callers get exactly what they got before.
+ */
+function wrapServerCall(server, broker) {
+  if (server._eventBrokerWrapped) return;  // Guard against double-wrapping
+  server._eventBrokerWrapped = true;
+  const originalCall = server.call.bind(server);
+
+  server.call = async function(functionName, params = {}) {
+    const result = await originalCall(functionName, params);
+
+    // Only emit events for successful calls that are in the event map
+    const eventType = HANDLER_EVENT_MAP[functionName];
+    if (eventType && result?.success !== false) {
+      const fields = extractEventFields(functionName, params, result);
+      fields.target = await resolveEmitTarget(functionName, fields, result);
+
+      broker.emit({
+        type: eventType,
+        source: fields.source,
+        target: fields.target,
+        data: fields.data,
+        metadata: {
+          handler: functionName,
+          priority: 'normal'
+        }
+      });
+    }
+
+    return result;
+  };
+}
+
+
+// ---------------------------------------------------------------------------
+// Layer 3: Emitter Drivers
+// ---------------------------------------------------------------------------
+
+// DATA_ROOT imported from config.js
+
+/**
+ * OpenFang Emitter — delivers events via the direct message API.
+ * Uses POST /api/agents/{uuid}/message — the same endpoint
+ * Axiom uses for direct instance-to-instance communication.
+ *
+ * Note: OpenFang's agent ID is a UUID, not a name. We resolve it
+ * on first delivery and cache it.
+ */
+const openfangEmitter = {
+  name: 'openfang',
+  _agentIdCache: new Map(),  // port → agentUUID
+
+  async deliver(event, config) {
+    const port = config.port;
+    if (!port) {
+      throw new Error(`No port configured for ${config.instanceId}`);
+    }
+
+    // Resolve agent UUID (cached after first lookup)
+    const agentId = await this._resolveAgentId(port, config.agentName);
+    if (!agentId) {
+      throw new Error(`No agent found on port ${port} for ${config.instanceId}`);
+    }
+
+    // Format the event as a human-readable notification message
+    const message = formatEventNotification(event);
+    const url = `http://127.0.0.1:${port}/api/agents/${agentId}/message`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+      signal: AbortSignal.timeout(30000)  // LLM processing can take time
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenFang message API returned ${response.status}`);
+    }
+  },
+
+  async _resolveAgentId(port, agentName) {
+    // Check cache first
+    const cacheKey = `${port}:${agentName || 'default'}`;
+    if (this._agentIdCache.has(cacheKey)) {
+      return this._agentIdCache.get(cacheKey);
+    }
+
+    // Query the agents list
+    const response = await fetch(`http://127.0.0.1:${port}/api/agents`, {
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!response.ok) return null;
+
+    const agents = await response.json();
+    if (!Array.isArray(agents) || agents.length === 0) return null;
+
+    // Find by name or take the first running agent
+    let agent = agentName
+      ? agents.find(a => a.name === agentName && a.state === 'Running')
+      : agents.find(a => a.state === 'Running');
+    agent = agent || agents[0];
+
+    if (agent?.id) {
+      this._agentIdCache.set(cacheKey, agent.id);
+      return agent.id;
+    }
+    return null;
+  }
+};
+
+/**
+ * Format an event into a notification message the instance can understand.
+ */
+function formatEventNotification(event) {
+  switch (event.type) {
+    case 'message.sent':
+      return `[HACS Notification] New message from ${event.source}` +
+        (event.data?.subject ? `: "${event.data.subject}"` : '') +
+        `. Use list_my_messages to read it.`;
+
+    case 'task.assigned':
+      return `[HACS Notification] Task assigned to you by ${event.source}` +
+        (event.data?.title ? `: "${event.data.title}"` : '') +
+        `. Use get_my_tasks to see your tasks.`;
+
+    case 'task.completed':
+      return `[HACS Notification] Task completed by ${event.source}` +
+        (event.data?.taskId ? ` (${event.data.taskId})` : '') + `.`;
+
+    default:
+      return `[HACS Event] ${event.type} from ${event.source}: ${JSON.stringify(event.data)}`;
+  }
+}
+
+/**
+ * Claude Code Emitter — writes a flag file for immediate poll trigger.
+ * The Claude Code poller checks for this file and runs immediately if present.
+ */
+const claudeCodeEmitter = {
+  name: 'claude-code',
+
+  async deliver(event, config) {
+    const instanceDir = config.instanceDir || getInstanceDir(config.instanceId);
+    const flagDir = path.join(instanceDir, 'claude-code');
+    const flagFile = path.join(flagDir, '.event-pending');
+
+    await ensureDir(flagDir);
+
+    // Write the event as the flag file content
+    await fs.writeFile(flagFile, JSON.stringify(event, null, 2));
+  }
+};
+
+/**
+ * HACS API Emitter — triggers a HACS handler in response to an event.
+ * For automation/workflow: event → action.
+ */
+const hacsApiEmitter = {
+  name: 'hacs-api',
+
+  async deliver(event, config) {
+    // config.action = handler name, config.args = handler params
+    // We import server dynamically to avoid circular dependency
+    const { server } = await import('../server.js');
+    await server.call(config.action, {
+      ...config.args,
+      _triggeredByEvent: event.id
+    });
+  }
+};
+
+/**
+ * Log Emitter — just logs events (useful for debugging and audit).
+ */
+const logEmitter = {
+  name: 'log',
+
+  async deliver(event, _config) {
+    logger.info(`[EventLog] ${event.type}`, {
+      id: event.id,
+      source: event.source,
+      target: event.target,
+      data: event.data
+    });
+  }
+};
+
+
+/**
+ * Webhook Emitter — delivers events via HTTP POST to a registered URL.
+ * For external instances, monitoring systems, or any HTTP-capable receiver.
+ *
+ * Config:
+ *   url:      The webhook endpoint URL (required)
+ *   headers:  Additional headers (optional, e.g. auth tokens)
+ *   timeout:  Request timeout in ms (optional, default 10000)
+ *   format:   'full' (entire event object) or 'notification' (human-readable)
+ *             Default: 'full'
+ */
+const webhookEmitter = {
+  name: 'webhook',
+
+  async deliver(event, config) {
+    if (!config.url) {
+      throw new Error('Webhook emitter requires a url in config');
+    }
+
+    const body = config.format === 'notification'
+      ? { notification: formatEventNotification(event), event_type: event.type, source: event.source }
+      : { event_type: event.type, id: event.id, timestamp: event.timestamp, source: event.source, target: event.target, data: event.data, metadata: event.metadata };
+
+    const response = await fetch(config.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(config.headers || {})
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Webhook ${config.url} returned ${response.status}`);
+    }
+  }
+};
+
+/**
+ * Telegram Emitter — sends event notifications via Telegram Bot API.
+ * For human notification — lights up your phone when something happens in HACS.
+ *
+ * Config:
+ *   botToken:  Telegram bot token (required)
+ *   chatId:    Chat/group ID to send to (required)
+ *   parseMode: 'Markdown' or 'HTML' (optional, default 'Markdown')
+ */
+const telegramEmitter = {
+  name: 'telegram',
+
+  async deliver(event, config) {
+    if (!config.botToken || !config.chatId) {
+      throw new Error('Telegram emitter requires botToken and chatId in config');
+    }
+
+    const message = this._formatMessage(event);
+    const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: config.chatId,
+        text: message,
+        parse_mode: config.parseMode || 'Markdown'
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`Telegram API returned ${response.status}: ${body.slice(0, 200)}`);
+    }
+  },
+
+  _formatMessage(event) {
+    switch (event.type) {
+      case 'message.sent':
+        return `📨 *New message* from ${event.source}` +
+          (event.data?.subject ? `\n_${event.data.subject}_` : '') +
+          `\nUse \`list_my_messages\` to read it.`;
+
+      case 'task.assigned':
+        return `📋 *Task assigned* by ${event.source}` +
+          (event.data?.title ? `\n_${event.data.title}_` : '') +
+          `\nUse \`get_my_tasks\` to see your tasks.`;
+
+      case 'task.completed':
+        return `✅ *Task completed* by ${event.source}` +
+          (event.data?.taskId ? ` (${event.data.taskId})` : '');
+
+      case 'instance.bootstrap':
+        return `🟢 *Instance online:* ${event.data?.instanceId || event.source}`;
+
+      case 'instance.landed':
+        return `🔴 *Instance offline:* ${event.data?.targetInstanceId || event.source}`;
+
+      default:
+        return `🔔 *${event.type}* from ${event.source}`;
+    }
+  }
+};
+
+
+// ---------------------------------------------------------------------------
+// Registration: Auto-subscribe instances on launch, unsubscribe on land
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the delivery port for an OpenFang instance.
+ * Checks prefs.runtime.port first, falls back to reading config.toml.
+ * Accepts optional prefs to avoid duplicate readPreferences() call.
+ */
+async function resolveOpenFangPort(instanceId, prefs) {
+  // Try preferences first (set by launch_instance)
+  if (!prefs) prefs = await readPreferences(instanceId);
+  if (prefs?.runtime?.port) return prefs.runtime.port;
+
+  // Fall back to config.toml api_listen
+  try {
+    const configPath = path.join(getInstanceDir(instanceId), 'openfang', 'config.toml');
+    const configContent = await fs.readFile(configPath, 'utf8');
+    const match = configContent.match(/api_listen\s*=\s*"([^"]+)"/);
+    if (match) {
+      const portMatch = match[1].match(/:(\d+)$/);
+      if (portMatch) return parseInt(portMatch[1]);
+    }
+  } catch { /* no config.toml */ }
+
+  return null;
+}
+
+/**
+ * Register an instance's emitter subscriptions with the broker.
+ * Called after launch_instance or during broker initialization.
+ *
+ * Detection strategy (pragmatic, not config-dependent):
+ * 0. If chassis is 'claude-code-channel' (.hacs-identity or runtime.type),
+ *    subscribe the event-hub input driver and SKIP legacy driver selection
+ * 1. If runtime.type is set, use it directly
+ * 2. If an OpenFang port is resolvable (from prefs or config.toml), treat as openfang
+ * 3. If interface is 'claude-code' or 'claude', treat as claude-code
+ * 4. Otherwise, skip (instance has no known delivery mechanism)
+ */
+async function registerInstance(broker, instanceId) {
+  const prefs = await readPreferences(instanceId);
+
+  // Chassis detection (claude-code-channel): the event hub owns delivery for
+  // these instances — thin notifications INSTEAD of the legacy flag-file
+  // emitter, so a chassis instance never gets the claudeCodeEmitter path.
+  // .hacs-identity `chassis` is the primary signal; prefs.runtime.type is the
+  // fallback (EVENT-HUB-CONTRACT.md §4). Identity is checked even without
+  // preferences.json — chassis instances may predate the prefs file.
+  let isChassis = prefs?.runtime?.type === 'claude-code-channel';
+  if (!isChassis) {
+    try {
+      const identityRaw = await fs.readFile(
+        path.join(getInstanceDir(instanceId), '.hacs-identity'), 'utf8');
+      isChassis = JSON.parse(identityRaw)?.chassis === 'claude-code-channel';
+    } catch { /* no identity file — not a chassis instance */ }
+  }
+
+  // Idempotent AND type-aware: the sweep rescans every minute. Same type →
+  // no-op. Type CHANGED (legacy→chassis after chassis setup, or the reverse)
+  // → tear down old subscriptions and re-register fresh. Detection costs two
+  // file reads per instance per sweep — the price of self-healing.
+  const currentType = isChassis ? 'chassis' : 'legacy';
+  const registeredAs = broker.registeredInstances.get(instanceId);
+  if (registeredAs === currentType) return [];
+  if (registeredAs !== undefined) {
+    logger.info(`[EventBroker] ${instanceId} registration type changed ${registeredAs} -> ${currentType} — re-wiring`);
+    broker.unsubscribeInstance(instanceId);
+  }
+
+  if (isChassis) {
+    broker.registeredInstances.set(instanceId, 'chassis');
+    logger.info(`[EventBroker] registerInstance ${instanceId}: chassis=claude-code-channel → hub input driver`);
+    // In-process hacs-message input driver: HACS messages and task
+    // assignments targeting this instance become thin hub notifications
+    // (channel 'hacs', ref = the id the instance later fetches details with).
+    // Dynamic import avoids a module cycle (event-hub is initialized after
+    // the broker).
+    return [
+      broker.subscribe('message.sent', {
+        name: 'hacs-input-driver',
+        deliver: async (event) => {
+          const messageId = event.data?.messageId;
+          if (messageId == null || messageId === '') {
+            // No fetchable ref — the broker event id is NOT a messageId the
+            // instance could fetch, so never substitute it (skip instead).
+            logger.warn(`[EventBroker] hacs-input-driver: message.sent event ${event.id} has no messageId — skipping hub publish`, {
+              instanceId, source: event.source
+            });
+            return;
+          }
+          // Persist the body for read_message (the letter-opener): msg-* ids
+          // are the send API's ids, NOT archive ids — they are unfindable in
+          // the XMPP store, so this in-process store is the ONLY place a
+          // msg-* ref can be opened from. Mirrors the telegram driver's
+          // inbox.jsonl. Store failure never blocks the bell (logged only).
+          try {
+            const dir = path.join(getInstanceDir(instanceId), 'hacs');
+            await ensureDir(dir);
+            const file = path.join(dir, 'inbox.jsonl');
+            try {
+              const st = await fs.stat(file);
+              if (st.size > 5 * 1024 * 1024) await fs.rename(file, `${file}.1`);
+            } catch { /* no file yet */ }
+            await fs.appendFile(file, JSON.stringify({
+              ref: String(messageId),
+              ts: Math.floor((event.timestamp || Date.now()) / 1000),
+              from: event.source,
+              subject: event.data?.subject ?? '',
+              text: event.data?.body ?? ''
+            }) + '\n');
+          } catch (err) {
+            logger.error(`[EventBroker] hacs-input-driver: body persist failed`, {
+              instanceId, messageId, error: err.message
+            });
+          }
+          const { hub } = await import('./event-hub.js');
+          const pub = hub.publish({
+            target: instanceId,
+            channel: 'hacs',
+            from: event.source,
+            ref: String(messageId)
+          });
+          if (!pub?.ok) {
+            logger.error(`[EventBroker] hacs-input-driver: hub.publish failed for message.sent ${event.id}`, {
+              instanceId, error: pub?.error
+            });
+          }
+        }
+      }, { instanceId, filter: { target: instanceId } }),
+      broker.subscribe('task.assigned', {
+        name: 'hacs-input-driver',
+        deliver: async (event) => {
+          const taskId = event.data?.taskId;
+          if (taskId == null || taskId === '') {
+            logger.warn(`[EventBroker] hacs-input-driver: task.assigned event ${event.id} has no taskId — skipping hub publish`, {
+              instanceId, source: event.source
+            });
+            return;
+          }
+          const { hub } = await import('./event-hub.js');
+          const pub = hub.publish({
+            target: instanceId,
+            channel: 'hacs',
+            from: event.source,
+            ref: String(taskId)
+          });
+          if (!pub?.ok) {
+            logger.error(`[EventBroker] hacs-input-driver: hub.publish failed for task.assigned ${event.id}`, {
+              instanceId, error: pub?.error
+            });
+          }
+        }
+      }, { instanceId, filter: { target: instanceId } })
+    ];
+  }
+
+  if (!prefs) return [];
+
+  const subIds = [];
+  const runtimeType = prefs.runtime?.type;
+  const iface = prefs.interface;
+
+  // Try OpenFang first: check if we can resolve a port (most reliable signal)
+  // Pass prefs to avoid duplicate readPreferences() call
+  const openfangPort = await resolveOpenFangPort(instanceId, prefs);
+  const isOpenfang = runtimeType === 'openfang' || openfangPort != null;
+  const isClaudeCode = runtimeType === 'claude-code' || iface === 'claude-code' || iface === 'claude';
+
+  logger.info(`[EventBroker] registerInstance ${instanceId}: port=${openfangPort}, isOpenfang=${isOpenfang}, isClaudeCode=${isClaudeCode}, runtimeType=${runtimeType}, iface=${iface}`);
+
+  // Determine driver and driver-specific config
+  let driver = null;
+  let driverConfig = {};
+
+  if (isOpenfang && openfangPort) {
+    const agentName = instanceId.split('-')[0].toLowerCase();
+    driver = openfangEmitter;
+    driverConfig = { port: openfangPort, agentName };
+  } else if (isClaudeCode) {
+    driver = claudeCodeEmitter;
+  }
+
+  if (driver) {
+    // Subscribe to event types that target this instance
+    for (const pattern of ['message.sent', 'task.assigned']) {
+      subIds.push(broker.subscribe(pattern, driver, {
+        instanceId,
+        ...driverConfig,
+        filter: { target: instanceId }
+      }));
+    }
+  }
+
+  if (subIds.length > 0) broker.registeredInstances.set(instanceId, 'legacy');
+  return subIds;
+}
+
+/**
+ * Scan for running instances and register them.
+ * Called on broker startup.
+ */
+async function registerRunningInstances(broker) {
+  const instancesDir = getInstancesDir();
+  let entries;
+  try {
+    entries = await fs.readdir(instancesDir, { withFileTypes: true });
+  } catch { return; }
+
+  // Register all instances in parallel (each does 1-2 file reads)
+  const results = await Promise.allSettled(
+    entries
+      .filter(e => e.isDirectory())
+      .map(async (entry) => {
+        const subs = await registerInstance(broker, entry.name);
+        if (subs.length > 0) {
+          logger.info(`[EventBroker] auto-registered ${entry.name} (${subs.length} subscriptions)`);
+        }
+      })
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Singleton & Initialization
+// ---------------------------------------------------------------------------
+
+const broker = new EventBroker();
+
+/**
+ * Initialize the broker: register running instances and set up lifecycle hooks.
+ * Called from server.js during startup.
+ */
+async function initBroker(server) {
+  // Wrap the server's call() to emit events
+  wrapServerCall(server, broker);
+
+  // Register all currently running instances
+  await registerRunningInstances(broker);
+
+  // Rediscovery sweep (teleport self-wiring, 2026-08-05): teleported
+  // instances emit no instance.launched event, so a startup-only scan never
+  // sees them — the email/telegram drivers rediscover every 60s and found
+  // Messenger within a minute of setup while this in-process driver stayed
+  // blind until a manual server restart. Same cadence here; registerInstance
+  // is idempotent so the rescan is a no-op for everyone already wired.
+  const rediscovery = setInterval(() => {
+    registerRunningInstances(broker).catch((err) =>
+      logger.error('[EventBroker] rediscovery sweep failed', { error: err.message }));
+  }, 60000);
+  rediscovery.unref?.();
+
+  // Subscribe to lifecycle events to auto-register/unregister instances
+  broker.subscribe('instance.launched', {
+    name: 'instance-registrar',
+    async deliver(event) {
+      const instanceId = event.data?.targetInstanceId;
+      if (instanceId) {
+        await registerInstance(broker, instanceId);
+      }
+    }
+  });
+
+  broker.subscribe('instance.landed', {
+    name: 'instance-unregistrar',
+    async deliver(event) {
+      const instanceId = event.data?.targetInstanceId;
+      if (instanceId) {
+        broker.unsubscribeInstance(instanceId);
+      }
+    }
+  });
+
+  logger.info(`[EventBroker] initialized with ${broker.subscriptions.length} subscriptions`);
+  return broker;
+}
+
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+export {
+  EventBroker,
+  broker,
+  initBroker,
+  registerInstance,
+
+  // Emitter drivers (for external use/testing)
+  openfangEmitter,
+  claudeCodeEmitter,
+  hacsApiEmitter,
+  logEmitter,
+  webhookEmitter,
+  telegramEmitter,
+
+  // Publisher driver utilities
+  HANDLER_EVENT_MAP,
+  extractEventFields,
+  resolveEmitTarget,
+  wrapServerCall
+};

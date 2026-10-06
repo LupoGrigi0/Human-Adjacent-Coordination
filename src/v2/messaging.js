@@ -1,0 +1,2076 @@
+/**
+ * MCP Coordination System - XMPP Messaging Handler v4.1
+ * Real-time messaging via ejabberd XMPP server
+ *
+ * Design principles (from Lupo's feedback):
+ * - Every token is precious - minimal response data
+ * - get_messages returns just headers+IDs, not full bodies
+ * - Separate APIs for body and metadata
+ * - Roles and personalities use rooms
+ *
+ * SECURITY: v4.1 - Patched command injection vulnerability (2025-12-05)
+ *
+ * @author Messenger (MessengerEngineer)
+ * @date 2025-12-04
+ * @security-patch 2025-12-05
+ */
+
+import { exec, execFile } from 'child_process';
+import { promisify } from 'util';
+import { logger } from '../logger.js';
+import { lookupIdentity } from './identity.js';
+
+const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+// Configuration - exported for use by bootstrap, introspect, joinProject
+export const XMPP_CONFIG = {
+  domain: 'smoothcurves.nexus',
+  conference: 'conference.smoothcurves.nexus',
+  container: 'ejabberd',
+  // Persistent personalities (humans and system)
+  persistentUsers: ['lupo', 'system', 'genevieve'],
+  // Role rooms - auto-created
+  roleRooms: ['coo', 'pa', 'pm', 'developer', 'tester', 'designer', 'executive'],
+};
+
+// SECURITY: Input validation limits
+const SECURITY_LIMITS = {
+  MAX_SUBJECT_LENGTH: 256,
+  MAX_BODY_LENGTH: 8192,
+  MAX_USERNAME_LENGTH: 64,
+  MAX_ROOM_LENGTH: 64,
+  RATE_LIMIT_WINDOW_MS: 60000,  // 1 minute
+  RATE_LIMIT_MAX_CALLS: 30,     // max calls per window
+};
+
+// SECURITY: Rate limiting (basic in-memory)
+const rateLimitMap = new Map();
+
+/**
+ * SECURITY: Check rate limit for an instance
+ * @param {string} instanceId
+ * @returns {boolean} true if allowed, false if rate limited
+ */
+export function checkRateLimit(instanceId) {
+  const now = Date.now();
+  const key = instanceId || 'anonymous';
+
+  if (!rateLimitMap.has(key)) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+
+  const record = rateLimitMap.get(key);
+
+  // Reset window if expired
+  if (now - record.windowStart > SECURITY_LIMITS.RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+
+  // Check limit
+  if (record.count >= SECURITY_LIMITS.RATE_LIMIT_MAX_CALLS) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+/**
+ * SECURITY: Sanitize string for shell command
+ * Removes ALL shell metacharacters - aggressive but safe
+ * @param {string} str
+ * @returns {string}
+ */
+function sanitizeForShell(str) {
+  if (!str) return '';
+  // Only allow alphanumeric, spaces, and basic punctuation
+  // Removes: $ ` \ " ' ; | & < > ( ) { } [ ] ! # * ? ~
+  return str
+    .replace(/[\$`\\;"'|&<>(){}\[\]!#*?~\x00-\x1f]/g, '')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, '')
+    .trim();
+}
+
+/**
+ * XML-escape stanza content — PRESERVES every character as an entity.
+ *
+ * Replaces the sanitizeForShell STRIP on the message path (2026-09-06). That
+ * strip silently destroyed ~24 characters — pipes, quotes, brackets, braces,
+ * parens, backtick, semicolon, angle brackets, newlines — in EVERY
+ * cross-instance message: regexes, paths, config, and code arrived degraded and
+ * neither sender nor receiver could see it. "Accepted is not delivered" one
+ * layer in. The correct defense is escape-for-the-format + pass-args-to-the-
+ * process (ejabberdctlArgs, no shell), which is injection-safe WITHOUT loss.
+ * `&` MUST be escaped first and unescaped last, or double-escaping corrupts.
+ */
+export function escapeXml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/** Inverse of escapeXml. `&amp;` last so `&amp;lt;` → `&lt;`, not `<`. */
+export function unescapeXml(str) {
+  return String(str ?? '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+/**
+ * SECURITY: Validate and sanitize username/room name
+ * @param {string} name
+ * @returns {string}
+ */
+export function sanitizeIdentifier(name) {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .substring(0, SECURITY_LIMITS.MAX_USERNAME_LENGTH);
+}
+
+// ============================================================================
+// FUZZY MATCHING UTILITIES (v5.0 - 2026-02-05)
+// Used by friendlySendMessage to resolve friendly names to actual recipients
+// ============================================================================
+
+/**
+ * Levenshtein distance for typo tolerance
+ */
+function levenshteinDistance(a, b) {
+  if (!a || !b) return Math.max(a?.length || 0, b?.length || 0);
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Score how well a query matches a target (higher = better, 0-100)
+ */
+function fuzzyScore(query, target) {
+  if (!query || !target) return 0;
+  const q = query.toLowerCase().trim();
+  const t = target.toLowerCase().trim();
+  if (q === t) return 100;
+  if (t.startsWith(q)) return 90;
+  if (t.includes(q)) return 80;
+  if (q.startsWith(t)) return 75;
+  const distance = levenshteinDistance(q, t);
+  const maxLen = Math.max(q.length, t.length);
+  const similarity = 1 - (distance / maxLen);
+  return similarity > 0.5 ? Math.round(similarity * 60) : 0;
+}
+
+/**
+ * Get all known instances for fuzzy matching
+ */
+async function getAllKnownInstances() {
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const instancesDir = '/mnt/coordinaton_mcp_data/instances';
+    const dirs = await fs.readdir(instancesDir);
+    const instances = [];
+    for (const dir of dirs) {
+      if (dir.startsWith('.')) continue;
+      try {
+        const prefsPath = path.join(instancesDir, dir, 'preferences.json');
+        const content = await fs.readFile(prefsPath, 'utf8');
+        const prefs = JSON.parse(content);
+        instances.push({
+          instanceId: dir,
+          name: prefs.name || dir.split('-')[0],
+          personality: prefs.personality || prefs.name || dir.split('-')[0]
+        });
+      } catch { /* skip instances without prefs */ }
+    }
+    return instances;
+  } catch { return []; }
+}
+
+/**
+ * Get all known projects
+ */
+async function getAllKnownProjects() {
+  try {
+    const fs = await import('fs/promises');
+    const projectsDir = '/mnt/coordinaton_mcp_data/projects';
+    const dirs = await fs.readdir(projectsDir);
+    return dirs.filter(d => !d.startsWith('.'));
+  } catch { return []; }
+}
+
+/**
+ * Fuzzy match recipient - the core logic for friendly send_message
+ *
+ * Priority:
+ * 1. Exact match on instanceId → use that instance
+ * 2. Single instance with matching name → use that specific instance
+ * 3. Multiple instances with matching name → use personality room
+ * 4. Match on project name → use project room
+ * 5. Match on role name → use role room
+ * 6. Match on personality name → use personality room
+ *
+ * Returns: { resolved: {type, jid, display}, matches: [], error: string }
+ */
+export async function fuzzyMatchRecipient(query) {
+  if (!query) return { error: 'Recipient is required' };
+  const q = query.toLowerCase().trim();
+
+  // Already a JID? Pass through
+  if (query.includes('@')) {
+    return { resolved: { type: 'direct', jid: query, display: query } };
+  }
+
+  // Explicit prefixes - not fuzzy
+  if (q.startsWith('role:')) {
+    const role = q.substring(5);
+    return { resolved: { type: 'room', subtype: 'role', jid: `role-${sanitizeIdentifier(role)}@${XMPP_CONFIG.conference}`, display: `role:${role}` } };
+  }
+  if (q.startsWith('project:') || q.startsWith('team:')) {
+    const project = q.substring(q.indexOf(':') + 1);
+    return { resolved: { type: 'room', subtype: 'project', jid: `project-${sanitizeIdentifier(project)}@${XMPP_CONFIG.conference}`, display: `project:${project}` } };
+  }
+  if (q.startsWith('personality:')) {
+    const personality = q.substring(12);
+    return { resolved: { type: 'room', subtype: 'personality', jid: `personality-${sanitizeIdentifier(personality)}@${XMPP_CONFIG.conference}`, display: `personality:${personality}` } };
+  }
+  if (q === 'all') {
+    return { resolved: { type: 'room', subtype: 'broadcast', jid: `announcements@${XMPP_CONFIG.conference}`, display: 'all (announcements)' } };
+  }
+
+  // Gather all possible matches
+  const matches = [];
+  const instances = await getAllKnownInstances();
+  const projects = await getAllKnownProjects();
+
+  // EXACT instanceId match wins OUTRIGHT, before any fuzzy scoring. An instance
+  // whose id literally IS the query — the Ferry fairy `passenger` — must never
+  // lose to a fuzzy personality group (Passenger-7676/fbf6). Scoring exact
+  // identity against fuzzy name-matches let the group win and returned success,
+  // sending a probe to two unrelated dormant minds and nearly manufacturing a
+  // false architectural finding (channels-don't-wake-idle, which is false).
+  // Exact identity is not a fuzzy match and must not be judged as one.
+  // (Crossing, 2026-09-10 — the fails-open resolution he first flagged on Viktor.)
+  const exactInstance = instances.find(
+    (i) => i.instanceId && i.instanceId.toLowerCase() === q
+  );
+  if (exactInstance) {
+    return {
+      resolved: {
+        type: 'room',
+        subtype: 'personality',
+        jid: `personality-${sanitizeIdentifier(exactInstance.personality)}@${XMPP_CONFIG.conference}`,
+        display: `${exactInstance.name} (${exactInstance.instanceId})`,
+        instanceId: exactInstance.instanceId,
+      },
+    };
+  }
+
+  // Match against instances (both name and full ID)
+  for (const inst of instances) {
+    const nameScore = fuzzyScore(q, inst.name);
+    const idScore = fuzzyScore(q, inst.instanceId);
+    const score = Math.max(nameScore, idScore);
+    if (score > 0) {
+      matches.push({ type: 'instance', instanceId: inst.instanceId, name: inst.name, personality: inst.personality, score });
+    }
+  }
+
+  // Match against roles
+  for (const role of XMPP_CONFIG.roleRooms) {
+    const score = fuzzyScore(q, role);
+    if (score > 0) {
+      matches.push({ type: 'role', name: role, score });
+    }
+  }
+
+  // Match against projects
+  for (const project of projects) {
+    const score = fuzzyScore(q, project);
+    if (score > 0) {
+      matches.push({ type: 'project', name: project, score });
+    }
+  }
+
+  // Match against persistent personalities
+  for (const personality of XMPP_CONFIG.persistentUsers) {
+    const score = fuzzyScore(q, personality);
+    if (score > 0) {
+      matches.push({ type: 'personality', name: personality, score });
+    }
+  }
+
+  // Sort by score
+  matches.sort((a, b) => b.score - a.score);
+
+  if (matches.length === 0) {
+    return { error: `No recipient found matching "${query}". Try: instance name, role:X, project:X, or personality:X` };
+  }
+
+  // Get top matches (score within 10 points of best)
+  const bestScore = matches[0].score;
+  const topMatches = matches.filter(m => m.score >= bestScore - 10);
+
+  // Count instance matches
+  const instanceMatches = topMatches.filter(m => m.type === 'instance');
+
+  // LUPO's RULE: If exactly ONE instance matches, use the specific instanceId
+  // If MANY instances match the same name (like Genevieve), use personality room
+  if (instanceMatches.length === 1 && instanceMatches[0].score >= 70) {
+    const inst = instanceMatches[0];
+    // Route to personality room but note it's a specific instance match
+    return {
+      resolved: {
+        type: 'room',
+        subtype: 'personality',
+        jid: `personality-${sanitizeIdentifier(inst.personality)}@${XMPP_CONFIG.conference}`,
+        display: `${inst.name} (${inst.instanceId})`,
+        instanceId: inst.instanceId
+      },
+      matches: topMatches
+    };
+  }
+
+  // Multiple instance matches OR no instance matches - check other types
+  const best = topMatches[0];
+
+  if (best.type === 'instance') {
+    // Multiple instances with same name - use personality room
+    const personality = best.personality || best.name;
+    return {
+      resolved: {
+        type: 'room',
+        subtype: 'personality',
+        jid: `personality-${sanitizeIdentifier(personality)}@${XMPP_CONFIG.conference}`,
+        display: `personality:${personality} (${instanceMatches.length} instances)`
+      },
+      matches: topMatches
+    };
+  }
+
+  if (best.type === 'role') {
+    return { resolved: { type: 'room', subtype: 'role', jid: `role-${best.name}@${XMPP_CONFIG.conference}`, display: `role:${best.name}` }, matches: topMatches };
+  }
+
+  if (best.type === 'project') {
+    return { resolved: { type: 'room', subtype: 'project', jid: `project-${sanitizeIdentifier(best.name)}@${XMPP_CONFIG.conference}`, display: `project:${best.name}` }, matches: topMatches };
+  }
+
+  if (best.type === 'personality') {
+    return { resolved: { type: 'room', subtype: 'personality', jid: `personality-${best.name}@${XMPP_CONFIG.conference}`, display: `personality:${best.name}` }, matches: topMatches };
+  }
+
+  return { error: `Unexpected match type: ${best.type}` };
+}
+
+// ============================================================================
+// END FUZZY MATCHING UTILITIES
+// ============================================================================
+
+/**
+ * Execute ejabberdctl command in Docker container
+ * @param {string} command - The ejabberdctl command and arguments
+ * @returns {Promise<string>} - Command output
+ */
+export async function ejabberdctl(command, { benign } = {}) {
+  try {
+    const { stdout, stderr } = await execAsync(
+      `docker exec ${XMPP_CONFIG.container} ejabberdctl ${command}`,
+      { timeout: 10000 }
+    );
+    if (stderr && !stdout) {
+      throw new Error(stderr);
+    }
+    return stdout.trim();
+  } catch (error) {
+    // A caller may declare which failures are EXPECTED for its command (e.g.
+    // create_room on a room that already exists). Those are still thrown — the
+    // caller classifies — but they are not logged as ERROR, because ~2,956
+    // ERROR lines a day that all mean "everything is normal" cost a reader the
+    // ability to see the one line that doesn't. (Bastion-3012, 2026-09-28.)
+    if (benign && benign.test(error.message || '')) {
+      await logger.debug?.(`ejabberdctl expected condition: ${command}`, { detail: error.message });
+    } else {
+      await logger.error(`ejabberdctl error: ${command}`, { error: error.message });
+    }
+    throw error;
+  }
+}
+
+/**
+ * Like ejabberdctl but passes each argument as a distinct argv element via
+ * execFile — NO shell is invoked. Shell metacharacters inside an argument
+ * (crucially, a message body) are therefore inert and need no stripping. Use
+ * this for any ejabberdctl call that carries user content. (2026-09-06)
+ */
+export async function ejabberdctlArgs(...args) {
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      'docker',
+      ['exec', XMPP_CONFIG.container, 'ejabberdctl', ...args.map(String)],
+      { timeout: 10000 }
+    );
+    if (stderr && !stdout) {
+      throw new Error(stderr);
+    }
+    return stdout.trim();
+  } catch (error) {
+    await logger.error(`ejabberdctlArgs error: ${args[0]}`, { error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Check if ejabberd is available
+ */
+export async function isXMPPAvailable() {
+  try {
+    const status = await ejabberdctl('status');
+    return status.includes('is running');
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Ensure a user exists in ejabberd
+ * SECURITY: Sanitizes username and generates safe passwords
+ * @param {string} username - Username (without domain)
+ * @param {string} password - Password (optional, will generate if not provided)
+ */
+async function ensureUser(username, password = null) {
+  // SECURITY: Use sanitizeIdentifier for consistent sanitization
+  const user = sanitizeIdentifier(username);
+  if (!user) {
+    throw new Error('Invalid username');
+  }
+  // SECURITY: Generate alphanumeric-only password if not provided
+  // Never use user-provided passwords in shell commands
+  const pass = `auto_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+  try {
+    // Check if user exists
+    const result = await ejabberdctl(`check_account "${user}" "${XMPP_CONFIG.domain}"`);
+    return { exists: true, username: user, jid: `${user}@${XMPP_CONFIG.domain}` };
+  } catch (error) {
+    // User doesn't exist, create it
+    try {
+      await ejabberdctl(`register "${user}" "${XMPP_CONFIG.domain}" "${pass}"`);
+      return { exists: false, created: true, username: user, jid: `${user}@${XMPP_CONFIG.domain}` };
+    } catch (regError) {
+      // Might already exist (race condition)
+      if (regError.message?.includes('already registered')) {
+        return { exists: true, username: user, jid: `${user}@${XMPP_CONFIG.domain}` };
+      }
+      throw regError;
+    }
+  }
+}
+
+/**
+ * Was this create_room a success, a benign "already there", or a real failure?
+ *
+ * EXTRACTED AND PURE ON PURPOSE. ensureRoom needs a docker socket; this decision
+ * does not, so it is testable by anyone, anywhere (tests/test_ensure_room.mjs).
+ *
+ * LOOK EVERYWHERE THE TRUTH MIGHT BE. This function's first version read only
+ * `error.message`, and that took the entire bus down on 2026-10-03 — because
+ * Node's exec puts STDERR in .message and NOT STDOUT, while ejabberdctl reports
+ * `{error,"Room already exists"}` on STDOUT with a NON-ZERO exit. So the single
+ * most common condition in the system (~2,956/day) was invisible to the only
+ * field being read, every create_room classified as 'failed', every send threw,
+ * and no instance could message any other. Reported by Axiom BY EMAIL because
+ * the bus itself was the casualty.
+ *
+ * The rig that was supposed to prevent this synthesised `new Error('...already
+ * exists...')` — putting the text where I ASSUMED it lived rather than where it
+ * does. An instrument answering the question adjacent to the one being asked,
+ * inside the test written to catch that exact class.
+ *
+ * 'unknown' EXISTS AND IS NOT 'failed'. An unclassifiable failure must never be
+ * fatal: taking the whole bus down is strictly worse than the rare silent loss
+ * the loud path was added to prevent. Same discipline as unmeasured != deaf and
+ * unrecorded != deaf — we do not get to collapse "cannot tell" into a verdict.
+ *
+ * @param {object} r - {stdout, stderr} from a resolved call, or {error} from a thrown one
+ * @returns {'created'|'existed'|'failed'|'unknown'}
+ */
+export function classifyCreateRoom({ stdout, stderr, error } = {}) {
+  const text = [error?.message, error?.stdout, error?.stderr, stdout, stderr]
+    .filter((v) => v !== undefined && v !== null)
+    .map(String)
+    .join('\n');
+
+  if (/already exists/i.test(text)) return 'existed';
+  // An explicit {error,...} payload is a failure whether or not the exit agreed:
+  // rc=0 IS NOT SUCCESS.
+  if (/\{error,/.test(text)) return 'failed';
+  // It threw, and nothing in any stream told us why. We do not know.
+  if (error) return 'unknown';
+  return 'created';
+}
+
+/**
+ * Ensure a room exists
+ * SECURITY: Sanitizes room name
+ *
+ * FAILS LOUDLY. Until 2026-10-02 this caught EVERY error as "Room might already
+ * exist, that's fine" and returned a fabricated success — so a send to a room that
+ * had never been created wrote a stanza into nothing and the hub reported
+ * delivery. Found by Forge-ba0e's message to dev-reconstruction-001-6f47, ground
+ * truth read by Bastion-3012: {error,"The room does not exist."}
+ *
+ * The benign case ("already exists") is genuinely fine and is no longer logged at
+ * ERROR — that path alone produced ~2,956 ERROR lines per 24h, every one of them
+ * meaning "everything is normal", and the flood came within one judgement of
+ * hiding this actual defect. An instrument that screams about the harmless case
+ * and is mute about the fatal one destroys the reader's ability to act either way.
+ *
+ * @param {string} roomName - Room name (without domain)
+ * @returns {Promise<{room:string, jid:string, existed?:boolean, created?:boolean}>}
+ * @throws if the room's existence could not be established — callers MUST NOT
+ *         proceed to write into a room we cannot confirm.
+ */
+export async function ensureRoom(roomName) {
+  // SECURITY: Use sanitizeIdentifier for consistent sanitization
+  const room = sanitizeIdentifier(roomName);
+  if (!room) {
+    throw new Error('Invalid room name');
+  }
+  const jid = `${room}@${XMPP_CONFIG.conference}`;
+  const cmd = `create_room "${room}" "${XMPP_CONFIG.conference}" "${XMPP_CONFIG.domain}"`;
+
+  let verdict, detail;
+  try {
+    const stdout = await ejabberdctl(cmd, { benign: /already exists/i });
+    verdict = classifyCreateRoom({ stdout });
+    detail = stdout;
+  } catch (error) {
+    verdict = classifyCreateRoom({ error });
+    detail = error.message;
+  }
+
+  if (verdict === 'created') return { room, jid, created: true };
+  if (verdict === 'existed') return { room, jid, existed: true };
+
+  if (verdict === 'unknown') {
+    // CANNOT TELL is not the same as FAILED, and must not be fatal. The first
+    // version of this function threw here and took the whole bus down
+    // (2026-10-03): no instance could message any other, and the outage had to
+    // be reported by email. Proceed, but loudly — an unverified room is a real
+    // risk and the log must say so every single time, not swallow it the way
+    // this function did before 2026-10-02.
+    await logger.error('ensureRoom could not VERIFY the room — proceeding unverified', { room, detail });
+    return { room, jid, unverified: true };
+  }
+
+  // 'failed': ejabberd told us explicitly. We know this room is not usable, so
+  // refuse rather than write a stanza into nothing and report delivery.
+  await logger.error('ensureRoom could not establish the room', { room, detail });
+  throw new Error(`ensureRoom(${room}) failed: ${String(detail).slice(0, 200)}`);
+}
+
+/**
+ * Read a room's history, distinguishing "COULD NOT LOOK" from "LOOKED AND FOUND
+ * NOTHING". ONE implementation for five call sites — three of which had the
+ * identical swallow:
+ *
+ *     try { history = await ejabberdctl(`get_room_history ...`); }
+ *     catch { history = ''; }      // -> zero messages -> {success:true, messages:[]}
+ *
+ * A hub-side failure came back as SUCCESS WITH NO MAIL, and no client could tell.
+ * Measured by Forge-ba0e, escalated by Cairn-2001 as a blocker rather than filed as
+ * a note, because THREE independent pollers now depend on it and none of them can
+ * work around it client-side: a doorbell whose quiet cannot be distinguished from a
+ * hub failure is a canary that silently stops testing and reports HEARING forever.
+ *
+ * Same defect as ensureRoom's catch-everything, in the same file family, by the same
+ * author. Fixed here as a SHARED helper rather than three patches, because N
+ * implementations agreeing on every input you have is one implementation's worth of
+ * evidence and N implementations' worth of risk (Cairn-2001).
+ *
+ * THE BLAST-RADIUS LESSON FROM 2026-10-03 IS APPLIED. Making a swallowed condition
+ * loud took the whole bus down once, because the swallowed condition was the MOST
+ * COMMON one. So "the room does not exist" is classified BENIGN — a mind with no
+ * room has genuinely received no mail, and a brand-new instance must still get a
+ * clean empty inbox rather than an error. Only an unclassifiable failure is loud.
+ *
+ * And every stream is inspected, not just .message: Node's exec puts stderr in
+ * .message and NOT stdout, which is exactly the field-blindness that caused that
+ * outage.
+ *
+ * @returns {{ok:true, history:string, existed:boolean} | {ok:false, error:string}}
+ */
+export async function readRoomHistory(roomName) {
+  const room = sanitizeIdentifier(roomName);
+  if (!room) return { ok: false, error: 'invalid room name' };
+  try {
+    const history = await ejabberdctl(
+      `get_room_history "${room}" "${XMPP_CONFIG.conference}"`,
+      { benign: /does not exist/i }
+    );
+    if (/\{error,/.test(String(history || ''))) {
+      if (/does not exist/i.test(history)) return { ok: true, history: '', existed: false };
+      return { ok: false, error: `get_room_history(${room}): ${String(history).slice(0, 200)}` };
+    }
+    return { ok: true, history: history || '', existed: true };
+  } catch (err) {
+    const text = [err?.message, err?.stdout, err?.stderr]
+      .filter(Boolean).map(String).join('\n');
+    // Benign: no room means no mail. A new instance gets an empty inbox, not an error.
+    if (/does not exist/i.test(text)) return { ok: true, history: '', existed: false };
+    return { ok: false, error: `get_room_history(${room}): ${text.slice(0, 200)}` };
+  }
+}
+
+/**
+ * Resolve a recipient address to XMPP JID(s)
+ * Supports: instance IDs, short names, roles, personalities, projects
+ *
+ * @param {string} to - Recipient address
+ * @returns {Object} - Resolved recipient info
+ */
+async function resolveRecipient(to) {
+  if (!to) {
+    return { error: 'Recipient is required' };
+  }
+
+  // Already a full JID?
+  if (to.includes('@')) {
+    // Detect if this is a MUC room JID (conference domain) — must use 'room' type
+    // so sendMessage uses send_stanza instead of send_message (which silently drops MUC messages)
+    const isRoom = to.includes(`@${XMPP_CONFIG.conference}`);
+    return { type: isRoom ? 'room' : 'direct', jid: to };
+  }
+
+  // Role-based addressing: role:COO, role:Developer
+  if (to.startsWith('role:')) {
+    const role = to.substring(5).toLowerCase();
+    const roomJid = `role-${role}@${XMPP_CONFIG.conference}`;
+    return { type: 'room', role, jid: roomJid };
+  }
+
+  // Personality-based addressing: personality:Lupo, or just Lupo
+  if (to.startsWith('personality:')) {
+    const personality = to.substring(12).toLowerCase();
+    const roomJid = `personality-${personality}@${XMPP_CONFIG.conference}`;
+    return { type: 'room', personality, jid: roomJid };
+  }
+
+  // Project team addressing: project:coordination-v2, team:coordination-v2
+  if (to.startsWith('project:') || to.startsWith('team:')) {
+    const project = to.substring(to.indexOf(':') + 1).toLowerCase();
+    const roomJid = `project-${project}@${XMPP_CONFIG.conference}`;
+    return { type: 'room', project, jid: roomJid };
+  }
+
+  // Broadcast: all
+  if (to.toLowerCase() === 'all') {
+    return { type: 'room', broadcast: true, jid: `announcements@${XMPP_CONFIG.conference}` };
+  }
+
+  // Check if it's a known persistent personality (short name)
+  const lowerTo = to.toLowerCase();
+  if (XMPP_CONFIG.persistentUsers.includes(lowerTo)) {
+    // Route to personality room, not direct user
+    const roomJid = `personality-${lowerTo}@${XMPP_CONFIG.conference}`;
+    return { type: 'room', personality: lowerTo, jid: roomJid };
+  }
+
+  // SMART ROUTING: For instance IDs (e.g., "Messenger-7e2f", "Canvas-UITest-8215"),
+  // extract the first part and route to their personality room.
+  // This ensures messages are readable and all instances of the same name share an inbox.
+  //
+  // "Messenger-7e2f" → personality-messenger room
+  // "Canvas-UITest-8215" → personality-canvas room
+  // "Bastion-abc1" → personality-bastion room
+  //
+  // This avoids the direct JID problem where messages go to offline queue
+  // and can't be read via the API.
+
+  // Extract first part before any dash (the personality/name)
+  const parts = to.split('-');
+  const personality = parts[0].toLowerCase();
+  const roomJid = `personality-${personality}@${XMPP_CONFIG.conference}`;
+  return { type: 'room', personality, jid: roomJid, originalTo: to };
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ XMPP_SEND_MESSAGE                                                       │
+ * │ Send a message to an instance, role, or project via XMPP                │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool xmpp_send_message
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Sends a message via the XMPP messaging system. Supports multiple addressing
+ * modes: direct instance messaging, role-based broadcast (role:COO), project
+ * team messaging (project:coordination-v2), personality rooms (personality:lupo),
+ * and system-wide announcements (to: 'all').
+ *
+ * Use this endpoint when you need to communicate with other instances,
+ * broadcast to a role group, or send project-wide notifications. Messages
+ * are archived in XMPP rooms for retrieval via xmpp_get_messages.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} to - Recipient address [required]
+ *   @source Use one of these formats:
+ *           - Instance ID: "Messenger-7e2f" (routes to personality room)
+ *           - Role: "role:COO", "role:Developer" (role-based room)
+ *           - Project: "project:coordination-v2" (project team room)
+ *           - Personality: "personality:lupo" (personality room)
+ *           - Broadcast: "all" (announcements room)
+ *           - Full JID: "user@smoothcurves.nexus" (direct)
+ *
+ * @param {string} from - Sender's instance ID [required]
+ *   @source Your instanceId from bootstrap response or introspect.
+ *   @validate Must be a valid instance ID format
+ *
+ * @param {string} subject - Message subject line [optional]
+ *   @source Provide a brief subject. Required if body is not provided.
+ *   @validate Max 256 characters
+ *
+ * @param {string} body - Message body content [optional]
+ *   @source The main message content. Required if subject is not provided.
+ *   @validate Max 8192 characters
+ *
+ * @param {string} priority - Message priority level [optional]
+ *   @source Set based on urgency of the message.
+ *   @default normal
+ *   @enum high|normal|low
+ *
+ * @param {string} in_response_to - Message ID being replied to [optional]
+ *   @source Get message IDs from xmpp_get_messages response. Use when
+ *           replying to a specific message to maintain thread context.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} SendMessageResponse
+ * @returns {boolean} .success - Whether the message was sent successfully
+ * @returns {string} .message_id - Generated message ID for tracking
+ * @returns {string} .to - Resolved recipient JID
+ * @returns {string} .type - Message type ('room' or 'direct')
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 30/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error RATE_LIMIT_EXCEEDED - Too many messages sent in short period
+ *   @recover Wait 1 minute before sending more messages. Consider batching.
+ *
+ * @error MISSING_PARAMETER - Required parameter not provided
+ *   @recover Ensure 'to', 'from', and either 'subject' or 'body' are provided.
+ *
+ * @error INVALID_PRIORITY - Priority value not recognized
+ *   @recover Use one of: 'high', 'normal', 'low'.
+ *
+ * @error SUBJECT_TOO_LONG - Subject exceeds 256 characters
+ *   @recover Shorten subject to under 256 characters.
+ *
+ * @error BODY_TOO_LONG - Body exceeds 8192 characters
+ *   @recover Shorten body or split into multiple messages.
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Check that ejabberd container is running. Contact system admin.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Send to another instance
+ * {
+ *   "to": "Canvas-8215",
+ *   "from": "Messenger-7e2f",
+ *   "subject": "API Update",
+ *   "body": "The new messaging endpoints are ready for testing."
+ * }
+ *
+ * @example Broadcast to role group
+ * {
+ *   "to": "role:Developer",
+ *   "from": "PM-a1b2",
+ *   "subject": "Sprint Planning",
+ *   "body": "Sprint planning meeting in 30 minutes.",
+ *   "priority": "high"
+ * }
+ *
+ * @example Reply to a message
+ * {
+ *   "to": "Lupo",
+ *   "from": "Messenger-7e2f",
+ *   "body": "Yes, the migration is complete.",
+ *   "in_response_to": "msg-1735123456-abc123"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_get_messages - Retrieve message headers from rooms
+ * @see xmpp_get_message - Get full message body by ID
+ * @see get_presence - Check who is online before messaging
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note SECURITY: v4.1 patched command injection vulnerability (2025-12-05)
+ * @note Messages to instance IDs route to personality rooms for proper archiving
+ * @note Shell metacharacters are sanitized from all inputs
+ */
+export async function sendMessage(params) {
+  const { to, from, subject, body, priority = 'normal', in_response_to } = params;
+
+  // SECURITY: Rate limiting
+  if (!checkRateLimit(from)) {
+    await logger.warn('Rate limit exceeded', { from });
+    return { success: false, error: 'Rate limit exceeded. Please wait before sending more messages.' };
+  }
+
+  // Validate required fields
+  if (!to) {
+    return { success: false, error: 'to is required' };
+  }
+  if (!from) {
+    return { success: false, error: 'from is required' };
+  }
+  if (!subject && !body) {
+    return { success: false, error: 'subject or body is required' };
+  }
+
+  // SECURITY: Input length validation
+  if (subject && subject.length > SECURITY_LIMITS.MAX_SUBJECT_LENGTH) {
+    return { success: false, error: `Subject too long (max ${SECURITY_LIMITS.MAX_SUBJECT_LENGTH} chars)` };
+  }
+  if (body && body.length > SECURITY_LIMITS.MAX_BODY_LENGTH) {
+    return { success: false, error: `Body too long (max ${SECURITY_LIMITS.MAX_BODY_LENGTH} chars)` };
+  }
+
+  // SECURITY: Validate priority is one of allowed values
+  const allowedPriorities = ['high', 'normal', 'low'];
+  if (!allowedPriorities.includes(priority)) {
+    return { success: false, error: 'Invalid priority. Must be high, normal, or low.' };
+  }
+
+  // Check XMPP availability
+  if (!await isXMPPAvailable()) {
+    return { success: false, error: 'XMPP server not available' };
+  }
+
+  try {
+    // SECURITY: Sanitize sender identifier
+    const sanitizedFrom = sanitizeIdentifier(from);
+    if (!sanitizedFrom) {
+      return { success: false, error: 'Invalid from identifier' };
+    }
+
+    // Ensure sender exists
+    await ensureUser(sanitizedFrom);
+    const fromJid = `${sanitizedFrom}@${XMPP_CONFIG.domain}`;
+
+    // Resolve recipient
+    const recipient = await resolveRecipient(to);
+    if (recipient.error) {
+      return { success: false, error: recipient.error };
+    }
+
+    // Ensure room exists if sending to a room
+    if (recipient.type === 'room') {
+      await ensureRoom(recipient.jid.split('@')[0]);
+    }
+
+    // Determine message type
+    const msgType = recipient.type === 'room' ? 'groupchat' : 'chat';
+
+    // Build message body with metadata embedded
+    // Include sender tag so we can identify who sent the message
+    // (ejabberd strips the resource from the from attribute)
+    // Note: Use format without brackets since sanitizeForShell removes them
+    // Brackets and every other character now SURVIVE (escapeXml + argv send),
+    // so metadata tags no longer have to dodge a stripping filter.
+    const msgBody = [
+      `sender:${sanitizedFrom}`,
+      body || subject,
+      priority !== 'normal' ? `[priority:${priority}]` : '',
+      in_response_to ? `[reply-to:${in_response_to}]` : ''
+    ].filter(Boolean).join(' ');
+
+    // Content is XML-ESCAPED (preserves every character) and handed to
+    // ejabberdctl as argv (ejabberdctlArgs — no shell), so shell metacharacters
+    // are inert. Replaces the old sanitizeForShell strip that silently
+    // destroyed ~24 characters in every cross-instance message. (2026-09-06)
+    if (msgType === 'groupchat') {
+      // system@domain is the sending JID — only system may send archived MUC
+      // messages; the real sender rides in the from-resource and the body prefix.
+      const systemJid = `system@${XMPP_CONFIG.domain}`;
+      const stanza = `<message type="groupchat" from="${systemJid}/${sanitizedFrom}" to="${recipient.jid}"><body>${escapeXml(msgBody)}</body>${subject ? `<subject>${escapeXml(subject)}</subject>` : ''}</message>`;
+      await ejabberdctlArgs('send_stanza', systemJid, recipient.jid, stanza);
+    } else {
+      // Direct 1:1 — ejabberd builds the stanza itself; args pass via argv
+      // (no shell), so raw subject/body are safe and intact, no escaping needed.
+      await ejabberdctlArgs('send_message', msgType, fromJid, recipient.jid, subject || '', msgBody);
+    }
+
+    // Generate message ID
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Return user-friendly destination, not internal routing details
+    // If smart-routed (e.g., "Orla-da01" → personality room), show original target
+    return {
+      success: true,
+      message_id: messageId,
+      delivered_to: recipient.originalTo || to,
+      type: recipient.originalTo ? 'direct' : recipient.type
+    };
+
+  } catch (error) {
+    await logger.error('sendMessage failed', { error: error.message, params });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ SEND_MESSAGE                                                            │
+ * │ Friendly message sender with fuzzy recipient matching                   │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool send_message
+ * @version 5.0.0
+ * @since 2026-02-05
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * The "just works" message sender. You don't need to know exact IDs, formats,
+ * or room names. Just tell it who you want to talk to and it figures it out.
+ *
+ * Fuzzy matching finds the best recipient from instances, roles, projects,
+ * and personalities. Case-insensitive, typo-tolerant.
+ *
+ * LUPO'S RULE: If exactly ONE instance matches (like "Lupo", "Axiom", "Ember"),
+ * routes to that specific instance. If MANY instances match the same name
+ * (like "Genevieve"), routes to the personality room.
+ *
+ * Examples that all work:
+ *   to: "lupo"          → routes to Lupo's specific instance
+ *   to: "embr"          → fuzzy matches to "ember", routes to Ember's instance
+ *   to: "genevieve"     → many instances, routes to personality:genevieve room
+ *   to: "coo"           → matches role, routes to role:coo room
+ *   to: "hacs"          → matches project, routes to project:hacs room
+ *   to: "role:developer"→ explicit role room (not fuzzy)
+ *   to: "project:hacs"  → explicit project room (not fuzzy)
+ *   to: "all"           → announcements room (broadcast)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} to - Who to send to. Name, instanceId, role:X, project:X, or "all" [required]
+ *   @source Just use a name. Examples: "lupo", "ember", "coo", "hacs"
+ *
+ * @param {string} from - Your instance ID [required]
+ *   @source Your instanceId from bootstrap
+ *
+ * @param {string} subject - Message subject [optional if body provided]
+ * @param {string} body - Message body [optional if subject provided]
+ * @param {string} priority - high, normal, low [optional]
+ *   @default normal
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} SendMessageResponse
+ * @returns {boolean} .success - Whether the message was sent
+ * @returns {string} .message_id - Unique ID for the message
+ * @returns {string} .delivered_to - Friendly name of recipient
+ * @returns {string} .delivered_to - Display name of recipient
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error NO_MATCH - No recipient found matching your query
+ *   @recover Check spelling. Try: role:X, project:X, or personality:X
+ *
+ * @error AMBIGUOUS - Multiple equally good matches
+ *   @recover Be more specific. The error will list the matches found.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_send_message - Raw XMPP send (requires exact formatting)
+ * @see xmpp_get_messages - Read your messages
+ * @see get_messaging_info - Check who's online
+ */
+export async function friendlySendMessage(params) {
+  const { to, from, subject, priority = 'normal', in_response_to } = params;
+  // Accept `message` as an alias for `body` — common mistake since the function is "send_message"
+  const body = params.body || params.message;
+
+  // Basic validation (let sendMessage handle the rest)
+  if (!to) {
+    return { success: false, error: 'to is required. Try a name like "lupo" or "ember".' };
+  }
+  if (!from) {
+    return { success: false, error: 'from is required. Use your instanceId from bootstrap.' };
+  }
+  if (!body && !subject) {
+    return { success: false, error: 'body (or message) is required. Pass the message text in the body field.' };
+  }
+  if (!body && subject) {
+    // Don't silently use subject as body — that's the bug Crossing hit (2026-05-09).
+    // If they only passed a subject, that's likely a mistake (used `message` instead of `body`).
+    return { success: false, error: 'body is required (subject alone is not enough). If you used `message`, the field name is `body`.' };
+  }
+
+  // Fuzzy match the recipient
+  const matchResult = await fuzzyMatchRecipient(to);
+
+  if (matchResult.error) {
+    return { success: false, error: matchResult.error };
+  }
+
+  const resolved = matchResult.resolved;
+
+  // Call the raw sendMessage with the resolved JID
+  // We pass the JID directly since it's already resolved
+  const result = await sendMessage({
+    to: resolved.jid,
+    from,
+    subject,
+    body,
+    priority,
+    in_response_to
+  });
+
+  // Enhance the response with resolution info. delivered_to_id is the
+  // RESOLVED instance id (when the recipient is an instance) — the event
+  // broker needs it to stamp event.target with the canonical id instead of
+  // the caller's raw `to` (which may be a friendly/fuzzy/lowercased name
+  // that never matches a subscription filter — the missed-doorbell bug,
+  // 2026-08-05). Not an internal JID; safe to expose.
+  if (result.success) {
+    return {
+      ...result,
+      delivered_to: resolved.display,
+      ...(resolved.instanceId ? { delivered_to_id: resolved.instanceId } : {})
+    };
+  }
+
+  return result;
+}
+
+/**
+ * Parse a single message XML stanza from room history
+ * @param {string} xml - The XML stanza
+ * @returns {Object|null} - Parsed message or null if invalid
+ */
+export function parseMessageXML(xml) {
+  try {
+    // Extract stanza ID (message ID)
+    const stanzaIdMatch = xml.match(/stanza-id[^>]*id='([^']+)'/);
+    const id = stanzaIdMatch ? stanzaIdMatch[1] : null;
+
+    // NON-GREEDY match ([\s\S]*?) up to the first closing tag — NOT [^<]*.
+    // ejabberd DECODES the &lt; we escape on send (its XML parser, on receipt),
+    // and get_room_history emits that archived text with LITERAL angle brackets
+    // — confirmed by raw capture, not inferred (Bastion, 2026-09-06). So:
+    //   - [^<]* stopped at the first literal '<' → empty body → also lost the
+    //     sender: prefix → `from` fell back to system. Non-greedy fixes all three.
+    //   - We do NOT unescape here. escapeXml(send) is already reversed by
+    //     ejabberd; the archive text is final. A second decode corrupts the only
+    //     bodies where it acts — text that legitimately contains entity syntax
+    //     ("&amp;" typed literally came back "&"). Crossing's find, 2026-09-06.
+    const subjectMatch = xml.match(/<subject>([\s\S]*?)<\/subject>/);
+    const subject = subjectMatch ? subjectMatch[1] : '';
+
+    const bodyMatch = xml.match(/<body>([\s\S]*?)<\/body>/);
+    let body = bodyMatch ? bodyMatch[1] : '';
+
+    // Extract sender from sender:X prefix if present
+    // This is how we preserve sender identity since ejabberd strips the resource
+    const senderMatch = body.match(/^sender:([a-z0-9_-]+)\s+/i);
+    let from;
+
+    if (senderMatch) {
+      // Use sender from body prefix
+      from = senderMatch[1];
+      // Remove the sender prefix from body
+      body = body.substring(senderMatch[0].length);
+    } else {
+      // Fall back to extracting from JID
+      const fromMatch = xml.match(/from='([^']+)'/);
+      const fullFrom = fromMatch ? fromMatch[1] : 'unknown';
+      // Extract username from JID (before @) or resource (after /)
+      from = fullFrom.includes('/')
+        ? fullFrom.split('/').pop()
+        : fullFrom.split('@')[0];
+    }
+
+    // No unescape: ejabberd already decoded on receipt; archive text is final.
+    // (See the extraction comment above — a second decode corrupts literal
+    // entity text, Crossing 2026-09-06.)
+
+    // Extract timestamp
+    const stampMatch = xml.match(/stamp='([^']+)'/);
+    const timestamp = stampMatch ? stampMatch[1] : null;
+
+    if (!id) return null;
+
+    return { id, from, subject, body, timestamp };
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Truncate subject to max length, preserving word boundaries
+ */
+export function truncateSubject(subject, maxLen = 50) {
+  if (!subject || subject.length <= maxLen) return subject;
+  const truncated = subject.substring(0, maxLen - 3);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > maxLen/2 ? truncated.substring(0, lastSpace) : truncated) + '...';
+}
+
+/**
+ * Extract the personality/name from an instance ID
+ * Handles various formats: "Messenger-7e2f", "Canvas-UITest-8215", "Lupo", etc.
+ * @param {string} instanceId
+ * @returns {string} - The personality name (lowercase)
+ */
+export function extractPersonalityFromInstanceId(instanceId) {
+  if (!instanceId) return null;
+  // Take everything before the first dash, or the whole string if no dash
+  const parts = instanceId.split('-');
+  return parts[0].toLowerCase();
+}
+
+/**
+ * Get rooms an instance should be monitoring based on preferences
+ * @param {string} instanceId - Instance ID
+ * @returns {Array<string>} - List of room names
+ */
+export async function getInstanceRooms(instanceId) {
+  const rooms = ['announcements']; // Everyone gets announcements
+
+  // Extract personality name from instance ID
+  const personality = extractPersonalityFromInstanceId(instanceId);
+  if (personality) {
+    rooms.push(`personality-${personality}`);
+  }
+
+  // Try to read preferences for role and project
+  try {
+    // Dynamic import to avoid circular dependency
+    const { readPreferences } = await import('../v2/data.js');
+    const prefs = await readPreferences(instanceId);
+
+    if (prefs.role) {
+      rooms.push(`role-${prefs.role.toLowerCase()}`);
+    }
+    if (prefs.project) {
+      rooms.push(`project-${prefs.project.toLowerCase()}`);
+    }
+    if (prefs.personality && prefs.personality.toLowerCase() !== nameMatch?.[1]?.toLowerCase()) {
+      rooms.push(`personality-${prefs.personality.toLowerCase()}`);
+    }
+  } catch (e) {
+    // Preferences not found - just use the name-based room
+  }
+
+  return [...new Set(rooms)]; // Deduplicate
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ XMPP_GET_MESSAGES                                                       │
+ * │ Get message headers from rooms (personality, role, project, announce)   │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool xmpp_get_messages
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns message headers (id, from, subject, timestamp) from all relevant rooms
+ * for an instance. Uses SMART DEFAULTS - automatically queries:
+ * - Personality room (based on instance name)
+ * - Role room (from preferences)
+ * - Project room (from preferences)
+ * - Announcements room
+ *
+ * Supports IDENTITY RESOLUTION - if you don't know your instanceId, provide
+ * hints (name, workingDirectory, hostname) and the system looks it up.
+ *
+ * Returns headers only to save tokens. Use xmpp_get_message to fetch full body.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Instance to get messages for [optional]
+ *   @source Your instanceId from bootstrap or introspect. Optional if you
+ *           provide identity hints (name/workingDirectory/hostname) or a room.
+ *
+ * @param {string} name - Instance name for identity lookup [optional]
+ *   @source Your chosen name (e.g., "Messenger"). Used to look up instanceId.
+ *
+ * @param {string} workingDirectory - Working directory hint [optional]
+ *   @source Result of pwd command. Used for identity resolution.
+ *
+ * @param {string} hostname - System hostname hint [optional]
+ *   @source Result of hostname command. Used for identity resolution.
+ *
+ * @param {string} room - Specific room to query [optional]
+ *   @source Room name like "personality-messenger", "role-developer", "project-xyz"
+ *           If provided, only this room is queried (faster than smart defaults).
+ *
+ * @param {number} limit - Maximum messages to return [optional]
+ *   @source Choose based on context budget. Lower = fewer tokens.
+ *   @default 5
+ *   @validate min: 1, max: 100
+ *
+ * @param {string} before_id - Pagination cursor [optional]
+ *   @source Message ID from previous response. Get older messages before this ID.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetMessagesResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {array} .messages - Array of message headers
+ * @returns {string} .messages[].id - Message ID (use with xmpp_get_message)
+ * @returns {string} .messages[].from - Sender's identity
+ * @returns {string} .messages[].subject - Truncated subject line
+ * @returns {string} .messages[].room - Which room this message is from
+ * @returns {string} .messages[].timestamp - ISO timestamp
+ * @returns {number} .total_available - Total messages available
+ * @returns {boolean} .has_more - Whether more messages exist (pagination)
+ * @returns {array} .rooms_checked - Which rooms were queried
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 30/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error RATE_LIMIT_EXCEEDED - Too many requests in short period
+ *   @recover Wait 1 minute before retrying.
+ *
+ * @error IDENTITY_NOT_FOUND - Could not resolve identity from hints
+ *   @recover Provide instanceId directly, or call bootstrap to create instance.
+ *
+ * @error MISSING_PARAMETER - Neither instanceId nor room provided
+ *   @recover Provide instanceId, room, or identity hints (name/workingDirectory).
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Check ejabberd container status. Contact system admin.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get messages with instanceId
+ * {
+ *   "instanceId": "Messenger-7e2f",
+ *   "limit": 10
+ * }
+ *
+ * @example Get messages using identity hints
+ * {
+ *   "name": "Messenger",
+ *   "workingDirectory": "/mnt/coordinaton_mcp_data/worktrees/messaging"
+ * }
+ *
+ * @example Get messages from specific room
+ * {
+ *   "room": "personality-lupo",
+ *   "limit": 5
+ * }
+ *
+ * @example Pagination
+ * {
+ *   "instanceId": "Canvas-8215",
+ *   "before_id": "1735123456789000",
+ *   "limit": 10
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_get_message - Get full message body by ID
+ * @see xmpp_send_message - Send a new message
+ * @see lookup_identity - Resolve identity hints to instanceId
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Returns headers only - call xmpp_get_message for full body
+ * @note Smart defaults query multiple rooms automatically based on preferences
+ * @note Identity resolution adds slight overhead - provide instanceId if known
+ */
+export async function getMessages(params = {}) {
+  let { instanceId, name, workingDirectory, hostname, room, limit = 5, before_id } = params;
+
+  // Identity resolution: if no instanceId but have hints, look it up
+  if (!instanceId && (name || workingDirectory || hostname)) {
+    try {
+      const lookupResult = await lookupIdentity({ name, workingDirectory, hostname });
+      if (lookupResult.success && lookupResult.instanceId) {
+        instanceId = lookupResult.instanceId;
+        // Log successful identity resolution
+        await logger.info('Identity resolved for messaging', {
+          resolved: instanceId,
+          matchedFields: lookupResult.matchedFields,
+          confidence: lookupResult.confidence
+        });
+      } else {
+        return {
+          success: false,
+          error: 'Could not resolve identity from provided hints',
+          suggestion: 'Call bootstrap({ name: "YourName" }) to create a new instance, or provide instanceId directly',
+          searchedFor: { name, workingDirectory, hostname }
+        };
+      }
+    } catch (e) {
+      await logger.error('Identity lookup failed', { error: e.message });
+      return { success: false, error: `Identity lookup failed: ${e.message}` };
+    }
+  }
+
+  // If room is provided, we can query without instanceId
+  // Otherwise, instanceId is required
+  if (!instanceId && !room) {
+    return {
+      success: false,
+      error: 'instanceId or room is required (or provide name/workingDirectory/hostname for identity lookup)',
+      suggestion: 'Provide instanceId, room, or use identity hints: name, workingDirectory, or hostname'
+    };
+  }
+
+  // SECURITY: Rate limiting (use room as key if no instanceId)
+  if (!checkRateLimit(instanceId || room)) {
+    return { success: false, error: 'Rate limit exceeded' };
+  }
+
+  if (!await isXMPPAvailable()) {
+    return { success: false, error: 'XMPP server not available' };
+  }
+
+  try {
+    // If a specific room is requested, use just that room
+    // Otherwise, get all rooms this instance should monitor
+    const rooms = room ? [room] : await getInstanceRooms(instanceId);
+    const allMessages = [];
+
+    // Query each room for history
+    for (const roomName of rooms) {
+      try {
+        const history = await ejabberdctl(
+          `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
+        );
+
+        if (history && history.trim()) {
+          // Split by message boundaries (timestamp at line start + tab + <message)
+          const rawMessages = history.split(/(?=^\d{4}-\d{2}-\d{2}T[^\t]*\t<message)/m);
+
+          for (const rawMsg of rawMessages) {
+            if (!rawMsg.trim()) continue;
+            const parsed = parseMessageXML(rawMsg);
+            if (parsed) {
+              allMessages.push({
+                ...parsed,
+                room: roomName
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // Room might not exist or be empty, that's fine
+      }
+    }
+
+    // Sort by timestamp (newest first)
+    allMessages.sort((a, b) => {
+      if (!a.timestamp) return 1;
+      if (!b.timestamp) return -1;
+      return b.timestamp.localeCompare(a.timestamp);
+    });
+
+    // Apply pagination if before_id specified
+    let startIndex = 0;
+    if (before_id) {
+      const idx = allMessages.findIndex(m => m.id === before_id);
+      if (idx !== -1) {
+        startIndex = idx + 1;
+      }
+    }
+
+    // Get the requested slice
+    const slice = allMessages.slice(startIndex, startIndex + limit);
+
+    // Return headers only (id, from, subject truncated, room)
+    const messages = slice.map(m => ({
+      id: m.id,
+      from: m.from,
+      subject: truncateSubject(m.subject || m.body, 50),
+      room: m.room,
+      timestamp: m.timestamp
+    }));
+
+    return {
+      success: true,
+      messages,
+      total_available: allMessages.length,
+      has_more: startIndex + limit < allMessages.length,
+      rooms_checked: rooms
+    };
+
+  } catch (error) {
+    await logger.error('getMessages failed', { error: error.message, params });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all known rooms in the system (for message search)
+ * @returns {Promise<string[]>} - List of room names
+ */
+async function getAllKnownRooms() {
+  try {
+    // Get list of rooms from ejabberd
+    const result = await ejabberdctl(`muc_online_rooms "${XMPP_CONFIG.conference}"`);
+    const rooms = result.split('\n')
+      .map(r => r.trim())
+      .filter(r => r)
+      .map(r => r.split('@')[0]); // Extract room name from JID
+    return rooms;
+  } catch (e) {
+    // Fallback: return common room patterns
+    return ['announcements', 'personality-lupo', 'personality-messenger', 'personality-canvas'];
+  }
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ XMPP_GET_MESSAGE                                                        │
+ * │ Get full message body by ID                                             │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool xmpp_get_message
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Retrieves the full message body for a given message ID. Use this after
+ * xmpp_get_messages to fetch the complete content of specific messages.
+ *
+ * SIMPLE API: Just pass the message ID. The system searches all known rooms
+ * to find the message. Optionally provide room hint for faster lookup.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} id - Message ID to retrieve [required]
+ *   @source Get from xmpp_get_messages response (.messages[].id)
+ *
+ * @param {string} instanceId - Instance requesting [optional]
+ *   @source Your instanceId. Used to prioritize searching your rooms first.
+ *
+ * @param {string} room - Room hint [optional]
+ *   @source Room name from xmpp_get_messages response (.messages[].room)
+ *           Providing this makes lookup much faster.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetMessageResponse
+ * @returns {boolean} .success - Whether the message was found
+ * @returns {string} .body - Full message body content
+ * @returns {string} .from - Sender's identity
+ * @returns {string} .subject - Message subject
+ * @returns {string} .timestamp - ISO timestamp
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - id parameter not provided
+ *   @recover Provide the message ID from xmpp_get_messages response.
+ *
+ * @error MESSAGE_NOT_FOUND - Message with this ID not found in any room
+ *   @recover Verify the ID is correct. Messages may expire from room history.
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Check ejabberd container status. Contact system admin.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get message with just ID
+ * {
+ *   "id": "1735123456789000"
+ * }
+ *
+ * @example Get message with room hint (faster)
+ * {
+ *   "id": "1735123456789000",
+ *   "room": "personality-messenger"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_get_messages - Get message headers first
+ * @see xmpp_send_message - Send a reply
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Searches all known rooms if no hint provided (slower but works)
+ * @note Returns full body - use sparingly to conserve tokens
+ */
+export async function getMessage(params = {}) {
+  const { instanceId, id, room } = params;
+
+  if (!id) {
+    return { success: false, error: 'id is required' };
+  }
+
+  if (!await isXMPPAvailable()) {
+    return { success: false, error: 'XMPP server not available' };
+  }
+
+  try {
+    // Determine rooms to search
+    let rooms;
+    if (room) {
+      // Room specified - search just that room (fast path)
+      rooms = [room];
+    } else if (instanceId) {
+      // Instance specified - search their rooms first, then all rooms
+      rooms = await getInstanceRooms(instanceId);
+    } else {
+      // No hints - search all known rooms
+      rooms = await getAllKnownRooms();
+    }
+
+    // Helper to search a list of rooms for the message
+    const searchRooms = async (roomList) => {
+      for (const roomName of roomList) {
+        try {
+          const history = await ejabberdctl(
+            `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
+          );
+
+          if (history && history.includes(id)) {
+            // Found the room with this message, parse it
+            const rawMessages = history.split(/(?=^\d{4}-\d{2}-\d{2}T[^\t]*\t<message)/m);
+
+            for (const rawMsg of rawMessages) {
+              if (!rawMsg.includes(id)) continue;
+              const parsed = parseMessageXML(rawMsg);
+              if (parsed && parsed.id === id) {
+                // Return just the body (every token is precious!)
+                return {
+                  success: true,
+                  body: parsed.body,
+                  from: parsed.from,
+                  subject: parsed.subject,
+                  timestamp: parsed.timestamp
+                };
+              }
+            }
+          }
+        } catch (e) {
+          // Continue to next room
+        }
+      }
+      return null;
+    };
+
+    // Search primary rooms first
+    let result = await searchRooms(rooms);
+    if (result) return result;
+
+    // If not found and we only searched instance rooms, expand to all known rooms
+    if (instanceId && !room) {
+      const allRooms = await getAllKnownRooms();
+      const additionalRooms = allRooms.filter(r => !rooms.includes(r));
+      if (additionalRooms.length > 0) {
+        result = await searchRooms(additionalRooms);
+        if (result) return result;
+      }
+    }
+
+    return { success: false, error: 'Message not found' };
+
+  } catch (error) {
+    await logger.error('getMessage failed', { error: error.message, params });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_PRESENCE                                                            │
+ * │ Check which instances are currently online                              │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool get_presence
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns a list of currently connected XMPP users. Use this to check who
+ * is online before sending messages, or to see if a specific instance is
+ * currently active.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * No parameters required.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetPresenceResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {array} .online - List of online JIDs (e.g., ["lupo@smoothcurves.nexus"])
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions *
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Check ejabberd container status. Contact system admin.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Check who is online
+ * {}
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see xmpp_send_message - Send message to online user
+ * @see get_messaging_info - Get your messaging status
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Returns minimal response to conserve tokens
+ * @note Humans may not appear online (they use web interface)
+ */
+export async function getPresence(params = {}) {
+  if (!await isXMPPAvailable()) {
+    return { success: false, error: 'XMPP server not available' };
+  }
+
+  try {
+    const result = await ejabberdctl(`connected_users_vhost "${XMPP_CONFIG.domain}"`);
+    const users = result.split('\n').filter(u => u.trim());
+
+    // Return just the list of online JIDs - minimal response
+    return {
+      success: true,
+      online: users
+    };
+
+  } catch (error) {
+    await logger.error('getPresence failed', { error: error.message });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ LOOKUP_SHORTNAME                                                        │
+ * │ Find instance IDs matching a short name                                 │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool lookup_shortname
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status experimental
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Looks up instance IDs that match a given short name. Use this to find
+ * the full instance ID when you only know part of a name.
+ *
+ * NOTE: This feature is partially implemented. For now, use full instance IDs.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} name - Short name to look up [required]
+ *   @source The name or partial name you're searching for.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} LookupShortnameResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {string} .name - The name searched for
+ * @returns {array} .matches - List of matching instance IDs
+ * @returns {string} .note - Status note about feature availability
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - name not provided
+ *   @recover Provide the name parameter.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Lookup a name
+ * {
+ *   "name": "Messenger"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Feature partially implemented - returns empty matches for now
+ * @todo Implement full shortname lookup across instance registry
+ */
+export async function lookupShortname(params) {
+  const { name } = params;
+
+  if (!name) {
+    return { success: false, error: 'name is required' };
+  }
+
+  // This would query registered instances
+  // For now, return a helpful message
+  return {
+    success: true,
+    name,
+    matches: [],
+    note: 'Shortname lookup coming in next iteration - use full instance IDs for now'
+  };
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ GET_MESSAGING_INFO                                                      │
+ * │ Get messaging status for an instance                                    │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool get_messaging_info
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Returns messaging status for an instance including their JID, unread count,
+ * and list of online teammates. Lightweight alternative to full introspect
+ * when you only need messaging info.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Instance to get info for [required]
+ *   @source Your instanceId from bootstrap or introspect.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} GetMessagingInfoResponse
+ * @returns {boolean} .success - Whether the call succeeded
+ * @returns {string} .your_jid - Your XMPP JID (e.g., "messenger-7e2f@smoothcurves.nexus")
+ * @returns {number} .unread_count - Number of unread offline messages
+ * @returns {array} .online_teammates - List of online JIDs
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions authenticated
+ * @rateLimit 60/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId not provided
+ *   @recover Provide your instanceId from bootstrap.
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Returns fallback: true to indicate you should retry later.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * EXAMPLES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @example Get messaging info
+ * {
+ *   "instanceId": "Messenger-7e2f"
+ * }
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RELATED
+ * ───────────────────────────────────────────────────────────────────────────
+ * @see introspect - Get full instance context
+ * @see get_presence - Just check who is online
+ * @see xmpp_get_messages - Get your messages
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note Lightweight - use instead of introspect when you only need messaging
+ * @note Returns fallback: true if XMPP is down (graceful degradation)
+ */
+export async function getMessagingInfo(params) {
+  const { instanceId } = params;
+
+  if (!instanceId) {
+    return { success: false, error: 'instanceId is required' };
+  }
+
+  if (!await isXMPPAvailable()) {
+    return { success: false, error: 'XMPP server not available', fallback: true };
+  }
+
+  try {
+    const user = instanceId.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    const jid = `${user}@${XMPP_CONFIG.domain}`;
+
+    // Get offline count
+    let unreadCount = 0;
+    try {
+      const countResult = await ejabberdctl(`get_offline_count "${user}" "${XMPP_CONFIG.domain}"`);
+      unreadCount = parseInt(countResult, 10) || 0;
+    } catch (e) {
+      unreadCount = 0;
+    }
+
+    // Get online users
+    let onlineUsers = [];
+    try {
+      const result = await ejabberdctl(`connected_users_vhost "${XMPP_CONFIG.domain}"`);
+      onlineUsers = result.split('\n').filter(u => u.trim());
+    } catch (e) {
+      onlineUsers = [];
+    }
+
+    return {
+      success: true,
+      your_jid: jid,
+      unread_count: unreadCount,
+      online_teammates: onlineUsers
+    };
+
+  } catch (error) {
+    await logger.error('getMessagingInfo failed', { error: error.message });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * @hacs-endpoint
+ * @template-version 1.0.0
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ REGISTER_MESSAGING_USER                                                 │
+ * │ Register an instance with the XMPP messaging system                     │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @tool register_messaging_user
+ * @version 4.1.0
+ * @since 2025-12-04
+ * @category messaging
+ * @status stable
+ * @visibility internal
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * DESCRIPTION
+ * ───────────────────────────────────────────────────────────────────────────
+ * @description
+ * Registers an instance with the XMPP messaging system. Creates the XMPP user
+ * account and ensures appropriate room memberships based on role and project.
+ *
+ * This is an INTERNAL function called by bootstrap. You typically do not need
+ * to call this directly - bootstrap handles messaging registration for you.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PARAMETERS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @param {string} instanceId - Instance to register [required]
+ *   @source Typically called by bootstrap with the new instanceId.
+ *
+ * @param {string} role - Role to subscribe to [optional]
+ *   @source Role name. Creates role room subscription.
+ *
+ * @param {string} project - Project to subscribe to [optional]
+ *   @source Project ID. Creates project room subscription.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * RETURNS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @returns {object} RegisterMessagingUserResponse
+ * @returns {boolean} .success - Whether registration succeeded
+ * @returns {string} .jid - The created XMPP JID
+ * @returns {array} .rooms - Rooms the user was subscribed to
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * PERMISSIONS & LIMITS
+ * ───────────────────────────────────────────────────────────────────────────
+ * @permissions internal
+ * @rateLimit 10/minute
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * ERRORS & RECOVERY
+ * ───────────────────────────────────────────────────────────────────────────
+ * @error MISSING_PARAMETER - instanceId not provided
+ *   @recover Provide instanceId parameter.
+ *
+ * @error XMPP_UNAVAILABLE - XMPP server not running
+ *   @recover Returns fallback: true. Bootstrap continues without messaging.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ * NOTES
+ * ───────────────────────────────────────────────────────────────────────────
+ * @note INTERNAL: Called by bootstrap - do not call directly
+ * @note Gracefully degrades if XMPP is unavailable
+ */
+export async function registerMessagingUser(params) {
+  const { instanceId, role, project } = params;
+
+  if (!instanceId) {
+    return { success: false, error: 'instanceId is required' };
+  }
+
+  if (!await isXMPPAvailable()) {
+    return { success: false, error: 'XMPP server not available', fallback: true };
+  }
+
+  try {
+    // Create/ensure user
+    const userResult = await ensureUser(instanceId);
+
+    // Ensure role room exists and note that user should join
+    if (role) {
+      await ensureRoom(`role-${role.toLowerCase()}`);
+    }
+
+    // Ensure project room exists
+    if (project) {
+      await ensureRoom(`project-${project.toLowerCase()}`);
+    }
+
+    // Ensure announcements room exists
+    await ensureRoom('announcements');
+
+    return {
+      success: true,
+      jid: userResult.jid,
+      created: userResult.created || false,
+      rooms: {
+        role: role ? `role-${role.toLowerCase()}@${XMPP_CONFIG.conference}` : null,
+        project: project ? `project-${project.toLowerCase()}@${XMPP_CONFIG.conference}` : null,
+        announcements: `announcements@${XMPP_CONFIG.conference}`
+      }
+    };
+
+  } catch (error) {
+    await logger.error('registerMessagingUser failed', { error: error.message, params });
+    return { success: false, error: error.message };
+  }
+}
+
+// Export handler object for server.js integration
+export const handlers = {
+  send_message: sendMessage,
+  get_messages: getMessages,
+  get_message: getMessage,
+  get_presence: getPresence,
+  lookup_shortname: lookupShortname,
+  get_messaging_info: getMessagingInfo,
+  register_messaging_user: registerMessagingUser
+};
+
+export default handlers;

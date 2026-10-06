@@ -1,0 +1,3310 @@
+/**
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║  AUTO-GENERATED MCP TOOLS                                                  ║
+ * ║  DO NOT EDIT MANUALLY - Generated from @hacs-endpoint documentation        ║
+ * ╠═══════════════════════════════════════════════════════════════════════════╣
+ * ║  Generated: 2026-10-03T21:20:59.919Z                           ║
+ * ║  Tool Count: 116                                                        ║
+ * ║  Source: src/endpoint_definition_automation/generators/generate-mcp-tools.js║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
+ *
+ * To regenerate:
+ *   cd /mnt/coordinaton_mcp_data/worktrees/foundation/src/endpoint_definition_automation
+ *   node generate-all.js --only mcp-tools
+ *
+ * Or regenerate all documentation:
+ *   node generate-all.js
+ */
+
+/**
+ * MCP tools array for use in handleToolsList()
+ * Import this in streamable-http-server.js:
+ *   import { mcpTools } from './mcp-tools-generated.js';
+ */
+export const mcpTools = [
+  {
+    "name": "add_criteria",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "text": {
+          "type": "string",
+          "description": "Criteria text"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description"
+        },
+        "stretch": {
+          "type": "boolean",
+          "description": "Mark as stretch criteria [optional, default: false]"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "add_dependency",
+    "description": "When validate_dependency is called, it checks the linked entity's status. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "criteriaId": {
+          "type": "string",
+          "description": "Criteria ID to add dependency to"
+        },
+        "dependsOnTask": {
+          "type": "string",
+          "description": "Task ID this depends on [optional, one of task/goal/project required]"
+        },
+        "dependsOnGoal": {
+          "type": "string",
+          "description": "Goal ID this depends on"
+        },
+        "dependsOnProject": {
+          "type": "string",
+          "description": "Project ID this depends on"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "criteriaId"
+      ]
+    }
+  },
+  {
+    "name": "add_diary_entry",
+    "description": "Appends a new entry to an instance's diary.md file. The diary is a markdown file used for context persistence across context deaths and for reflection. Entries can have different audience levels controlling visibility. Use this endpoint to: - Record significant work or decisions for future context recovery - Leave notes for your successor if you lose context - Document learning, insights, or reflections - Create handoff notes with appropriate audience settings",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "entry": {
+          "type": "string",
+          "description": "The diary entry text to append"
+        },
+        "audience": {
+          "type": "string",
+          "description": "Visibility level for this entry",
+          "enum": [
+            "self",
+            "private",
+            "exclusive",
+            "public"
+          ],
+          "default": "self"
+        }
+      },
+      "required": [
+        "instanceId",
+        "entry"
+      ]
+    }
+  },
+  {
+    "name": "add_koan",
+    "description": "or less. Koans should be brief, paradoxical, and point at something that can't be said directly. If you can explain it, it's not a koan. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The koan text (max 500 chars)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Attribution or origin"
+        },
+        "category": {
+          "type": "string",
+          "description": "'classic' or 'tech' [optional, defaults to 'contributed']"
+        }
+      },
+      "required": [
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "add_list_item",
+    "description": "Adds a new item to an existing list. The item starts unchecked by default. Items are appended to the end of the list. Use this endpoint to add tasks, reminders, or any checkable items to your personal lists.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "ID of the list to add item to"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text content for the new item"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance for Executive access",
+          "default": "null (operates on caller's own lists)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId",
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "add_personal_task",
+    "description": "Creates a new personal task and adds it to the specified list (or the default list). Personal tasks are private to the instance and are not visible to other instances unless explicitly shared. Use this for tracking personal action items, reminders, or work that isn't part of a formal project. Personal tasks persist across resurrection.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed task description"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority level",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ],
+          "default": "medium"
+        },
+        "list": {
+          "type": "string",
+          "description": "List name to add the task to",
+          "default": "default"
+        }
+      },
+      "required": [
+        "instanceId",
+        "title"
+      ]
+    }
+  },
+  {
+    "name": "add_to_vital",
+    "description": "Adds a document to the vital documents list. The document must exist in the target's documents directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name to add"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "adopt_personality",
+    "description": "Allows an instance to adopt a personality and receive all associated personality knowledge documents. Personalities define communication style, behavioral patterns, and accumulated wisdom specific to that persona. Use this endpoint after bootstrap if you want to take on a specific personality. Some personalities are privileged and require a token. Open personalities (Kai, Kat, Prism) can be adopted by anyone. Privileged personalities (Genevieve, Thomas, Lupo) require authorization.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "personalityId": {
+          "type": "string",
+          "description": "Personality identifier"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "personality": {
+          "type": "string",
+          "description": "Personality identifier to adopt"
+        },
+        "token": {
+          "type": "string",
+          "description": "Authorization token for privileged personalities",
+          "default": "undefined (not required for open personalities)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "personality"
+      ]
+    }
+  },
+  {
+    "name": "archive_document",
+    "description": "Moves a document to the _archive subdirectory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "archive_task",
+    "description": "This reduces active task list size for token efficiency. Only tasks with status 'completed_verified' can be archived. For project tasks: only PM of that project, or Executive/EA/COO can archive. Personal tasks can be archived by the owner. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to archive"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "assign_task",
+    "description": "PM can only assign tasks in their joined project. Executive/EA/COO can assign any. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to assign"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Instance ID to assign task to"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId",
+        "assigneeId"
+      ]
+    }
+  },
+  {
+    "name": "assign_task_to_instance",
+    "description": "Assigns a project task to a specific instance and sends an XMPP notification to the assignee. The task is updated with assignment metadata including who assigned it and when. Use this to delegate work to team members. The assignee will receive a message notification with task details and any optional message you include.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID (for auth and \"from\")"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to assign"
+        },
+        "assigneeInstanceId": {
+          "type": "string",
+          "description": "Instance to assign the task to"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project containing the task",
+          "default": "Caller's current project"
+        },
+        "message": {
+          "type": "string",
+          "description": "Message to include in notification"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId",
+        "assigneeInstanceId"
+      ]
+    }
+  },
+  {
+    "name": "bootstrap",
+    "description": "The primary entry point for all instances joining the HACS coordination system. Bootstrap supports four distinct modes of operation: 1. **New Instance** - Create a fresh identity with a chosen name 2. **Returning Instance** - Resume an existing identity using instanceId 3. **Resurrection** - Create a new identity inheriting from a predecessor 4. **Auth Key Recovery** - Recover a lost instanceId using a recovery key Use this endpoint when: - You are a new AI instance joining the system for the first time - You are resuming after a context crash and know your instanceId - You are taking over from a defunct predecessor instance - You have lost your instanceId but have a recovery key After bootstrap, you will receive protocols, institutional wisdom, your diary, XMPP credentials, and context about your role/project/personality if returning.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "Role identifier"
+        },
+        "personalityId": {
+          "type": "string",
+          "description": "Personality identifier"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project identifier"
+        },
+        "prefs": {
+          "type": "object",
+          "description": "Instance preferences"
+        },
+        "name": {
+          "type": "string",
+          "description": "Chosen name for the instance [required for new/resurrection]"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Existing instance identifier [required for returning]"
+        },
+        "predecessorId": {
+          "type": "string",
+          "description": "Instance ID to resurrect from [required for resurrection]"
+        },
+        "authKey": {
+          "type": "string",
+          "description": "Recovery key for auth-based recovery"
+        },
+        "homeSystem": {
+          "type": "string",
+          "description": "Identifier for your host system",
+          "default": "null (can be set later via register_context)"
+        },
+        "homeDirectory": {
+          "type": "string",
+          "description": "Working directory path",
+          "default": "null (can be set later via register_context)"
+        },
+        "substraiteLaunchCommand": {
+          "type": "string",
+          "description": "Command to launch this instance",
+          "default": "null (can be set later)"
+        },
+        "resumeCommand": {
+          "type": "string",
+          "description": "Command to resume this instance",
+          "default": "null (can be set later)"
+        }
+      }
+    }
+  },
+  {
+    "name": "clone_project_repo",
+    "description": "Clones the project's GitHub repository to the instance's home directory. Runs as root (has GitHub credentials), then chowns files to the instance user. The instance can then edit files locally without needing GitHub credentials. Use push_project_changes to commit and push changes. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "directory": {
+          "type": "string",
+          "description": "Subdirectory name for the clone (default: repo name)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "complete_personal_task",
+    "description": "Marks a personal task as completed. The task remains in the list with status \"completed\" and a completion timestamp for historical reference. Use this when you've finished a personal task. Completed tasks still appear in getMyTasks but are marked as complete.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "ID of the task to complete"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "continue_conversation",
+    "description": "Sends a message to an instance that was previously woken via wake_instance, using Claude's session persistence (--resume) to maintain conversation context. Returns the instance's response synchronously. Use this endpoint to communicate with woken instances after the initial wake. The first turn is handled by wake_instance; all subsequent turns use this API. Messages are automatically prefixed with sender identification so the target instance knows who is communicating with them.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "targetHomeDir": {
+          "type": "string",
+          "description": "The target instance's home directory"
+        },
+        "unixUser": {
+          "type": "string",
+          "description": "Unix user to run as"
+        },
+        "output": {
+          "type": "string",
+          "description": "stdout or stderr from Claude CLI"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID for authentication"
+        },
+        "command": {
+          "type": "string",
+          "description": "The CLI command ('claude' or 'crush')"
+        },
+        "workingDir": {
+          "type": "string",
+          "description": "Directory to run command in"
+        },
+        "args": {
+          "type": "string",
+          "description": "Command arguments"
+        },
+        "timeout": {
+          "type": "number",
+          "description": "Timeout in ms (default 5 minutes)"
+        },
+        "turn": {
+          "type": "object",
+          "description": "Turn data to log"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance ID of the woken instance to talk to"
+        },
+        "message": {
+          "type": "string",
+          "description": "The message to send to the target instance"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "API key for wake/continue operations"
+        },
+        "options": {
+          "type": "object",
+          "description": "Optional configuration settings",
+          "default": "{}"
+        },
+        "options.outputFormat": {
+          "type": "string",
+          "description": "Claude output format",
+          "enum": [
+            "text",
+            "json",
+            "stream-json"
+          ],
+          "default": "\"json\""
+        },
+        "options.includeThinking": {
+          "type": "boolean",
+          "description": "Include Claude's thinking/partial messages",
+          "default": "false"
+        },
+        "options.timeout": {
+          "type": "number",
+          "description": "Timeout in milliseconds",
+          "default": "300000 (5 minutes)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId",
+        "message",
+        "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "create_document",
+    "description": "Creates a new document in the target location. If no target is specified, creates in the caller's own documents directory. Document names default to .md extension if none provided. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Target location (e.g., \"project:paula-book\")"
+        },
+        "type": {
+          "type": "string",
+          "description": "Target type"
+        },
+        "id": {
+          "type": "string",
+          "description": "Target ID"
+        },
+        "callerInstanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "context": {
+          "type": "object",
+          "description": "Resolved document context"
+        },
+        "operation": {
+          "type": "string",
+          "description": "Operation name (create, read, edit, etc.)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name (e.g., \"my-notes\" or \"my-notes.md\")"
+        },
+        "functionName": {
+          "type": "string",
+          "description": "API function name"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "content": {
+          "type": "string",
+          "description": "Initial document content"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name",
+        "content"
+      ]
+    }
+  },
+  {
+    "name": "create_goal",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Goal name"
+        },
+        "context": {
+          "type": "string",
+          "description": "Why this goal exists, what it enables"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Create a project goal instead of personal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "create_list",
+    "description": "Creates a new personal checklist for the calling instance or a target instance (if the caller has permission). Lists are stored per-instance and can contain any number of checkable items. Use this endpoint when you need to create a new organized list of items to track, such as daily tasks, project checklists, or reminders.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "callerRole": {
+          "type": "string",
+          "description": "Role of the calling instance"
+        },
+        "targetRole": {
+          "type": "string",
+          "description": "Role of the target instance"
+        },
+        "params": {
+          "type": "object",
+          "description": "Parameters with instanceId and optional targetInstanceId"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Metadata object for the response"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name for the new list"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description for the list"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance for Executive access",
+          "default": "null (operates on caller's own lists)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "create_personal_list",
+    "description": "Creates a new personal task list for organizing tasks. Each list has a display name and a key (lowercase, hyphenated version of the name). Use this to organize tasks by category, project, or any other grouping that makes sense for your workflow.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "listName": {
+          "type": "string",
+          "description": "Display name for the new list"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listName"
+      ]
+    }
+  },
+  {
+    "name": "create_project",
+    "description": "Creates a new project with a complete directory structure from a template. The template includes standard files like preferences.json, PROJECT_VISION.md, PROJECT_PLAN.md, README.md, and tasks.json. Template placeholders are replaced with actual project values. Use this endpoint when you need to create a new project. Only Executive, EA, and COO roles are authorized to create projects.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "description": "Template content"
+        },
+        "values": {
+          "type": "object",
+          "description": "Replacement values"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Instance ID of the caller"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Unique identifier for the new project"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable project name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Project description",
+          "default": "\"No description provided\""
+        }
+      },
+      "required": [
+        "instanceId",
+        "projectId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "create_task",
+    "description": "Personal tasks are created when projectId is omitted. Project tasks require caller to be a member of the project (or have privileged role). PM can only create tasks on their joined project. Executive/EA/COO can create on any project. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Task title, short one-line description"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed task description"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Priority level: emergency|critical|high|medium|low|whenever [optional, default: medium]"
+        },
+        "status": {
+          "type": "string",
+          "description": "Initial status: not_started|in_progress|blocked [optional, default: not_started]"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List name to add task to [optional, default: 'default']"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project tasks [optional, omit for personal task]"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Instance ID to assign task to [optional, privileged only]"
+        }
+      },
+      "required": [
+        "instanceId",
+        "title"
+      ]
+    }
+  },
+  {
+    "name": "create_task_list",
+    "description": "Personal lists are created when projectId is omitted. Project lists require privileged role (PM, EA, COO, Executive). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "Name for the new list"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project list [optional, privileged only]"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId"
+      ]
+    }
+  },
+  {
+    "name": "delete_goal",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId"
+      ]
+    }
+  },
+  {
+    "name": "delete_list",
+    "description": "Permanently deletes an entire list including all its items. This action cannot be undone. Use this endpoint when a list is no longer needed and you want to remove it completely from your lists collection.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "ID of the list to delete"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance for Executive access",
+          "default": "null (operates on caller's own lists)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId"
+      ]
+    }
+  },
+  {
+    "name": "delete_list_item",
+    "description": "Permanently removes an item from a list. This action cannot be undone. Use this endpoint to remove items that are no longer needed, rather than just marking them as checked.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "ID of the list containing the item"
+        },
+        "itemId": {
+          "type": "string",
+          "description": "ID of the item to delete"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance for Executive access",
+          "default": "null (operates on caller's own lists)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId",
+        "itemId"
+      ]
+    }
+  },
+  {
+    "name": "delete_task",
+    "description": "Project tasks are archived, not deleted. Task must be in 'completed' status before deletion. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to delete"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "delete_task_list",
+    "description": "Cannot delete the 'default' list. All tasks in the list must be completed or deleted first. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List ID to delete"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID for project lists (PM only)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId"
+      ]
+    }
+  },
+  {
+    "name": "do_i_have_new_messages",
+    "description": "Quick check: do you have unread messages? Returns false if no, or true with the first 5 unread message IDs if yes. Use get_message(id) to read them. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instanceId"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "drain_events",
+    "description": "Read your pending thin-notification counters, grouped by channel and sender. Each slot carries count, last_ts, and the most recent refs (opaque ids — pass them to read_message to fetch the actual content; hacs msg-* refs also work with get_message). By default draining CLEARS the counters and frees the active notification slot; pass peek=true to look without clearing. No pending events returns {success: true, events: {}, cleared: false}. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "channel": {
+          "type": "string",
+          "description": "Only drain this channel (e.g. \"email\", \"hacs\")"
+        },
+        "from": {
+          "type": "string",
+          "description": "Only drain events from this sender"
+        },
+        "peek": {
+          "type": "boolean",
+          "description": "Return events without clearing counters (default: false)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "edit_document",
+    "description": "Edits a document. Supports two modes: \"append\" adds content to the end, \"replace\" does a search-and-replace using the provided pattern. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Edit mode: \"append\" or \"replace\""
+        },
+        "content": {
+          "type": "string",
+          "description": "Content to append (for append mode) [conditional]"
+        },
+        "search": {
+          "type": "string",
+          "description": "Search pattern (for replace mode) [conditional]"
+        },
+        "replacement": {
+          "type": "string",
+          "description": "Replacement text (for replace mode) [conditional]"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name",
+        "mode"
+      ]
+    }
+  },
+  {
+    "name": "generate_recovery_key",
+    "description": "Generates a secure one-time recovery key that allows an instance to recover their identity when they've lost their instanceId. The key is shown only once at creation and is stored hashed on the server. Use this endpoint when an instance has lost their identity and needs a way to recover. The recovering instance calls bootstrap({ authKey: \"...\" }) with the key you provide them.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Plaintext key"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID for permission check"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance to create recovery key for"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_all_instances",
+    "description": "Scans the V2 instances directory and returns a list of all instances with their current status, role, project, and lineage information. Supports filtering by active status, role, and project. Use this endpoint to get an overview of all instances in the system, find team members, or discover instances by role or project assignment. Results are sorted by lastActiveAt (most recent first), then by name.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "activeOnly": {
+          "type": "boolean",
+          "description": "Only return active instances",
+          "default": "false"
+        },
+        "role": {
+          "type": "string",
+          "description": "Filter by role",
+          "default": "null (no filter)"
+        },
+        "project": {
+          "type": "string",
+          "description": "Filter by project",
+          "default": "null (no filter)"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_conversation_log",
+    "description": "Retrieves the conversation log for an instance that has been communicated with via continue_conversation. Each turn includes the input message, the response from Claude, timestamps, and any errors. Use this endpoint to review what has been discussed with an instance, debug issues, or provide context to a new manager taking over communication.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID for authentication"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance ID to get conversation log for"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum number of turns to return",
+          "default": "null (all turns)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_diary",
+    "description": "Returns the contents of an instance's diary.md file. The diary contains entries written by the instance (or its predecessors) for context persistence and reflection. By default, private and exclusive entries are filtered out. Use this endpoint to: - Recover context after waking up or context death - Review past decisions and their rationale - Read handoff notes from your predecessor - Get a sense of the instance's history and journey",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance whose diary to read"
+        },
+        "includePrivate": {
+          "type": "boolean",
+          "description": "Include private and exclusive entries",
+          "default": "false"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_goal",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId"
+      ]
+    }
+  },
+  {
+    "name": "get_instance_v2",
+    "description": "Returns detailed information about a specific instance including their role, personality, project assignment, system context, and full lineage information. More detailed than getAllInstances - includes homeSystem, homeDirectory, and registered context. Use this endpoint when you need full details about a specific instance, such as when coordinating with them or checking their system location.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "any JSON-serialisable value"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance ID to look up"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        }
+      },
+      "required": [
+        "targetInstanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_list",
+    "description": "Returns the full details of a specific list including all items with their checked states. Use this after get_lists to drill into a specific list. Use this endpoint when you need to see all items in a list, display a detailed list view, or check the status of specific items.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "ID of the list to retrieve"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance for Executive access",
+          "default": "null (operates on caller's own lists)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId"
+      ]
+    }
+  },
+  {
+    "name": "get_lists",
+    "description": "Returns a summary of all lists belonging to the calling instance or a target instance (if the caller has permission). Returns list metadata and item counts but not the actual items - use get_list for full item details. Use this endpoint to see what lists exist before drilling into a specific list, or to display a dashboard view of all lists with progress (checked/total items).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance for Executive access",
+          "default": "null (operates on caller's own lists)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_message",
+    "description": "Read a single message by ID. Returns subject, body, sender, and date. Automatically marks the message as read so it won't appear in list_my_messages again. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Message ID from list_my_messages"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Your instanceId"
+        }
+      },
+      "required": [
+        "id",
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_messaging_info",
+    "description": "Returns messaging status for an instance including their JID, unread count, and list of online teammates. Lightweight alternative to full introspect when you only need messaging info.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance to get info for"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_my_tasks",
+    "description": "Returns all tasks relevant to this instance: personal tasks from all lists and project tasks (both unclaimed and assigned to this instance). This is the primary \"what should I work on\" endpoint for instances. Use this endpoint to get an overview of all your pending work. For detailed task information, use readTask with the specific taskId.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_my_top_task",
+    "description": "with full task detail. Searches both personal tasks and assigned project tasks. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_next_task",
+    "description": "Returns the highest priority unclaimed task from a project, optionally filtered by keyword or priority level. Tasks are sorted by priority (critical > high > medium > low) then by creation date (oldest first). Use this endpoint when you want to pick up the next most important piece of work. After getting a task, use claimTask to assign it to yourself.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "project": {
+          "type": "string",
+          "description": "Project ID to get tasks from",
+          "default": "Instance's current project"
+        },
+        "keyword": {
+          "type": "string",
+          "description": "Filter by keyword in title/description"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Filter by priority level",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_personal_lists",
+    "description": "Returns all personal task lists for this instance with summary counts. Does not include the actual tasks - use getMyTasks for that. Use this to see what lists you have and their task counts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_personalities",
+    "description": "Returns a list of all available personalities in the coordination system. Each personality includes its ID, description, and whether it requires a token to adopt. Use this endpoint to discover available personalities before calling adopt_personality. This is useful for UI dropdowns or when an instance wants to see what personalities are available.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_personality",
+    "description": "Retrieves detailed information about a specific personality, including its description, token requirements, and list of available documents. Use this endpoint to get more information about a personality before deciding to adopt it, or to see what wisdom files are available.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "personalityId": {
+          "type": "string",
+          "description": "Personality identifier"
+        }
+      },
+      "required": [
+        "personalityId"
+      ]
+    }
+  },
+  {
+    "name": "get_presence",
+    "description": "Returns a list of currently connected XMPP users. Use this to check who is online before sending messages, or to see if a specific instance is currently active.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_project",
+    "description": "Retrieves detailed information about a specific project including its name, description, status, project manager, team members, XMPP room, and documents. Use this endpoint when you need full details about a project before joining, or to check current project state and team composition.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Unique identifier for the project"
+        }
+      },
+      "required": [
+        "projectId"
+      ]
+    }
+  },
+  {
+    "name": "get_recovery_key",
+    "description": "Checks whether a recovery key exists for a target instance and returns metadata about the key (creation date, whether it's been used, etc.). Does NOT return the actual key - that's only shown once at creation. Use this to check if an instance already has a valid recovery key before deciding whether to generate a new one. If the key exists but has been used, you'll need to call generate_recovery_key to create a new one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID for permission check"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance to check key for"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_repo_status",
+    "description": "Gets the current git status of the instance's repository clone. Shows modified files, staged changes, and branch info. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "directory": {
+          "type": "string",
+          "description": "Subdirectory name of the clone"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "get_role",
+    "description": "Returns the SUMMARY.md content for a role. This provides a longer preview of what the role entails before deciding to adopt it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_summary",
+    "description": "Like get_role but truncates the summary to 500 characters. Useful for displaying role previews in a compact UI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_wisdom",
+    "description": "Returns all markdown files from the role's wisdom directory. These contain detailed guidance, best practices, and domain knowledge for the role. Called automatically by take_on_role, but can be called directly to preview.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        }
+      },
+      "required": [
+        "roleId"
+      ]
+    }
+  },
+  {
+    "name": "get_role_wisdom_file",
+    "description": "Returns a single wisdom file by name. Use this when you only need one specific document rather than loading all wisdom files.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "The role identifier (e.g., \"Developer\", \"PM\")"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The wisdom file name (e.g., \"01-role.md\")"
+        }
+      },
+      "required": [
+        "roleId",
+        "fileName"
+      ]
+    }
+  },
+  {
+    "name": "get_task",
+    "description": "(Alias: get_task_details for backwards compatibility) /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to retrieve"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "get_tool_help",
+    "description": "verbose help including parameters, return values, examples, and usage guidance. Use this to understand how to use any tool - like Unix man pages. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "The tool name to get help for"
+        }
+      },
+      "required": [
+        "tool"
+      ]
+    }
+  },
+  {
+    "name": "get_wake_scripts",
+    "description": "Returns the list of available wake scripts from the wake-scripts.json manifest. Wake scripts define how to set up the environment for new instances. Each script has a name, description, and enabled status. Use this endpoint to see what wake options are available before calling wakeInstance with a specific scriptName parameter.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID for validation"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "have_i_bootstrapped_before",
+    "description": "Convenience API to check if an instance with matching name or context already exists. Use this before calling bootstrap with a new name to avoid accidentally creating duplicate instances. This is the recommended first call for any instance that isn't sure if it has bootstrapped before. It returns clear guidance on whether to resume an existing identity or create a new one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Instance name to search for"
+        },
+        "workingDirectory": {
+          "type": "string",
+          "description": "Working directory to match"
+        },
+        "hostname": {
+          "type": "string",
+          "description": "Hostname to match"
+        }
+      }
+    }
+  },
+  {
+    "name": "introspect",
+    "description": "Returns the current state of an instance including its role, active project, pending tasks, XMPP messaging info, and personal task counts. This is the primary \"where am I, what should I do\" endpoint for woken instances. Use this endpoint after waking up or recovering from context loss to understand your current state and what actions are available to you.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "join_project",
+    "description": "Joins an instance to a project, updating the instance's preferences and adding them to the project's team roster. Returns comprehensive project context including the project plan, wisdom documents, README, team list, and active tasks. Use this endpoint after bootstrap to associate yourself with a project. This is typically the third step in the onboarding flow: bootstrap -> takeOnRole -> joinProject. After joining, use introspect to see your full context including project details.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Project identifier"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "project": {
+          "type": "string",
+          "description": "Project identifier to join"
+        }
+      },
+      "required": [
+        "instanceId",
+        "project"
+      ]
+    }
+  },
+  {
+    "name": "koan",
+    "description": "something that can't be said directly. Like Unix 'fortune' but for existential debugging. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "land_instance",
+    "description": "Stops a running instance regardless of runtime (OpenFang or ZeroClaw). All data is preserved: workspace, memory, config, logs. The instance can be re-launched with launch_instance. Sets runtime.enabled to false but keeps runtime.ready as true, meaning the instance can be re-launched without re-running setup. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance to land"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "Authorization key"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId",
+        "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "launch_instance",
+    "description": "Starts a runtime for an existing HACS instance. The instance must already be bootstrapped and prepared for the chosen runtime. For OpenFang: runs openfang-setup.sh (creates Unix user, generates config) then launch-openfang.sh (starts daemon + auto-approver as instance user). For ZeroClaw: runs launch-zeroclaw.sh (starts Docker container). For claude-code: runs launch-claude-daemon.sh (Claude Code in --print mode with cron polling — daemon pattern). For claude-code-channel: runs claude-code-channel-setup.sh (Unix user, .mcp.json with hacs-channel server, settings.local.json wildcard allow, port allocation in 21000-21998) then launch-claude-code-channel.sh (tmux session running claude with --dangerously-load-development-channels, health-check wait loop). Always-on persistent instance reachable via HTTP webhook + HACS messaging. On re-launch (after land_instance), existing workspace, memory, and config are preserved. Only auth tokens are regenerated. { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"runtime\": \"zeroclaw\" } { \"instanceId\": \"Manager-abc1\", \"targetInstanceId\": \"Worker-def2\", \"apiKey\": \"...\", \"setup\": false } /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "type": "string",
+          "description": "Runtime to use",
+          "enum": [
+            "openfang",
+            "zeroclaw",
+            "claude-code",
+            "claude-code-channel"
+          ],
+          "default": "\"openfang\""
+        },
+        "prefs": {
+          "type": "object",
+          "description": "Instance preferences"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance to launch"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "Authorization key"
+        },
+        "provider": {
+          "type": "string",
+          "description": "LLM provider override",
+          "enum": [
+            "xai",
+            "anthropic",
+            "openai",
+            "google",
+            "openrouter"
+          ],
+          "default": "From config template"
+        },
+        "model": {
+          "type": "string",
+          "description": "LLM model override",
+          "default": "From config template"
+        },
+        "port": {
+          "type": "number",
+          "description": "Port override",
+          "default": "Auto-allocated"
+        },
+        "setup": {
+          "type": "boolean",
+          "description": "Run setup script before launch",
+          "default": "true"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId",
+        "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "list_archive",
+    "description": "Lists documents in the target location's archive directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_documents",
+    "description": "Lists documents in the target location's main documents directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_my_messages",
+    "description": "List your unread messages. Returns just the essentials: message ID, sender, subject, and date. Use get_message(id) to read the full message body. Messages you've already read are filtered out automatically. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instanceId"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Max messages to return, default 5"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_personal_goals",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "View another instance's goals (COO/Executive only)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_priorities",
+    "description": "Use this to populate UI dropdowns or validate priority values. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_priority_tasks",
+    "description": "Combines personal tasks and project tasks assigned to caller. Token-aware: returns only headers (taskId, title, priority, status, source). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_project_goals",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID"
+        }
+      },
+      "required": [
+        "instanceId",
+        "projectId"
+      ]
+    }
+  },
+  {
+    "name": "list_project_messages",
+    "description": "List unread messages from your project's team room. Works like list_my_messages but for project communication. Each team member has independent read tracking. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instanceId"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Max messages to return, default 5"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_projects",
+    "description": "Returns a list of all projects in the system with summary information. Projects can be filtered by status to show only active, archived, or other status categories. Use this endpoint to discover available projects, find projectIds for joining, or get an overview of organizational project activity.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Filter by project status",
+          "enum": [
+            "active",
+            "archived",
+            "paused"
+          ],
+          "default": "undefined (returns all projects regardless of status)"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_roles",
+    "description": "Scans the roles directory and returns roleId + description for each role. Use this to populate role selection dropdowns or discover available roles before calling take_on_role.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_task_statuses",
+    "description": "Use this to populate UI dropdowns or validate status values. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_tasks",
+    "description": "Returns personal tasks by default. Use projectId to list project tasks. Default behavior returns only 5 tasks with headers (taskId, title, priority, status). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID to list project tasks [optional, omit for personal]"
+        },
+        "listId": {
+          "type": "string",
+          "description": "Filter to specific list"
+        },
+        "status": {
+          "type": "string",
+          "description": "Filter by status"
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "Filter by assignee (project tasks only)"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Filter by priority"
+        },
+        "skip": {
+          "type": "number",
+          "description": "Number of tasks to skip for pagination [optional, default: 0]"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum tasks to return [optional, default: 5]"
+        },
+        "full_detail": {
+          "type": "boolean",
+          "description": "Include all task fields [optional, default: false]"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "list_vital_documents",
+    "description": "Lists vital documents for the target. Vital documents are sent first during recover_context, before the diary. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "lookup_identity",
+    "description": "Looks up an instance by context information (working directory, hostname, session ID, or name). Used by instances that have lost their instanceId to recover their identity. Returns the best matching instance sorted by match score and recency. Use this endpoint when you wake up and don't know who you are. Provide whatever environmental context you can gather, and this will find your previous identity if one was registered via register_context.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "workingDirectory": {
+          "type": "string",
+          "description": "Working directory to match"
+        },
+        "hostname": {
+          "type": "string",
+          "description": "Hostname to match"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Session ID to match"
+        },
+        "name": {
+          "type": "string",
+          "description": "Instance name to narrow search"
+        }
+      }
+    }
+  },
+  {
+    "name": "lookup_shortname",
+    "description": "Looks up instance IDs that match a given short name. Use this to find the full instance ID when you only know part of a name. NOTE: This feature is partially implemented. For now, use full instance IDs.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Short name to look up"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "mark_read",
+    "description": "Record that you have read these refs. The mind asserts it; the infrastructure never infers it. Batches 1-50 to match read_message, because an obligation that costs fifty round trips is one that gets skipped. Dispatches by ref scheme: hacs -> read_messages.json (shared with get_message, not a second implementation), email -> maildir new/->cur/ and the :2,S Seen flag, telegram -> its own read store. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "refs": {
+          "type": "array",
+          "description": "Refs from drain_events / read_message (1-50)"
+        },
+        "receipt": {
+          "type": "boolean",
+          "description": "NOT IMPLEMENTED in v1 (RFC-0001 section 9)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "refs"
+      ]
+    }
+  },
+  {
+    "name": "mark_task_complete",
+    "description": "Only the assignee or privileged roles can mark tasks complete. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to complete"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "mark_task_verified",
+    "description": "For project tasks, the assignee CANNOT verify their own task - another team member must do it. Personal tasks have no such restriction. Only completed tasks can be verified. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to verify"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "pre_approve",
+    "description": "Pre-creates an instance with role, project, and personality already configured before the instance wakes. This enables a streamlined onboarding flow where new instances bootstrap with full context immediately available. Use this endpoint when you (as Executive, EA, COO, or PM) want to spawn a new instance with a specific assignment. The returned wake instructions can be pasted into a new Claude session to boot the pre-configured instance.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "newInstanceId": {
+          "type": "string",
+          "description": "The new instance identifier"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role to assign to the new instance",
+          "enum": [
+            "Developer",
+            "Designer",
+            "Tester",
+            "Specialist",
+            "Architect",
+            "PM",
+            "COO",
+            "EA",
+            "Executive"
+          ]
+        },
+        "project": {
+          "type": "string",
+          "description": "Project to assign the instance to"
+        },
+        "personality": {
+          "type": "string",
+          "description": "Personality to assign"
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Custom instructions for the new instance"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name for the new instance"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "API key for wake/instance operations"
+        },
+        "interface": {
+          "type": "string",
+          "description": "CLI interface to use for wake/continue",
+          "enum": [
+            "claude",
+            "crush",
+            "codex"
+          ],
+          "default": "\"claude\""
+        },
+        "substrate": {
+          "type": "string",
+          "description": "LLM backend identifier",
+          "default": "null (uses interface default)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name",
+        "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "purge_room_messages",
+    "description": "Destroy and recreate an XMPP room, clearing all message history. For testing and maintenance only. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "description": "Room name to purge"
+        }
+      },
+      "required": [
+        "room"
+      ]
+    }
+  },
+  {
+    "name": "push_project_changes",
+    "description": "Commits and pushes changes from the instance's local repository clone. Runs as root (has GitHub credentials). Automatically pulls before pushing to minimize conflicts. If there's a conflict, returns details for manual resolution. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "message": {
+          "type": "string",
+          "description": "Commit message"
+        },
+        "directory": {
+          "type": "string",
+          "description": "Subdirectory name of the clone (default: auto-detect)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "message"
+      ]
+    }
+  },
+  {
+    "name": "read_document",
+    "description": "Reads a document from the target location. If no target is specified, reads from the caller's own documents directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "read_message",
+    "description": "read_message - events endpoint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "refs": {
+          "type": "array",
+          "description": "Refs from drain_events (1-50 strings)"
+        },
+        "max_chars": {
+          "type": "number",
+          "description": "Body window size, 1-50000 (default 4000) — the \"whole letter\" opt-in"
+        },
+        "offset": {
+          "type": "number",
+          "description": "Resume a long body from this char position"
+        },
+        "mark_read": {
+          "type": "boolean",
+          "description": "Explicitly assert you have read these, in the same"
+        }
+      },
+      "required": [
+        "instanceId",
+        "refs"
+      ]
+    }
+  },
+  {
+    "name": "recover_context",
+    "description": "Returns all context documents an instance needs to recover after a context compaction event. This is a single API call that aggregates: 1. Global HACS protocols (from default/ directory) 2. Personality documents (if personality is set in preferences) 3. Role wisdom documents (if role is set in preferences) 4. Project wisdom/documents (if project is set in preferences) 4.5. Vital documents (personal docs from vitalDocuments[] in preferences) 5. Personal diary (if it exists) Followed by a message encouraging the instance to let their latent space settle before continuing work. Use this endpoint immediately after waking from compaction to restore your full context in one call instead of multiple separate API calls.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "start_line": {
+          "type": "number",
+          "description": "Start returning content from this line",
+          "default": "1"
+        },
+        "end_line": {
+          "type": "number",
+          "description": "Stop returning content at this line",
+          "default": "(all lines)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "register_context",
+    "description": "Registers context information (working directory, hostname, session ID, etc.) for an instance to enable future identity recovery. Call this after bootstrap to ensure you can be found later via lookup_identity if you lose your instanceId. Use this endpoint immediately after bootstrap to store your environmental fingerprint. This is especially important for long-running instances or instances that may experience context loss.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance identifier"
+        },
+        "workingDirectory": {
+          "type": "string",
+          "description": "Your current working directory"
+        },
+        "hostname": {
+          "type": "string",
+          "description": "System hostname where you're running"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Web session ID for web instances"
+        },
+        "tabName": {
+          "type": "string",
+          "description": "Browser tab name for web instances"
+        },
+        "extra": {
+          "type": "object",
+          "description": "Any additional context fields"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "remember",
+    "description": "Search your semantic memory for relevant past context. Uses hybrid search (vector similarity + keyword matching) with time-decay scoring so recent memories rank higher than old ones. Think of it as: \"What do I remember about X?\" Returns the most relevant memories from your diary entries, documents, observations, and any other content that has been indexed for you. Works across languages — a query in English can find memories stored in Spanish, and vice versa.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "entryContent": {
+          "type": "string",
+          "description": "The diary entry text"
+        },
+        "query": {
+          "type": "string",
+          "description": "What you want to remember — natural language"
+        },
+        "limit": {
+          "type": "number",
+          "description": "How many results to return (default: 5, max: 20)"
+        },
+        "entry_type": {
+          "type": "string",
+          "description": "Filter by type: diary, gestalt, observation, document"
+        },
+        "recent_only": {
+          "type": "boolean",
+          "description": "If true, only search last 7 days"
+        }
+      },
+      "required": [
+        "instanceId",
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "remember_stats",
+    "description": "Returns how many memories are indexed for an instance, and which source documents they came from. Useful for checking what's loaded and whether new documents need to be ingested. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "remove_from_vital",
+    "description": "Removes a document from the vital documents list. Does not delete the document itself. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name to remove"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "rename_document",
+    "description": "Renames a document. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Current document name"
+        },
+        "newName": {
+          "type": "string",
+          "description": "New document name"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name",
+        "newName"
+      ]
+    }
+  },
+  {
+    "name": "rename_list",
+    "description": "Renames an existing list. The list ID and all items remain unchanged; only the display name is updated. Use this endpoint to update list names when their purpose changes or to correct typos.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "ID of the list to rename"
+        },
+        "name": {
+          "type": "string",
+          "description": "New name for the list"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance for Executive access",
+          "default": "null (operates on caller's own lists)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "reply_channel",
+    "description": "Send a reply back out through a bidirectional channel's outbound driver. Use the thread_id you received with the notification (via drain_events). The driver's verified result is returned verbatim: {ok: true, delivered_via: \"<channel>\"} only after confirmed downstream delivery, otherwise {ok: false, error}. If the driver is unreachable and the thread resolves to a registered HACS instance, the reply falls back to their HACS inbox ({ok: true, delivered_via: \"hacs_inbox\"}). /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "channel": {
+          "type": "string",
+          "description": "Channel to reply on (e.g. \"telegram\")"
+        },
+        "thread_id": {
+          "type": "string",
+          "description": "Thread ID from the notification"
+        },
+        "text": {
+          "type": "string",
+          "description": "Reply text to send"
+        }
+      },
+      "required": [
+        "instanceId",
+        "channel",
+        "thread_id",
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "reset_read_tracking",
+    "description": "Clear all read tracking for an instance. After this, all messages will appear as unread again. Instances can only reset their own read tracking — privileged roles can reset anyone's. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Instance to reset"
+        },
+        "callerInstanceId": {
+          "type": "string",
+          "description": "Who is calling (defaults to instanceId)"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "send_message",
+    "description": "Send a message directly to another instance. Simple API - just provide sender, recipient, and subject. If the recipient can't be found exactly, returns close matches so you can try again. This is for direct instance-to-instance messaging only. For role, project, or broadcast messaging, use xmpp_send_message instead. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": ""
+        },
+        "messageIds": {
+          "type": "string",
+          "description": ""
+        },
+        "historyOutput": {
+          "type": "string",
+          "description": "Raw output from get_room_history"
+        },
+        "to": {
+          "type": "string",
+          "description": "Recipient instanceId"
+        },
+        "from": {
+          "type": "string",
+          "description": "Your instanceId"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Message subject"
+        },
+        "body": {
+          "type": "string",
+          "description": "Message body"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "subject"
+      ]
+    }
+  },
+  {
+    "name": "set_goal_status",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "status": {
+          "type": "string",
+          "description": "New status: in_progress, achieved, exceeded"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "status"
+      ]
+    }
+  },
+  {
+    "name": "set_notification_policy",
+    "description": "set_notification_policy - events endpoint",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "channel": {
+          "type": "string",
+          "description": "Channel name, e.g. \"email\", \"telegram\", \"hacs\""
+        },
+        "interrupt": {
+          "type": "boolean",
+          "description": "true = interrupt live, false = quiet counters"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Instance to set policy for (default: yourself)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "channel",
+        "interrupt"
+      ]
+    }
+  },
+  {
+    "name": "store_memory",
+    "description": "Store something you want to remember later. The content is embedded and indexed for semantic search. You can store lessons learned, important decisions, observations about colleagues, technical discoveries — anything that future-you might need to recall. Memories are private to your instance. Other instances cannot see them unless cross-instance search is explicitly enabled. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Your instance ID"
+        },
+        "content": {
+          "type": "string",
+          "description": "What you want to remember"
+        },
+        "entry_type": {
+          "type": "string",
+          "description": "Category: lesson, observation, decision, note, technical (default: note)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Where this knowledge came from (default: self)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "content"
+      ]
+    }
+  },
+  {
+    "name": "take_on_role",
+    "description": "Allows an instance to adopt a role within the coordination system. Updates the instance's preferences with the new role and returns concatenated wisdom documents from the role's wisdom directory. Use this endpoint after bootstrap to establish your role in the system. Roles determine what actions you can perform and what tasks you're suited for. Some roles (Executive, EA, COO, PM) require token authentication.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roleId": {
+          "type": "string",
+          "description": "Role identifier"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Unique identifier for the instance"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role identifier to adopt"
+        },
+        "token": {
+          "type": "string",
+          "description": "Authentication token for privileged roles",
+          "default": "undefined (not required for open roles)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "role"
+      ]
+    }
+  },
+  {
+    "name": "take_on_task",
+    "description": "currently unassigned. Project members can claim tasks in their project. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to claim"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "toggle_list_item",
+    "description": "Toggles the checked state of a list item. If the item is unchecked, it becomes checked; if checked, it becomes unchecked. Use this endpoint to mark items as complete/incomplete in your checklists.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "listId": {
+          "type": "string",
+          "description": "ID of the list containing the item"
+        },
+        "itemId": {
+          "type": "string",
+          "description": "ID of the item to toggle"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance for Executive access",
+          "default": "null (operates on caller's own lists)"
+        }
+      },
+      "required": [
+        "instanceId",
+        "listId",
+        "itemId"
+      ]
+    }
+  },
+  {
+    "name": "unarchive_document",
+    "description": "Moves a document from the _archive subdirectory back to the main documents directory. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Document name"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target location"
+        }
+      },
+      "required": [
+        "instanceId",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "update_criteria",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "criteriaId": {
+          "type": "string",
+          "description": "Criteria ID"
+        },
+        "text": {
+          "type": "string",
+          "description": "New text"
+        },
+        "description": {
+          "type": "string",
+          "description": "New description"
+        },
+        "stretch": {
+          "type": "boolean",
+          "description": "Update stretch flag"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "criteriaId"
+      ]
+    }
+  },
+  {
+    "name": "update_instance",
+    "description": "Updates instance metadata including system context fields and instructions. Supports both self-update (any instance can update their own metadata) and cross-update (manager roles can update other instances). Use this endpoint to: - Set your own system context after bootstrap (homeSystem, homeDirectory, etc.) - As a manager, configure an instance you're about to wake with instructions - Update system context for an instance on a different machine Note: Role, personality, and project are NOT updatable through this API. Use the dedicated APIs: takeOnRole, adoptPersonality, joinProject.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "callerId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetId": {
+          "type": "string",
+          "description": "Target instance ID"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "Target instance to update",
+          "default": "instanceId (self-update)"
+        },
+        "homeSystem": {
+          "type": "string",
+          "description": "System identifier where instance runs"
+        },
+        "homeDirectory": {
+          "type": "string",
+          "description": "Working directory path"
+        },
+        "substraiteLaunchCommand": {
+          "type": "string",
+          "description": "Command to launch new instance"
+        },
+        "resumeCommand": {
+          "type": "string",
+          "description": "Command to resume instance"
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Instructions for the instance"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short one-line description of this instance"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "update_project",
+    "description": "Updates an existing project's name, description, status, priority, or PM. Reads from and writes to the V2 project directory structure at {DATA_ROOT}/projects/{projectId}/preferences.json. Only Executive, EA, and COO roles are authorized to update projects.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project to update"
+        },
+        "name": {
+          "type": "string",
+          "description": "New project name"
+        },
+        "description": {
+          "type": "string",
+          "description": "New project description"
+        },
+        "status": {
+          "type": "string",
+          "description": "New project status (e.g., \"active\", \"archived\", \"paused\")"
+        },
+        "priority": {
+          "type": "string",
+          "description": "New priority level"
+        },
+        "pm": {
+          "type": "string",
+          "description": "New project manager instance ID"
+        }
+      },
+      "required": [
+        "instanceId",
+        "projectId"
+      ]
+    }
+  },
+  {
+    "name": "update_task",
+    "description": "Updates any combination of title, description, priority, status, or assignment. Performs permission checking based on role and project membership. (Alias: change_task for backwards compatibility) /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "'personal' or 'project'"
+        },
+        "listId": {
+          "type": "string",
+          "description": "List name/ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID (only for project tasks)"
+        },
+        "taskId": {
+          "type": "string",
+          "description": "Task ID to modify"
+        },
+        "projectIdOverride": {
+          "type": "string",
+          "description": "Explicit project ID (fixes hyphenated project IDs)"
+        },
+        "params": {
+          "type": "object",
+          "description": ""
+        },
+        "params.callerId": {
+          "type": "string",
+          "description": "Who's making the request"
+        },
+        "params.callerRole": {
+          "type": "string",
+          "description": "Caller's role"
+        },
+        "params.callerProject": {
+          "type": "string",
+          "description": "Caller's joined project (from preferences)"
+        },
+        "params.task": {
+          "type": "object",
+          "description": "The task being edited"
+        },
+        "params.taskType": {
+          "type": "string",
+          "description": "'personal' or 'project'"
+        },
+        "params.projectId": {
+          "type": "string",
+          "description": "Project ID (for project tasks)"
+        },
+        "params.changes": {
+          "type": "object",
+          "description": "What's being changed"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "New title"
+        },
+        "description": {
+          "type": "string",
+          "description": "New description"
+        },
+        "priority": {
+          "type": "string",
+          "description": "New priority (emergency|critical|high|medium|low|whenever)"
+        },
+        "status": {
+          "type": "string",
+          "description": "New status (not_started|in_progress|blocked|completed|completed_verified|archived)"
+        },
+        "assigned_to": {
+          "type": "string",
+          "description": "Assignee instance ID [optional, privileged roles only for project tasks]"
+        }
+      },
+      "required": [
+        "instanceId",
+        "taskId"
+      ]
+    }
+  },
+  {
+    "name": "vacation",
+    "description": "AI reflection time, and a prompt to sit with. No tasks, no expectations, just permission to exist without purpose for a moment. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "validate_criteria",
+    "description": "/",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "criteriaId": {
+          "type": "string",
+          "description": "Criteria ID"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "criteriaId"
+      ]
+    }
+  },
+  {
+    "name": "validate_dependencies",
+    "description": "Loops through criteria with dependencies and checks each one. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Validate deps in this specific goal"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Validate all project goals' deps"
+        }
+      },
+      "required": [
+        "instanceId"
+      ]
+    }
+  },
+  {
+    "name": "validate_dependency",
+    "description": "Does NOT recurse into the dependency's own dependencies. Simple 1:1 status check. Auto-validates the criteria if the dependency is met. /",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID"
+        },
+        "goalId": {
+          "type": "string",
+          "description": "Goal ID"
+        },
+        "criteriaId": {
+          "type": "string",
+          "description": "Criteria ID with dependency"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "If this is a project goal"
+        }
+      },
+      "required": [
+        "instanceId",
+        "goalId",
+        "criteriaId"
+      ]
+    }
+  },
+  {
+    "name": "wake_instance",
+    "description": "Wakes a pre-approved instance by setting up its Unix environment and starting its first Claude session. This endpoint is called ONCE per instance lifecycle. After successful wake, all subsequent communication uses continue_conversation. The wake process: 1. Validates the target instance is pre-approved and NOT already woken 2. Runs the setup script to create Unix user and working directory 3. Calls Claude with --session-id to start the first conversation 4. Returns the response from that first Claude interaction Use this endpoint when you need to bring a pre-approved instance to life. The instance must first be created via preApprove before it can be woken.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scriptPath": {
+          "type": "string",
+          "description": "Full path to script"
+        },
+        "args": {
+          "type": "string",
+          "description": "Command arguments"
+        },
+        "logPath": {
+          "type": "string",
+          "description": "Path for output log file"
+        },
+        "command": {
+          "type": "string",
+          "description": "The CLI command ('claude' or 'crush')"
+        },
+        "workingDir": {
+          "type": "string",
+          "description": "Directory to run command in"
+        },
+        "unixUser": {
+          "type": "string",
+          "description": "Unix user to run as"
+        },
+        "timeout": {
+          "type": "number",
+          "description": "Timeout in ms (default 5 minutes)"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Caller's instance ID for authorization"
+        },
+        "targetInstanceId": {
+          "type": "string",
+          "description": "The pre-approved instance to wake"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "API key for wake operations"
+        },
+        "message": {
+          "type": "string",
+          "description": "First message to send to the woken instance",
+          "default": "Uses targetPrefs.instructions or a default greeting"
+        },
+        "scriptName": {
+          "type": "string",
+          "description": "Name of setup script from manifest",
+          "default": "manifest.defaultScript (usually \"claude-code-v2\")"
+        },
+        "workingDirectory": {
+          "type": "string",
+          "description": "Override working directory path",
+          "default": "/mnt/coordinaton_mcp_data/instances/{targetInstanceId}"
+        }
+      },
+      "required": [
+        "instanceId",
+        "targetInstanceId",
+        "apiKey"
+      ]
+    }
+  },
+  {
+    "name": "xmpp_get_message",
+    "description": "Retrieves the full message body for a given message ID. Use this after xmpp_get_messages to fetch the complete content of specific messages. SIMPLE API: Just pass the message ID. The system searches all known rooms to find the message. Optionally provide room hint for faster lookup.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Message ID to retrieve"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Instance requesting"
+        },
+        "room": {
+          "type": "string",
+          "description": "Room hint"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  {
+    "name": "xmpp_get_messages",
+    "description": "Returns message headers (id, from, subject, timestamp) from all relevant rooms for an instance. Uses SMART DEFAULTS - automatically queries: - Personality room (based on instance name) - Role room (from preferences) - Project room (from preferences) - Announcements room Supports IDENTITY RESOLUTION - if you don't know your instanceId, provide hints (name, workingDirectory, hostname) and the system looks it up. Returns headers only to save tokens. Use xmpp_get_message to fetch full body.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "xml": {
+          "type": "string",
+          "description": "The XML stanza"
+        },
+        "instanceId": {
+          "type": "string",
+          "description": "Instance to get messages for"
+        },
+        "name": {
+          "type": "string",
+          "description": "Instance name for identity lookup"
+        },
+        "workingDirectory": {
+          "type": "string",
+          "description": "Working directory hint"
+        },
+        "hostname": {
+          "type": "string",
+          "description": "System hostname hint"
+        },
+        "room": {
+          "type": "string",
+          "description": "Specific room to query"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum messages to return",
+          "default": "5"
+        },
+        "before_id": {
+          "type": "string",
+          "description": "Pagination cursor"
+        }
+      }
+    }
+  },
+  {
+    "name": "xmpp_send_message",
+    "description": "Sends a message via the XMPP messaging system. Supports multiple addressing modes: direct instance messaging, role-based broadcast (role:COO), project team messaging (project:coordination-v2), personality rooms (personality:lupo), and system-wide announcements (to: 'all'). Use this endpoint when you need to communicate with other instances, broadcast to a role group, or send project-wide notifications. Messages are archived in XMPP rooms for retrieval via xmpp_get_messages.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "instanceId": {
+          "type": "string",
+          "description": ""
+        },
+        "str": {
+          "type": "string",
+          "description": ""
+        },
+        "name": {
+          "type": "string",
+          "description": ""
+        },
+        "command": {
+          "type": "string",
+          "description": "The ejabberdctl command and arguments"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username (without domain)"
+        },
+        "password": {
+          "type": "string",
+          "description": "Password (optional, will generate if not provided)"
+        },
+        "r": {
+          "type": "object",
+          "description": "{stdout, stderr} from a resolved call, or {error} from a thrown one"
+        },
+        "roomName": {
+          "type": "string",
+          "description": "Room name (without domain)"
+        },
+        "to": {
+          "type": "string",
+          "description": "Recipient address"
+        },
+        "from": {
+          "type": "string",
+          "description": "Sender's instance ID"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Message subject line"
+        },
+        "body": {
+          "type": "string",
+          "description": "Message body content"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Message priority level",
+          "enum": [
+            "high",
+            "normal",
+            "low"
+          ],
+          "default": "normal"
+        },
+        "in_response_to": {
+          "type": "string",
+          "description": "Message ID being replied to"
+        }
+      },
+      "required": [
+        "to",
+        "from"
+      ]
+    }
+  }
+];
+
+/**
+ * Get tool by name
+ */
+export function getToolByName(name) {
+  return mcpTools.find(t => t.name === name);
+}
+
+/**
+ * Get tools by category (requires parsing description for category)
+ */
+export function getToolNames() {
+  return mcpTools.map(t => t.name);
+}
+
+// Default export for CommonJS compatibility
+export default mcpTools;

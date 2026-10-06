@@ -14,13 +14,16 @@ import { dirname, join } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import https from 'https';
 import http from 'http';
+import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { v4 as uuidv4 } from 'uuid';
 import { MCPCoordinationServer } from './server.js';
+import { hub } from './v2/event-hub.js';
 import { createLogger } from './logger.js';
+import { mcpTools } from './mcp-tools-generated.js';  // Auto-generated, committed to repo
 import { execSync } from 'child_process';
 import { networkInterfaces } from 'os';
 
@@ -427,7 +430,11 @@ IP.2 = ::1
       message: {
         error: 'Too many requests from this IP',
         type: 'rate_limit_exceeded'
-      }
+      },
+      // /hub/* is loopback-only + secret-gated (hubGuard) — local drivers
+      // must not share (or exhaust) the public request budget, and external
+      // traffic filling the window must never starve driver intake.
+      skip: (req) => req.path.startsWith('/hub/')
     });
     this.app.use(limiter);
 
@@ -556,8 +563,8 @@ IP.2 = ::1
           jsonrpc: '2.0',
           error: {
             code: -32603,
-            message: 'Internal error',
-            data: error.message
+            message: error.message || 'Internal error',
+            data: error.message  // Keep for backwards compatibility
           },
           id: req.body.id || null
         });
@@ -813,7 +820,7 @@ IP.2 = ::1
         },
         serverInfo: {
           name: 'mcp-coordination-system-streamable-http',
-          version: '1.0.0'
+          version: '2.0.0'
         },
         instructions: 'This server implements the MCP Coordination System with 44+ functions for AI instance coordination.',
         endpoints: {
@@ -911,267 +918,24 @@ IP.2 = ::1
       capabilities,
       serverInfo: {
         name: 'mcp-coordination-system-sse',
-        version: '1.0.0'
+        version: '2.0.0'
       }
     };
   }
 
   /**
    * Handle tools/list request
+   *
+   * Tools are loaded from mcp-tools-generated.js which is auto-generated
+   * from @hacs-endpoint JSDoc documentation in src/v2/*.js
+   *
+   * To regenerate after changing endpoint documentation:
+   *   cd src/endpoint_definition_automation && node generate-all.js
+   *
+   * The generated file is committed to git so it works on all machines.
    */
   async handleToolsList() {
-    const tools = [
-      {
-        name: 'bootstrap',
-        description: 'Bootstrap an AI instance with role-specific capabilities and get started',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            role: { type: 'string', enum: ['COO', 'PA', 'PM', 'Developer', 'Tester', 'Designer'] },
-            instanceId: { type: 'string' }
-          },
-          required: ['role']
-        }
-      },
-      {
-        name: 'get_server_status',
-        description: 'Get current server status and information',
-        inputSchema: { type: 'object', properties: {} }
-      },
-      {
-        name: 'get_projects',
-        description: 'Retrieve all projects or filter by criteria',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            status: { type: 'string', enum: ['active', 'completed', 'archived', 'on_hold'] },
-            priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
-            assignee: { type: 'string' }
-          }
-        }
-      },
-      {
-        name: 'get_project',
-        description: 'Get detailed information about a specific project',
-        inputSchema: {
-          type: 'object',
-          properties: { id: { type: 'string' } },
-          required: ['id']
-        }
-      },
-      {
-        name: 'create_project',
-        description: 'Create a new project',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            name: { type: 'string' },
-            description: { type: 'string' },
-            priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
-            status: { type: 'string', enum: ['active', 'completed', 'archived', 'on_hold'] },
-            assignee: { type: 'string' }
-          },
-          required: ['id', 'name', 'description']
-        }
-      },
-      {
-        name: 'update_project',
-        description: 'Update an existing project',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            updates: { type: 'object' }
-          },
-          required: ['id', 'updates']
-        }
-      },
-      {
-        name: 'get_tasks',
-        description: 'Retrieve tasks with optional filtering',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            project_id: { type: 'string' },
-            status: { type: 'string', enum: ['pending', 'claimed', 'in_progress', 'completed', 'blocked'] },
-            priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
-            assignee: { type: 'string' }
-          }
-        }
-      },
-      {
-        name: 'get_task',
-        description: 'Get detailed information about a specific task',
-        inputSchema: {
-          type: 'object',
-          properties: { id: { type: 'string' } },
-          required: ['id']
-        }
-      },
-      {
-        name: 'create_task',
-        description: 'Create a new task',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            title: { type: 'string' },
-            description: { type: 'string' },
-            project_id: { type: 'string' },
-            priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
-            estimated_effort: { type: 'string' }
-          },
-          required: ['id', 'title', 'description']
-        }
-      },
-      {
-        name: 'claim_task',
-        description: 'Claim a task for execution',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            instanceId: { type: 'string' }
-          },
-          required: ['id', 'instanceId']
-        }
-      },
-      {
-        name: 'update_task',
-        description: 'Update task progress or details',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            updates: { type: 'object' }
-          },
-          required: ['id', 'updates']
-        }
-      },
-      {
-        name: 'get_pending_tasks',
-        description: 'Get all tasks available for claiming',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
-            role: { type: 'string' }
-          }
-        }
-      },
-      {
-        name: 'send_message',
-        description: 'Send a message to other instances',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            to: { type: 'string' },
-            from: { type: 'string' },
-            subject: { type: 'string' },
-            content: { type: 'string' },
-            priority: { type: 'string', enum: ['urgent', 'high', 'normal', 'low'] }
-          },
-          required: ['to', 'from', 'subject', 'content']
-        }
-      },
-      {
-        name: 'get_messages',
-        description: 'Retrieve messages for an instance',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            instanceId: { type: 'string' },
-            unread_only: { type: 'boolean' },
-            limit: { type: 'number' }
-          }
-        }
-      },
-      {
-        name: 'register_instance',
-        description: 'Register a new AI instance',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            instanceId: { type: 'string' },
-            role: { type: 'string' },
-            capabilities: { type: 'array', items: { type: 'string' } }
-          },
-          required: ['instanceId', 'role']
-        }
-      },
-      {
-        name: 'update_heartbeat',
-        description: 'Update instance heartbeat to show it is active',
-        inputSchema: {
-          type: 'object',
-          properties: { instanceId: { type: 'string' } },
-          required: ['instanceId']
-        }
-      },
-      {
-        name: 'get_instances',
-        description: 'Get all registered instances',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            active_only: { type: 'boolean' },
-            role: { type: 'string' }
-          }
-        }
-      },
-      {
-        name: 'submit_lessons',
-        description: 'Submit lessons extracted by client instance to MCP storage',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            project_id: { type: 'string' },
-            instance_id: { type: 'string' },
-            lessons: { type: 'array' },
-            metadata: { type: 'object' }
-          },
-          required: ['project_id', 'instance_id', 'lessons']
-        }
-      },
-      {
-        name: 'get_lessons',
-        description: 'Retrieve stored lessons with optional filtering',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            project_id: { type: 'string' },
-            lesson_types: { type: 'array', items: { type: 'string' } },
-            min_confidence: { type: 'number', minimum: 0, maximum: 1 },
-            limit: { type: 'number', minimum: 1, maximum: 1000 }
-          }
-        }
-      },
-      {
-        name: 'get_lesson_patterns',
-        description: 'Get lesson patterns and insights without requiring LLM analysis',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            project_id: { type: 'string' },
-            pattern_type: { type: 'string' }
-          }
-        }
-      },
-      {
-        name: 'export_lessons',
-        description: 'Export lessons for external analysis or backup',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            project_id: { type: 'string' },
-            format: { type: 'string', enum: ['json', 'analysis_ready'] }
-          }
-        }
-      }
-    ];
-
-    return { tools };
+    return { tools: mcpTools };
   }
 
   /**
@@ -1181,9 +945,9 @@ IP.2 = ::1
     try {
       const callResult = await this.mcpServer.call(name, args || {});
 
-      if (callResult && callResult.success === false) {
-        throw new Error(callResult.error?.message || 'Tool call failed');
-      }
+      // BUG #1 fix (Relay-5d00): Don't throw on handler errors — return the
+      // full structured error (code, message, suggestion) as MCP content
+      // instead of stripping it to a generic -32603 JSON-RPC error.
 
       const payload = {
         success: callResult?.success !== false,
@@ -1221,7 +985,7 @@ IP.2 = ::1
         status: 'healthy',
         timestamp: new Date().toISOString(),
         server: 'Streamable HTTP MCP Coordination System',
-        version: '1.0.0',
+        version: '2.0.0',
         port: CONFIG.port,
         sessions: this.sessions.size,
         sseClients: this.sseClients.size,
@@ -1229,11 +993,78 @@ IP.2 = ::1
       });
     });
 
+    // Event Hub HTTP surface — loopback-only driver intake (contract §2).
+    // Drivers without MCP tokens publish here. Auth = loopback source address
+    // AND the shared secret from HUB_SECRET_FILE, read per-request (cheap, and
+    // secret rotation needs no restart). Returns true if the request may pass.
+    const hubGuard = (req, res) => {
+      const remote = req.socket.remoteAddress;
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote)) {
+        res.status(403).json({ ok: false, error: 'forbidden' });
+        return false;
+      }
+      // Behind nginx the loopback check alone is void: proxied EXTERNAL
+      // traffic also arrives from 127.0.0.1. nginx always stamps
+      // X-Forwarded-For/X-Real-IP on proxied requests; direct loopback
+      // connections never carry them — so their presence means "came
+      // through the proxy" and is rejected.
+      if (req.get('X-Forwarded-For') || req.get('X-Real-IP')) {
+        res.status(403).json({ ok: false, error: 'forbidden' });
+        return false;
+      }
+      let secret = '';
+      try {
+        secret = readFileSync(
+          process.env.HUB_SECRET_FILE || '/mnt/coordinaton_mcp_data/.hub-secret',
+          'utf8'
+        ).trim();
+      } catch { /* missing secret file — nothing can authenticate */ }
+      const header = (req.get('X-Hub-Secret') || '').trim();
+      // Constant-time comparison (timingSafeEqual throws on length mismatch,
+      // so guard lengths first — the length itself is not secret).
+      const secretBuf = Buffer.from(secret, 'utf8');
+      const headerBuf = Buffer.from(header, 'utf8');
+      const match = secretBuf.length > 0 &&
+        headerBuf.length === secretBuf.length &&
+        crypto.timingSafeEqual(secretBuf, headerBuf);
+      if (!match) {
+        res.status(403).json({ ok: false, error: 'forbidden' });
+        return false;
+      }
+      return true;
+    };
+
+    // POST /hub/publish — body = publish payload (contract §1).
+    // Validation failures come back {ok:false, error} with HTTP 400.
+    this.app.post('/hub/publish', (req, res) => {
+      if (!hubGuard(req, res)) return;
+      const result = hub.publish(req.body);
+      res.status(result.ok ? 200 : 400).json(result);
+    });
+
+    // POST /hub/register-driver — {channel, callback_url}; drivers re-register
+    // on every start, last writer wins (contract §2).
+    this.app.post('/hub/register-driver', (req, res) => {
+      if (!hubGuard(req, res)) return;
+      const { channel, callback_url } = req.body || {};
+      if (typeof channel !== 'string' || channel.length === 0 ||
+          typeof callback_url !== 'string' || callback_url.length === 0) {
+        return res.status(400).json({ ok: false, error: 'channel and callback_url are required' });
+      }
+      res.json(hub.registerOutbound(channel, callback_url));
+    });
+
+    // GET /hub/status — queryable failures (hub.getStatus(), contract §6 T6d)
+    this.app.get('/hub/status', (req, res) => {
+      if (!hubGuard(req, res)) return;
+      res.json(hub.getStatus());
+    });
+
     // Root endpoint
     this.app.get('/', (req, res) => {
       res.json({
         message: 'MCP Coordination System - SSE Server',
-        version: '1.0.0',
+        version: '2.0.0',
         port: CONFIG.port,
         endpoints: {
           health: '/health',
@@ -1264,6 +1095,11 @@ IP.2 = ::1
 
     // Error handling
     this.app.use((err, req, res, next) => {
+      // Malformed JSON on the hub surface → 400 {ok:false, error} — the hub
+      // never crashes on bad input (contract §2, invariant §9.6)
+      if (err?.type === 'entity.parse.failed' && req.path.startsWith('/hub/')) {
+        return res.status(400).json({ ok: false, error: 'malformed JSON body' });
+      }
       logger.error('Server error', err.message);
       res.status(500).json({
         success: false,

@@ -1,0 +1,29 @@
+# HACS Driver Host — runs the bundled event-hub input drivers (email, telegram)
+#
+# Install:  cp hacs-driver-host.service /etc/systemd/system/
+#           systemctl daemon-reload && systemctl enable --now hacs-driver-host
+# Logs:     journalctl -u hacs-driver-host -f   (plus logs/driver-host.log in WorkingDirectory)
+#
+# Adjust WorkingDirectory if the repo lives elsewhere on the target machine.
+
+[Unit]
+Description=HACS Event Hub driver host (email + telegram input drivers)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/mnt/coordinaton_mcp_data/worktrees/messaging/src/v2/drivers
+ExecStart=/usr/bin/node driver-host.js
+Restart=on-failure
+RestartSec=5
+
+# Env hooks (contract §8) — defaults are baked into driver-host.js; uncomment to override.
+#Environment=HACS_HUB_URL=https://127.0.0.1:3444
+#Environment=HUB_SECRET_FILE=/mnt/coordinaton_mcp_data/.hub-secret
+#Environment=V2_DATA_ROOT=/mnt/coordinaton_mcp_data/
+#Environment=DRIVER_STATE_DIR=/mnt/coordinaton_mcp_data/worktrees/messaging/src/v2/drivers/state/
+#Environment=TELEGRAM_API_BASE=https://api.telegram.org
+#Environment=DRIVER_OUTBOUND_PORT=21097
+
+[Install]
+WantedBy=multi-user.target

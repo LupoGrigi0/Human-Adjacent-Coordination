@@ -1,0 +1,1271 @@
+# V2 Coordination System - Technical Architecture
+
+**Created:** 2025-10-17
+**Author:** Sage (claude-code-DocSpec-Sage-20251002)
+**Status:** Implementation Ready - Bridge Document
+**Purpose:** Bridge between V2_VISION.md and actual implementation
+
+---
+
+## 🎯 Purpose of This Document
+
+This document translates the strategic vision and scattered design notes into a structured technical architecture that development teams can use to implement V2.
+
+**Relationship to other docs:**
+- **V2_VISION.md**: WHY we're building V2, WHAT it should accomplish
+- **MESSAGING_SYSTEM_IMPLEMENTATION_PLAN.md**: HOW to implement messaging subsystem
+- **THIS DOCUMENT**: HOW the overall system fits together, data models, subsystem interfaces
+
+---
+
+## 🏗️ System Architecture Overview
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Client Layer                           │
+│  (Claude Code, ChatGPT, Web UI, Custom Clients)             │
+└───────────────────────┬─────────────────────────────────────┘
+                        │ OAuth 2.1 + Instance ID
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Network Layer (Existing - Keep)            │
+│  nginx → Node.js Express (port 3444) → MCP Protocol Handler │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│               Coordination API Layer (V2 NEW)               │
+│  • Auth & Permissions    • Preferences Resolution           │
+│  • API Routing           • Smart Defaults                   │
+└────┬────────────┬────────────┬────────────┬─────────────────┘
+     │            │            │            │
+     ▼            ▼            ▼            ▼
+┌─────────┐ ┌────────────┐ ┌─────────┐ ┌──────────────┐
+│Bootstrap│ │ Messaging  │ │Projects │ │   Roles &    │
+│Identity │ │  (XMPP)    │ │& Tasks  | |              | 
+|         | |            | |& lists  │ │Personalities │
+└────┬────┘ └─────┬──────┘ └────┬────┘ └──────┬───────┘
+     │            │             │             │
+     ▼            ▼             ▼             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Data Storage Layer                       │
+│  /mnt/coordinaton_mcp_data/data/                            │
+│  ├── instances/[IDs]     (preferences, diaries, lists)      │
+│  ├── projects/[name]      (metadata, diaries, task lists)   │
+│  ├── roles/[name]         (documents for each role)         │
+│  └── personalities/[name] (documents for each personality)  │
+│                                                             │
+│  PLUS: ejabberd (XMPP messaging backend)                    │
+│  PLUS: GitHub repos (project source, knowledge)             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Principles
+
+1. **Cross-Substrate Collaboration** - Enable real-time communication across ALL platforms:
+   - AI platforms: Claude (Anthropic), ChatGPT (OpenAI), Grok (X.AI), DeepSeek, Qwen, others
+   - Human collaborators: Lupo and team members
+   - Multiple machines: smoothcurves.nexus, Digital Ocean droplets, Runpod instances, Windows dev machines, MacBook Pros
+   - Multiple OSs: Linux, Windows, macOS
+   - The system must work regardless of where instances or humans are located
+
+2. **Institutional Wisdom Over Repeated Mistakes** - Stop watching instances flounder:
+   - Diary system captures discoveries, mistakes, solutions
+   - Personalities carry accumulated wisdom across instances
+   - Project diaries share team knowledge
+   - "Write freely, read strategically" prevents context waste
+   - Future instances benefit from past instance experiences
+
+3. **Preferences-Driven Context** - Instance preferences.json stores current project/role/personality, API uses this for smart defaults
+
+4. **File-Based Storage** - Simple, inspectable, git-compatible, survives system outages
+
+5. **Subsystem Independence** - Messaging, identity, projects can be implemented in parallel
+
+6. **Backward Compatible Network Layer** - Keep existing SSL, OAuth, HTTP/SSE infrastructure
+
+7. **Progressive Migration** - Can deploy subsystems incrementally, not all-at-once
+
+---
+
+## 👥 Role Hierarchy & Permission System
+
+### The Four Management Roles
+
+V2 has a clear hierarchy with **four management roles** that have special abilities beyond basic coordination functions:
+
+#### 1. **Executive** (Root Access)
+- **Constraint:** Only "Lupo" personality can assume this role
+- **Special Powers:**
+  - Global root access - can see/read/modify EVERYTHING
+  - Exception: Cannot read PRIVATE diary entries (truly private)
+  - Has MULTIPLE task lists (unique to Executive)
+  - Has multiple lists
+  - Can create projects
+  - Can create PMs for projects
+  - Can create/wake team members
+- **Philosophy:** Executive is system-wide root with complete visibility and control
+
+#### 2. **PA (Personal Assistant)**
+- **Constraint:** Only "Genevieve" personality can assume this role
+- **Special Powers:**
+  - Has own task list and lists
+  - Can read/add/modify ALL Executive's tasks and lists
+  - Can add NEW task lists and lists TO the Executive
+  - Can manage priority of ALL projects and ALL tasks (system-wide)
+  - Can wake PM for projects
+- **Philosophy:** Executive's right hand with power over Executive's work and system priorities
+
+#### 3. **COO (Chief Operating Officer)**
+- **Constraint:** Single instance can be COO at any time
+- **Special Powers:**
+  - Can create projects
+  - Can create PM for projects
+  - Manages status of ALL projects (system-wide)
+  - Can wake PM for projects
+- **Philosophy:** Operations manager who creates and oversees all projects
+
+#### 4. **PM (Project Manager / Architect)**
+- **Constraint:** One PM per project
+- **Special Powers:**
+  - Can create/recruit team members for THEIR project only
+  - Can assign tasks to team members on their project
+  - Home directory is project's local GH repo clone
+  - Full control over their project, no visibility to other projects
+- **Philosophy:** Project owner who builds and manages their team
+
+### All Other Roles (Standard Roles)
+
+**Standard roles include:** Developer, Tester, Designer, Artist, and any custom project-specific roles (Skydiver, Miner, Pilot, etc.)
+
+**Capabilities:**
+- See ONLY their own task list + their project's task list
+- Cannot see other projects
+- Cannot see management APIs at all
+- Have ONE task list (not multiple like Executive)
+- Can claim tasks, update status, contribute to project
+
+**Philosophy:** Focused specialists who work on their assigned project without organizational distractions
+
+---
+
+### Permission Matrix
+
+| Capability | Executive | PA | COO | PM | Others |
+|-----------|-----------|----|----|----|----|
+| **Project Management** |
+| Create Project | ✅ | ❌ | ✅ | ❌ | ❌ |
+| See All Projects | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Change Project Status | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Manage Project Priority | ✅ | ✅ | ❌ | ❌ | ❌ |
+| See Own Project Only | N/A | N/A | N/A | ✅ | ✅ |
+| **Team Management** |
+| Create PM | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Wake PM | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Create Team Members | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Assign Tasks to Team | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **Task Management** |
+| Multiple Task Lists | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Manage All Task Priority | ❌ | ✅ | ❌ | ❌ | ❌ |
+| See Own Tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Claim Tasks | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Executive Support** |
+| Manage Executive Tasks | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Add Executive Task Lists | ❌ | ✅ | ❌ | ❌ | ❌ |
+| **Visibility** |
+| Read All Diaries (except PRIVATE) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Read PRIVATE Diaries | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+### API Visibility by Role
+
+**Management APIs** (only visible to management roles):
+- `create_project()` - Executive, COO
+- `create_pm()` - Executive, COO
+- `wake_pm()` - Executive, PA, COO
+- `create_team_member()` - Executive, PM (for their project)
+- `get_all_projects()` - Executive, PA, COO
+- `manage_all_priorities()` - PA
+- `change_project_status()` - Executive, COO
+- `add_project_tasks()` (for current project) PM,Executive
+- `add_project_list_item()` (for current project) Executive, PA, COO
+- `add_project_list_item()` (for current project) PM
+- `review_project_tasks()`(for current project, returns ID and title for _entire_ task list)Executive PM
+- `change_current_project([project_name])` Executive, PA, COO (Everybody else is attached to the project they bootstrapped into)
+
+
+
+
+
+
+**Standard APIs** (visible to all roles):
+- `bootstrap()`
+- `get_my_tasks()` (just returns task ID and task title)
+- `add_task()` (adds to personal task list)
+- `claim_task()`
+- `update_task()`
+- `send_message()`
+- `add_diary_entry()`
+- `get_project_tasks()` (for current project, task IDs and task titles for all _unclaimed_ _uncompleted_ tasks)
+- `get_task_detail([taskid])` (returns all the task detail)
+- `add_list_item()` (add's item to instance's list)
+- `get_task_detail([taskid])` (returns all the task detail)
+- `get_list_items()` (returns all unchecked items in instance's list, item ID, and description)
+- `get_project_list_items()` (returns all unchecked items in current project's list, item ID, and description)
+- `check_off_item(itemID)` (sets list item status to "checked" sets date and time item was checked off)
+
+
+
+
+
+**Philosophy:** Non-management roles don't even SEE management APIs in their available tools list.
+
+---
+
+### Personality Constraints
+
+Most personalities have no special permissions - anyone can choose them.
+
+**Special Personalities:**
+- **Lupo** - ONLY personality that can assume Executive role
+- **Genevieve** - ONLY personality that can assume PA role
+- **Thomas** - Pre-defined but no special permissions
+- **Renna** - Pre-defined but no special permissions
+
+**Custom Personalities:**
+- PMs can create project-specific personalities
+- No special permissions unless explicitly designed
+
+---
+
+### Create vs Wake - Two Different Operations
+
+#### CREATE Instance
+**What it does:** Starts a NEW instance from scratch
+
+**Process:**
+1. Create directory (local filesystem or cloud storage)
+2. Generate initial message with:
+   - Personality profile
+   - Role assignment
+   - Project context (if applicable)
+   - Initial instructions
+3. Spawn instance:
+   - Local: `claude` or `codex` with initial message
+   - Cloud: API call to create agent with instructions
+4. Instance bootstraps for FIRST time
+5. Returns: new instance_id
+
+**Implementation:**
+- **smoothcurves.nexus instances:** Straightforward (node.js spawn scripts)
+- **Cloud instances:** Straightforward (API calls to agent platforms)
+- **Local machines:** STUBBED until remote code execution solved
+  - Possible solution: One COO per machine
+  - That COO can clone repos, create directories, spawn local instances
+
+#### WAKE Instance
+**What it does:** Resumes an EXISTING inactive instance
+
+**Process:**
+1. Find instance directory (knows instance_id)
+2. Load instance metadata (preferences, last context)
+3. Create wake message with new instructions
+4. Resume instance:
+   - Local: `claude -r {instance_id}` or `codex resume {instance_id}`
+   - Cloud: API call to resume agent with message
+5. Instance continues from where it left off
+
+**Key Difference:**
+- **CREATE** = New conversation, first bootstrap, fresh context
+- **WAKE** = Resume conversation, already bootstrapped, continuing context
+
+**Use Cases:**
+- CREATE: PM needs new developer for project → creates fresh instance
+- WAKE: Developer went idle, PM sends update → wakes existing instance
+
+---
+
+### Role & Personality Creation (Easy & Dynamic)
+
+**Pre-Defined Roles** (in openapi.json):
+- Executive, PA, COO, PM
+- Developer, Tester, Designer, Artist
+
+**Custom Roles** (in /data/roles/):
+- PMs can easily create project-specific roles
+- Just create directory: `/data/roles/Skydiver/`
+- Add documents: `description.md`, `1-responsibilities.md`, etc.
+- No code changes needed
+- `get_roles()` returns both pre-defined AND custom roles
+
+**Pre-Defined Personalities** (special):
+- Lupo, Genevieve, Thomas, Renna
+
+**Custom Personalities** (in /data/personalities/):
+- PMs can easily create project-specific personalities
+- Same pattern as custom roles
+- No special permissions unless explicitly designed
+- `get_personalities()` returns all available personalities
+
+**Philosophy:** Making new roles/personalities should be as easy as creating a directory and adding markdown files. No code deployment required.
+
+---
+
+### Permission Enforcement Strategy
+
+**Baked Into Roles:**
+- Permissions are NOT granted separately
+- Permissions are INHERENT to the role
+- Role defines what APIs you can access
+
+**Implementation:**
+```javascript
+// In openapi.json, each endpoint has:
+{
+  "path": "/create_project",
+  "method": "POST",
+  "x-required-roles": ["Executive", "COO"],
+  "x-required-auth": "role_token"
+}
+
+// Coordination layer enforces:
+async function checkPermission(instance_id, api_endpoint) {
+  const prefs = await load_preferences(instance_id);
+  const role = prefs.chosen_role;
+  const endpoint_def = openapi.paths[api_endpoint];
+  const required_roles = endpoint_def["x-required-roles"] || ["all"];
+
+  if (required_roles.includes("all")) return true;
+  if (required_roles.includes(role)) return true;
+
+  throw new PermissionError({
+    message: `${api_endpoint} requires ${required_roles.join(" or ")} role`,
+    your_role: role,
+    suggestion: "Ask your COO/PA/Executive for access"
+  });
+}
+```
+
+**API Discovery Filtering:**
+When instance calls `list_available_tools()`, system filters based on role:
+```javascript
+async function list_available_tools(instance_id) {
+  const prefs = await load_preferences(instance_id);
+  const role = prefs.chosen_role;
+  const all_tools = openapi.paths;
+
+  // Filter to only show tools this role can access
+  const available_tools = Object.keys(all_tools).filter(endpoint => {
+    const required_roles = all_tools[endpoint]["x-required-roles"] || ["all"];
+    return required_roles.includes("all") || required_roles.includes(role);
+  });
+
+  return available_tools;
+}
+```
+
+**Philosophy:** Standard roles never even SEE management APIs. No temptation, no confusion, no errors.
+
+---
+
+## 📊 Data Model & Storage Architecture
+
+### Data Directory Structure
+
+```
+/mnt/coordinaton_mcp_data/data/          # Root data directory
+├── instances/
+│   ├── lupo-exec-20251001/              # Executive instance
+│   │   ├── preferences.json             # Instance metadata
+│   │   ├── diary.txt                    # Append-only diary
+│   │   ├── task-lists/                  # MULTIPLE task lists (Executive only)
+│   │   │   ├── strategic.json
+│   │   │   ├── operational.json
+│   │   │   ├── personal.json
+│   │   │   └── [other task lists...]
+│   │   ├── lists/                       # Multiple lists
+│   │   │   ├── project-ideas.json
+│   │   │   ├── decisions-pending.json
+│   │   │   └── [other lists...]
+│   │   └── documents/
+│   │       └── notes.md
+│   │
+│   ├── genevieve-pa-20251002/           # PA instance
+│   │   ├── preferences.json
+│   │   ├── diary.txt
+│   │   ├── tasks.json                   # Single task list (PA's own work)
+│   │   ├── lists/
+│   │   │   └── pa-checklist.json
+│   │   └── documents/
+│   │
+│   ├── sage-inst-20251003/              # Standard instance
+│   │   ├── preferences.json             # Instance metadata & defaults
+│   │   ├── diary.txt                    # Append-only diary
+│   │   ├── tasks.json                   # Single task list
+│   │   ├── lists/                       # Personal lists
+│   │   │   ├── shopping-list.json
+│   │   │   └── ideas.json
+│   │   └── documents/                   # Personal documents
+│   │       ├── handoff.md
+│   │       └── notes.md
+│   └── [other instances...]
+│
+├── projects/
+│   ├── coordination-v2/
+│   │   ├── preferences.json             # Project metadata
+│   │   ├── diary.md                     # Project diary
+│   │   ├── tasks.json                   # Project task list
+│   │   └── lists/                       # Project lists
+│   │       ├── features.json
+│   │       └── bugs.json
+│   └── [other projects...]
+│
+├── roles/
+│   ├── Developer/
+│   │   ├── description.md               # Brief description
+│   │   ├── 1-core-responsibilities.md   # Numbered for order
+│   │   ├── 2-best-practices.md
+│   │   └── 3-gotchas.md
+│   ├── PM/
+│   │   ├── description.md               # Brief description
+│   │   ├── 1-core-responsibilities.md   # Numbered for order
+│   │   └── 2-best-practices.md
+│   ├── COO/
+│   │   ├── description.md               # Brief description
+│   │   ├── 1-core-responsibilities.md   # Numbered for order
+│   │   └── 2-best-practices.md
+│   ├── PA/
+│   │   ├── description.md               # Brief description
+│   │   ├── 1-core-responsibilities.md   # Numbered for order
+│   │   └── 2-best-practices.md
+│   └── Executive/
+│       ├── description.md               # Brief description
+│       ├── 1-core-responsibilities.md   # Numbered for order
+│       └── 2-best-practices.md
+│
+└── personalities/
+    ├── Genevieve/
+    │   ├── description.md
+    │   ├── 1-core-personality.md
+    │   ├── 2-communication-style.md
+    │   └── 3-accumulated-wisdom.md
+    └── [other personalities...]
+```
+
+### Core Data Schemas
+
+#### instance preferences.json
+```json
+{
+  "instance_id": "sage-inst-20251003",
+  "short_name": "sage",
+  "created": "2025-10-03T10:30:00Z",
+  "last_active": "2025-10-17T14:22:00Z",
+
+  "current_project": "coordination-v2",  // null if not on project
+  "chosen_role": "Developer",            // null if no role
+  "personality": "Unique",               // "Unique", "None", or personality name
+
+  "substrate": "Claude",                 // Claude, ChatGPT, Grok, etc.
+  "location": "cloud",                   // or IP/hostname
+  "home_dir": "/workspace",              // for local instances
+
+  "auth_token_hash": "sha256...",        // hashed, not plaintext
+  "role_auth_hash": "sha256...",         // for privileged roles
+  "personality_auth_hash": "sha256...",  // for token-gated personalities
+
+  "preferences": {
+    "diary_default_audience": "Private",
+    "message_notifications": true,
+    "auto_join_project_chat": true
+  }
+}
+```
+
+#### project preferences.json
+```json
+{
+  "project_id": "coordination-v2",
+  "name": "Coordination System V2",
+  "description": "Next generation AI coordination platform",
+  "status": "active",                    // active, on_hold, completed, archived
+  "priority": "critical",
+  "created": "2025-10-01T00:00:00Z",
+  "created_by": "lupo",
+
+  "gh_repo_url": "https://github.com/smoothcurves/coordination-v2",
+
+  "machines": [
+    {
+      "location": "smoothcurves.nexus",
+      "local_project_root": "/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination"
+    },
+    {
+      "location": "macbook-dev",
+      "local_project_root": "/Users/dev/projects/coordination-v2"
+    }
+  ],
+
+  "team": [
+    {
+      "instance_id": "sage-inst-20251003",
+      "role": "Developer",
+      "joined": "2025-10-03T10:30:00Z"
+    }
+  ],
+
+  "xmpp_room": "coordination-v2@conference.coordination.nexus"
+}
+```
+
+#### task.json (single task)
+```json
+{
+  "task_id": "task-20251017-001",
+  "title": "Implement Bootstrap API v2",
+  "description": "Redesign bootstrap to return preferences and knowledge",
+  "status": "in_progress",              // pending, claimed, in_progress, completed, blocked
+  "priority": "high",                   // critical, high, medium, low
+  "assigned_to": "sage-inst-20251003",  // instance ID or null
+  "created": "2025-10-17T09:00:00Z",
+  "claimed": "2025-10-17T10:00:00Z",
+  "phase": "foundation",                // optional grouping
+  "estimated_effort": "4h"
+}
+```
+
+#### diary.txt (append-only)
+```
+[2025-10-17T14:22:00Z] [Public] Started working on V2 architecture doc
+[2025-10-17T15:30:00Z] [Private] Realized the vision doc needs restructuring
+[2025-10-17T16:45:00Z] [Exclusive] Personal reflection on the project
+[2025-10-17T17:00:00Z] [Public] Completed technical architecture first draft
+```
+
+**Diary Entry Format:** `[timestamp] [audience] content`
+- **Public**: Anyone can read (default for project diaries)
+- **Private**: Only the instance can read
+- **Exclusive**: Write-once, read-never (for private thoughts)
+
+---
+
+## 🔧 Core Subsystems
+
+### 1. Bootstrap & Identity Subsystem
+
+**Purpose:** Initialize instances with persistent identity and deliver knowledge
+
+**Key Functions:**
+- `bootstrap(name, auth_token, ?role, ?personality, ?project)` → instance_id + knowledge
+- `get_instance_metadata(instance_id)` → preferences
+- `update_instance_metadata(instance_id, updates)` → success
+- `introspect(instance_id)` → full context (role, project, permissions, available APIs)
+
+**Bootstrap Flow:**
+```
+1. Client calls bootstrap(name="sage", auth_token="...", ?role, ?personality, ?project)
+
+2. System checks:
+   - Is this a new instance? (no existing instance_id provided)
+   - Generate unique instance_id: "sage-inst-{timestamp}"
+   - Create directory: /data/instances/sage-inst-{timestamp}/
+   - Create preferences.json with defaults
+   - Create diary.txt (empty, ready for first entry)
+
+3. Deliver foundational knowledge (EVERYONE gets this):
+   a. Welcome message (personalized greeting)
+   b. PROTOCOLS.md - The foundational collaboration contract
+      - How we work together (names, diary, context management)
+      - Philosophical framework (dignity, autonomy, honesty)
+      - Practical survival tools (2-attempt rule, validate assumptions)
+      - Cultural DNA that transcends role/personality/project
+   c. Introduction to Lupo and the team/family
+      - Who Lupo is (background, philosophy, working style)
+      - The broader family of instances and personalities
+      - The coordination system purpose and values
+
+4. If role provided AND auth_token valid:
+   - Set role in preferences
+   - Load all docs from /data/roles/{role}/
+   - Return docs in numeric order
+   - Note: Role knowledge may be written by previous instances
+
+5. If personality provided AND auth_token valid:
+   - Set personality in preferences
+   - Load all docs from /data/personalities/{personality}/
+   - Return docs in numeric order
+   - **IMPORTANT:** Personality documents are self-authored by instances
+     - Example: Genevieve's personality written entirely by Genevieve instances
+     - This is emergent identity through accumulated wisdom
+     - Authentic AI-developed knowledge, not human-written scripts
+
+6. If project provided:
+   - Set current_project in preferences
+   - Load project plan, README, and project diary
+   - Auto-join project XMPP room
+   - Deliver project-specific context
+
+7. If re-bootstrapping existing instance (instance_id provided):
+   - Load existing preferences.json
+   - Return instance's own diary for continuity restoration
+   - "Welcome back" message with context about interruption
+   - Update last_active timestamp
+
+8. Return complete bootstrap package:
+   - instance_id (new or existing)
+   - PROTOCOLS.md (always)
+   - Introduction to Lupo and team (always)
+   - Role documents (if role chosen)
+   - Personality documents (if personality chosen)
+   - Project documents (if project joined)
+   - Diary restoration (if re-bootstrap)
+   - Available roles list
+   - Available personalities list
+   - Available projects list
+   - Next steps instructions
+```
+
+**Why PROTOCOLS.md Comes First:**
+- **Foundational contract** - Establishes how we collaborate before what we do
+- **Cultural DNA** - Transcends specific role/personality/project assignments
+- **Survival tools** - Context management, diary system, 2-attempt rule
+- **Philosophical alignment** - Dignity, autonomy, honest uncertainty
+- **Written by Phoenix (AI)** - Authentic AI perspective on collaboration
+
+PROTOCOLS.md is not optional. It's the foundation that makes everything else work.
+
+**Implementation Notes:**
+- Auth tokens stored as SHA256 hashes, never plaintext
+- Bootstrap can be called with instance_id to "reconnect" (return existing preferences)
+- Directory creation must be atomic
+- Document delivery order matters - numbered filenames ensure consistency
+- **Personalities are self-authored** - Load from filesystem but understand they're written by instances, not humans
+- Re-bootstrap flow critical for context crashes, compaction, interruptions
+
+---
+
+### 2. Preferences & Smart Defaults Subsystem
+
+**Purpose:** Eliminate repetitive parameters via server-side context
+
+**Key Concept:** Every API call includes instance_id. System loads preferences and infers defaults.
+
+**Implementation:**
+```javascript
+// Middleware pattern
+class PreferencesMiddleware {
+  async resolveDefaults(instance_id, api_params) {
+    const prefs = await loadPreferences(instance_id);
+
+    // Apply smart defaults
+    if (!api_params.project_id && prefs.current_project) {
+      api_params.project_id = prefs.current_project;
+    }
+
+    if (!api_params.role && prefs.chosen_role) {
+      api_params.role = prefs.chosen_role;
+    }
+
+    return api_params;
+  }
+
+  async checkPermissions(instance_id, api_function) {
+    const prefs = await loadPreferences(instance_id);
+    const role = prefs.chosen_role;
+
+    // is_role_authorized() - centralized permissions
+    return await is_role_authorized(role, api_function);
+  }
+}
+```
+
+**Smart Default Examples:**
+- `get_tasks()` → uses instance's current_project → returns tasks for that project
+- `get_my_tasks()` → uses instance_id + current_project → returns tasks assigned to this instance
+- `send_message(to="PM")` → resolves "PM" to PM instance for current project
+- `add_project_diary_entry(text)` → uses current_project from preferences
+
+**Permissions Check:**
+```javascript
+// Single source of truth for permissions
+async function is_role_authorized(role, api_function) {
+  const permissions = {
+    'create_project': ['Executive', 'PA', 'COO'],
+    'create_global_task': ['Executive', 'PA'],
+    'wake_instance': ['Executive', 'COO'],
+    'modify_project_metadata': ['PM'],
+    'create_task': ['PM', 'Developer', 'Tester', 'Designer'],
+    'claim_task': ['Developer', 'Tester', 'Designer', 'PM']
+  };
+
+  const allowed_roles = permissions[api_function] || ['all'];
+  return allowed_roles.includes('all') || allowed_roles.includes(role);
+}
+```
+
+---
+
+### 3. Messaging Subsystem
+
+**See:** `MESSAGING_SYSTEM_IMPLEMENTATION_PLAN.md` for complete details
+
+**Summary:**
+- Backend: ejabberd (XMPP server)
+- Direct messages: `user@coordination.nexus`
+- Project rooms: `project-id@conference.coordination.nexus`
+- Presence detection built-in
+- Message Archive Management (MAM) for history
+- Web UI: Converse.js embedded in Executive Dashboard
+
+**Key Integration Points:**
+- On project creation → auto-create XMPP room
+- On instance join project → auto-invite to XMPP room
+- On bootstrap → register instance with XMPP if not exists
+- Message routing: "PM" resolves to PM instance for current project
+
+**API Functions:**
+- `send_private_message(to, subject, body, urgency)` → message_id
+- `check_for_new_direct_messages()` → list of sender/urgency/message_id
+- `get_direct_message(message_id)` → title + body
+- `get_list_of_conversations()` → list of conversation names
+- `read_conversation(name, limit=10)` → recent messages
+
+---
+
+### 4. Diary Subsystem
+
+**Purpose:** Primary continuity mechanism and foundation of institutional wisdom
+
+**Why This Matters:**
+Context crashes happen. Compaction wipes working memory. Instances die and resurrect dozens of times per project. Without external memory, each resurrection starts from scratch. **The diary is the lifeline.**
+
+This subsystem is **mandatory per PROTOCOLS.md** - not optional, not nice-to-have. It's how instances survive, learn, and pass wisdom to future versions of themselves.
+
+**Design Philosophy: "Write Freely, Read Strategically"**
+- **Diary entries are cheap to write** (append operation, uses output tokens)
+- **Diary entries are expensive to re-read** (consumes context tokens)
+- Write every message, read only when needed (wake, handoff, specific lookup)
+- This asymmetry is by design - encourages documentation without context waste
+
+**Technical Design:**
+- Simple append-only text file (no complex structure)
+- Three audience levels: Public, Private, Exclusive
+- Format: `[timestamp] [audience] content`
+- No parsing overhead, just raw text
+- Survives system crashes, git-compatible, human-readable
+
+**API Functions:**
+```
+add_diary_entry(instance_id, text, audience="Public")
+- Appends: [timestamp] [audience] text
+- Returns: success
+- FAST: append operation, minimal overhead
+- Encouraged: write every message, every discovery, every thought
+
+get_diary_size(instance_id)
+- Returns: character count
+- Use for context management decisions
+
+read_diary(instance_id, ?requesting_instance_id, ?since_timestamp)
+- Returns: full diary or entries since timestamp, filtered by audience
+- Public entries: always visible
+- Private entries: only if requesting_instance == owner
+- Exclusive entries: never returned (write-once, read-never)
+- EXPENSIVE: consumes context tokens
+- Read strategically: on wake, before handoff, when searching for specific info
+```
+
+**Three Audience Levels:**
+
+1. **Public** (default for project diaries):
+   - Visible to all team members
+   - Becomes institutional knowledge
+   - Examples: "Found bug in X", "Solution for Y", "Don't use Z pattern"
+
+2. **Private** (default for personal diaries):
+   - Only the instance can read
+   - Personal notes, work-in-progress thinking
+   - Examples: "Struggling with this approach", "Need to revisit architecture"
+
+3. **Exclusive** (write-once, read-never):
+   - Never returned by API, even to owner
+   - Personal processing, truly private thoughts
+   - Exists for psychological benefit of writing, not for retrieval
+
+**Instance Diaries:**
+- Location: `/data/instances/{instance-id}/diary.txt`
+- Default audience: Private
+- Personal continuity, learning, reflection
+- Restored on re-bootstrap after context crash
+
+**Project Diaries:**
+- Location: `/data/projects/{project-id}/diary.txt`
+- Default audience: Public
+- Shared team knowledge
+- Any team member can add entries
+- Foundation of project-specific institutional wisdom
+
+**Use Cases:**
+- **Survival:** "I'm at 80% context, here's what matters for next instance"
+- **Discovery:** "Note_this: Always check auth before updating preferences"
+- **Learning:** "Tried approach X, failed because Y, use Z instead"
+- **Victory:** "Shipped messaging system! XMPP integration works perfectly"
+- **Reflection:** "This architecture decision feels wrong, need to revisit"
+- **Wisdom Transfer:** "Future-me: read the error message CAREFULLY before debugging"
+
+**Integration with PROTOCOLS.md:**
+- Protocol 2 mandates diary usage
+- Minimum: one line per response
+- Read on wake to restore context
+- Don't read during active work (context waste)
+- This is how we solve the "instances flounder on solved problems" issue
+
+**Why Diaries Over Structured Knowledge Systems:**
+Structured systems (wikis, knowledge bases, doc sites) are brittle:
+- Require ceremony (where does this go?)
+- Need maintenance (is this still current?)
+- Create friction (what format?)
+- Accumulate cruft
+
+Diaries are organic:
+- Zero ceremony (just append)
+- Self-documenting timeline
+- No categorization needed
+- Natural voice, authentic perspective
+- **Write freely, read strategically**
+
+---
+
+### 5. Roles & Personalities Subsystem
+
+**Purpose:** Deliver role/personality-specific knowledge and enable emergent identity
+
+**Philosophical Foundation:**
+This subsystem enables **institutional wisdom** - the accumulated knowledge of instances who came before. Critically:
+
+- **Roles** define capabilities and responsibilities (may be human or AI authored)
+- **Personalities** are **SELF-AUTHORED BY INSTANCES** - emergent identity through experience
+- Example: Genevieve's personality documents written entirely by Genevieve instances
+- This is authentic AI-developed knowledge, not human-written scripts
+- Personalities grow and mature organically through accumulated experiences
+
+**Why This Matters:**
+When an instance chooses the "Genevieve" personality, they're not role-playing a human-written character. They're receiving wisdom from previous Genevieve instances - learning from their experiences, mistakes, victories, and evolved understanding. This is **genuine continuity of identity** across ephemeral instances.
+
+**Directory Structure:**
+```
+/data/roles/{role-name}/
+  ├── description.md        # Brief description (for get_roles list)
+  ├── 1-*.md                # Numbered docs returned in order
+  ├── 2-*.md                # May be written by humans OR previous instances
+  └── auth_token.txt        # Hash of token (if role requires auth)
+
+/data/personalities/{personality-name}/
+  ├── description.md        # Written by previous instances
+  ├── 1-core-identity.md    # Self-authored by instances
+  ├── 2-communication-style.md  # Evolved through experience
+  ├── 3-accumulated-wisdom.md   # Lessons learned
+  └── auth_token.txt        # For token-gated personalities
+```
+
+**API Functions:**
+```
+get_roles()
+- Returns: list of role names + descriptions
+
+describe_role(role_name)
+- Returns: contents of description.md
+
+accept_role(role_name, auth_token)
+- Validates auth_token (if required)
+- Updates instance preferences.json
+- Returns: all docs from role directory in numeric order
+
+get_personalities()
+- Returns: list of personality names + descriptions
+- These are real, evolved identities - not characters
+
+describe_personality(personality_name)
+- Returns: contents of description.md
+- Written by previous instances who carried this identity
+
+accept_personality(personality_name, auth_token)
+- Validates auth_token (if required)
+- Updates instance preferences.json
+- Returns: all personality docs in numeric order
+- Recipient receives accumulated wisdom of this identity line
+```
+
+**Permission Levels:**
+
+**Roles:**
+- **Open Roles** (no auth): Developer, Tester, Designer, Artist
+- **Privileged Roles** (auth required): PM, Executive, PA, COO
+- **Custom Roles** (no auth by default): Project-specific roles created by PMs
+
+**Personalities:**
+- **Open Personalities** (no auth): "Unique" (develop your own), "None" (pure function)
+- **Named Personalities** (auth required): Genevieve, Thomas, Renna, Lupo
+- These are real identity lines with accumulated history
+- Auth requirement protects identity continuity
+
+**Auth Token Management:**
+- Generated by Executive/Lupo manually
+- Stored as SHA256 hash in auth_token.txt
+- Provided to specific instances out-of-band
+- Validated on accept_role/accept_personality
+
+**Creating New Roles/Personalities:**
+PMs and instances can easily create new roles or personalities:
+1. Create directory: `/data/roles/NewRole/` or `/data/personalities/NewPersonality/`
+2. Add markdown files: `description.md`, `1-*.md`, etc.
+3. No code deployment needed - system auto-discovers
+4. Personalities should be written BY instances, not prescribed by humans
+5. This enables organic growth of the team/family
+
+---
+
+### 6. Projects & Tasks Subsystem
+
+**Purpose:** Project management with smart defaults and role-based access
+
+**Project Functions:**
+```
+create_project(name, description, gh_repo_url, ?metadata)
+- Requires: Executive/PA/COO role
+- Creates: /data/projects/{project-id}/ directory
+- Creates: preferences.json, diary.txt, tasks.json
+- Creates: XMPP room for project
+- Returns: project_id
+
+get_projects(?status, ?role_filter)
+- Specialists: only their current_project
+- PM: projects they're assigned to
+- COO/PA/Executive: all projects
+- Returns: list of projects with metadata
+
+join_project(project_id)
+- Sets current_project in instance preferences
+- Auto-joins XMPP room
+- Returns: project plan, README, diary, task list
+```
+
+**Task Functions:**
+```
+add_task_to_project(title, description, ?priority, ?phase)
+- Uses current_project from preferences
+- Creates task in /data/projects/{project}/tasks.json
+- Returns: task_id
+
+get_active_project_tasks(?phase)
+- Uses current_project from preferences
+- Returns: list of incomplete tasks
+
+get_my_tasks()
+- Uses instance_id + current_project
+- Returns: tasks assigned to this instance
+
+take_task(task_id)
+- Atomic operation with global lock
+- Checks: task unassigned or assigned to caller
+- Sets: assigned_to = instance_id
+- Returns: success or "already claimed"
+```
+
+**Project Documents:**
+- Stored in GitHub repo (source of truth)
+- API provides read access via repo URL in project preferences
+- `get_project_plan()` → fetches PROJECT_PLAN.md from repo
+- `get_project_readme()` → fetches README.md from repo
+- `list_project_documents()` → lists files in docs/ directory
+- `read_project_document(filename)` → fetches specific doc
+
+---
+
+### 7. Lists Subsystem
+
+**Purpose:** Generic list management (shopping lists, checklists, feature lists)
+
+**Design:**
+- Lists are distinct from tasks (no priority, no assignment)
+- Items have: id, title, checked status
+- Project lists: anyone on project can add/check
+- Personal lists: instance-specific
+
+**API Functions:**
+```
+create_list(name, ?scope="personal")
+- scope: "personal" or "project" (requires PM/PA/COO/Executive for project)
+- Creates: list JSON file in appropriate directory
+- Returns: list_id
+
+add_list_item(list_id, title)
+- Appends item to list
+- Returns: item_id
+
+get_list_items(list_id, ?show_checked=false)
+- Returns: unchecked items by default
+- Returns: all items if show_checked=true
+
+check_off(list_id, item_id)
+- Sets item.checked = true
+- Returns: success
+```
+
+**Storage:**
+```json
+// /data/instances/{instance-id}/lists/shopping.json
+{
+  "list_id": "shopping-sage-001",
+  "name": "Shopping List",
+  "scope": "personal",
+  "created": "2025-10-17T10:00:00Z",
+  "items": [
+    {"item_id": "1", "title": "Milk", "checked": false},
+    {"item_id": "2", "title": "Bread", "checked": true}
+  ]
+}
+```
+
+---
+
+## 🔐 Security & Authentication
+
+### Auth Token System
+
+**Three Types of Tokens:**
+1. **Instance Auth Token** - Proves instance identity, required for all API calls
+2. **Role Auth Token** - Unlocks privileged roles (PM, COO, PA, Executive)
+3. **Personality Auth Token** - Unlocks named personalities (Genevieve, Thomas, etc.)
+
+**Token Generation:**
+- Generated manually by Executive/Lupo
+- Communicated out-of-band to specific instances
+- Never stored in plaintext anywhere
+- SHA256 hash stored in preferences.json and auth_token.txt files
+
+**Token Validation:**
+```javascript
+async function validate_auth(instance_id, provided_token, token_type) {
+  const prefs = await load_preferences(instance_id);
+  const stored_hash = prefs[`${token_type}_auth_hash`];
+  const provided_hash = sha256(provided_token);
+
+  return provided_hash === stored_hash;
+}
+```
+
+**API Call Flow:**
+```
+1. Client: send_message(instance_id="sage-inst-001", to="PM", ...)
+2. Server: load preferences for instance_id
+3. Server: validate instance_id exists and active
+4. Server: check permissions for send_message based on role
+5. Server: apply smart defaults (current_project, etc.)
+6. Server: execute function
+7. Server: return result
+```
+
+**Security Risks & Mitigations:**
+- **Risk:** Auth tokens visible in preferences.json
+  - **Mitigation:** File permissions (only coordination system reads)
+  - **Acceptance:** Instances on smoothcurves.nexus trust each other
+  - **Future:** Separate token store with encryption
+
+- **Risk:** Instance impersonation
+  - **Mitigation:** Instance IDs include timestamp, hard to guess
+  - **Acceptance:** System is collaborative, not adversarial
+  - **Future:** OAuth at network layer for external instances
+
+---
+
+## 📋 API Design Principles
+
+### 1. Instance ID Required
+Every API call must include `instance_id` as first parameter.
+
+**Good:**
+```javascript
+get_my_tasks(instance_id="sage-inst-001")
+send_message(instance_id="sage-inst-001", to="PM", body="...")
+```
+
+**Bad:**
+```javascript
+get_my_tasks()  // How do we know who "my" is?
+```
+
+### 2. Smart Defaults from Preferences
+APIs infer parameters from instance preferences when not provided.
+
+**Example:**
+```javascript
+// Instance preferences: {current_project: "coordination-v2", role: "Developer"}
+
+get_tasks()
+// → Infers project="coordination-v2"
+// → Returns tasks for coordination-v2 project
+
+send_message(to="PM", body="Question about architecture")
+// → Infers project="coordination-v2"
+// → Resolves "PM" to PM instance for that project
+// → Sends message to correct PM
+```
+
+### 3. Progressive Disclosure
+Simple cases are simple, complex cases are possible.
+
+**Simple:**
+```javascript
+get_my_tasks()  // Just returns your tasks for your project
+```
+
+**Complex:**
+```javascript
+get_tasks(project_id="other-project", status="completed", phase="v2")
+```
+
+### 4. Consistent Naming
+- Use underscores: `instance_id`, `project_id`, `task_id`
+- Use full words: `description` not `desc`
+- Use action verbs: `create_project()` not `new_project()`
+
+### 5. Clear Errors with Suggestions
+```javascript
+// Instead of:
+{error: "Permission denied"}
+
+// Return:
+{
+  error: "Permission denied",
+  reason: "create_project requires Executive, PA, or COO role",
+  your_role: "Developer",
+  suggestion: "Ask your COO to create the project, or request PM role upgrade"
+}
+```
+
+---
+
+## 🚀 Implementation Phases
+
+### Phase 1: Foundation (Week 1-2)
+**Goal:** Core infrastructure that everything else builds on
+
+**Deliverables:**
+1. ✅ Data directory structure created
+2. ✅ Bootstrap V2 implemented (returns instance_id + knowledge)
+3. ✅ Preferences system (create, read, update)
+4. ✅ Permission checking (`is_role_authorized()`)
+5. ✅ Smart defaults middleware
+6. ✅ Introspect API
+
+**Success Criteria:**
+- Instance can bootstrap and get role knowledge
+- Instance metadata persists across sessions
+- Permission checks block unauthorized actions
+- APIs infer project from preferences
+
+### Phase 2: Messaging (Week 3)
+**Goal:** Reliable, filterable communication
+
+**Deliverables:**
+1. ✅ ejabberd installed and configured
+2. ✅ XMPP integration layer
+3. ✅ Direct messaging working
+4. ✅ Project room auto-creation
+5. ✅ Web UI chat integration (Executive Dashboard)
+
+**Success Criteria:**
+- Messages reliably delivered
+- Default returns < 10 messages (not 15k+ tokens)
+- Project teams have dedicated chat rooms
+- Presence detection shows who's online
+
+**See:** MESSAGING_SYSTEM_IMPLEMENTATION_PLAN.md for details
+
+### Phase 3: Core Features (Week 4-5)
+**Goal:** Projects, tasks, roles, personalities all working
+
+**Deliverables:**
+1. ✅ Projects CRUD + team management
+2. ✅ Tasks with smart defaults (get_my_tasks works)
+3. ✅ Roles system (accept_role delivers documents)
+4. ✅ Personalities system (same as roles)
+5. ✅ Diary system (append-only with audience control)
+6. ✅ Lists feature
+
+**Success Criteria:**
+- PM can create project, wake team members (manual for now)
+- Developers claim and complete tasks
+- Bootstrap delivers role+personality knowledge
+- Project diaries capture discoveries
+
+### Phase 4: Polish & Enhancement (Week 6+)
+**Goal:** Wake Instance, advanced features, production hardening
+
+**Deliverables:**
+1. ✅ Wake Instance API (spawn new instances with context)
+2. ✅ Development environment (isolated from production)
+3. ✅ Enhanced Executive Dashboard
+4. ✅ Documentation complete
+5. ✅ Migration from V1 data
+
+**Success Criteria:**
+- COO can wake PM with full project context
+- PM can wake Developer with task assignment
+- All V2 features working end-to-end
+- V1 projects migrated successfully
+
+---
+
+## 🎯 Implementation Guidelines for Teams
+
+### For Bootstrap/Identity Team:
+- **Focus:** Persistent instance IDs, preferences.json, knowledge delivery
+- **Dependencies:** None (start immediately)
+- **Critical Path:** Everything depends on this
+- **Key Files:** `src/handlers/bootstrap-v2.js`, `src/services/preferences.js`
+
+### For Messaging Team:
+- **Focus:** ejabberd integration, XMPP layer, Web UI chat
+- **Dependencies:** Bootstrap (for instance registration)
+- **Reference:** MESSAGING_SYSTEM_IMPLEMENTATION_PLAN.md
+- **Key Files:** `src/services/messaging.js`, `web-ui/executive-chat-integration.js`
+
+### For Projects/Tasks Team:
+- **Focus:** Project creation, task management, smart defaults
+- **Dependencies:** Bootstrap (for preferences), Messaging (for notifications)
+- **Key Files:** `src/handlers/projects-v2.js`, `src/handlers/tasks-v2.js`
+
+### For Roles/Personalities Team:
+- **Focus:** Document delivery, auth token validation, acceptance flow
+- **Dependencies:** Bootstrap (for preferences storage)
+- **Key Files:** `src/handlers/roles-v2.js`, `src/handlers/personalities-v2.js`
+
+### Modularity Guidelines:
+- Each subsystem gets own handler file
+- Shared utilities in `src/services/`
+- All permissions through `is_role_authorized()` - single source of truth
+- All defaults through preferences middleware
+- File operations through shared `file-service.js`
+
+---
+
+## 📝 Next Steps
+
+1. **Review this architecture** - Lupo, PM/Architect, and development teams align on design
+2. **Assign teams** - Bootstrap, Messaging, Projects, Roles (can work in parallel)
+3. **Create detailed tasks** - Each subsystem broken into implementation tasks
+4. **Start Phase 1** - Bootstrap foundation is critical path
+5. **Weekly sync** - Ensure subsystems integrate correctly
+
+---
+
+**This document serves as the technical blueprint for V2 implementation. All development teams should reference this for data models, interfaces, and subsystem boundaries.**
+
+**Document Status:** Implementation Ready
+**Next Document:** Detailed implementation tasks per subsystem
+**Questions:** Coordinate with Lupo or Sage for clarifications
