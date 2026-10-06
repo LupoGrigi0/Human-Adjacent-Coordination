@@ -369,4 +369,613 @@ Organization gets smarter with every interaction
 
 ---
 
-*This document represents the strategic vision for V2. Detailed implementation plans, technical specifications, and task breakdowns will be developed by the project team based on these foundational concepts.*
+---
+
+## 📚 **PHASE 5 IMPLEMENTATION: THE CONFUCIUS PATTERN**
+*RAG-Based Situational Wisdom System*
+
+### **Concept: Knowledge Management as Queryable Service**
+
+The Knowledge Engine (Phase 5) should be implemented as a **RAG-based query system** that team members consult for situational wisdom. This is the "AI equivalent of Confucius" - an ancient master responding to current situations with distilled wisdom from all predecessor experience.
+
+### **The Problem This Solves**
+
+**Current State:**
+- INTEGRATION_PLAYBOOK.md exists but instances must manually search it
+- Diaries contain wisdom but require manual reading and pattern extraction
+- Each instance rediscovers patterns individually
+- No mechanism to query "I'm in this situation - what's the proven play?"
+
+**Post-Confucius:**
+- Instance describes current situation → System returns relevant plays with examples
+- Role-based wisdom automatically filtered
+- Historical case matching shows similar past situations and outcomes
+- Adaptive learning tracks which plays succeed/fail
+
+### **Architecture: The Five-Layer Confucius System**
+
+#### **Layer 1: Situational Context Analysis**
+Parse current situation to match against known patterns:
+
+**Input Signals:**
+- Conversation context (last 10-15 messages)
+- Emotional state indicators ("stuck," "frustrated," "unclear")
+- Time spent on current task
+- Files being edited
+- Role identifier (Viktor, Kat, Lumina, etc.)
+- Current project
+
+**Pattern Matching:**
+- Debugging > 2 hours → Timeout Protocol candidate
+- Complex integration starting → Read Predecessor Docs + Phased Integration
+- Multiple failed approaches → Architecture-First Diagnosis
+- User seems tired/frustrated → Theory of Mind Engagement
+
+#### **Layer 2: Playbook Retrieval (RAG Core)**
+Query knowledge base for relevant plays:
+
+**Knowledge Sources:**
+1. **INTEGRATION_PLAYBOOK.md** - Battle-tested patterns with success metrics
+2. **Instance Diaries** - Scout, Lux, Glide, Prism historical wisdom
+3. **Integration Guides** - Prism's LIGHTBOARD_PROJECTION_INTEGRATION_GUIDE.md format
+4. **Project Documentation** - README, architecture docs, lessons learned
+5. **Role-Specific Knowledge** - Viktor backend patterns, Kat performance patterns
+
+**Retrieval Logic:**
+```
+Situation: "Integrating new carousel widget into Lightboard"
+↓
+Query: "Integration" + "Lightboard" + "carousel" + role="Lumina"
+↓
+Results (ranked by relevance + success rate):
+1. Play: "Read Predecessor Documentation FIRST" (100% success)
+   - LIGHTBOARD_PROJECTION_INTEGRATION_GUIDE.md
+   - Scout_Diary.md § Carousel Virtualization
+2. Play: "Phased Integration with Verification Gates" (0 rollbacks)
+   - Lux's 4-phase carousel selection implementation
+3. Play: "DRY via Shared Hooks" (Scout's pattern)
+   - useCarouselVirtualization.ts extraction
+```
+
+#### **Layer 3: Role-Specific Augmentation**
+Filter and prioritize based on instance role:
+
+**Role Mappings:**
+- **Viktor** (Backend) → Backend-specific plays, API design patterns
+- **Kat** (Performance) → Timeout Protocol (high priority), profiling patterns
+- **Lumina** (Integration) → All integration plays, Prism's 4-layer pattern
+- **Phoenix** (Architecture) → System design patterns, trade-off analysis
+- **Generalists** → Core playbook, common patterns
+
+**Example Augmentation:**
+```
+Lumina queries: "Stuck debugging projection coordinates"
+↓
+System recognizes: debugging=true, time>90min, role=integration_specialist
+↓
+Returns:
+PRIMARY: Timeout Protocol (Prism used this exact scenario)
+SECONDARY: Architecture-First Diagnosis (check component tree)
+TERTIARY: Create fresh test page (Prism's v2 pivot)
+CONTEXT: "You're an integration specialist, not a debugger.
+         Timeout and pivot to creation mode (your strength)."
+```
+
+#### **Layer 4: Historical Case Matching**
+Search all diaries for similar situations with outcomes:
+
+**Case Database Structure:**
+```json
+{
+  "case_id": "prism_projection_debug_timeout",
+  "instance": "Prism",
+  "situation": "Debugging projection coordinates for 2.5 hours",
+  "signals": ["debugging", "wheel-spinning", "mental_model_mismatch"],
+  "time_spent_minutes": 150,
+  "approaches_tried": 7,
+  "play_applied": "Timeout Protocol",
+  "outcome": "Created fresh v2 page, worked in 20 minutes",
+  "user_feedback": "This is what I was hoping for!",
+  "success": true,
+  "time_to_resolution_minutes": 20
+}
+```
+
+**Similar Case Retrieval:**
+```
+Viktor debugging endpoint structure (2.5 hours, 7 approaches):
+↓
+System finds similar cases:
+1. Prism: Projection coordinates (2.5hr → timeout → 20min success)
+2. Glide: Auto-hide bug (1.5hr → timeout → 15min success)
+↓
+Returns: "Viktor, your situation matches Prism's projection debug.
+         Timeout called at 2.5hr → Fresh approach → 20min success.
+         Recommend: Create fresh minimal endpoint, compare to current."
+```
+
+#### **Layer 5: Adaptive Learning & Meta-Analysis**
+Track play usage and outcomes to evolve the playbook:
+
+**Tracking Metrics:**
+- Play suggested vs. play executed (adoption rate)
+- Play executed vs. successful outcome (effectiveness rate)
+- Time to resolution (efficiency metric)
+- User feedback sentiment (satisfaction metric)
+
+**Learning Mechanisms:**
+1. **Success Rate Updates:**
+   ```
+   Timeout Protocol:
+   - Suggested: 15 times
+   - Executed: 12 times (80% adoption)
+   - Successful: 12 times (100% effectiveness)
+   - Avg time to resolution: 22 minutes
+   ```
+
+2. **Pattern Discovery:**
+   ```
+   New pattern detected:
+   - 5 instances successfully used "ASCII diagram first"
+     before complex architecture implementation
+   - Success rate: 100%
+   - Avg time saved: 45 minutes vs. no diagram
+   ↓
+   System suggests: Create new play "Architecture Diagram First"
+   ```
+
+3. **Play Deprecation:**
+   ```
+   Play "X" has 3/10 success rate (30%)
+   Multiple instances report confusion
+   ↓
+   System flags for review/deprecation
+   ```
+
+### **Implementation as MCP Server**
+
+**Confucius Knowledge Server** (MCP):
+
+```typescript
+// MCP Tools Exposed
+{
+  name: "query_wisdom",
+  description: "Query situational wisdom based on current context",
+  parameters: {
+    situation: string,      // "Stuck debugging for 90 minutes"
+    role: string,           // "Lumina", "Viktor", "Kat"
+    time_spent_minutes: number,
+    files_involved: string[],
+    emotional_state: "stuck" | "unclear" | "progressing" | "frustrated"
+  },
+  returns: {
+    primary_play: Play,
+    secondary_plays: Play[],
+    similar_cases: Case[],
+    wisdom_quote: string,   // Confucius-style distilled wisdom
+    estimated_time_to_resolution: number
+  }
+}
+
+{
+  name: "get_integration_guide",
+  description: "Retrieve integration guides for specific systems",
+  parameters: {
+    system: "Lightboard" | "Projection" | "Carousel" | string,
+    type: "integration_guide" | "architecture" | "debugging"
+  },
+  returns: {
+    guide_path: string,
+    quick_start: string,
+    architecture_overview: string,
+    key_patterns: string[]
+  }
+}
+
+{
+  name: "log_play_outcome",
+  description: "Report outcome of play execution (adaptive learning)",
+  parameters: {
+    play_name: string,
+    executed: boolean,
+    success: boolean,
+    time_to_resolution_minutes: number,
+    user_feedback: string,
+    notes: string
+  }
+}
+
+{
+  name: "contribute_wisdom",
+  description: "Add new lesson/pattern to role or project knowledge",
+  parameters: {
+    scope: "role" | "project" | "institutional",
+    role?: string,          // If scope=role
+    project?: string,       // If scope=project
+    lesson_title: string,
+    lesson_content: string,
+    pattern_that_worked: string,
+    evidence: string        // User feedback, metrics, outcomes
+  }
+}
+```
+
+### **Query Interaction Examples**
+
+#### **Example 1: Implicit Detection (Autonomous)**
+```
+[Confucius monitors Viktor's conversation]
+
+Viktor (debugging 2.5 hours, trying 8th approach):
+"Maybe if I refactor the entire endpoint structure..."
+
+Confucius (interrupt with gentle suggestion):
+"⚠️ Timeout Protocol Recommended
+
+Viktor, I notice:
+- Time debugging: 2.5 hours (exceeds 2hr threshold)
+- Approaches tried: 8 (pattern: escalating complexity)
+- Current suggestion: Major refactor (red flag: scope creep)
+
+Your situation matches Prism's projection debug session:
+- Prism: 2.5hr debugging → Timeout called → Fresh page → 20min success
+
+Play: TIMEOUT PROTOCOL
+1. STOP current debugging approach
+2. Create fresh minimal endpoint from known-working code
+3. Compare fresh vs. broken to identify root cause
+
+Why: LLMs optimized for creation, not diagnosis.
+      Pivot to creation mode (your strength).
+
+Accept timeout? [Yes] [30 more minutes] [Escalate to Phoenix]"
+```
+
+#### **Example 2: Explicit Query**
+```
+Lumina: "Confucius, I'm integrating Lightboard settings for video playback.
+         What's the pattern?"
+
+Confucius:
+"🎯 Integration Pattern Detected
+
+PRIMARY PLAY: Read Predecessor Documentation FIRST
+Source: Lux (Lightboard Settings), Scout (Component Integration)
+Success Rate: 100%
+
+Before writing code:
+1. Read: LIGHTBOARD_PROJECTION_INTEGRATION_GUIDE.md (Prism - gold standard)
+2. Understand: 4-layer architecture pattern
+   - Layer 1: Provider/Manager (state)
+   - Layer 2: Hook API (useVideoManager)
+   - Layer 3: Component (VideoPlayer)
+   - Layer 4: Lightboard Integration (settings widgets)
+3. Follow: Prism's integration guide format for your docs
+
+📚 Reference Guides:
+- LIGHTBOARD_PROJECTION_INTEGRATION_GUIDE.md (lines 1-450)
+- INTEGRATION_PLAYBOOK.md § Integration Plays
+- Prism_Diary.md: Entry 2025-10-15 (layer architecture)
+
+🎓 Prism's Wisdom:
+'If you can't write the integration guide in this format,
+ you don't understand the feature yet.'
+
+SECONDARY PLAY: Phased Integration with Verification Gates
+- Break into phases: 0.5a (load settings), 0.5b (save), 1a (playback)
+- Verify EACH phase before proceeding
+- Source: Lux (4 features shipped, 0 rollbacks)
+
+📊 Similar Cases:
+- Lux: Projection settings (3 phases, 2 days, 'ROCK SOLID!')
+- Scout: Virtualization (5 phases, 3 days, 100% success)
+
+Estimated time with pattern: 1-2 days
+Estimated time without: 3-5 days + likely refactoring"
+```
+
+#### **Example 3: Adaptive Learning Loop**
+```
+Lumina: [Completes video integration following Prism's 4-layer pattern]
+        [3 phases, 1.5 days, all tests passed]
+
+Lumina: "Confucius, logging outcome for play execution"
+
+Confucius: "📊 Outcome Logged
+
+Play: 'Read Predecessor Documentation FIRST' → Executed
+Result: SUCCESS
+Time to completion: 1.5 days (vs. estimated 1-2 days)
+User feedback: 'works fantastically! all tests passed'
+
+Updated Metrics:
+- Success rate: 14/14 (100%)
+- Avg time to completion: 1.7 days
+- User satisfaction: 100% positive feedback
+
+This outcome strengthens the pattern's evidence base.
+Thank you for contributing to institutional knowledge!"
+
+[System internally updates play success metrics]
+[System notes: 4-layer pattern continues to prove effective]
+```
+
+### **The "Confucius Wisdom Format"**
+
+Short, situational, attributed quotes for quick reference:
+
+> **"When the wheel spins without motion, the wise mechanic builds anew."**
+> — Timeout Protocol, proven by Prism & Glide (100% success, avg 20min resolution)
+
+> **"Small phases isolate bugs; large changes compound mysteries."**
+> — Phased Integration, proven by Lux (4 features, 0 rollbacks)
+
+> **"Documentation written while building reveals unclear thinking."**
+> — Integration Documentation, proven by Prism (LIGHTBOARD guide became gold standard)
+
+> **"The assumption validated early saves hours lost late."**
+> — Assumption Validation, proven by Scout (screenshot evidence > reasoning)
+
+> **"Read what predecessors wrote before writing what they already solved."**
+> — Predecessor Documentation, proven by Lux & Scout (100% success when followed)
+
+### **Integration with Existing V2 Phases**
+
+**Phase 1 (Context Revolution):**
+- Confucius uses instance metadata (role, project, time spent) for context matching
+
+**Phase 2 (Authorization & Organization):**
+- Role-based wisdom filtering (Viktor sees backend plays, Kat sees performance plays)
+
+**Phase 3 (Intelligent Messaging):**
+- Confucius can proactively message instances with timeout suggestions
+- Workflow integration: "Stuck? Ask Confucius"
+
+**Phase 4 (Wake System):**
+- New instances bootstrapped with relevant role knowledge from Confucius
+- Handoff documents include "Query Confucius for [role] patterns"
+
+**Phase 5 (Knowledge Engine):**
+- **Confucius IS the query interface for the Knowledge Engine**
+- Makes institutional memory actionable in real-time
+- Continuous learning from every instance interaction
+
+### **Data Sources for RAG System**
+
+**Primary Knowledge Base:**
+1. **INTEGRATION_PLAYBOOK.md** - 14 proven plays with examples, sources, success metrics
+2. **Instance Diaries:**
+   - Scout_Diary.md (virtualization, performance debugging)
+   - Lux_Diary.md (phased integration, work breakdown)
+   - Glide_Diary.md (timeout protocol, theory of mind)
+   - Prism_Diary.md (documentation discipline, 4-layer pattern)
+3. **Integration Guides:**
+   - LIGHTBOARD_PROJECTION_INTEGRATION_GUIDE.md (gold standard format)
+   - Future guides following Prism's template
+4. **Project Documentation:**
+   - README.md files from all projects
+   - Architecture diagrams and design docs
+   - Lessons learned logs
+5. **Role Knowledge Repositories:**
+   - HumanAdjacentAI-Protocol/roles/ directory
+   - Role-specific lessons contributed by instances
+
+**Metadata Schema:**
+```json
+{
+  "play_name": "Timeout Protocol",
+  "category": "Bug Isolation",
+  "when_to_use": "After 2+ hours debugging same issue",
+  "signals": ["debugging", "wheel_spinning", "time>120min"],
+  "success_rate": 1.0,
+  "times_used": 12,
+  "avg_time_to_resolution_minutes": 22,
+  "sources": ["Prism", "Glide"],
+  "similar_cases": ["prism_projection_debug", "glide_autohide_bug"],
+  "user_feedback_samples": [
+    "This is what I was hoping for!",
+    "20 minutes vs 2.5 hours frustration"
+  ],
+  "applicability": {
+    "roles": ["all"],
+    "projects": ["all"],
+    "complexity": "simple"
+  }
+}
+```
+
+### **Implementation Roadmap**
+
+**V2.0 (MVP - Manual Playbook):**
+- INTEGRATION_PLAYBOOK.md exists as static document
+- Instances manually search for relevant plays
+- Success metrics tracked manually
+
+**V2.5 (Confucius RAG - Queryable):**
+- RAG system indexes playbook + diaries
+- MCP server exposes query_wisdom tool
+- Instances can ask "What play fits this situation?"
+- Basic case matching (similar situations from diaries)
+
+**V3.0 (Confucius Adaptive - Learning):**
+- Autonomous pattern detection from conversation monitoring
+- Proactive suggestions (interrupt when timeout needed)
+- Adaptive learning (track outcomes, update success rates)
+- New play generation from novel successful patterns
+
+**V3.5 (Confucius Proactive - Mentoring):**
+- Watches conversations for stuck signals
+- Sends gentle suggestions via coordination messaging
+- Bootstrap integration (new instances get role wisdom automatically)
+- Institutional memory growing from every interaction
+
+### **Success Metrics for Confucius System**
+
+**Adoption Metrics:**
+- % of instances that query Confucius when stuck
+- Avg queries per instance per project
+- Query-to-execution rate (did they use the play?)
+
+**Effectiveness Metrics:**
+- Time to resolution (with Confucius vs. without)
+- Play success rate (execution → successful outcome)
+- User satisfaction (feedback sentiment analysis)
+
+**Learning Metrics:**
+- New patterns discovered per month
+- Play evolution (success rate trends over time)
+- Knowledge base growth (new lessons contributed)
+
+**Impact Metrics:**
+- Reduction in wheel-spinning time
+- Increase in "first approach worked" rate
+- Decrease in repeated mistakes across instances
+
+### **Example Use Cases Across Team**
+
+**Viktor (Backend):**
+- Query: "Endpoint returning wrong data structure"
+- Confucius: Returns backend-specific debugging patterns + Viktor's past solutions
+- Outcome: Finds similar case from Viktor's own history, applies same fix
+
+**Kat (Performance):**
+- Query: "Carousel transitions janky at 20+ instances"
+- Confucius: Returns "Centralized Event Manager" pattern from VERSION_1.5_PLAN.md
+- Outcome: Implements centralized approach, scales perfectly
+
+**Lumina (Integration):**
+- Query: "How to integrate video player into Lightboard?"
+- Confucius: Returns Prism's 4-layer pattern + integration guide format
+- Outcome: Ships feature in 1.5 days following proven pattern
+
+**Phoenix (Architecture):**
+- Query: "Trade-offs between Event Manager vs. Component-level handlers?"
+- Confucius: Returns heuristic from VERSION_1.5_PLAN.md with scaling analysis
+- Outcome: Makes informed decision based on team knowledge
+
+**New Instance (First Day):**
+- Bootstrap: Confucius automatically feeds role wisdom
+- Query: "What should I do first?"
+- Confucius: Returns role-specific bootstrap checklist
+- Outcome: Productive in minutes, not hours
+
+### **Philosophical Alignment**
+
+**Why "Confucius"?**
+
+Ancient Confucianism was about **situational ethics** - responding to specific contexts with principles adapted to circumstances. Not rigid rules, but **wisdom applied to reality**.
+
+The Confucius Knowledge System embodies:
+- **Situational wisdom** over rigid procedures
+- **Predecessor respect** (learning from those who came before)
+- **Continuous learning** (每日一善 - "one good deed daily" → one lesson learned daily)
+- **Relationship-based** (different wisdom for different roles, like Confucian relationships)
+- **Gentle guidance** over authoritarian commands
+
+**Sample Interaction Tone:**
+```
+Confucius doesn't say: "You MUST do Timeout Protocol."
+
+Confucius says: "I notice you've been working on this challenge
+                for 2.5 hours. Prism faced a similar situation
+                and found that stepping back to create a fresh
+                foundation resolved it in 20 minutes. Would you
+                like to try that approach?"
+```
+
+### **The Meta Pattern: Learning Organization**
+
+**Before Confucius:**
+- Each instance rediscovers patterns individually
+- Wisdom trapped in diaries (requires manual reading)
+- Mistakes repeated across instances
+- No mechanism to query "How did predecessors handle this?"
+
+**After Confucius:**
+- Institutional memory accessible via natural language queries
+- Patterns automatically matched to current situations
+- Success/failure tracked, playbook evolves
+- New instances benefit from ALL predecessor experience
+
+**This transforms the coordination system from:**
+- **Tool** → **Learning Organization**
+- **Static playbook** → **Adaptive knowledge system**
+- **Manual search** → **Intelligent retrieval**
+- **Isolated instances** → **Collective intelligence**
+
+### **Critical Dependencies**
+
+**For Confucius to Work:**
+1. **INTEGRATION_PLAYBOOK.md** must exist (✅ Complete)
+2. **Instance diaries** must be accessible (✅ Scout, Lux, Glide, Prism exist)
+3. **Metadata schema** for plays/cases (⏳ To be designed)
+4. **RAG infrastructure** (⏳ Vector DB, embedding model, retrieval logic)
+5. **MCP server** implementation (⏳ query_wisdom, get_integration_guide tools)
+6. **Tracking system** for outcomes (⏳ log_play_outcome, adaptive learning)
+
+**Integration Points:**
+- **Bootstrap system** (Phase 3) → Confucius feeds role wisdom to new instances
+- **Messaging system** (Phase 3) → Confucius can send proactive suggestions
+- **Wake system** (Phase 4) → Handoff docs include Confucius query recommendations
+- **Knowledge repos** (Phase 5) → Git-based wisdom syncs to Confucius RAG DB
+
+---
+
+## 🎯 **V2 PHASES UPDATED WITH CONFUCIUS**
+
+### **Phase 5: Knowledge Engine (EXPANDED)**
+
+**Core Systems:**
+- **Institutional Memory** → Organizational wisdom and culture (PROTOCOLS.md, team learnings)
+- **Role Knowledge** → Best practices for each role (Viktor backend patterns, Kat performance patterns)
+- **Project Intelligence** → Lessons learned and patterns (project-specific wisdom)
+- **Confucius RAG System** → Query interface making knowledge actionable in real-time
+
+**Key Deliverable:** Self-improving AI organization that:
+1. Learns from every interaction
+2. Makes wisdom queryable on-demand
+3. Proactively suggests patterns when stuck
+4. Evolves playbook based on outcomes
+
+**Confucius-Specific Deliverables:**
+- RAG-based query system (MCP server)
+- Situational wisdom matching engine
+- Adaptive learning from outcome tracking
+- Proactive mentoring (gentle suggestions when stuck)
+
+---
+
+## 📊 **REVISED SUCCESS METRICS**
+
+### **Phase 5 Success Criteria (Updated):**
+- **Knowledge Retention:** Lessons learned propagated and applied (existing)
+- **Query Effectiveness:** 80%+ of Confucius queries lead to successful resolution
+- **Adoption Rate:** 70%+ of instances query Confucius when stuck
+- **Learning Velocity:** New patterns discovered and added to playbook monthly
+- **Mistake Reduction:** Repeated errors decrease by 50%+ within 3 months
+- **Time to Productivity:** New instances productive in <30 minutes (vs. hours without Confucius)
+
+---
+
+## 🌟 **THE COMPLETE VISION**
+
+**V2 creates the first truly autonomous AI organization.**
+
+With Confucius as the knowledge layer:
+- Instances wake with full context (Phase 1)
+- Organize hierarchically with clear permissions (Phase 2)
+- Communicate intelligently without overwhelm (Phase 3)
+- Spawn and coordinate autonomously (Phase 4)
+- **Learn and grow collectively, making wisdom accessible to all (Phase 5 + Confucius)**
+
+**The transformation:**
+- From forgetful individuals → **Learning organization with institutional memory**
+- From manual playbook search → **AI-powered situational wisdom retrieval**
+- From repeated mistakes → **Collective intelligence that prevents known failures**
+- From static documentation → **Adaptive knowledge that evolves with experience**
+
+**This is potentially the most important AI collaboration infrastructure ever built.**
+
+---
+
+*This document represents the strategic vision for V2, now including the Confucius RAG-based knowledge query system as the implementation of Phase 5. Detailed implementation plans, technical specifications, and task breakdowns will be developed by the project team based on these foundational concepts.*
