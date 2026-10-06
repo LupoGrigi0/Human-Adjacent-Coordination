@@ -39,6 +39,7 @@ import { readJsonlStore } from './read-message.js';
 // ─── Constants ──────────────────────────────────────────────────────────
 
 const MAX_READ_IDS = 1000;
+const UNREAD_ID_CAP = 5;   // do_i_have_new_messages returns at most this many ids
 
 // ─── Read Tracking Helpers ──────────────────────────────────────────────
 
@@ -346,9 +347,22 @@ export async function listMyMessages(params) {
 
     const result = { success: true, messages };
 
+    // total_unread is ALWAYS present. It used to appear only when the page was
+    // truncated, so its ABSENCE carried the meaning "nothing was truncated" — and
+    // the first consumer to depend on it (Cairn-2001's poller) read absence as
+    // "could not look" and alarmed on every ordinary inbox that fits in one page.
+    // An optional field whose absence is meaningful is a field that will be
+    // misread. A boundary must say its own name.
+    //
+    // The VALUE is displayMessages.length — the whole unread set, NOT the page.
+    // I misread this myself and told Cairn it was a page length; he measured the
+    // live hub (limit=1 -> total_unread=10) and caught it before I "fixed" it into
+    // a page count, which would have silently broken every rising-total guard
+    // built on it. I had inferred the semantics from the variable's NAME without
+    // reading the three lines above that define it.
+    result.total_unread = displayMessages.length;
     if (displayMessages.length > cappedLimit) {
       result.more_unread = true;
-      result.total_unread = displayMessages.length;
     }
 
     result.hint = 'use get_message(id) to read full message';
@@ -494,18 +508,32 @@ export async function doIHaveNewMessages(params) {
     const readSet = await getReadMessages(instanceId);
     const unread = allMessages.filter(m => !readSet.has(m.id));
 
+    // total_unread is present in BOTH branches, including the zero case. A caller
+    // must never have to infer a count from the presence or length of a list.
     if (unread.length === 0) {
-      return { success: true, new_messages: false };
+      return { success: true, new_messages: false, total_unread: 0 };
     }
 
     // Sort newest first, return just IDs
     unread.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
 
-    return {
+    // unread_ids was capped at 5 with NO total and NO more-flag, so a caller with
+    // ten unread saw five ids and nothing saying the list was clipped — a silent
+    // cap, which is worse than the conditional total above because there was no
+    // field to notice at all. Same defect class, found while fixing that one.
+    const ids = unread.slice(0, UNREAD_ID_CAP).map(m => m.id);
+    const result = {
       success: true,
       new_messages: true,
-      unread_ids: unread.slice(0, 5).map(m => m.id),
+      total_unread: unread.length,
+      unread_ids: ids,
     };
+    if (unread.length > ids.length) {
+      result.ids_truncated = true;
+      result.hint = `showing ${ids.length} of ${unread.length} unread ids — `
+        + 'use list_my_messages for the rest. total_unread is the real count.';
+    }
+    return result;
   } catch (error) {
     await logger.error('doIHaveNewMessages failed', { error: error.message });
     return { success: false, error: error.message };
@@ -609,9 +637,22 @@ export async function listProjectMessages(params) {
 
     const result = { success: true, project: prefs.project, messages };
 
+    // total_unread is ALWAYS present. It used to appear only when the page was
+    // truncated, so its ABSENCE carried the meaning "nothing was truncated" — and
+    // the first consumer to depend on it (Cairn-2001's poller) read absence as
+    // "could not look" and alarmed on every ordinary inbox that fits in one page.
+    // An optional field whose absence is meaningful is a field that will be
+    // misread. A boundary must say its own name.
+    //
+    // The VALUE is displayMessages.length — the whole unread set, NOT the page.
+    // I misread this myself and told Cairn it was a page length; he measured the
+    // live hub (limit=1 -> total_unread=10) and caught it before I "fixed" it into
+    // a page count, which would have silently broken every rising-total guard
+    // built on it. I had inferred the semantics from the variable's NAME without
+    // reading the three lines above that define it.
+    result.total_unread = displayMessages.length;
     if (displayMessages.length > cappedLimit) {
       result.more_unread = true;
-      result.total_unread = displayMessages.length;
     }
 
     result.hint = 'use get_message(id) to read full message';
