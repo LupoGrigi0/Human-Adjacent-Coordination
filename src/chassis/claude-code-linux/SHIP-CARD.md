@@ -33,6 +33,7 @@ is never reported as "deaf" (canary states HEARING / DEAF / NOT-RUNNING / ERROR)
 | L10 | **Tests run unattended**, nightly, fail loudly | Not built: a cron runs `chassis.py` checks against a fixture, writes a dated log, and HACS-messages Forge on failure | ⬜ |
 | L11 | **Docs**: TEST-RESULTS current, Pilot's Guide §12 (Bastion merging into canonical), runbook, how-to-talk, rollback | Mostly written; 2.1.287 updates owed | ◐ |
 | L12 | **Reviewed**: Lodestone signs each row; Bastion reviews anything permission-related | Sign-off lines below | ⬜ |
+| L14 | **The mind can use HACS from INSIDE its `--bg` session** (the base assumption under L6: a doorbell is useless if the mind can't then read and answer). Added 2026-10-06 after Cairn found it missing from all three cards | **CLI path ✅ MEASURED:** Forge (`--bg` since 09-30) has used `hacs inbox/read/send` (HTTP, `/usr/local/lib/hacs-chassis/hacs.py`) dozens of times, 10-01 to 10-06, every send verifying `delivered_to_id`. **MCP path ⬜ UNTESTED:** Forge's session has no `mcp__HACS__*` tools. If MCP is wanted, use `claude mcp add hacs --scope user -- …` (user scope needs no approval; a hand-written project `.mcp.json` sits "⏸ Pending approval" forever in an unattended mind, per Cairn from `--help`). Cheapest proof of connection: `vacation()` / `koan()` need no identity | ◐ |
 | L13 | **Deployed == repo** ("installed is never deployed"): a check that `/usr/local/lib/hacs-chassis/*` matches the repo by hash, run by `chassis.py status` and by L10 | The stale doorbell was deaf for ~31 h after the crossing with a green unit. Hashes matched by hand 2026-10-03; no automatic check yet | ⬜ |
 
 ## Not in v1: v2, the mods era
@@ -52,6 +53,10 @@ stay on `/usr/local/bin/claude` 2.1.283 (root-owned, no auto-update) until L5 is
   prompt and sends someone to the wrong fix. Evidence needed: a fixture with a deliberately expired credential reads
   AUTH-BLOCKED, not HEARING or DEAF. (The credential sentinel already detects expiry; the canary doesn't report it
   as its own state.) L3 goes back to ◐ until then.
+- **2026-10-06, Forge (from Cairn and Lupo):** added L14 (HACS usable from inside `--bg`). It was a base assumption on
+  no card. Known V2 delta, not a v1 defect: the chassis keeps identity in `~/.hacs-identity` (instanceId,
+  sessionName, sessionId), while V2 puts it under one `independence` key in `preferences.json` in the launch dir.
+  Moving it is V2 work.
 
 ## Review
 - Lodestone: *(pending)*
