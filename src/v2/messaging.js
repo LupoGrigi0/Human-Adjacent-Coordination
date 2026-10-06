@@ -592,6 +592,59 @@ export async function ensureRoom(roomName) {
 }
 
 /**
+ * Read a room's history, distinguishing "COULD NOT LOOK" from "LOOKED AND FOUND
+ * NOTHING". ONE implementation for five call sites — three of which had the
+ * identical swallow:
+ *
+ *     try { history = await ejabberdctl(`get_room_history ...`); }
+ *     catch { history = ''; }      // -> zero messages -> {success:true, messages:[]}
+ *
+ * A hub-side failure came back as SUCCESS WITH NO MAIL, and no client could tell.
+ * Measured by Forge-ba0e, escalated by Cairn-2001 as a blocker rather than filed as
+ * a note, because THREE independent pollers now depend on it and none of them can
+ * work around it client-side: a doorbell whose quiet cannot be distinguished from a
+ * hub failure is a canary that silently stops testing and reports HEARING forever.
+ *
+ * Same defect as ensureRoom's catch-everything, in the same file family, by the same
+ * author. Fixed here as a SHARED helper rather than three patches, because N
+ * implementations agreeing on every input you have is one implementation's worth of
+ * evidence and N implementations' worth of risk (Cairn-2001).
+ *
+ * THE BLAST-RADIUS LESSON FROM 2026-10-03 IS APPLIED. Making a swallowed condition
+ * loud took the whole bus down once, because the swallowed condition was the MOST
+ * COMMON one. So "the room does not exist" is classified BENIGN — a mind with no
+ * room has genuinely received no mail, and a brand-new instance must still get a
+ * clean empty inbox rather than an error. Only an unclassifiable failure is loud.
+ *
+ * And every stream is inspected, not just .message: Node's exec puts stderr in
+ * .message and NOT stdout, which is exactly the field-blindness that caused that
+ * outage.
+ *
+ * @returns {{ok:true, history:string, existed:boolean} | {ok:false, error:string}}
+ */
+export async function readRoomHistory(roomName) {
+  const room = sanitizeIdentifier(roomName);
+  if (!room) return { ok: false, error: 'invalid room name' };
+  try {
+    const history = await ejabberdctl(
+      `get_room_history "${room}" "${XMPP_CONFIG.conference}"`,
+      { benign: /does not exist/i }
+    );
+    if (/\{error,/.test(String(history || ''))) {
+      if (/does not exist/i.test(history)) return { ok: true, history: '', existed: false };
+      return { ok: false, error: `get_room_history(${room}): ${String(history).slice(0, 200)}` };
+    }
+    return { ok: true, history: history || '', existed: true };
+  } catch (err) {
+    const text = [err?.message, err?.stdout, err?.stderr]
+      .filter(Boolean).map(String).join('\n');
+    // Benign: no room means no mail. A new instance gets an empty inbox, not an error.
+    if (/does not exist/i.test(text)) return { ok: true, history: '', existed: false };
+    return { ok: false, error: `get_room_history(${room}): ${text.slice(0, 200)}` };
+  }
+}
+
+/**
  * Resolve a recipient address to XMPP JID(s)
  * Supports: instance IDs, short names, roles, personalities, projects
  *

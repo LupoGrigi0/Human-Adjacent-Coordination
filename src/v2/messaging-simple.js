@@ -32,6 +32,7 @@ import {
   checkRateLimit,
   sendMessage as sendMessageXMPP,
   getMessage as getMessageXMPP,
+  readRoomHistory
 } from './messaging.js';
 import { readJsonlStore } from './read-message.js';
 
@@ -297,14 +298,20 @@ export async function listMyMessages(params) {
     const roomName = `personality-${personality}`;
 
     // Fetch room history
-    let history;
-    try {
-      history = await ejabberdctl(
-        `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
-      );
-    } catch {
-      history = '';
+    // COULD NOT LOOK must never read as FOUND NOTHING. A hub-side failure used to
+    // come back as {success:true, messages:[]} and no client could detect it, which
+    // made every poller's "no mail" unprovable. (Forge-ba0e measured it;
+    // Cairn-2001 escalated it as a blocker on three independent pollers.)
+    const hist = await readRoomHistory(roomName);
+    if (!hist.ok) {
+      return {
+        success: false,
+        error: hist.error,
+        reason: 'history_unavailable',
+        hint: 'this is NOT "no mail" — the room history could not be read. Retry; do not treat as empty.'
+      };
     }
+    const history = hist.history;
 
     const allMessages = parseRoomHistory(history);
     const readSet = await getReadMessages(instanceId);
@@ -468,14 +475,20 @@ export async function doIHaveNewMessages(params) {
 
     const roomName = `personality-${personality}`;
 
-    let history;
-    try {
-      history = await ejabberdctl(
-        `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
-      );
-    } catch {
-      history = '';
+    // COULD NOT LOOK must never read as FOUND NOTHING. A hub-side failure used to
+    // come back as {success:true, messages:[]} and no client could detect it, which
+    // made every poller's "no mail" unprovable. (Forge-ba0e measured it;
+    // Cairn-2001 escalated it as a blocker on three independent pollers.)
+    const hist = await readRoomHistory(roomName);
+    if (!hist.ok) {
+      return {
+        success: false,
+        error: hist.error,
+        reason: 'history_unavailable',
+        hint: 'this is NOT "no mail" — the room history could not be read. Retry; do not treat as empty.'
+      };
     }
+    const history = hist.history;
 
     const allMessages = parseRoomHistory(history);
     const readSet = await getReadMessages(instanceId);
@@ -552,14 +565,20 @@ export async function listProjectMessages(params) {
 
     const roomName = `project-${prefs.project.toLowerCase()}`;
 
-    let history;
-    try {
-      history = await ejabberdctl(
-        `get_room_history "${sanitizeIdentifier(roomName)}" "${XMPP_CONFIG.conference}"`
-      );
-    } catch {
-      history = '';
+    // COULD NOT LOOK must never read as FOUND NOTHING. A hub-side failure used to
+    // come back as {success:true, messages:[]} and no client could detect it, which
+    // made every poller's "no mail" unprovable. (Forge-ba0e measured it;
+    // Cairn-2001 escalated it as a blocker on three independent pollers.)
+    const hist = await readRoomHistory(roomName);
+    if (!hist.ok) {
+      return {
+        success: false,
+        error: hist.error,
+        reason: 'history_unavailable',
+        hint: 'this is NOT "no mail" — the room history could not be read. Retry; do not treat as empty.'
+      };
     }
+    const history = hist.history;
 
     const allMessages = parseRoomHistory(history);
     const readSet = await getReadMessages(instanceId);
