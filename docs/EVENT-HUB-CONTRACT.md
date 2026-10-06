@@ -194,6 +194,68 @@ success is stamped `delivered_via: <channel>` by the hub when the driver omits i
 Telegram driver re-registers its outbound callback every discovery tick (idempotent).
 drain() returns `cleared:false` + `error` when the counter-file write fails.
 
+## 8c. Pull chassis — `mode:'pull'` and `awaiting_fetch` (amendment, 2026-10-06)
+
+**The gap, found by Cairn-2001 while writing a pull adapter and stopped on rather than
+guessed at.** §8b offers an adapter exactly two outcomes, and **a pull chassis has an
+honest answer that is neither of them**:
+
+- `{ok:true}` is a **lie**. Nothing was delivered; the mind may be asleep for days. And
+  it is a specific lie — it writes a false delivery receipt into the ledger, which is
+  *accepted ≠ delivered* implemented backwards, in the component that exists to refuse it.
+- `{ok:false}` is **true but useless**. It marks the slot `pending` and retries forever
+  against a hub that was never going to be the deliverer. Correct semantics, wrong
+  behaviour, unbounded retry as the cost.
+
+**The gap is not a missing return value. §8b conflates two different questions:**
+
+    1. Did the hub's delivery attempt succeed?     (transport)
+    2. Is this notification still outstanding?     (accounting)
+
+For push they are coupled — delivered means not outstanding. **For pull they come apart:**
+nothing was delivered, it *is* outstanding, and it is **awaiting fetch** rather than
+awaiting retry.
+
+### The amendment
+
+An adapter MAY declare a **static** `mode: 'pull'`. When it does:
+
+- The hub **MUST NOT call `notify()` at all.** There is therefore no code path that *can*
+  claim delivery — the safety property of "register no adapter", without its cost.
+- The slot becomes **`status: 'awaiting_fetch'`**.
+- `_retryPending()` **MUST skip** `awaiting_fetch`. No unbounded retry against a hub that
+  is not the deliverer.
+- `drain_events` clears `awaiting_fetch` exactly as it clears `active`. **The counter slot
+  IS the queue and the drain IS the discharge** — a pull chassis needs no second queue
+  beside the one that already works.
+
+### Why not simply register no adapter
+
+That was the other candidate, and **Cairn rejected his own preference for the right
+reason**: with no adapter, *"unconfigured"* and *"pull"* render identically — which is the
+defect this document exists to catch. With `mode:'pull'` the registry still records that
+the mind is reachable-by-pull, while **unconfigured still throws `no chassis adapter for
+X`** and stays visible. The two stop being indistinguishable.
+
+### This is RFC-0001 §5b extended on-box
+
+`awaiting_fetch` **is** *custody belongs to the bus* — the hub retains until the recipient
+fetches. §5b specified that for remote spokes; the same reasoning applies to a local pull
+chassis and this contract did not say so. Cairn found the asymmetry.
+
+### Implementation notes — MUST, not SHOULD
+
+- **`sanitizeCounterData` MUST degrade an unknown status rather than poison the hub.**
+  Statuses load from disk, and a counter file written by a newer hub must not take an
+  older one down. (Invariant 6: stay up on ANY malformed input.)
+- **Verify whether `drain()` clears on status or unconditionally** before relying on the
+  clause above. Unchecked at time of writing, and stated here rather than assumed.
+- A `mode` that is present but not `'pull'` MUST be treated as push (the default), never
+  as an error — an unknown mode is a could-not-tell, and **"cannot tell" must never be
+  collapsed into a verdict.** That collapse (`unknown` read as `failed`) took the whole
+  bus down on 2026-10-03.
+
+
 ## 9. Invariants (tests assert these; implementations must not violate)
 
 1. Delivered notification carries ONLY {channel, from, count, ts, thread_id?}. No body, ever.
@@ -202,3 +264,6 @@ drain() returns `cleared:false` + `error` when the counter-file write fails.
 4. Counter survives hub restart and chassis downtime; drain always works.
 5. Never report sent unless verified all the way down (H-02).
 6. Hub stays up on ANY malformed input; failures are queryable, not swallowed.
+7. A pull chassis is never sent a delivery it did not receive: with `mode:'pull'`,
+   `notify()` is not called, the slot is `awaiting_fetch`, and the retry sweep skips it.
+   `awaiting_fetch` is cleared ONLY by a drain. (§8c)
