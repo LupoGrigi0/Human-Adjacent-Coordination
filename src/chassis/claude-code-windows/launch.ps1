@@ -229,7 +229,16 @@ if ($isResume) {
     if ($Model) {
         Fail "-Model on a RESUME would fork the session (a background session keeps its birth options; flags start a copy). Nothing was started. Switch model inside the session, or launch a new session deliberately." @{ wouldFork = $true }
     }
-    if ($PSBoundParameters.ContainsKey('Mode') -and $birthMode -and $Mode -ne $birthMode) {
+    # A mind ADOPTED by resume (born before the harness, or by hand) has no
+    # .birth-mode: it is only written at a birth. The first version tested
+    # `-and $birthMode`, so for exactly those minds the guard could not fire
+    # (Lantern-4224, reading the code, 2026-10-07). An unrecorded birth mode is
+    # "could not look", not a value: a -Mode on such a resume is refused until
+    # someone records what the session actually is.
+    if ($PSBoundParameters.ContainsKey('Mode') -and -not $birthMode) {
+        Fail "-Mode $Mode on a RESUME, but this session's birth mode was never recorded (it was adopted, not born here), so the launcher cannot tell whether -Mode would fork it. Nothing was started. Resume with no -Mode, or record the truth first: write 'attended' or 'unattended' to $birthFile." @{ wouldFork = $null; birthMode = 'unrecorded' }
+    }
+    if ($PSBoundParameters.ContainsKey('Mode') -and $Mode -ne $birthMode) {
         Fail "this session was born '$birthMode'; -Mode $Mode on a resume would fork it. Mode is baked in at birth. Nothing was started." @{ wouldFork = $true; birthMode = $birthMode }
     }
     # NOT assigned back to $Mode: its [ValidateSet] stays attached to the VARIABLE

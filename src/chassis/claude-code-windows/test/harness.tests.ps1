@@ -319,6 +319,33 @@ else {
         $wr = [string](JP $j 'wouldRun')
         Check 'plain resume passes --resume'               ($wr -like '*--resume *') 'True'
         Check 'plain resume passes NO flags that fork'     ($wr -notmatch '--append-system-prompt-file|--model|--name') 'True'
+
+        # ADOPTED minds have no .birth-mode. The guard used to test `-and $birthMode`
+        # and so could not fire for them (Lantern, 2026-10-07). Hide the file if the
+        # fixture has one, and put it back byte-for-byte afterwards.
+        $bf = "D:\Lupo\hacs-runtime\$resumable\.birth-mode"
+        $saved = if (Test-Path $bf) { [IO.File]::ReadAllBytes($bf) } else { $null }
+        try {
+            if ($saved) { Remove-Item $bf }
+            $raw = & $launch -InstanceId $resumable -Mode attended -WhatIf 2>$null | Out-String; $lrc = $LASTEXITCODE
+            $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+            Check 'unrecorded birth + -Mode on resume is REFUSED' (JP $j 'birthMode') 'unrecorded'
+            Check 'and exits 2, starting nothing'                  $lrc 2
+            # control: the same resume WITHOUT -Mode is still allowed
+            $raw = & $launch -InstanceId $resumable -WhatIf 2>$null | Out-String
+            $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+            Check 'control: unrecorded birth, no -Mode, still resumes' ([string](JP $j 'wouldRun') -like '*--resume *') 'True'
+            # recorded and matching: allowed; recorded and different: refused as a fork
+            Set-Content -Path $bf -Value 'attended' -Encoding ascii
+            $raw = & $launch -InstanceId $resumable -Mode unattended -WhatIf 2>$null | Out-String
+            $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+            Check 'recorded attended + -Mode unattended is refused as a fork' (JP $j 'wouldFork') 'True'
+            $raw = & $launch -InstanceId $resumable -Mode attended -WhatIf 2>$null | Out-String
+            $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+            Check 'recorded attended + -Mode attended resumes' ([string](JP $j 'wouldRun') -like '*--resume *') 'True'
+        } finally {
+            if ($saved) { [IO.File]::WriteAllBytes($bf, $saved) } elseif (Test-Path $bf) { Remove-Item $bf }
+        }
     }
 }
 
