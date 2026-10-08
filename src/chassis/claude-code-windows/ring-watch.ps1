@@ -128,7 +128,10 @@ function Send-Alert([string] $kind, [string] $text) {
 function End-Tick([string] $end, [string] $status, [string] $msg, $hearing = 'n/a', [switch] $Acted) {
     $facts.end = $end
     $extra = @{}; foreach ($k in $facts.Keys) { $extra[$k] = $facts[$k] }
-    $r = if ($hearing -eq 'n/a') { New-HacsResult -Status $status -InstanceId $InstanceId -HearingNotApplicable -Message $msg -Extra $extra }
+    # NOT `$hearing -eq 'n/a'`: with $true on the left PowerShell converts 'n/a' to a
+    # boolean (non-empty = $true) and the test MATCHES, so a proven HEARING was
+    # reported as n/a. Found by the first real end-to-end tick.
+    $r = if ($hearing -is [string] -and $hearing -eq 'n/a') { New-HacsResult -Status $status -InstanceId $InstanceId -HearingNotApplicable -Message $msg -Extra $extra }
          else { New-HacsResult -Status $status -InstanceId $InstanceId -Hearing $hearing -Message $msg -Extra $extra }
     if (-not $WhatIf) {
         Write-Atomic $P.status $r
