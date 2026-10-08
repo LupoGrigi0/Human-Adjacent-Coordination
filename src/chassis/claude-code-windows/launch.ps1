@@ -94,17 +94,27 @@ trap {
         # The module itself may be what failed. Emit by hand, still valid JSON.
         [pscustomobject]@{ status = 'error'; instanceId = $InstanceId; hearing = 'unknown'; message = $why } | ConvertTo-Json -Compress
     }
+    try { if ($script:launchLock) { Unlock-HacsInstance $script:launchLock } } catch { }
     exit 2
 }
 
 Import-Module (Join-Path $PSScriptRoot 'lib\HacsHarness.psm1') -Force
 
 $sentinel  = Join-Path $PSScriptRoot 'credential-sentinel.ps1'
+$script:launchLock = $null
+
+# Every exit after the launch lock is taken goes through here, so the lock is
+# RELEASED rather than abandoned (an abandoned lock is reported to the next
+# holder as a finding, and a routine exit should not look like a crash).
+function Exit-Launch([int] $code) {
+    if ($script:launchLock) { Unlock-HacsInstance $script:launchLock; $script:launchLock = $null }
+    exit $code
+}
 
 function Fail([string] $msg, [hashtable] $extra = @{}) {
     $r = New-HacsResult -Status 'error' -InstanceId $InstanceId -Message $msg -Hearing $null -Extra $extra
     $r | Write-HacsResult
-    exit 2
+    Exit-Launch 2
 }
 
 # --------------------------------------------------------------------------
@@ -118,6 +128,23 @@ Write-HacsLog -Instance $inst -Log 'launch.log' -Message "=== launch requested (
 if (-not (Test-Path $claudeExe)) { Fail "claude.exe not found at $claudeExe" }
 if (-not (Test-Path $inst.HomeDir)) { Fail "home dir missing: $($inst.HomeDir)" }
 $null = New-Item -ItemType Directory -Force -Path $inst.RuntimeDir -ErrorAction SilentlyContinue
+
+# --------------------------------------------------------------------------
+# 1b. THE LAUNCH LOCK, held from the double-start check to the end.
+#     DOORBELL-DESIGN.md 3.4. Without it, the outside watcher, a human and the
+#     logon task can each see "not running" in the same second and each start
+#     a process on one transcript -- the branch every other guard here prevents.
+# --------------------------------------------------------------------------
+$lk = Lock-HacsInstance -Instance $inst -Kind launch -TimeoutSec 10
+if (-not $lk.Ok) {
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "REFUSED: another launch holds the lock (pid $($lk.HolderPid))"
+    Fail "another launch of $InstanceId is already in progress (pid $($lk.HolderPid)). Refusing to start a second one; nothing was started. Retry when it finishes." `
+         @{ refusal = 'busy'; lockBusy = $true; holderPid = $lk.HolderPid }
+}
+$script:launchLock = $lk
+if ($lk.Abandoned) {
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "FINDING: the launch lock was ABANDONED -- a previous launch died holding it. Proceeding; its state is unknown, so the checks below matter more than usual."
+}
 
 # --------------------------------------------------------------------------
 # 2. Is one already running? Refuse rather than double-start.
@@ -288,7 +315,7 @@ if ($WhatIf) {
         -Extra @{ wouldRun = "$claudeExe $($argv -join ' ')"; cwd = $inst.HomeDir; mode = $effMode; wouldLandFirst = $mustLand
                   sessionConfidence = $sid.Confidence; credential = $credState }
     $r | Write-HacsResult
-    exit 1
+    Exit-Launch 1
 }
 
 # The -Relaunch land, deferred to here: every refusal is behind us. land snapshots
@@ -377,7 +404,7 @@ if ($registered.Count -eq 0) {
         -Message "claude --bg returned 0 (id '$bgId') but the session never appeared in the agent registry within ${RegistryTimeoutSec}s. Started is not running." `
         -Extra @{ bgId = $bgId; mode = $effMode; credential = $credState; sessionConfidence = $sid.Confidence }
     $r | Write-HacsResult
-    exit 1
+    Exit-Launch 1
 }
 
 # The row that IS the session --bg named; the registry is corroboration, not the judge.
@@ -522,4 +549,4 @@ $r = New-HacsResult -Status $ask -InstanceId $InstanceId -Hearing $hearing -Hear
 
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message "=== launch $($r.status) (hearing=$($r.hearing)) ==="
 $r | Write-HacsResult
-exit $(switch ($r.status) { 'success' { 0 } 'degraded' { 1 } default { 2 } })
+Exit-Launch $(switch ($r.status) { 'success' { 0 } 'degraded' { 1 } default { 2 } })

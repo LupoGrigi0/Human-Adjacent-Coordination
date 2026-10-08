@@ -143,6 +143,43 @@ try {
 }
 Check 'control: injection removed, the look works again' ($(try { $null = @(Get-HacsClaudeProcess -Instance $i); 'True' } catch { 'False' })) 'True'
 
+Section 'the launch lock (DOORBELL-DESIGN 3.3/3.4)'
+# One name builder, or two callers can each hold "the lock" and exclude nobody.
+$handBuilt = @(Get-ChildItem $root -Recurse -Include *.ps1, *.psm1 |
+    Where-Object { $_.FullName -notmatch '\\test\\' } |
+    Select-String -Pattern 'hacs-(launch|ring|ledger)-' |
+    Where-Object { $_.Line -notmatch 'Get-HacsMutexName|function Get-HacsMutexName|"Global\\hacs-\$Kind-\$InstanceId"' })
+Check 'no mutex name is built outside Get-HacsMutexName' $handBuilt.Count 0
+$lockFix = 'dev-reconstruction-001-f35a'
+$lockInst = Get-HacsInstance -InstanceId $lockFix
+# A mutex is re-entrant on one thread, so the competing holder MUST be another process.
+$holder = Start-Job -ArgumentList (Join-Path $root 'lib\HacsHarness.psm1'), $lockFix {
+    param($mod, $id)
+    Import-Module $mod; $i = Get-HacsInstance -InstanceId $id
+    $l = Lock-HacsInstance -Instance $i -Kind launch
+    Start-Sleep -Seconds 25
+    Unlock-HacsInstance $l
+}
+$sidecar = Join-Path $lockInst.RuntimeDir '.lock-launch'
+$t0 = Get-Date; while (-not (Test-Path $sidecar) -and ((Get-Date) - $t0).TotalSeconds -lt 15) { Start-Sleep -Milliseconds 200 }
+if (-not (Test-Path $sidecar)) { Skip 'launch refuses while another launch holds the lock' 'the competing holder never took the lock' }
+else {
+    $raw = & (Join-Path $root 'launch.ps1') -InstanceId $lockFix -WhatIf 2>$null | Out-String; $lrc = $LASTEXITCODE
+    $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+    Check 'launch REFUSES while another launch holds the lock' (JP $j 'refusal') 'busy'
+    Check 'and names the holder'                               ([string](JP $j 'holderPid') -match '^\d+$') 'True'
+    Check 'and exits 2, starting nothing'                      $lrc 2
+}
+$null = Wait-Job $holder -Timeout 40; Remove-Job $holder -Force
+# Control: the lock is free again, and launch gets past it.
+$raw = & (Join-Path $root 'launch.ps1') -InstanceId $lockFix -WhatIf 2>$null | Out-String
+$j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+Check 'control: lock free -> launch gets past it'  ([string](JP $j 'wouldRun') -like '*claude*') 'True'
+# launch RELEASED it on exit rather than dying with it: the next holder is not told "abandoned".
+$after = Lock-HacsInstance -Instance $lockInst -Kind launch -TimeoutSec 5
+Check 'launch released the lock (not abandoned)'   "$($after.Ok)/$($after.Abandoned)" 'True/False'
+Unlock-HacsInstance $after
+
 Section 'agent registry that cannot be read says so (P1)'
 $rr = Get-HacsAgentRegistryResult
 Check 'control: a readable registry is Ok'                    ([string]$rr.Ok) 'True'

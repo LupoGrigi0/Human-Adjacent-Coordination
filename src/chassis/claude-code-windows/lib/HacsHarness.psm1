@@ -483,6 +483,65 @@ function Get-HacsAgentRegistryResult {
 }
 
 
+function Get-HacsMutexName {
+    <#
+    .SYNOPSIS
+      The ONLY place a harness mutex name is built. DOORBELL-DESIGN.md 3.3: two
+      callers spelling the same lock differently would each hold "the lock" and
+      exclude nobody -- a failure that never announces itself. A test asserts
+      that no other file builds a 'hacs-<kind>-' name by hand.
+    #>
+    param(
+        [Parameter(Mandatory)][ValidateSet('launch', 'ring', 'ledger')][string] $Kind,
+        [Parameter(Mandatory)][string] $InstanceId
+    )
+    "Global\hacs-$Kind-$InstanceId"
+}
+
+
+function Lock-HacsInstance {
+    <#
+    .SYNOPSIS
+      Take a per-instance named mutex. Returns {Ok, Busy, HolderPid, Abandoned, Name, Mutex}.
+    .DESCRIPTION
+      Serializes every caller that could start or ring a mind: the watcher, a
+      human, the logon task. Busy is reported with the holder's pid (from a
+      sidecar file) so a refusal can say WHO holds it. An AbandonedMutexException
+      means the previous holder died holding it: the lock is ours, and the
+      abandonment is returned so the caller can log it as a finding.
+      Release with Unlock-HacsInstance, from the same thread.
+    #>
+    param(
+        [Parameter(Mandatory)] $Instance,
+        [Parameter(Mandatory)][ValidateSet('launch', 'ring', 'ledger')][string] $Kind,
+        [int] $TimeoutSec = 10
+    )
+    $name    = Get-HacsMutexName -Kind $Kind -InstanceId $Instance.InstanceId
+    $sidecar = Join-Path $Instance.RuntimeDir ".lock-$Kind"
+    $m = New-Object System.Threading.Mutex($false, $name)
+    $got = $false; $abandoned = $false
+    try { $got = $m.WaitOne($TimeoutSec * 1000) }
+    catch [System.Threading.AbandonedMutexException] { $got = $true; $abandoned = $true }
+    if (-not $got) {
+        $holder = $null
+        try { $holder = (Get-Content $sidecar -Raw -ErrorAction Stop).Trim() } catch { }
+        $m.Dispose()
+        return [pscustomobject]@{ Ok = $false; Busy = $true; HolderPid = $holder; Abandoned = $false; Name = $name; Mutex = $null; Sidecar = $sidecar }
+    }
+    try { [IO.File]::WriteAllText($sidecar, [string]$PID) } catch { }
+    [pscustomobject]@{ Ok = $true; Busy = $false; HolderPid = $PID; Abandoned = $abandoned; Name = $name; Mutex = $m; Sidecar = $sidecar }
+}
+
+
+function Unlock-HacsInstance {
+    param([Parameter(Mandatory)] $Lock)
+    if (-not $Lock -or -not $Lock.Ok -or -not $Lock.Mutex) { return }
+    try { Remove-Item -LiteralPath $Lock.Sidecar -ErrorAction SilentlyContinue } catch { }
+    try { $Lock.Mutex.ReleaseMutex() } catch { }
+    $Lock.Mutex.Dispose()
+}
+
+
 function Get-HacsInbox {
     <#
     .SYNOPSIS
@@ -901,7 +960,7 @@ function Write-HacsResult {
 }
 
 
-Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox,
+Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
                               Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
                               Get-HacsEntryContent, Test-HacsTranscriptSchema,
