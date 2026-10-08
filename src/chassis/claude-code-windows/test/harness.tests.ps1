@@ -143,6 +143,19 @@ try {
 }
 Check 'control: injection removed, the look works again' ($(try { $null = @(Get-HacsClaudeProcess -Instance $i); 'True' } catch { 'False' })) 'True'
 
+Section 'agent registry that cannot be read says so (P1)'
+$rr = Get-HacsAgentRegistryResult
+Check 'control: a readable registry is Ok'                    ([string]$rr.Ok) 'True'
+Check 'and the wrapper returns the same rows'                 (@(Get-HacsAgentRegistry).Count) (@($rr.Rows).Count)
+$env:HACS_TEST_SIMULATE_REGISTRY_FAILURE = '1'
+try {
+    $rr = Get-HacsAgentRegistryResult
+    Check 'injected failure -> Ok is false, not an empty success' ([string]$rr.Ok) 'False'
+    Check 'and it carries a reason'                               ([bool]$rr.Error) 'True'
+} finally { Remove-Item Env:\HACS_TEST_SIMULATE_REGISTRY_FAILURE -ErrorAction SilentlyContinue }
+$rr = Get-HacsAgentRegistryResult -ClaudeExe 'C:\nowhere\claude.exe'
+Check 'missing exe -> Ok is false'                            ([string]$rr.Ok) 'False'
+
 # ------------------------------------------------------- session id ladder ---
 Section 'session id trust ladder'
 $r = Resolve-HacsSessionId -Instance $i
@@ -460,6 +473,17 @@ else {
     # DEAF: a nonce nobody will ever deliver.
     $d = & $canary -InstanceId $LiveInstanceId -Nonce 'canary-never-delivered-0000' -FromOffset $m.offset -TimeoutSec 5 -PollSec 2 2>&1 | Out-String | ConvertFrom-Json
     Check 'undelivered nonce -> DEAF (1)'   $d.exitCode 1
+
+    # P1: the same call with the registry UNREADABLE. It used to come back as "no
+    # row" and the canary said NOT HOME -- relaunch -- about a mind it never saw.
+    # The DEAF check just above is the control: same instance, registry readable.
+    $env:HACS_TEST_SIMULATE_REGISTRY_FAILURE = '1'
+    try {
+        $u = & $canary -InstanceId $LiveInstanceId -Nonce 'canary-never-delivered-0000' -FromOffset $m.offset -TimeoutSec 5 -PollSec 2 2>&1 | Out-String | ConvertFrom-Json
+    } finally { Remove-Item Env:\HACS_TEST_SIMULATE_REGISTRY_FAILURE -ErrorAction SilentlyContinue }
+    Check 'unreadable registry -> ERROR (2), never DEAF'  $u.exitCode 2
+    Check 'and it says the registry could not be read'    (JP $u 'registryReadable') 'False'
+    Check 'and it does NOT claim the mind is not home'    ([string]$u.notHome) ''
 
     # THE TRAP, and the reason this test exists: while reverse-engineering the
     # inbox socket I grepped my own transcript for six probe nonces and found all

@@ -220,7 +220,16 @@ while ((Get-Date) -lt $deadline) {
 # otherwise say "entirely quiet -- it may be frozen", sending someone to diagnose a
 # mind that is simply not running. The right response to "not home" is to RELAUNCH
 # (a resume loses nothing), not to diagnose. So: is this session running at all?
-$liveRow = @(Get-HacsAgentRegistry | Where-Object {
+# P1: an UNREADABLE registry used to come back as "no row", so the canary said NOT
+# HOME -- relaunch it -- about a mind it had never been able to look for.
+$reg = Get-HacsAgentRegistryResult
+if (-not $reg.Ok) {
+    Write-HacsLog -Instance $inst -Log 'canary.log' -Message "REGISTRY-UNREADABLE nonce=${Nonce} -- $($reg.Error)"
+    Emit 'ERROR' 2 ("could not read the agent registry ($($reg.Error)), so I cannot tell whether session $($sid.SessionId) is running. " +
+        "This is 'I could not look': NOT 'not home' and NOT 'deaf'. Do not relaunch on this verdict.") `
+        @{ nonce = $Nonce; notHome = $null; registryReadable = $false; nonceSightings = $seen }
+}
+$liveRow = @($reg.Rows | Where-Object {
     @($_.PSObject.Properties.Name) -contains 'pid' -and $_.pid -and $_.sessionId -and
     ([string]$_.sessionId) -eq ([string]$sid.SessionId) })
 if ($liveRow.Count -eq 0) {

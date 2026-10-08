@@ -448,10 +448,48 @@ function Test-HacsTranscriptSchema {
 }
 
 
+function Get-HacsAgentRegistryResult {
+    <#
+    .SYNOPSIS
+      `claude agents --json`, parsed, WITH whether it could be read: {Ok, Rows, Error}.
+    .DESCRIPTION
+      P1 (DOORBELL-DESIGN.md). Get-HacsAgentRegistry returns @() on every failure
+      (missing exe, nonzero exit, timeout, unparseable output), which is the same
+      value as "no sessions are running". The canary read that as NOT HOME and
+      told the caller to relaunch a mind it had never been able to look for. Use
+      this function wherever "nobody is registered" leads to an action; Ok=$false
+      is "could not look" and must never be read as an empty room.
+      Empty stdout is treated as a failed read: a working `claude agents --json`
+      prints a JSON array, `[]` when nothing runs. If that is ever wrong, the
+      error is in the safe direction (ERROR rather than NOT HOME).
+      HACS_TEST_SIMULATE_REGISTRY_FAILURE injects a failure for the tests.
+    #>
+    [CmdletBinding()]
+    param([string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe")
+    function NotOk([string] $why) { [pscustomobject]@{ Ok = $false; Rows = @(); Error = $why } }
+    if ($env:HACS_TEST_SIMULATE_REGISTRY_FAILURE) { return (NotOk 'simulated registry failure (HACS_TEST_SIMULATE_REGISTRY_FAILURE is set)') }
+    if (-not (Test-Path $ClaudeExe)) { return (NotOk "claude not found at $ClaudeExe") }
+    try {
+        $n = Invoke-HacsNative -FilePath $ClaudeExe -Arguments @('agents', '--json') -TimeoutSec 30
+        if ($n.TimedOut)          { return (NotOk 'claude agents --json timed out after 30s') }
+        if ($n.ExitCode -ne 0)    { return (NotOk "claude agents --json exited $($n.ExitCode)") }
+        $raw = $n.StdOut
+        if (-not $raw -or -not $raw.Trim()) { return (NotOk 'claude agents --json printed nothing') }
+        $parsed = $raw | ConvertFrom-Json
+        # Emit element by element: see the @() nesting note in Get-HacsAgentRegistry.
+        $rows = @(foreach ($x in $parsed) { $x })
+        return [pscustomobject]@{ Ok = $true; Rows = $rows; Error = $null }
+    } catch { return (NotOk "could not read claude agents --json: $($_.Exception.Message)") }
+}
+
+
 function Get-HacsAgentRegistry {
     <#
     .SYNOPSIS
       `claude agents --json`, parsed. Returns @() if it cannot be read.
+      Kept for callers that only ATTRIBUTE (an unread registry leaves processes
+      'unknown', which already makes them more careful). Anything that ACTS on
+      "no row" must use Get-HacsAgentRegistryResult instead.
     .DESCRIPTION
       This is the ONLY source on Windows that reliably maps a claude pid to the
       working directory it was started in. Win32_Process exposes a command line but
@@ -461,14 +499,10 @@ function Get-HacsAgentRegistry {
     #>
     [CmdletBinding()]
     param([string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe")
-    if (-not (Test-Path $ClaudeExe)) { return }
+    $r = Get-HacsAgentRegistryResult -ClaudeExe $ClaudeExe
+    if (-not $r.Ok) { return }
+    $parsed = $r.Rows
     try {
-        $n = Invoke-HacsNative -FilePath $ClaudeExe -Arguments @('agents', '--json') -TimeoutSec 30
-        if ($n.TimedOut -or $n.ExitCode -ne 0) { return }
-        $raw = $n.StdOut
-        if (-not $raw -or -not $raw.Trim()) { return }
-        $parsed = $raw | ConvertFrom-Json
-
         # DO NOT wrap this in @(). ConvertFrom-Json on a JSON array returns an
         # Object[], and @() around an Object[] produces an array whose single
         # element is that array. The result LOOKS correct -- Count is 1, and
@@ -812,7 +846,7 @@ function Write-HacsResult {
 }
 
 
-Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry,
+Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
                               Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
                               Get-HacsEntryContent, Test-HacsTranscriptSchema,
