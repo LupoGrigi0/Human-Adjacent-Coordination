@@ -469,50 +469,21 @@ if ($SkipHearing) {
     $notAttempted = $true
     $hearingDetail = 'hearing NOT ATTEMPTED (-SkipHearing). Prove it with canary.ps1 -Mark / deliver / -Nonce -FromOffset.'
 } else {
-    $canary = Join-Path $PSScriptRoot 'canary.ps1'
-    $markRaw = & $canary -InstanceId $InstanceId -Mark 2>$null | Out-String
-    $mark = $null; try { $mark = $markRaw | ConvertFrom-Json } catch { }
-    if (-not $mark -or @($mark.PSObject.Properties.Name) -notcontains 'nonce') {
-        $why = if ($mark -and @($mark.PSObject.Properties.Name) -contains 'detail') { $mark.detail } else { ($markRaw -replace '\s+', ' ').Trim() }
-        $hearingDetail = "hearing COULD NOT BE MEASURED: canary could not mark ($why)"
-    } else {
-        $null = New-Item -ItemType Directory -Force -Path $SenderDir -ErrorAction SilentlyContinue
-        $ask2 = "Use the SendMessage tool to send this exact text to the session named '$ringName': Harness hearing check at launch. Please reply in one short line containing this word exactly: $($mark.nonce)"
-        Write-HacsLog -Instance $inst -Log 'launch.log' -Message "ringing '$ringName' via claude -p (model $SenderModel) from $SenderDir; mark offset=$($mark.offset)"
-        $snd = Invoke-HacsNative -FilePath $ClaudeExe -Arguments @('--print', '--model', $SenderModel, $ask2) -WorkingDirectory $SenderDir -TimeoutSec 180
-        Write-HacsLog -Instance $inst -Log 'launch.log' -Message "sender: exit=$($snd.ExitCode) timedOut=$($snd.TimedOut) said='$(($snd.StdOut -replace '\s+',' ').Trim())'"
-        if ($snd.TimedOut -or $snd.ExitCode -ne 0) {
-            $hearingDetail = "hearing COULD NOT BE MEASURED: the sender failed (exit $($snd.ExitCode), timedOut $($snd.TimedOut)). That is a fault in the ringer, not evidence about the mind."
-        } else {
-            $judgeRaw = & $canary -InstanceId $InstanceId -Nonce $mark.nonce -FromOffset $mark.offset -TimeoutSec $HearingTimeoutSec 2>$null | Out-String
-            $judge = $null; try { $judge = $judgeRaw | ConvertFrom-Json } catch { }
-            $verdict = if ($judge -and @($judge.PSObject.Properties.Name) -contains 'verdict') { $judge.verdict } else { 'ERROR' }
-            if ($judge -and @($judge.PSObject.Properties.Name) -contains 'evidence') { $hearingEvidence = $judge.evidence }
-            switch ($verdict) {
-                'HEARING' { $hearing = $true;  $hearingDetail = "HEARING, proven at launch ($hearingEvidence): its own doorbell was rung and the nonce reached it." }
-                'DEAF'    {
-                    # A real doorbell ALWAYS leaves an enqueue in the target's own
-                    # transcript. No sighting at all means the RINGER never delivered --
-                    # declined the nonce as a "tracking probe" (Forge measured haiku doing
-                    # this), misaddressed it, or failed. Blaming the mind for the ringer
-                    # would be a confident wrong DEAF. Only accepted-but-never-delivered
-                    # is evidence of deafness.
-                    # @( if ... ) -- NOT `if ... { @() }`: assigning from an if-expression
-                    # unrolls its output, so an empty @() arrives as $null and .Count
-                    # throws under StrictMode. The empty case is exactly the misaddressed-
-                    # ringer case; the first version crashed on the one path it was for.
-                    $seen = @(if ($judge -and @($judge.PSObject.Properties.Name) -contains 'nonceSightings') { $judge.nonceSightings })
-                    if ($seen.Count -eq 0) {
-                        $hearing = $null
-                        $hearingDetail = "hearing COULD NOT BE MEASURED: the doorbell never reached the mind's queue (no enqueue in its transcript), so the RINGER did not deliver -- declined, misaddressed ('$ringName'), or failed. That is not evidence the mind is deaf."
-                    } else {
-                        $hearing = $false
-                        $hearingDetail = "DEAF at launch: the doorbell reached the mind's queue ($($seen -join '; ')) but the nonce never reached its context. $($judge.detail)"
-                    }
-                }
-                default   { $hearingDetail = "hearing COULD NOT BE MEASURED: the canary could not judge. $(if ($judge) { $judge.detail })" }
-            }
-        }
+    # ONE classifier, shared with the outside watcher: Invoke-HacsRing (module).
+    # It refuses an ambiguous name, builds the ringer's prompt itself (integers,
+    # the name and a word nonce only), retries the ringer once with different
+    # wording, and separates DEAF (enqueued, never delivered, transcript still)
+    # from QUEUED_BUSY (enqueued, transcript growing) and RINGER_FAILED (no
+    # enqueue at all: the ringer's fault, not the mind's).
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "ringing '$ringName' via Invoke-HacsRing (model $SenderModel) from $SenderDir"
+    $ring = Invoke-HacsRing -Instance $inst -Reason launch -RingName $ringName -ClaudeExe $ClaudeExe `
+                -SenderModel $SenderModel -SenderDir $SenderDir -TimeoutSec $HearingTimeoutSec
+    $hearing = $ring.Hearing
+    $hearingEvidence = $ring.Evidence
+    $hearingDetail = switch ($ring.Verdict) {
+        'HEARING' { "HEARING, proven at launch ($($ring.Evidence)): its own doorbell was rung and the nonce reached it." }
+        'DEAF'    { "DEAF at launch: $($ring.Detail)" }
+        default   { "hearing COULD NOT BE MEASURED ($($ring.Verdict)): $($ring.Detail)" }
     }
 }
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message $hearingDetail

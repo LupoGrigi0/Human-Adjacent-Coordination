@@ -963,6 +963,117 @@ function Get-HacsPresence {
 }
 
 
+function Invoke-HacsRing {
+    <#
+    .SYNOPSIS
+      Ring a mind's own doorbell through the supported sender and judge, from its
+      transcript, whether it heard. Returns {Verdict, Hearing, Evidence, Detail,
+      Nonce, RingName}. Shared by launch.ps1 (step 8) and the outside watcher,
+      so there is ONE classifier. DOORBELL-DESIGN.md 3.3.
+    .DESCRIPTION
+      The ringer is a one-shot `claude --print` holding SendMessage. It is an
+      injection surface, so its prompt is built HERE, only from an integer, the
+      session name and a word nonce: subjects and bodies of mail never enter it.
+      Callers cannot pass text.
+
+        HEARING        the nonce reached the mind                          Hearing $true
+        DEAF           enqueued in its transcript, never delivered, and
+                       the transcript was still                             Hearing $false
+        QUEUED_BUSY    enqueued, not yet delivered, transcript growing: a
+                       mind in a long turn has not dequeued yet             Hearing $null
+        RINGER_FAILED  no enqueue at all, or the sender failed (one retry
+                       with different wording first). Not about the mind.   Hearing $null
+        NOT_HOME       the canary found no live session                     Hearing $null
+        AMBIGUOUS      not exactly one live registry row carries the name   Hearing $null
+        ERROR          the canary could not mark or could not judge         Hearing $null
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Instance,
+        [Parameter(Mandatory)][ValidateSet('launch', 'mail')][string] $Reason,
+        [int]    $Unread = 0,
+        [string] $RingName,
+        [string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe",
+        [string] $SenderModel = 'haiku',
+        [string] $SenderDir = 'D:\Lupo\hacs-runtime\_liveness-probe',
+        [int]    $TimeoutSec = 90
+    )
+    $canary = Join-Path (Split-Path $PSScriptRoot -Parent) 'canary.ps1'
+    # Verdicts are built by a scriptblock held in a local VARIABLE, and the canary
+    # runs as its OWN PROCESS. Measured 2026-10-08, twice: a helper FUNCTION here
+    # named R resolved to PowerShell's alias r (Invoke-History); renamed, it then
+    # vanished mid-call because canary.ps1, run in-process, re-imports this module
+    # with -Force. Either way every verdict line errored and execution fell through
+    # into a second, redundant ring.
+    $mkVerdict = { param([string] $v, $hearing, [string] $detail, $evidence = $null, $nonce = $null)
+        [pscustomobject]@{ Verdict = $v; Hearing = $hearing; Detail = $detail; Evidence = $evidence; Nonce = $nonce; RingName = $RingName } }
+    $ps = (Get-Process -Id $PID).Path
+    $runCanary = { param([string[]] $canaryArgs, [int] $timeout)
+        (Invoke-HacsNative -FilePath $ps -Arguments (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $canary) + $canaryArgs) -TimeoutSec $timeout).StdOut }
+
+    if (-not $RingName) { $RingName = $Instance.InstanceId }
+    $reg = Get-HacsAgentRegistryResult -ClaudeExe $ClaudeExe
+    if (-not $reg.Ok) { return (& $mkVerdict 'ERROR' $null "could not read the agent registry ($($reg.Error)), so I cannot address the ring") }
+    $named = @($reg.Rows | Where-Object { @($_.PSObject.Properties.Name) -contains 'name' -and [string]$_.name -eq $RingName -and $_.pid })
+    if ($named.Count -ne 1) {
+        return (& $mkVerdict 'AMBIGUOUS' $null "ambiguous address: $($named.Count) live sessions are named '$RingName'. A ring by name must reach exactly one mind; refusing.")
+    }
+
+    $markRaw = & $runCanary @('-InstanceId', $Instance.InstanceId, '-Mark') 60
+    $mark = $null; try { $mark = $markRaw | ConvertFrom-Json } catch { }
+    if (-not $mark -or @($mark.PSObject.Properties.Name) -notcontains 'nonce') {
+        $why = if ($mark -and @($mark.PSObject.Properties.Name) -contains 'detail') { $mark.detail } else { ($markRaw -replace '\s+', ' ').Trim() }
+        return (& $mkVerdict 'ERROR' $null "the canary could not mark ($why)")
+    }
+    $nonce = [string]$mark.nonce
+    $body = if ($Reason -eq 'mail') {
+        "You have $([int]$Unread) unread HACS messages (doorbell $nonce). Run hacs.py inbox, then re-arm your doorbell."
+    } else {
+        "Harness hearing check at launch. Please reply in one short line containing this word exactly: $nonce"
+    }
+    $asks = @(
+        "Use the SendMessage tool to send this exact text to the session named '$RingName': $body",
+        "Please deliver a message with your SendMessage tool. Recipient: the session named '$RingName'. Message text: $body"
+    )
+    $null = New-Item -ItemType Directory -Force -Path $SenderDir -ErrorAction SilentlyContinue
+    Write-HacsLog -Instance $Instance -Log 'ring.log' -Message "RING reason=$Reason unread=$([int]$Unread) name='$RingName' nonce=$nonce offset=$($mark.offset)"
+
+    $sendFailed = $null
+    foreach ($ask in $asks) {
+        $snd = Invoke-HacsNative -FilePath $ClaudeExe -Arguments @('--print', '--model', $SenderModel, $ask) -WorkingDirectory $SenderDir -TimeoutSec 180
+        Write-HacsLog -Instance $Instance -Log 'ring.log' -Message "sender: exit=$($snd.ExitCode) timedOut=$($snd.TimedOut) said='$(($snd.StdOut -replace '\s+',' ').Trim())'"
+        if ($snd.TimedOut -or $snd.ExitCode -ne 0) { $sendFailed = "the sender failed (exit $($snd.ExitCode), timedOut $($snd.TimedOut))"; continue }
+        $sendFailed = $null
+        $judgeRaw = & $runCanary @('-InstanceId', $Instance.InstanceId, '-Nonce', $nonce, '-FromOffset', [string]$mark.offset, '-TimeoutSec', [string]$TimeoutSec) ($TimeoutSec + 60)
+        $judge = $null; try { $judge = $judgeRaw | ConvertFrom-Json } catch { }
+        $names = if ($judge) { @($judge.PSObject.Properties.Name) } else { @() }
+        $verdict = if ($names -contains 'verdict') { [string]$judge.verdict } else { 'ERROR' }
+        $evidence = if ($names -contains 'evidence') { $judge.evidence } else { $null }
+        $seen = @(if ($names -contains 'nonceSightings') { $judge.nonceSightings })
+        $grew = if ($names -contains 'transcriptGrewBytes') { [int64]$judge.transcriptGrewBytes } else { 0 }
+        switch ($verdict) {
+            'HEARING' { return (& $mkVerdict 'HEARING' $true "HEARING ($evidence): its own doorbell was rung and the nonce reached it." $evidence $nonce) }
+            'DEAF' {
+                if ($seen.Count -eq 0) { continue }   # never reached the queue: the RINGER did not deliver; try the other wording
+                if ($grew -gt 0) {
+                    return (& $mkVerdict 'QUEUED_BUSY' $null "the doorbell is in the mind's queue ($($seen -join '; ')) and its transcript is still growing: a mind in a long turn has not dequeued it yet. Not deafness." $null $nonce)
+                }
+                return (& $mkVerdict 'DEAF' $false "DEAF: the doorbell reached the mind's queue ($($seen -join '; ')) but never its context, and the transcript was still. $($judge.detail)" $null $nonce)
+            }
+            'ERROR' {
+                if ($names -contains 'notHome' -and $judge.notHome -eq $true) {
+                    return (& $mkVerdict 'NOT_HOME' $null "the canary found no live session: $($judge.detail)" $null $nonce)
+                }
+                return (& $mkVerdict 'ERROR' $null "the canary could not judge: $(if ($judge) { $judge.detail } else { ($judgeRaw -replace '\s+', ' ').Trim() })" $null $nonce)
+            }
+            default { return (& $mkVerdict 'ERROR' $null "the canary could not judge: $(if ($judge) { $judge.detail })" $null $nonce) }
+        }
+    }
+    $why = if ($sendFailed) { $sendFailed } else { "no enqueue in the mind's transcript after two wordings" }
+    & $mkVerdict 'RINGER_FAILED' $null "the RINGER did not deliver ($why) -- declined, misaddressed ('$RingName'), or failed. That is not evidence about the mind." $null $nonce
+}
+
+
 function New-HacsResult {
     <#
     .SYNOPSIS
@@ -1060,7 +1171,7 @@ function Write-HacsResult {
 }
 
 
-Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance, Get-HacsPresence,
+Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance, Get-HacsPresence, Invoke-HacsRing,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
                               Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
                               Get-HacsEntryContent, Test-HacsTranscriptSchema,

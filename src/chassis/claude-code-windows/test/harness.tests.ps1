@@ -198,6 +198,18 @@ $env:HACS_TEST_SIMULATE_REGISTRY_FAILURE = '1'
 try { $p = Get-HacsPresence -Instance $liveInst -SampleSeconds 1 } finally { Remove-Item Env:\HACS_TEST_SIMULATE_REGISTRY_FAILURE -ErrorAction SilentlyContinue }
 Check 'registry unreadable for a RUNNING mind -> UNKNOWN, never NOT_HOME' $p.State 'UNKNOWN'
 
+Section 'Invoke-HacsRing refuses before it rings (offline paths: no ring is sent)'
+$r = Invoke-HacsRing -Instance $lockInst -Reason mail -Unread 1 -RingName 'no-such-session-name-0000'
+Check 'a name no live session carries -> AMBIGUOUS, nothing sent' $r.Verdict 'AMBIGUOUS'
+Check 'and hearing is unknown, not false'                        ([string]$r.Hearing) ''
+$env:HACS_TEST_SIMULATE_REGISTRY_FAILURE = '1'
+try { $r = Invoke-HacsRing -Instance $lockInst -Reason mail -Unread 1 } finally { Remove-Item Env:\HACS_TEST_SIMULATE_REGISTRY_FAILURE -ErrorAction SilentlyContinue }
+Check 'registry unreadable -> ERROR, nothing sent'              $r.Verdict 'ERROR'
+# The ringer's prompt is built inside the module from integers, the name and a
+# nonce. Its signature must not offer a way to pass text.
+$ringParams = @((Get-Command Invoke-HacsRing).Parameters.Keys)
+Check 'Invoke-HacsRing takes no free-text parameter' (@($ringParams | Where-Object { $_ -match '^(Text|Message|Body|Prompt|Subject)$' }).Count) 0
+
 Section 'agent registry that cannot be read says so (P1)'
 $rr = Get-HacsAgentRegistryResult
 Check 'control: a readable registry is Ok'                    ([string]$rr.Ok) 'True'
