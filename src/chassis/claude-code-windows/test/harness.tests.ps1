@@ -180,6 +180,24 @@ $after = Lock-HacsInstance -Instance $lockInst -Kind launch -TimeoutSec 5
 Check 'launch released the lock (not abandoned)'   "$($after.Ok)/$($after.Abandoned)" 'True/False'
 Unlock-HacsInstance $after
 
+Section 'presence: the watcher acts on this, so NOT_HOME needs every witness'
+$liveInst = Get-HacsInstance -InstanceId $LiveInstanceId
+$p = Get-HacsPresence -Instance $liveInst -SampleSeconds 1
+Check 'control: the running mind is HOME'           $p.State 'HOME'
+$p = Get-HacsPresence -Instance $lockInst -SampleSeconds 1
+Check 'a long-stopped fixture is NOT_HOME'          $p.State 'NOT_HOME'
+$p = Get-HacsPresence -Instance $lockInst -SampleSeconds 1 -QuietFloorSec 999999999
+Check 'a transcript written too recently -> TRANSITIONING, not NOT_HOME' $p.State 'TRANSITIONING'
+$env:HACS_TEST_SIMULATE_REGISTRY_FAILURE = '1'
+try { $p = Get-HacsPresence -Instance $lockInst -SampleSeconds 1 } finally { Remove-Item Env:\HACS_TEST_SIMULATE_REGISTRY_FAILURE -ErrorAction SilentlyContinue }
+Check 'registry unreadable -> UNKNOWN, never NOT_HOME' $p.State 'UNKNOWN'
+$env:HACS_TEST_SIMULATE_CIM_FAILURE = '1'
+try { $p = Get-HacsPresence -Instance $lockInst -SampleSeconds 1 } finally { Remove-Item Env:\HACS_TEST_SIMULATE_CIM_FAILURE -ErrorAction SilentlyContinue }
+Check 'process list unreadable -> UNKNOWN'          $p.State 'UNKNOWN'
+$env:HACS_TEST_SIMULATE_REGISTRY_FAILURE = '1'
+try { $p = Get-HacsPresence -Instance $liveInst -SampleSeconds 1 } finally { Remove-Item Env:\HACS_TEST_SIMULATE_REGISTRY_FAILURE -ErrorAction SilentlyContinue }
+Check 'registry unreadable for a RUNNING mind -> UNKNOWN, never NOT_HOME' $p.State 'UNKNOWN'
+
 Section 'agent registry that cannot be read says so (P1)'
 $rr = Get-HacsAgentRegistryResult
 Check 'control: a readable registry is Ok'                    ([string]$rr.Ok) 'True'

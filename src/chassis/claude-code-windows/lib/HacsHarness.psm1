@@ -863,6 +863,106 @@ function Test-HacsQuiescent {
 }
 
 
+function Get-HacsPresence {
+    <#
+    .SYNOPSIS
+      Is this mind home? HOME / ATTENDED / TRANSITIONING / NOT_HOME / UNKNOWN,
+      with every witness's evidence. DOORBELL-DESIGN.md 3.3.
+    .DESCRIPTION
+      The watcher acts on this, so the expensive answer is the safe one:
+        UNKNOWN        a witness could not look (registry, CIM, transcript).
+                       Nothing may act on it.
+        ATTENDED       a live non-background row (a human's session). Never
+                       relaunched over.
+        HOME           exactly one live background row for the recorded session,
+                       and its pid is alive.
+        NOT_HOME       ALL FOUR witnesses agree the mind is gone:
+                         1 a successful registry read with no live row;
+                         2 zero claude processes attributable to it OR unattributed
+                           (an unattributed one could be it);
+                         3 the transcript is still across a sample AND its last
+                           write is at least -QuietFloorSec old (the reaper writes
+                           its bookkeeping ~30 s after the last activity, FINDINGS 6d);
+                         4 no claude process command line names the session (a pty
+                           host can outlive its registry row).
+        TRANSITIONING  any disagreement between witnesses. Forge's guard: never
+                       resume a mind that is still shutting down.
+      daemon.status.json is never a witness: it showed workers:{} while the
+      roster held a live session.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Instance,
+        [int] $SampleSeconds = 5,
+        [int] $QuietFloorSec = 60
+    )
+    $ev = [ordered]@{}
+    function Out([string] $state, [string] $why) {
+        [pscustomobject]@{ State = $state; Why = $why; Evidence = [pscustomobject]$ev }
+    }
+
+    $sid = Resolve-HacsSessionId -Instance $Instance
+    $ev.sessionConfidence = $sid.Confidence
+    $ev.sessionId = $sid.SessionId
+    if ($sid.Confidence -notin @('recorded', 'explicit')) {
+        return (Out 'UNKNOWN' "no recorded session for this instance ($($sid.Confidence): $($sid.Reason)); refusing to judge presence by a guess")
+    }
+
+    $reg = Get-HacsAgentRegistryResult
+    $ev.registryReadable = [bool]$reg.Ok
+    if (-not $reg.Ok) { return (Out 'UNKNOWN' "agent registry unreadable: $($reg.Error)") }
+    $rows = @($reg.Rows | Where-Object {
+        $n = @($_.PSObject.Properties.Name)
+        ($n -contains 'pid') -and $_.pid -and (
+            (($n -contains 'sessionId') -and ([string]$_.sessionId -eq [string]$sid.SessionId)) -or
+            (($n -contains 'cwd') -and $_.cwd -and (Test-HacsSamePath $_.cwd $Instance.HomeDir))) })
+    $ev.liveRows = @($rows | ForEach-Object { "$($_.kind) pid $($_.pid) session $($_.sessionId)" })
+
+    try {
+        $allProcs = @(Get-CimInstance Win32_Process -Filter "Name='claude.exe'" -ErrorAction Stop)
+        $mine     = @(Get-HacsClaudeProcess -Instance $Instance)
+    } catch { return (Out 'UNKNOWN' "could not list processes: $($_.Exception.Message)") }
+    $ev.attributableOrUnknownPids = @($mine | ForEach-Object { "$($_.ProcessId) ($($_.HacsAttribution))" })
+    $naming = @($allProcs | Where-Object { "$($_.CommandLine)" -like "*$($sid.SessionId)*" })
+    $ev.processesNamingSession = @($naming | ForEach-Object { $_.ProcessId })
+
+    $attended = @($rows | Where-Object { [string]$_.kind -ne 'background' })
+    if ($attended.Count -gt 0) {
+        return (Out 'ATTENDED' "a non-background session is live here (pid $(($attended | ForEach-Object { $_.pid }) -join ',')): a human is attending; never relaunch over them")
+    }
+
+    $bg = @($rows | Where-Object { [string]$_.kind -eq 'background' -and [string]$_.sessionId -eq [string]$sid.SessionId })
+    if ($bg.Count -eq 1 -and $rows.Count -eq 1) {
+        $alive = @($allProcs | Where-Object { [int]$_.ProcessId -eq [int]$bg[0].pid }).Count -eq 1
+        $ev.rowPidAlive = $alive
+        if ($alive) { return (Out 'HOME' "one live background session, pid $($bg[0].pid), and the process exists") }
+        return (Out 'TRANSITIONING' "the registry lists pid $($bg[0].pid) but that process is gone")
+    }
+    if ($rows.Count -gt 0) {
+        return (Out 'TRANSITIONING' "$($rows.Count) live rows for this instance, not exactly one background row for its session")
+    }
+
+    # No live row: is it really gone? All four witnesses must agree.
+    if ($mine.Count -gt 0) {
+        return (Out 'TRANSITIONING' "no registry row, but claude process(es) that are or could be this mind are alive: $($ev.attributableOrUnknownPids -join ', ')")
+    }
+    if ($naming.Count -gt 0) {
+        return (Out 'TRANSITIONING' "no registry row, but a process still names session $($sid.SessionId) (pid $($naming.ProcessId -join ','))")
+    }
+    $q = Test-HacsQuiescent -Instance $Instance -TranscriptPath $sid.Path -SampleSeconds $SampleSeconds
+    $ev.transcriptStill = $q.TranscriptStill
+    $ev.transcriptDetail = $q.Detail
+    if ($null -eq $q.TranscriptStill) { return (Out 'UNKNOWN' "could not measure the transcript: $($q.Detail)") }
+    if (-not $q.TranscriptStill)     { return (Out 'TRANSITIONING' "the transcript is still growing ($($q.Detail))") }
+    $age = ((Get-Date) - (Get-Item $sid.Path).LastWriteTime).TotalSeconds
+    $ev.transcriptQuietSec = [int]$age
+    if ($age -lt $QuietFloorSec) {
+        return (Out 'TRANSITIONING' "the transcript was written $([int]$age) s ago (< $QuietFloorSec s): the reaper may still be writing its bookkeeping")
+    }
+    Out 'NOT_HOME' "no live row, no process that is or could be it, nothing naming its session, transcript quiet for $([int]$age) s"
+}
+
+
 function New-HacsResult {
     <#
     .SYNOPSIS
@@ -960,7 +1060,7 @@ function Write-HacsResult {
 }
 
 
-Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance,
+Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance, Get-HacsPresence,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
                               Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
                               Get-HacsEntryContent, Test-HacsTranscriptSchema,
