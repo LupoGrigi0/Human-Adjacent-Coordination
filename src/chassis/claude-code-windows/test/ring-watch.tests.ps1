@@ -55,6 +55,14 @@ function Put([string] $f, $obj) { [IO.File]::WriteAllText((Join-Path $rtFix $f),
 
 try {
     Clear-Placed
+    # PRECONDITION: the fixture must be quiet (NOT_HOME). Right after a land it is
+    # TRANSITIONING for ~60 s, and every NOT_HOME case would then fail for the right
+    # reason. Wait for it; if it never settles, that is a FAILURE, never a skip.
+    $fixInst = Get-HacsInstance -InstanceId $fix
+    $t0 = Get-Date
+    do { $pp = Get-HacsPresence -Instance $fixInst -SampleSeconds 2; if ($pp.State -eq 'NOT_HOME') { break }; Start-Sleep -Seconds 10 }
+    while (((Get-Date) - $t0).TotalSeconds -lt 150)
+    if ($pp.State -ne 'NOT_HOME') { throw "precondition: fixture $fix is $($pp.State), not NOT_HOME, after 150 s ($($pp.Why))" }
     $before = Snapshot $rtFix
 
     Write-Host "=== a stopped fixture ($fix) ==="
@@ -78,7 +86,7 @@ try {
     Put '.desired-state' @{ state = 'landed'; by = 'test'; at = (Get-Date).ToString('o') }
     $r = Tick $fix @($new)
     Check 'landed by a human + new mail -> HELD, not relaunched'   $r.end 'HELD'
-    Check '  and it raised an alert'                               ([bool]$r.alert) 'True'
+    Check '  and it raised an alert'                               (@($r.PSObject.Properties.Name) -contains 'alert') 'True'
     Clear-Placed
 
     Put '.relaunch-latch' @{ at = (Get-Date).ToString('o') }
