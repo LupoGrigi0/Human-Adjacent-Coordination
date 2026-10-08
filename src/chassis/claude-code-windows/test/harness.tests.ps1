@@ -198,6 +198,28 @@ $env:HACS_TEST_SIMULATE_REGISTRY_FAILURE = '1'
 try { $p = Get-HacsPresence -Instance $liveInst -SampleSeconds 1 } finally { Remove-Item Env:\HACS_TEST_SIMULATE_REGISTRY_FAILURE -ErrorAction SilentlyContinue }
 Check 'registry unreadable for a RUNNING mind -> UNKNOWN, never NOT_HOME' $p.State 'UNKNOWN'
 
+Section 'launch refuses a mind that may still be shutting down (presence, 3.4)'
+# The post-land window: no process, no registry row, but the transcript was
+# written seconds ago (the reaper's bookkeeping). Step 2 sees nothing; only
+# presence catches it. Reproduced by setting ONLY the fixture transcript's
+# LastWriteTime (never its content), restored exactly afterwards.
+$tsid = Resolve-HacsSessionId -Instance $lockInst
+if ($tsid.Confidence -ne 'recorded') { Skip 'presence refusal' "fixture $lockFix has no recorded session" }
+else {
+    $origMtime = (Get-Item $tsid.Path).LastWriteTime
+    try {
+        (Get-Item $tsid.Path).LastWriteTime = (Get-Date).AddSeconds(-5)
+        $raw = & (Join-Path $root 'launch.ps1') -InstanceId $lockFix -WhatIf 2>$null | Out-String; $lrc = $LASTEXITCODE
+        $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+        Check 'transcript written 5 s ago -> REFUSED as transitioning' (JP $j 'refusal') 'transitioning'
+        Check 'and exits 2, starting nothing'                          $lrc 2
+    } finally { (Get-Item $tsid.Path).LastWriteTime = $origMtime }
+    Check 'fixture transcript mtime restored exactly' ((Get-Item $tsid.Path).LastWriteTime -eq $origMtime) 'True'
+    $raw = & (Join-Path $root 'launch.ps1') -InstanceId $lockFix -WhatIf 2>$null | Out-String
+    $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+    Check 'control: quiet transcript -> launch gets past presence' ([string](JP $j 'wouldRun') -like '*claude*') 'True'
+}
+
 Section 'Invoke-HacsRing refuses before it rings (offline paths: no ring is sent)'
 $r = Invoke-HacsRing -Instance $lockInst -Reason mail -Unread 1 -RingName 'no-such-session-name-0000'
 Check 'a name no live session carries -> AMBIGUOUS, nothing sent' $r.Verdict 'AMBIGUOUS'

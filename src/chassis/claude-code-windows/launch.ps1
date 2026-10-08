@@ -241,6 +241,31 @@ if ($sid.Confidence -eq 'guess') {
 $isFirstLaunch = ($sid.Confidence -eq 'error' -and -not $SessionId)
 
 # --------------------------------------------------------------------------
+# 4b. PRESENCE, under the launch lock (DOORBELL-DESIGN 3.4). A resume needs ALL
+#     FOUR witnesses to agree the mind is gone (Get-HacsPresence NOT_HOME): no
+#     registry row, no process that is or could be it, a still transcript last
+#     written >= 60 s ago, nothing naming its session. Step 2 alone sees only
+#     processes, and a mind still writing its shutdown bookkeeping has none
+#     (Forge's guard: never resume mid-shutdown). -Relaunch already chose to
+#     land a running mind; a first birth has no session to be present.
+# --------------------------------------------------------------------------
+if (-not $isFirstLaunch -and -not $Relaunch -and $sid.Confidence -in @('recorded', 'explicit')) {
+    $pres = Get-HacsPresence -Instance $inst
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "presence: $($pres.State) -- $($pres.Why)"
+    if ($pres.State -ne 'NOT_HOME') {
+        $refusal = switch ($pres.State) { 'HOME' { 'running' } 'ATTENDED' { 'attended' } 'TRANSITIONING' { 'transitioning' } default { 'unknown' } }
+        $advice = switch ($refusal) {
+            'running'       { 'It is running: attach to it, or pass -Relaunch to land it first.' }
+            'attended'      { 'A human session is live there. Never launch over it.' }
+            'transitioning' { 'It may still be shutting down. Retry in a minute.' }
+            default         { 'A witness could not look. Nothing can be decided on that.' }
+        }
+        Fail "presence is $($pres.State), not NOT_HOME: $($pres.Why). $advice Nothing was started." `
+             @{ refusal = $refusal; presence = $pres.State; presenceEvidence = $pres.Evidence }
+    }
+}
+
+# --------------------------------------------------------------------------
 # 5. System prompt: the mode decision, made once, permanently.
 # --------------------------------------------------------------------------
 #
