@@ -118,6 +118,31 @@ if ($reg.Count -eq 0) {
     Check 'another instance sees it as OTHER'  (@(@(Get-HacsClaudeProcess -Instance $ghost -All) | Where-Object { $_.HacsAttribution -eq 'other' }).Count -ge 1) 'True'
 }
 
+# ----------------------------------------------- could not look (P2) ---------
+# Get-HacsClaudeProcess used -ErrorAction SilentlyContinue, so a CIM failure read
+# as "no processes" and launch's double-start guard let a launch through. Inject
+# the failure and require every caller to fail CLOSED. The control is the line
+# above this section: with no injection, the same call sees the live session.
+Section 'process check that cannot look fails closed (P2)'
+$env:HACS_TEST_SIMULATE_CIM_FAILURE = '1'
+try {
+    $threw = $false; try { $null = @(Get-HacsClaudeProcess -Instance $i) } catch { $threw = $true }
+    Check 'injected CIM failure THROWS, never returns empty' $threw 'True'
+
+    $raw = & (Join-Path $root 'launch.ps1') -InstanceId 'dev-reconstruction-001-f35a' -WhatIf 2>$null | Out-String; $lrc = $LASTEXITCODE
+    $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+    Check 'launch REFUSES when it cannot look'      (JP $j 'processCheck') 'could-not-look'
+    Check 'and exits 2, starting nothing'           $lrc 2
+    Check 'and its status is not success'           ((JP $j 'status') -ne 'success') 'True'
+
+    $raw = & (Join-Path $root 'land.ps1') -InstanceId 'dev-reconstruction-001-f35a' -WhatIf 2>$null | Out-String
+    $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+    Check 'land reports error, never "nothing to land"' (JP $j 'status') 'error'
+} finally {
+    Remove-Item Env:\HACS_TEST_SIMULATE_CIM_FAILURE -ErrorAction SilentlyContinue
+}
+Check 'control: injection removed, the look works again' ($(try { $null = @(Get-HacsClaudeProcess -Instance $i); 'True' } catch { 'False' })) 'True'
+
 # ------------------------------------------------------- session id ladder ---
 Section 'session id trust ladder'
 $r = Resolve-HacsSessionId -Instance $i

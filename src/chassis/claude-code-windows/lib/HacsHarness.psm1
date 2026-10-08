@@ -527,7 +527,20 @@ function Get-HacsClaudeProcess {
     # the -All switch are the SAME VARIABLE. Assigning an Object[] to a
     # SwitchParameter threw, and every property access downstream then failed on a
     # value that was no longer a process list. Measured 2026-09-25.
-    $procs = @(Get-CimInstance Win32_Process -Filter "Name='claude.exe'" -ErrorAction SilentlyContinue)
+    # P2 (DOORBELL-DESIGN.md): this was `-ErrorAction SilentlyContinue`, so a CIM
+    # failure looked exactly like "no claude processes", and launch's double-start
+    # guard let the launch through over a live mind. A look that failed must never
+    # read as an empty room, so it THROWS and every caller fails closed.
+    # HACS_TEST_SIMULATE_CIM_FAILURE injects that failure for the tests (the
+    # battery-watch -Simulate pattern); in production it can only make things refuse.
+    if ($env:HACS_TEST_SIMULATE_CIM_FAILURE) {
+        throw "could not list claude processes: simulated CIM failure (HACS_TEST_SIMULATE_CIM_FAILURE is set)"
+    }
+    try {
+        $procs = @(Get-CimInstance Win32_Process -Filter "Name='claude.exe'" -ErrorAction Stop)
+    } catch {
+        throw "could not list claude processes: $($_.Exception.Message)"
+    }
     if ($procs.Count -eq 0) { return }
 
     $registry = @(Get-HacsAgentRegistry)

@@ -127,7 +127,15 @@ $null = New-Item -ItemType Directory -Force -Path $inst.RuntimeDir -ErrorAction 
 #    there is no per-instance user to scope a sweep by -- so a wrong guess about
 #    which process belongs to whom is a wrong guess about whose mind to stop.
 # --------------------------------------------------------------------------
-$live = @(Get-HacsClaudeProcess -Instance $inst)
+try {
+    $live = @(Get-HacsClaudeProcess -Instance $inst)
+} catch {
+    # P2: could not look is not "nothing running". Refuse rather than risk a second
+    # process on a live mind's transcript.
+    Write-HacsLog -Instance $inst -Log 'launch.log' -Message "REFUSED: $($_.Exception.Message)"
+    Fail "could not tell whether a session is already running ($($_.Exception.Message)). Refusing to launch: starting blind could put a second process on a live mind's transcript. Nothing was started." `
+         @{ processCheck = 'could-not-look' }
+}
 $mustLand = $false
 if ($live.Count -gt 0 -and -not $Relaunch) {
     $pids = ($live | ForEach-Object { $_.ProcessId }) -join ','
