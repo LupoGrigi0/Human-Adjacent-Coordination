@@ -483,6 +483,61 @@ function Get-HacsAgentRegistryResult {
 }
 
 
+function Get-HacsInbox {
+    <#
+    .SYNOPSIS
+      The instance's HACS inbox, WITH whether it could be looked at:
+      {Ok, TotalUnread, VisibleIds, MoreUnread, Me, Error}.
+    .DESCRIPTION
+      DOORBELL-DESIGN.md 3.3. Runs `hacs.py inbox --json` (P3: exit 3 = could not
+      look). Ok is $true only when hacs.py exited 0, printed {"ok": true ...} and
+      reported the instance id we asked for. Every other outcome is Ok=$null with
+      a reason, and TotalUnread is $null -- never 0. Without the Me check, the
+      instance_id.txt fallback in hacs.py would silently read Lodestone's inbox on
+      behalf of a test fixture.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Instance,
+        [string] $HacsPy = 'D:\Lupo\Source\AI\instance-archaeology\src\hacs\hacs.py',
+        [string] $Python = 'python',
+        [int]    $TimeoutSec = 60
+    )
+    function NotOk([string] $why) {
+        [pscustomobject]@{ Ok = $null; TotalUnread = $null; VisibleIds = @(); MoreUnread = $null; Me = $null; Error = $why }
+    }
+    $saved = @{ id = $env:HACS_INSTANCE_ID; enc = $env:PYTHONIOENCODING }
+    try {
+        # Invoke-HacsNative has no environment parameter; the child inherits ours.
+        $env:HACS_INSTANCE_ID = $Instance.InstanceId
+        $env:PYTHONIOENCODING = 'utf-8'
+        $n = Invoke-HacsNative -FilePath $Python -Arguments @($HacsPy, 'inbox', '--json') -TimeoutSec $TimeoutSec
+    } catch {
+        return (NotOk "could not run hacs.py: $($_.Exception.Message)")
+    } finally {
+        $env:HACS_INSTANCE_ID = $saved.id
+        $env:PYTHONIOENCODING = $saved.enc
+    }
+    if ($n.TimedOut) { return (NotOk "hacs.py inbox timed out after ${TimeoutSec}s") }
+    $j = $null
+    try { $j = ($n.StdOut | Out-String).Trim() | ConvertFrom-Json } catch { }
+    if ($n.ExitCode -ne 0) {
+        $why = if ($j -and $j.error) { $j.error } else { "hacs.py inbox exited $($n.ExitCode)" }
+        return (NotOk $why)
+    }
+    if (-not $j -or $j.ok -ne $true)            { return (NotOk 'hacs.py inbox --json did not report ok') }
+    if ([string]$j.me -ne $Instance.InstanceId) { return (NotOk "hacs.py read the inbox of '$($j.me)', not '$($Instance.InstanceId)'") }
+    [pscustomobject]@{
+        Ok          = $true
+        TotalUnread = [int]$j.total_unread
+        VisibleIds  = @($j.ids | ForEach-Object { [string]$_ })
+        MoreUnread  = [bool]$j.more_unread
+        Me          = [string]$j.me
+        Error       = $null
+    }
+}
+
+
 function Get-HacsAgentRegistry {
     <#
     .SYNOPSIS
@@ -846,7 +901,7 @@ function Write-HacsResult {
 }
 
 
-Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult,
+Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
                               Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
                               Get-HacsEntryContent, Test-HacsTranscriptSchema,

@@ -49,11 +49,14 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Only scripts a SCHEDULED TASK invokes belong here. Everything else is run from
+# Only scripts that run OUTSIDE a checkout belong here (scheduled tasks, and the
+# doorbell a mind runs in its own session). Everything else is run from
 # the repo, where it should be, so this list stays short on purpose.
 $deployed = @(
     'credential-sentinel.ps1',
-    'run-hidden.vbs'
+    'run-hidden.vbs',
+    'doorbell.ps1',             # run by the mind itself from bin, so a checkout cannot break its ears
+    'lib\HacsHarness.psm1'      # doorbell.ps1 imports it from beside itself
 )
 
 $rows = @()
@@ -74,7 +77,7 @@ foreach ($f in $deployed) {
         continue
     }
 
-    $null = New-Item -ItemType Directory -Force -Path $BinDir -ErrorAction SilentlyContinue
+    $null = New-Item -ItemType Directory -Force -Path (Split-Path $dst -Parent) -ErrorAction SilentlyContinue
     Copy-Item $src $dst -Force
     $dstHash = (Get-FileHash $dst -Algorithm SHA256).Hash.ToLower()
     if ($dstHash -ne $srcHash) {
