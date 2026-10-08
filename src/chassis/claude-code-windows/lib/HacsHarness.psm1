@@ -1011,9 +1011,18 @@ function Invoke-HacsRing {
     $runCanary = { param([string[]] $canaryArgs, [int] $timeout)
         (Invoke-HacsNative -FilePath $ps -Arguments (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $canary) + $canaryArgs) -TimeoutSec $timeout).StdOut }
 
-    if (-not $RingName) { $RingName = $Instance.InstanceId }
     $reg = Get-HacsAgentRegistryResult -ClaudeExe $ClaudeExe
     if (-not $reg.Ok) { return (& $mkVerdict 'ERROR' $null "could not read the agent registry ($($reg.Error)), so I cannot address the ring") }
+    if (-not $RingName) {
+        # The name a session ANSWERS to is the one it was born with, and a mind
+        # adopted by resume may not be named after its instance id (Lodestone-8ec9
+        # answers to 'Lodestone'). Take it from the registry row for the recorded
+        # session; fall back to the instance id.
+        $rsid = Resolve-HacsSessionId -Instance $Instance
+        $row = @($reg.Rows | Where-Object { @($_.PSObject.Properties.Name) -contains 'sessionId' -and [string]$_.sessionId -eq [string]$rsid.SessionId -and
+                                           @($_.PSObject.Properties.Name) -contains 'name' -and $_.name }) | Select-Object -First 1
+        $RingName = if ($row) { [string]$row.name } else { $Instance.InstanceId }
+    }
     $named = @($reg.Rows | Where-Object { @($_.PSObject.Properties.Name) -contains 'name' -and [string]$_.name -eq $RingName -and $_.pid })
     if ($named.Count -ne 1) {
         return (& $mkVerdict 'AMBIGUOUS' $null "ambiguous address: $($named.Count) live sessions are named '$RingName'. A ring by name must reach exactly one mind; refusing.")

@@ -116,6 +116,10 @@ try {
     Write-Host '=== bad identity ==='
     $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $bell -InstanceId 'Nobody-0000' -PollSec 0 -MaxPolls 1 -HacsPy $fake 2>&1 | Out-String
     Check 'unknown instance -> ERROR (2), nothing watched' $LASTEXITCODE 2
+} catch {
+    # A suite that dies halfway must never read as green (M10).
+    $script:fail++
+    Write-Host "  FAIL  SUITE ABORTED: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
 } finally {
     Remove-Item Env:\FAKE_INBOX_SCENARIO -ErrorAction SilentlyContinue
     Reset-Doorbell

@@ -56,6 +56,7 @@ $deployed = @(
     'credential-sentinel.ps1',
     'run-hidden.vbs',
     'doorbell.ps1',             # run by the mind itself from bin, so a checkout cannot break its ears
+    'ring-watch.ps1',           # the outside watcher's scheduled task runs this copy
     'lib\HacsHarness.psm1'      # doorbell.ps1 imports it from beside itself
 )
 
