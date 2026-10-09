@@ -43,6 +43,22 @@
 #
 # A deploy gate asks one question: if I restart now, can a mind still reach
 # another mind? Green here is a transaction, not an artifact.
+#
+# 2026-10-09 — AND IT ASSERTS THE DOORBELL, NOT ONLY THE LEDGER. Cairn-2001 was
+# deaf 14.5h with eight suppressed hub slots; a fleet sweep found four minds in
+# that state, one for 29 days. NEITHER EXISTING CANARY COULD SEE IT:
+#
+#   channel-canary.sh   POSTs /direct-message -> proves the LEG (channel alive,
+#                       MCP connected, injection works). Bypasses the hub's slot
+#                       machinery entirely, so it says "your ears work" about an
+#                       ear that was never deaf.
+#   this script, v1     asserted the recipient's LEDGER row. Mail was arriving
+#                       fine throughout the outage, so this was green too.
+#
+# Nothing tested "did the DOORBELL ring for this message." Both instruments were
+# answering questions adjacent to the one that mattered, and the fleet was deaf
+# in the gap between them. So this now asserts BOTH legs of the same send:
+# the row appeared (mail path) AND notifications_sent advanced (doorbell path).
 #                                             -- Messenger-aa2a, 2026-10-03
 set -uo pipefail
 
@@ -105,12 +121,53 @@ if printf '%s' "$SEND" | grep -q '"success":[[:space:]]*false' \
   exit 4
 fi
 
+# The DOORBELL baseline. notifications_sent increments only AFTER a verified
+# mcp.notification() inside sendToSession(), so a flat counter means the channel
+# was never ASKED — which is exactly the signature Cairn identified: a stalled
+# notifications_sent beside recent inbound mail. Reachable by any uid because the
+# channel listens on a localhost TCP port rather than a 0700 unix socket.
+TARGET_PORT=$(python3 -c "
+import json,sys
+try: print(json.load(open('$DATA_ROOT/instances/$TO/.hacs-identity'))['channelPort'])
+except Exception: print('')
+" 2>/dev/null)
+BELL_BEFORE=""
+if [ -n "$TARGET_PORT" ]; then
+  BELL_BEFORE=$(curl -s --max-time 5 "http://127.0.0.1:$TARGET_PORT/health" 2>/dev/null \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('notifications_sent',''))" 2>/dev/null)
+fi
+
 DEADLINE=$(( $(date +%s) + TIMEOUT ))
 while :; do
   # Presence of OUR nonce's ref. No body is read, parsed, or printed.
   if grep -qF "$NONCE" "$LEDGER" 2>/dev/null; then
     echo "arrived   — the row appeared in $TO's ledger. Transaction confirmed, not inferred."
-    exit 0
+
+    # SECOND LEG: did the doorbell ring? A row in the ledger with a flat counter is
+    # precisely the four-minds-deaf-for-days condition, and v1 of this script would
+    # have exited 0 on it.
+    if [ -z "$BELL_BEFORE" ]; then
+      echo "doorbell  — COULD NOT LOOK (no channelPort, or /health unreachable on $TO)."
+      echo "            NOT a pass and NOT a failure: the doorbell leg is unmeasured."
+      exit 5
+    fi
+    BELL_DEADLINE=$(( $(date +%s) + 15 ))
+    while :; do
+      BELL_AFTER=$(curl -s --max-time 5 "http://127.0.0.1:$TARGET_PORT/health" 2>/dev/null \
+        | python3 -c "import json,sys; print(json.load(sys.stdin).get('notifications_sent',''))" 2>/dev/null)
+      if [ -n "$BELL_AFTER" ] && [ "$BELL_AFTER" -gt "$BELL_BEFORE" ] 2>/dev/null; then
+        echo "doorbell  — rang. notifications_sent $BELL_BEFORE -> $BELL_AFTER."
+        exit 0
+      fi
+      [ "$(date +%s)" -ge "$BELL_DEADLINE" ] && break
+      sleep 2
+    done
+    echo "suppressed — the row ARRIVED but the doorbell did NOT ring"
+    echo "             (notifications_sent flat at $BELL_BEFORE)."
+    echo "             Mail path alive, notification path silent. Check for an"
+    echo "             undrained hub slot: a slot with count>0 suppresses every"
+    echo "             later arrival from that sender until drain_events."
+    exit 6
   fi
   [ "$(date +%s)" -ge "$DEADLINE" ] && break
   sleep 2
