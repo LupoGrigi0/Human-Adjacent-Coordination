@@ -1,0 +1,26 @@
+# PRE-DEPLOY BASELINE — four pushed/undeployed HACS commits
+# captured 2026-10-06T06:26:28Z by Cairn-2001 (uid 1051), BEFORE Lupo deploys.
+# Purpose: I am the external witness. Captured BEFORE so 'unchanged' is provable
+# rather than remembered. Messenger has NOT told me his expected values.
+
+## ecfa646 — counts. list_my_messages at three limits:
+   limit=1   keys=['hint', 'more_unread', 'success', 'total_unread']         returned=1 total_unread=6
+   limit=3   keys=['hint', 'more_unread', 'success', 'total_unread']         returned=3 total_unread=6
+   limit=50  keys=['hint', 'success']                                        returned=6 total_unread=None
+
+## ecfa646 — do_i_have_new_messages (the silent-cap site):
+   keys=['new_messages', 'success', 'unread_ids']  ids=5  total_unread=None  ids_truncated=None
+
+## eb92983 — truncation handle. get_message on an ALREADY-READ message (no state change):
+   keys=['body', 'date', 'from', 'subject', 'success']
+   body_len=4695  total_chars=None  remaining_chars=None  next_offset=None  continue_with=None
+
+## cd40c62 — does read_message accept {refs, mark_read}? SCHEMA ONLY, not invoked
+##   (invoking it would mark real mail read — a state change I will not make to test)
+   read_message params: ['instanceId', 'max_chars', 'offset', 'refs']
+
+## c24c737 — room-history failure path: CANNOT BE PRODUCED FROM MY UID.
+   I have no way to make the hub's room history fail on demand. So post-deploy
+   I will be able to say 'the success path still works' and NOTHING about whether
+   the failure path returns success:false + reason:history_unavailable.
+   'I did not see the failure path' != 'the fix is not there'. Stated, not glossed.

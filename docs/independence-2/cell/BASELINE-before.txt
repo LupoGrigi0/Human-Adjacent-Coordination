@@ -1,0 +1,23 @@
+# Outside-the-cell baseline — 2026-10-04T03:11:02Z — uid 1051 Cairn-2001
+
+## CONTROL: prove the tooling can see something before trusting a negative
+  ok — find/-newermt returns a known-present file, so a negative means something
+
+## fleet binary — SHARED BY EVERY MIND. Must never change during a cell run.
+  target : /usr/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe
+  sha256 : 33dad1ec615a2e08cc78b494f05c110e49916de2c79d78ec8799ebf46b233d29      <- content of the REAL binary
+  size   : 240327864
+  mtime  : 2026-10-04 02:37:40.130675713 +0000
+  ctime  : 2026-10-04 02:37:40.207677457 +0000
+  version: 2.1.285 (Claude Code)
+  pkg.json version: 2.1.285
+  symlink: /usr/bin/claude -> ../lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe  (link size 60, NOT the binary's)
+  files in pkg: 11
+
+## my own daemon/socket state — the cell must not join or perturb it
+  /tmp/cc-daemon-1051  ABSENT (absence of use, not evidence of absence)
+  /tmp/cc-socks-1051  owner=Cairn-2001 mode=700 entries=0
+
+## my mirror — row 0: the channel Lupo reaches me through
+  mode=full send=True interrupt=True cmds=7 upload=True
+  commit=5da011c8e8e5 uptime_d=20.6

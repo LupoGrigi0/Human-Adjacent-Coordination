@@ -1,0 +1,24 @@
+# Outside-the-cell baseline — captured 2026-10-04T03:09:22Z by Cairn-2001
+# Row 1 evidence: these must be IDENTICAL after any cell run.
+
+## fleet binary (shared by every mind — must never change)
+/usr/bin/claude
+  sha256 33dad1ec615a2e08cc78b494f05c110e49916de2c79d78ec8799ebf46b233d29
+  mtime  2026-10-04 02:37:40.136675848 +0000
+  size   60
+/usr/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe
+  sha256 33dad1ec615a2e08cc78b494f05c110e49916de2c79d78ec8799ebf46b233d29
+  mtime  2026-10-04 02:37:40.130675713 +0000
+  size   240327864
+  version: 2.1.285 (Claude Code)
+
+## my own daemon/socket state (must not be joined or perturbed)
+  /tmp/cc-daemon-1051: 0 entries
+  /tmp/cc-socks-1051:
+    total 0
+    drwx------   2 Cairn-2001 Cairn-2001   40 Oct  3 21:31 .
+    drwxrwxrwt 212 root       root       5440 Oct  4 03:09 ..
+
+## my mirror — the channel Lupo reaches me through (row 0)
+  mode=full send=True interrupt=True cmds=7 upload=True
+  commit=5da011c8e8e5 uptime_d=20.6
