@@ -13,8 +13,36 @@
 #  5. A mind that never declared pull is NOT_PULL, not UNARMED — otherwise every
 #     push-chassis mind on the box alarms forever.
 set -u
-SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-C="$SRC/src/doorbell-check.sh"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC="$(cd "$HERE/.." && pwd)"
+
+# ---- FIND THE SUBJECT, AND REFUSE RATHER THAN REPORT VERDICTS ABOUT A MISSING FILE ----
+#
+# Two layouts, because this file travels:
+#   health/doorbell-check.sh  beside health/test-doorbell-check.sh   (in the hacs repo)
+#   src/doorbell-check.sh     with test/doorbell-check.sh            (Cairn's own tree)
+#
+# AND THE PART THAT MATTERS MORE THAN THE PATH: on 2026-10-09 this suite was rebased into
+# the repo layout, could not find the subject, and reported 55 FAILURES with exit 127
+# ("command not found") on every case. It read as "doorbell-check.sh is broken" when the
+# truth was "the harness cannot see it" -- a could-not-look wearing 55 verdicts, in a test
+# I wrote to catch exactly that class. I had already built this guard in launch-backend.sh
+# ("EXTRACTION FAILED, not 'no bugs'") and did not build it here.
+#
+# A harness that cannot find its subject must say SO, loudly, and run NOTHING.
+for _c in "$HERE/doorbell-check.sh" "$SRC/src/doorbell-check.sh"; do
+  [ -f "$_c" ] && { C="$_c"; break; }
+done
+if [ -z "${C:-}" ]; then
+  echo "REFUSING TO RUN: cannot find doorbell-check.sh. Tried:" >&2
+  echo "  $HERE/doorbell-check.sh" >&2
+  echo "  $SRC/src/doorbell-check.sh" >&2
+  echo "This is NOT a test failure and NOT a verdict about the subject -- the subject was" >&2
+  echo "never executed. Any suite that reports assertions here is lying about what it saw." >&2
+  exit 2
+fi
+[ -x "$C" ] || { echo "REFUSING TO RUN: $C is not executable. Not a test failure." >&2; exit 2; }
+echo "subject: $C"
 pass=0; fail=0
 ok(){ if [ "$1" = "1" ]; then echo "  ok  $2"; pass=$((pass+1)); else echo "FAIL  $2 (got exit $3)"; fail=$((fail+1)); fi; }
 D=$(mktemp -d)
