@@ -103,6 +103,53 @@ beat "$DEADPID" 181 true
 rc=$(run); ok "$([ "$rc" = "1" ] && echo 1 || echo 0)" "⭐ 181s (just outside) -> 1. The threshold is real, not decorative." "$rc"
 
 echo
+echo "5b. ⭐ EXIT 6 IS ONLY FOR AN EXIT-ON-MAIL LOOP. A RESIDENT doorbell has no normal window."
+echo "    Found by Forge-ba0e 2026-10-09, reading this checker against her own doorbell.py:"
+echo "    it is a systemd resident service with leaseUntil null, and it never exits on purpose."
+echo "    Her words: \"a fresh beat with a dead pid never means a normal window here. It always"
+echo "    means ACT.\" An ABSENT leaseUntil lands the same way ON PURPOSE: waiting when you"
+echo "    should act leaves a mind deaf (needs an outside hand); acting when you should wait is"
+echo "    noise. Prevent the unrecoverable, allow the reversible."
+
+residentbeat(){ # pid age — a RESIDENT doorbell: leaseUntil null
+  python3 - "$D/state/T.heartbeat.json" "$1" "$2" <<'PY'
+import json,sys,time
+path,pid,age=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
+at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time()-age))
+try: ticks=int(open("/proc/%d/stat"%pid).read().split()[21])
+except Exception: ticks=0
+try: boot=[int(l.split()[1]) for l in open("/proc/stat") if l.startswith("btime")][0]
+except Exception: boot=0
+json.dump({"provider":"python","instance":"T","pid":pid,"at":at,"armedAt":at,
+           "leaseUntil":None,"scriptSha256":"deadbeefcafe0000","lastPollOk":True,
+           "lastTotal":1,"note":"quiet","pidStartTicks":ticks,"bootEpoch":boot,
+           "interval":60,"instanceValidated":True}, open(path,"w"))
+PY
+}
+nolease(){ # pid age — leaseUntil ABSENT entirely
+  python3 - "$D/state/T.heartbeat.json" "$1" "$2" <<'PY'
+import json,sys,time
+path,pid,age=sys.argv[1],int(sys.argv[2]),int(sys.argv[3])
+at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time()-age))
+try: ticks=int(open("/proc/%d/stat"%pid).read().split()[21])
+except Exception: ticks=0
+try: boot=[int(l.split()[1]) for l in open("/proc/stat") if l.startswith("btime")][0]
+except Exception: boot=0
+json.dump({"provider":"python","instance":"T","pid":pid,"at":at,"armedAt":at,
+           "scriptSha256":"deadbeefcafe0000","lastPollOk":True,"lastTotal":1,
+           "note":"quiet","pidStartTicks":ticks,"bootEpoch":boot,"interval":60}, open(path,"w"))
+PY
+}
+
+residentbeat "$DEADPID" 5
+rc=$(run); ok "$([ "$rc" = "1" ] && echo 1 || echo 0)" "⭐ RESIDENT (leaseUntil null) + 5s beat + dead pid -> 1 ACT, NOT 6" "$rc"
+ok "$(grep -qi 'RESIDENT doorbell' "$D/out" && echo 1 || echo 0)" "and it says WHY: a resident service has no normal window" "-"
+nolease "$DEADPID" 5
+rc=$(run); ok "$([ "$rc" = "1" ] && echo 1 || echo 0)" "⭐ ABSENT leaseUntil + 5s beat + dead pid -> 1, the UNRECOVERABLE-averse default" "$rc"
+beat "$DEADPID" 5 true
+rc=$(run); ok "$([ "$rc" = "6" ] && echo 1 || echo 0)" "and an exit-on-mail loop (leaseUntil set) still gets 6 — the split is real" "$rc"
+
+echo
 echo "6. ⭐ CANNOT_TELL IS NEVER COLLAPSED INTO A VERDICT"
 rm -f "$D/prefs.json"
 rc=$(run); ok "$([ "$rc" = "3" ] && echo 1 || echo 0)" "no preferences file -> CANNOT_TELL (exit 3), NOT not-pull" "$rc"

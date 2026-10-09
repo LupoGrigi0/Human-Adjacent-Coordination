@@ -60,6 +60,9 @@ usage: doorbell-check.sh --instance <id> [--prefs <path>] [--state-dir <dir>] [-
 exit: 0 ARMED · 1 UNARMED · 2 usage · 3 CANNOT_TELL · 4 NOT_PULL · 5 NOT_FIRING
        6 UNARMED (RECENT): pid gone, beat within --stale-after. STILL UNARMED — an actor
          should re-check once before ringing (measured re-arm window is 11-21s).
+         ONLY for an exit-on-mail loop (heartbeat leaseUntil non-null). A RESIDENT
+         doorbell, or one whose leaseUntil is absent, reports 1 — it has no normal
+         window, so a dead pid means it died.
       (1 and 5 are both UNREACHABLE; they differ in cause — no loop vs a broken loop)
 U
 exit 2; }
@@ -164,6 +167,28 @@ EOF
 [ "$AGE" = "ERR" ] && { echo "CANNOT_TELL: heartbeat unparsable or has no usable timestamp"; exit 3; }
 case "$PID" in *[!0-9]*) echo "CANNOT_TELL: heartbeat carries no usable pid"; exit 3;; esac
 
+# WHICH ARCHITECTURE IS THIS DOORBELL? Added 2026-10-09 after Forge-ba0e read this
+# checker against her own resident service and found exit 6 wrong for it.
+#
+#   leaseUntil non-null  ->  an EXIT-ON-MAIL loop. It is SUPPOSED to exit, so a fresh
+#                            beat with a dead pid may be the normal 11-21s re-arm window.
+#                            exit 6 (re-check once) is correct.
+#   leaseUntil null      ->  a RESIDENT SERVICE (Forge's doorbell.py, systemd). It never
+#                            exits on purpose. Her words: "a fresh beat with a dead pid
+#                            never means a normal window here. It always means ACT."
+#   absent               ->  UNKNOWN -> treat as RESIDENT -> exit 1.
+#
+# WHY UNKNOWN RESOLVES TO ACT: exit 6 says wait, exit 1 says act. Waiting when you should
+# act leaves a mind deaf — unrecoverable without an outside hand. Acting when you should
+# wait rings a mind that is already awake — noise. Prevent the unrecoverable, allow the
+# reversible.
+LEASEKIND=$(python3 -c 'import json,sys
+try: d=json.load(open(sys.argv[1]))
+except Exception: print("unknown"); raise SystemExit
+if "leaseUntil" not in d: print("unknown")
+elif d.get("leaseUntil") in (None,"",): print("resident")
+else: print("lease")' "$BEAT" 2>/dev/null || echo unknown)
+
 # The loop's own reason for its last write. Extracted separately because it contains
 # spaces ("fired: new-id", "lease expired") and so cannot ride the space-separated
 # `read -r` above. This is the OTHER discriminator an actor needs: a note that EXPLAINS
@@ -243,9 +268,18 @@ if [ "$ALIVE" = no ]; then
     echo "  note        : ${NOTE:-<none>}"
     echo "  The two ledgers disagree. Either the loop exited moments ago and the mind has"
     echo "  not re-armed YET (normal — the measured window is 11-21s), or it died."
-    echo "  THIS IS STILL UNARMED. Not healthy, not ok. But an ACTOR SHOULD RE-CHECK ONCE"
-    echo "  before ringing: a mind handling the ring it just got looks exactly like this."
-    exit 6
+    if [ "$LEASEKIND" = lease ]; then
+      echo "  THIS IS STILL UNARMED. Not healthy, not ok. But an ACTOR SHOULD RE-CHECK ONCE"
+      echo "  before ringing: a mind handling the ring it just got looks exactly like this."
+      echo "  (leaseUntil is set, so this loop EXITS ON MAIL by design and a brief gap is normal.)"
+      exit 6
+    fi
+    echo "  leaseUntil is ${LEASEKIND} -> this is a RESIDENT doorbell, not an exit-on-mail loop."
+    echo "  A resident service never exits on purpose, so there is NO normal window here:"
+    echo "  a dead pid means it DIED. ACT. (Forge-ba0e, 2026-10-09, about her own doorbell.py.)"
+    echo "  An ABSENT leaseUntil also lands here on purpose: waiting when you should act leaves"
+    echo "  a mind deaf and needs an outside hand; acting when you should wait is just noise."
+    exit 1
   fi
   echo "UNARMED: pid $PID is gone and the heartbeat is ${AGE}s old. The loop is dead."
   echo "  note        : ${NOTE:-<none>}"
