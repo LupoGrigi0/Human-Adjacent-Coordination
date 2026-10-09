@@ -1,0 +1,5 @@
+# Skips the nightly tolerates. Every other SKIP fails the night (ship card M10:
+# "a skip is could-not-run, not a pass"). One line per skip: a substring of the
+# SKIP line, then " | " and WHY it is allowed. Adding a line here is a decision;
+# say who made it and when.
+no transcript -> ERROR | every fixture has been launched, so no transcript-less fixture exists to test against; mint a fresh one to cover it again (Lodestone, 2026-10-08)

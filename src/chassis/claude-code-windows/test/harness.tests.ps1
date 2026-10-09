@@ -145,10 +145,15 @@ Check 'control: injection removed, the look works again' ($(try { $null = @(Get-
 
 Section 'the launch lock (DOORBELL-DESIGN 3.3/3.4)'
 # One name builder, or two callers can each hold "the lock" and exclude nobody.
-$handBuilt = @(Get-ChildItem $root -Recurse -Include *.ps1, *.psm1 |
+# The pattern is 'Global\hacs-<kind>-'. The first version matched bare 'hacs-ring-'
+# and flagged the TASK name hacs-ring-watch-<id> five times: the instrument wrong,
+# the code right (found by the first real nightly run). The positive control below
+# proves the narrowed pattern still SEES the one real builder.
+$lockNameHits = @(Get-ChildItem $root -Recurse -Include *.ps1, *.psm1 |
     Where-Object { $_.FullName -notmatch '\\test\\' } |
-    Select-String -Pattern 'hacs-(launch|ring|ledger)-' |
-    Where-Object { $_.Line -notmatch 'Get-HacsMutexName|function Get-HacsMutexName|"Global\\hacs-\$Kind-\$InstanceId"' })
+    Select-String -Pattern 'Global\\hacs-(launch|ring|ledger|\$Kind)-')
+Check 'control: the pattern finds the real builder in Get-HacsMutexName' (@($lockNameHits | Where-Object { $_.Line -match '"Global\\hacs-\$Kind-\$InstanceId"' }).Count) 1
+$handBuilt = @($lockNameHits | Where-Object { $_.Line -notmatch '"Global\\hacs-\$Kind-\$InstanceId"' })
 Check 'no mutex name is built outside Get-HacsMutexName' $handBuilt.Count 0
 $lockFix = 'dev-reconstruction-001-f35a'
 $lockInst = Get-HacsInstance -InstanceId $lockFix
