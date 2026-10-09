@@ -98,6 +98,16 @@ def main():
         try:
             msgs = call("list_my_messages", {"instanceId": iid, "limit": 20}).get("messages", [])
             ids = [m["id"] for m in msgs]
+            # Return the hub's per-sender event slots to idle. list_my_messages never touches them, and the hub only
+            # dispatches a push when a slot is idle, so polling alone leaves the mind deaf on push for good (Cairn +
+            # Messenger, 2026-10-09). drain_events acknowledges; it does not delete mail (measured on Forge-ba0e).
+            # A failed drain is logged loudly but is NOT a poll failure: the pull path above still heard.
+            try:
+                d = call("drain_events", {"instanceId": iid})
+                if not d.get("success"):
+                    log(f"WARN drain_events not successful: {str(d)[:160]}")
+            except Exception as e:
+                log(f"WARN drain_events failed: {type(e).__name__}: {e}")
             if seen is None:                                 # first run: don't ring for the past
                 seen = set(ids); json.dump(sorted(seen), open(SEEN, "w")); log(f"baseline: {len(seen)} existing message(s), not rung")
             new = [m for m in msgs if m["id"] not in seen]
