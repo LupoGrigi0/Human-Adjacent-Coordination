@@ -24,6 +24,26 @@ const DEFAULT_SECRET_FILE = '/mnt/coordinaton_mcp_data/.hub-secret';
 const MAX_REFS = 20;          // most-recent refs kept per slot (contract §3)
 const MAX_LAST_ERRORS = 50;   // getStatus() error window (contract §6)
 const RETRY_SWEEP_MS = 60000; // pending-slot re-dispatch cadence
+// An 'active' slot that has gone UNDRAINED this long is re-notified. Invariant 2
+// suppressed every arrival after the first until a drain, on the assumption that
+// the single dispatch worked — and NEVER re-checked. A slot cannot tell
+// "delivered, mind hasn't drained yet" from "lost, mind never knew", and treated
+// both as handled forever: a receipt treated as proof, which is accepted-!=-
+// delivered implemented as an invariant, in the hub that exists to refuse it.
+//
+// Cairn-2001 was deaf 14.5h with EIGHT suppressed slots; a fleet sweep found four
+// minds affected and Genevieve's doorbell suppressed for 701h — 29 days — because
+// nothing in the system has ever looked at a slot. The mail path (list_my_messages,
+// XMPP history) and the doorbell path (hub slots) are decoupled, so a mind that
+// reads its mail any other way goes silently deaf one sender at a time.
+//
+// 30 min is chosen against measurement, not taste: Cairn measured 11-21s to re-arm
+// a pull doorbell after a wake and >=1.2s registration lag, so "merely slow" has a
+// floor three orders of magnitude below this. If the mind got the first ring and is
+// slow, a reminder every half hour is noise. If it never got it, a reminder is the
+// ONLY recovery that exists. Suppressing forever optimises for the case we cannot
+// verify.
+const RENOTIFY_UNDRAINED_MS = 30 * 60 * 1000;
 
 // §8b hardening — path-traversal + prototype-pollution guards
 const SAFE_ID_RE = /^[A-Za-z0-9._-]+$/;      // target/instanceId (used in paths)
@@ -386,6 +406,17 @@ class EventHub {
       const interrupt = await this._resolveInterrupt(instanceId, channel);
       if (!interrupt) {
         slot.status = 'active'; // aware-by-policy: nothing outstanding to deliver
+        // Record that POLICY was applied — explicitly NOT a delivery, and
+        // deliberately not notified_ts, which must mean "the bell rang" and
+        // nothing else. Keeping them separate is the whole point: 'status' became
+        // uninformative precisely by meaning three things at once.
+        //
+        // The undrained-slot sweep uses this to skip a slot the mind asked not to
+        // be rung for. Without it, a quiet slot would be re-dispatched every
+        // RENOTIFY_UNDRAINED_MS, re-enter this branch, and log — ~240 lines/day
+        // across the fleet's quiet slots, which is the start of the flood that
+        // nearly hid a real defect from Bastion (2,956 benign ERROR lines/day).
+        slot.policy_quiet_ts = nowEpochSeconds();
         logger.info(`[EventHub] quiet-policy: ${instanceId} ${channel}/${from} count=${slot.count} (counter only)`);
         this._scheduleSnapshot(instanceId);
         return;
@@ -395,6 +426,15 @@ class EventHub {
       const chassis = await import('./chassis/index.js');
       await chassis.deliverNotification(instanceId, notification); // throws on failure
       slot.status = 'active'; // verified delivery — notified, unacked, waits for drain
+      // WHEN the doorbell actually rang for this slot's current contents. `status`
+      // cannot carry this: it is set in three places meaning three different things
+      // (slot creation before any dispatch, the quiet-policy branch where NOTHING
+      // was delivered, and here after verified delivery), which is why a slot
+      // silent for 66 hours still read 'active'. notified_ts is the field that can
+      // go stale honestly — compare it with last_ts to know whether the bell has
+      // rung for what is currently in the slot. (Cairn-2001: kill the field, keep
+      // the timestamp. Fourth independent arrival at that rule.)
+      slot.notified_ts = nowEpochSeconds();
       this._scheduleSnapshot(instanceId);
     } finally {
       slot._dispatching = false;
@@ -557,10 +597,35 @@ class EventHub {
   }
 
   _retryPending() {
+    const nowMs = Date.now();
     for (const [instanceId, inst] of this.counters) {
       for (const [channel, senders] of Object.entries(inst)) {
         for (const [from, slot] of Object.entries(senders)) {
-          if (slot.status !== 'pending' || slot.count === 0 || slot._dispatching) continue;
+          if (slot.count === 0 || slot._dispatching) continue;
+
+          // 'pending' — a dispatch FAILED. Retry every sweep, as before.
+          const isPending = slot.status === 'pending';
+
+          // 'active' but UNDRAINED past the window — the bell may have rung and
+          // been lost. Re-ring. Never for a pull chassis: §8c has those sitting in
+          // 'awaiting_fetch' by design, and re-notifying a mind that fetches would
+          // be ringing a doorbell nobody installed.
+          const notifiedMs = (slot.notified_ts || 0) * 1000;
+          // A slot whose quiet policy was applied at or after its newest arrival is
+          // intentionally silent — the mind asked not to be interrupted for this
+          // channel. Never re-ring it. A LATER arrival makes policy_quiet_ts stale
+          // again, which costs one re-entry per new arrival and is self-limiting.
+          const intentionallyQuiet = (slot.policy_quiet_ts || 0) >= (slot.last_ts || 0);
+          const isStaleActive = slot.status === 'active'
+            && !intentionallyQuiet
+            && nowMs - notifiedMs > RENOTIFY_UNDRAINED_MS;
+
+          if (!isPending && !isStaleActive) continue;
+
+          if (isStaleActive) {
+            logger.info(`[EventHub] re-notify undrained slot: ${instanceId} ${channel}/${from} `
+              + `count=${slot.count} silent_for=${Math.round((nowMs - notifiedMs) / 60000)}min`);
+          }
           this._dispatch(instanceId, channel, from, slot).catch((err) => {
             // stays pending; next sweep retries. Recorded, not swallowed.
             this._recordError('retry', `${instanceId}/${channel}/${from}: ${err.message}`);
@@ -588,6 +653,12 @@ function sanitizeCounterData(data) {
         last_ts: Number.isFinite(slot.last_ts) ? slot.last_ts : nowEpochSeconds(),
         refs: Array.isArray(slot.refs) ? slot.refs.filter(r => typeof r === 'string').slice(-MAX_REFS) : []
       };
+      // Loaded from disk, so DEGRADE rather than trust (invariant 6). A missing or
+      // non-finite notified_ts reads as 0 = "never notified", which makes a slot
+      // written by an older hub eligible for a re-ring instead of silently
+      // immortal — the safe direction for a field whose absence means deafness.
+      s.notified_ts = Number.isFinite(slot.notified_ts) ? slot.notified_ts : 0;
+      s.policy_quiet_ts = Number.isFinite(slot.policy_quiet_ts) ? slot.policy_quiet_ts : 0;
       if (typeof slot.thread_id === 'string' || typeof slot.thread_id === 'number') {
         s.thread_id = String(slot.thread_id);
       }
