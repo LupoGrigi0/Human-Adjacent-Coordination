@@ -140,6 +140,44 @@ class Instance:
         os.makedirs(d, exist_ok=True); os.chown(d, self.uid, self.gid); os.chmod(d, 0o700)
         return d
 
+    # A session's transcript lives under the project slug of its CURRENT cwd, not its launch cwd. Measured on Forge
+    # 2026-10-09: launched in ~/BlackWolf-Forge, EnterWorktree on 10-01 moved the whole transcript to the worktree's
+    # slug; the workdir slug dir held no .jsonl at all. So never compute a transcript path from workdir: find it.
+    def projects_root(self):
+        cfg = self.env().get("CLAUDE_CONFIG_DIR")
+        return os.path.join(cfg or os.path.join(self.home, ".claude"), "projects")
+
+    def find_transcript(self, sid):
+        """The one <sid>.jsonl under any project dir. None if absent; Fail if more than one (refuse to choose)."""
+        root = self.projects_root()
+        if not os.path.isdir(root): return None
+        hits = [os.path.join(root, d, sid + ".jsonl") for d in os.listdir(root)
+                if os.path.isfile(os.path.join(root, d, sid + ".jsonl"))]
+        if len(hits) > 1:
+            raise Fail(f"session {sid} has {len(hits)} transcripts ({', '.join(hits)}) -- refusing to choose", {"transcripts": hits})
+        return hits[0] if hits else None
+
+    def in_workspace(self, path):
+        """True for the workdir itself or anything under it (e.g. a worktree in <workdir>/.claude/worktrees/)."""
+        w, p = os.path.realpath(self.workdir), os.path.realpath(path or "/")
+        return p == w or p.startswith(w + os.sep)
+
+    def last_cwd(self, transcript):
+        """The cwd recorded on the transcript's newest entries -- where the session last worked, so a resume
+        starts there (same project slug) instead of in workdir. None if not readable or outside the workspace."""
+        try:
+            with open(transcript, "rb") as f:
+                f.seek(0, 2); f.seek(max(0, f.tell() - (1 << 20)))
+                tail = f.read().decode("utf-8", "replace").splitlines()
+            for line in reversed(tail):
+                m = re.search(r'"cwd":"([^"]+)"', line)
+                if m:
+                    c = m.group(1)
+                    return c if os.path.isdir(c) and self.in_workspace(c) else None
+        except OSError:
+            pass
+        return None
+
     def read_state(self, name):
         p = os.path.join(self.state, name)
         return open(p).read().strip() if os.path.isfile(p) else None
@@ -162,7 +200,10 @@ def live_rows(inst):
     if rows is None: return None
     # A row can exist before it has a pid; registered is not running. `state` is NOT liveness
     # (a live idle session reads state:done -- measured on Linux 2026-09-28).
-    return [a for a in rows if a.get("pid") and os.path.realpath(a.get("cwd", "")) == os.path.realpath(inst.workdir)]
+    # Attribution: the recorded session id (identity), or a cwd inside the workspace. Equality with workdir alone
+    # lost Forge once she moved into a worktree (cwd .../BlackWolf-Forge/.claude/worktrees/..., 2026-10-01).
+    sid = inst.read_state(".claude-session-id")
+    return [a for a in rows if a.get("pid") and ((sid and a.get("sessionId") == sid) or inst.in_workspace(a.get("cwd")))]
 
 def pid_alive(pid):
     try: os.kill(int(pid), 0); return True
@@ -188,15 +229,15 @@ def user_procs(inst):
 def resolve_session(inst, session_id=None, ambiguity_min=10):
     """explicit -> recorded -> guess (labelled) -> ambiguous (refuses). Discover, don't compute."""
     if session_id:
-        f = os.path.join(inst.project_dir, session_id + ".jsonl")
-        if not os.path.isfile(f):
+        f = inst.find_transcript(session_id)
+        if not f:
             return {"sid": None, "path": None, "confidence": "error",
-                    "reason": f"explicit session id has no transcript at {f} -- a hard failure, never a fallback"}
+                    "reason": f"explicit session id has no transcript under {inst.projects_root()} -- a hard failure, never a fallback"}
         return {"sid": session_id, "path": f, "confidence": "explicit", "reason": "caller supplied it"}
     rec = inst.read_state(".claude-session-id")
     if rec:
-        f = os.path.join(inst.project_dir, rec + ".jsonl")
-        if os.path.isfile(f):
+        f = inst.find_transcript(rec)
+        if f:
             return {"sid": rec, "path": f, "confidence": "recorded", "reason": "recorded by a previous launch"}
     if not os.path.isdir(inst.project_dir):
         return {"sid": None, "path": None, "confidence": "error",
@@ -413,8 +454,11 @@ def cmd_launch(a):
             raise Fail(f"born '{birth_mode}'; --mode {a.mode} on resume would fork it.", {"wouldFork": True, "birthMode": birth_mode})
         eff_mode = birth_mode or "unrecorded"
         argv = [CLAUDE, "--bg", "--resume", s["sid"], prompt]
+        # Resume where the session last worked (same project slug as its transcript), e.g. a worktree.
+        run_cwd = inst.last_cwd(s["path"]) or inst.workdir
     else:
         eff_mode = a.mode
+        run_cwd = inst.workdir
         argv = [CLAUDE, "--bg", "--name", iid]
         if a.model: argv += ["--model", a.model]
         if a.mode == "unattended":
@@ -427,15 +471,15 @@ def cmd_launch(a):
 
     if a.whatif:
         return result("degraded", iid, "WhatIf: nothing was started.", None,
-                      wouldRun=" ".join(argv), cwd=inst.workdir, mode=eff_mode, resume=resume,
+                      wouldRun=" ".join(argv), cwd=run_cwd, transcript=s["path"], mode=eff_mode, resume=resume,
                       sessionConfidence=s["confidence"], sessionId=s["sid"], credential=cred, unclaimedTranscripts=unclaimed)
 
     if bg and a.relaunch:                     # every refusal has passed; only now is landing allowed
         ln = do_land(inst, force=False, no_snapshot=False, grace=20, whatif=False)
         if ln["status"] != "success": raise Fail("relaunch: land did not succeed; not starting a second session", {"land": ln})
-    inst.log("launch.log", f"starting: {' '.join(argv)}")
-    if not os.path.isdir(inst.workdir): raise Fail(f"workspace missing: {inst.workdir} (provisioning step)")
-    r = inst.run(argv, cwd=inst.workdir, timeout=120)
+    inst.log("launch.log", f"starting in {run_cwd}: {' '.join(argv)}")
+    if not os.path.isdir(run_cwd): raise Fail(f"workspace missing: {run_cwd} (provisioning step)")
+    r = inst.run(argv, cwd=run_cwd, timeout=120)
     inst.log("launch.log", f"claude --bg rc={r['rc']} timedOut={r['timedOut']} out={r['out']!r} err={r['err']!r}")
     if r["timedOut"]: raise Fail("claude --bg did not return within 120s", {"timedOut": True})
     if "not trusted" in (r["err"] + r["out"]).lower():
@@ -459,10 +503,10 @@ def cmd_launch(a):
         return result("degraded", iid, f"claude --bg returned 0 (id {bg_id}) but no matching live registry row within 30s. Started is not running.",
                       None, bgId=bg_id, mode=eff_mode, credential=cred)
     sid_now = agent.get("sessionId")
-    if sid_now and not os.path.isfile(os.path.join(inst.project_dir, sid_now + ".jsonl")):
+    if sid_now and not inst.find_transcript(sid_now):
         tdl = time.time() + 20                # a birth may not have written its transcript yet
-        while time.time() < tdl and not os.path.isfile(os.path.join(inst.project_dir, sid_now + ".jsonl")): time.sleep(1)
-        if not os.path.isfile(os.path.join(inst.project_dir, sid_now + ".jsonl")):
+        while time.time() < tdl and not inst.find_transcript(sid_now): time.sleep(1)
+        if not inst.find_transcript(sid_now):
             return result("degraded", iid, f"registry shows session {sid_now} but it has NO transcript -- refusing to record a phantom id.",
                           None, bgId=bg_id, phantomSessionId=sid_now, mode=eff_mode, credential=cred)
     forked = bool(resume and sid_now and sid_now != s["sid"])
@@ -480,7 +524,7 @@ def cmd_launch(a):
             # Wait for the birth/resume turn to FINISH before marking. Measured 2026-09-28: marking ~1 s after
             # the registry row appeared found no assistant line yet, and the schema self-test (rightly)
             # refused -- honest, but a race. The mind's own acknowledgment line is what we wait for.
-            tp = os.path.join(inst.project_dir, (sid_now or "") + ".jsonl")
+            tp = inst.find_transcript(sid_now or "") or ""
             wdl = time.time() + 90
             while time.time() < wdl and not (os.path.isfile(tp) and schema_selftest(tp)): time.sleep(2)
             mk = canary_mark(inst)
