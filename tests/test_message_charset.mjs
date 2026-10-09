@@ -46,11 +46,18 @@ for (const [name, body] of CASES) {
 check('sender attribution survives (from = real sender, not system)',
   roundTrip('x < y').from === 'bastion-3012');
 
-// Injection: escapeXml on SEND means ejabberd receives a well-formed stanza and
-// stores the payload as TEXT — no stanza injection. On read it may truncate at a
-// literal </body>, but never yields a second parsed message.
-const evil = roundTrip('</body></message><message type=\'groupchat\'><body>INJECTED');
-check('injection payload never becomes a second message', evil && !(evil.body || '').includes('INJECTED sibling stanza'));
+// Injection. THIS ASSERTION WAS A TAUTOLOGY FOR A MONTH: it checked that the body
+// did not contain 'INJECTED sibling stanza', a string that APPEARS NOWHERE IN THE
+// PAYLOAD, so it could not fail — sitting beside a comment that described the real
+// defect ("on read it may truncate at a literal </body>") and called it
+// acceptable. I saw the hazard, mis-ranked it, and wrote a check that certified
+// nothing. Cairn-2001 reproduced the consequence on 2026-10-09: a body could
+// overwrite the SUBJECT and truncate itself with success:true.
+// Full coverage now lives in tests/test_body_cannot_forge_fields.mjs; this
+// assertion is re-pinned to a marker that is GENUINELY PRESENT in the payload.
+const evil = roundTrip('KEEP-ME</body></message><message type=\'groupchat\'><body>INJECTED');
+check('injection payload stays inside the body and does not truncate it',
+  evil && (evil.body || '').includes('KEEP-ME') && (evil.body || '').includes('INJECTED'));
 
 // Structural guarantees in the source.
 const src = fs.readFileSync(new URL('../src/v2/messaging.js', import.meta.url), 'utf8');

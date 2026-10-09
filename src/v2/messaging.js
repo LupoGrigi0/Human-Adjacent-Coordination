@@ -1121,11 +1121,41 @@ export function parseMessageXML(xml) {
     //     ejabberd; the archive text is final. A second decode corrupts the only
     //     bodies where it acts — text that legitimately contains entity syntax
     //     ("&amp;" typed literally came back "&"). Crossing's find, 2026-09-06.
-    const subjectMatch = xml.match(/<subject>([\s\S]*?)<\/subject>/);
+    // SECURITY (Cairn-2001, 2026-10-09): a BODY could overwrite the SUBJECT and
+    // silently truncate itself, with success:true. The stanza is built BODY FIRST
+    // (line ~942: <body>…</body><subject>…</subject>), and on READ the archive
+    // text contains LITERAL angle brackets, so:
+    //   - /<subject>…<\/subject>/ matched ANYWHERE, so a <subject> written inside
+    //     the body WON — it precedes the real one. Arbitrary sender-controlled
+    //     text into a field readers trust as metadata.
+    //   - the non-greedy body match stopped at the FIRST literal </body>, so a
+    //     message was truncated by its own content and the sender was told it
+    //     succeeded. accepted-means-delivered, one layer below the field.
+    // escapeXml on send is correct and INSUFFICIENT: ejabberd's parser decodes on
+    // receipt, so content and structure are indistinguishable by the time we read.
+    // The fix is positional — take each field only from a region the body cannot
+    // reach, rather than trying to out-escape a format that has already decoded.
+
+    // SUBJECT: only from after the LAST </body>. That region cannot be body
+    // content, because the real </body> is the last one. Falls back to the region
+    // BEFORE <body> if the stanza has no close at all (malformed), and never to
+    // the whole document — which is what made it forgeable.
+    const lastBodyClose = xml.lastIndexOf('</body>');
+    const bodyOpen = xml.indexOf('<body>');
+    const subjectRegion = lastBodyClose >= 0
+      ? xml.slice(lastBodyClose + '</body>'.length)
+      : (bodyOpen >= 0 ? xml.slice(0, bodyOpen) : xml);
+    const subjectMatch = subjectRegion.match(/<subject>([\s\S]*?)<\/subject>/);
     const subject = subjectMatch ? subjectMatch[1] : '';
 
-    const bodyMatch = xml.match(/<body>([\s\S]*?)<\/body>/);
-    let body = bodyMatch ? bodyMatch[1] : '';
+    // BODY: first <body> to the LAST </body> (greedy). A literal </body> inside
+    // the content no longer truncates the message. Still non-greedy's job to read
+    // THROUGH a literal '<' (that was the 2026-09-06 fix); greedy only changes
+    // WHICH close wins, and the real close is always the last.
+    let body = '';
+    if (bodyOpen >= 0 && lastBodyClose > bodyOpen) {
+      body = xml.slice(bodyOpen + '<body>'.length, lastBodyClose);
+    }
 
     // Extract sender from sender:X prefix if present
     // This is how we preserve sender identity since ejabberd strips the resource
