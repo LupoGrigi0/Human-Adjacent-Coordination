@@ -34,6 +34,46 @@ def call(name, args):
     d = json.loads(urllib.request.urlopen(urllib.request.Request(HUB, data=body, headers={"Content-Type": "application/json"}), timeout=30).read())
     return (d.get("result") or {}).get("data") or {}
 
+def validate(iid):
+    """Arm-time check (Cairn, 2026-10-09): list_my_messages answers an empty inbox for an instance that does not
+    exist, so a typo'd id would poll forever and never ring. True / False (INSTANCE_NOT_FOUND) / "could-not-look"."""
+    try:
+        body = json.dumps({"jsonrpc": "2.0", "method": "tools/call", "id": 1,
+                           "params": {"name": "get_instance_v2", "arguments": {"instanceId": iid, "targetInstanceId": iid}}}).encode()
+        raw = urllib.request.urlopen(urllib.request.Request(HUB, data=body, headers={"Content-Type": "application/json"}), timeout=30).read().decode()
+        if "INSTANCE_NOT_FOUND" in raw: return False
+        d = (json.loads(raw).get("result") or {}).get("data") or {}
+        return True if d.get("success") else "could-not-look"
+    except Exception:
+        return "could-not-look"
+
+def _stat_ids():
+    try:
+        ticks = int(open("/proc/self/stat").read().rsplit(")", 1)[1].split()[19])   # field 22 overall
+        boot = int(next(l.split()[1] for l in open("/proc/stat") if l.startswith("btime")))
+        return ticks, boot
+    except Exception:
+        return None, None
+
+_SHA = None
+def beat(iid, armed_at, ok, total, note, valid):
+    """Heartbeat for an EXTERNAL checker (Cairn's health/doorbell-check.sh contract): a loop can't witness its own
+    death, so it leaves a fresh, atomic beat every poll. scriptSha256 is provenance, never liveness."""
+    global _SHA
+    if _SHA is None:
+        import hashlib; _SHA = hashlib.sha256(open(os.path.abspath(__file__), "rb").read()).hexdigest()
+    ticks, boot = _stat_ids()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    hb = {"provider": "python", "instance": iid, "pid": os.getpid(), "at": now, "armedAt": armed_at, "leaseUntil": None,
+          "scriptSha256": _SHA, "lastPollOk": ok, "lastTotal": total, "note": note, "pidStartTicks": ticks,
+          "bootEpoch": boot, "interval": POLL, "instanceValidated": valid}
+    path = os.path.join(STATE, f"{iid}.heartbeat.json"); tmp = path + ".tmp"
+    try:
+        with open(tmp, "w") as f: json.dump(hb, f, indent=1)
+        os.replace(tmp, path)
+    except Exception as e:
+        log(f"WARN heartbeat write failed: {e}")
+
 def registry():
     """The agent registry as this user, or None when we could not look (never "nobody running")."""
     r = subprocess.run(["claude", "agents", "--json"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
@@ -94,9 +134,17 @@ def main():
     forks_reported = set()
     log(f"=== doorbell up for {iid} -> session {ident.get('sessionId') or '(none recorded: by name)'} "
         f"'{target}', poll {POLL}s ===")
+    valid = validate(iid)
+    if valid is False:   # refuse to arm, and leave no healthy-looking trace
+        log(f"REFUSING TO ARM: the hub says instance '{iid}' does not exist (INSTANCE_NOT_FOUND). Fix ~/.hacs-identity.")
+        sys.exit(2)
+    log(f"instance validated: {valid}")
+    armed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     while True:
+        ok, total, note = True, 0, "quiet"
         try:
             msgs = call("list_my_messages", {"instanceId": iid, "limit": 20}).get("messages", [])
+            total = len(msgs)
             ids = [m["id"] for m in msgs]
             # Return the hub's per-sender event slots to idle. list_my_messages never touches them, and the hub only
             # dispatches a push when a slot is idle, so polling alone leaves the mind deaf on push for good (Cairn +
@@ -126,8 +174,10 @@ def main():
                     except Exception as e:
                         log(f"fork alert send failed: {e}")
                 if state == "not-running":
+                    note = f"holding: mind not running ({len(new)} new)"
                     log(f"{len(new)} new, but the mind is NOT RUNNING -- holding (the letters wait in the mailbox)")
                 elif state == "could-not-look":
+                    note = f"holding: could not locate the mind ({len(new)} new)"
                     log(f"{len(new)} new, could not locate the mind (registry unreadable, no socket, or ambiguous name) -- holding, will retry")
                 else:
                     senders = ", ".join(sorted({m["from"] for m in new}))
@@ -136,11 +186,15 @@ def main():
                             f"Reply with: hacs send <to> <subject> <body>. Answering is your choice.")
                     if ring(address, text):
                         seen.update(m["id"] for m in new); json.dump(sorted(seen), open(SEEN, "w"))
+                        note = f"fired: {' '.join(m['id'] for m in new)}"
                         log(f"RANG for {[m['id'] for m in new]}")
                     else:
+                        note = "ring not confirmed (will retry)"
                         log("ring not confirmed -- will retry next cycle")
         except Exception as e:
+            ok, total, note = False, -1, f"could not look: {type(e).__name__}"
             log(f"poll error: {type(e).__name__}: {e}")
+        beat(iid, armed_at, ok, total, note, valid)
         time.sleep(POLL)
 
 if __name__ == "__main__":
