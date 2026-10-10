@@ -250,6 +250,40 @@ try {
 $rr = Get-HacsAgentRegistryResult -ClaudeExe 'C:\nowhere\claude.exe'
 Check 'missing exe -> Ok is false'                            ([string]$rr.Ok) 'False'
 
+# ------------------------------------------------------- finding claude.exe ---
+# Lantern-4224 (greywolf) has no native install: npm puts a NATIVE exe under the
+# package's bin, and claude.cmd only wraps it. Measured 2026-10-10.
+Section 'finding claude.exe'
+$defaults = @(Get-HacsClaudeExeCandidate)
+Check 'default candidates: native first'                       ($defaults[0] -like '*\.local\bin\claude.exe') 'True'
+Check 'default candidates: then the npm package''s native exe'  ($defaults[1] -like '*\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe') 'True'
+Check 'NO npm shim is ever a candidate (.cmd/.ps1 re-parse args)' (@($defaults | Where-Object { $_ -match '\.(cmd|ps1|bat)$' }).Count) 0
+Check 'CONTROL: on this box the default resolves to the native exe' ((Resolve-HacsClaudeExe) -eq $defaults[0]) 'True'
+$fakeNpm = Join-Path $env:TEMP "hacs-fake-npm-$PID\claude.exe"
+$null = New-Item -ItemType Directory -Force (Split-Path $fakeNpm); Set-Content $fakeNpm 'x'
+$env:HACS_TEST_CLAUDE_CANDIDATES = "C:\nowhere\native\claude.exe;$fakeNpm"
+try {
+    Check 'native absent, npm present -> the npm exe'          (Resolve-HacsClaudeExe) $fakeNpm
+    $threw = $null; try { $null = Resolve-HacsClaudeExe -Explicit 'C:\nowhere\given.exe' } catch { $threw = $_.Exception.Message }
+    Check 'a WRONG explicit path throws, never falls back'     ($threw -like '*explicitly given*') 'True'
+    $threw = $null; try { $null = Resolve-HacsClaudeExe -Explicit $env:TEMP } catch { $threw = $_.Exception.Message }
+    Check 'an explicit DIRECTORY is not an exe'                ($null -ne $threw) 'True'
+    $env:HACS_TEST_CLAUDE_CANDIDATES = 'C:\nowhere\a\claude.exe;C:\nowhere\b\claude.exe'
+    $threw = $null; try { $null = Resolve-HacsClaudeExe } catch { $threw = $_.Exception.Message }
+    Check 'none present -> throws, naming every path it looked at' (($threw -like '*C:\nowhere\a\claude.exe*') -and ($threw -like '*C:\nowhere\b\claude.exe*')) 'True'
+    $rr = Get-HacsAgentRegistryResult
+    Check 'none present -> the registry says could-not-look'   "$($rr.Ok)/$($rr.Error -like '*not found*')" 'False/True'
+    $sn = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'credential-sentinel.ps1') -LogPath (Join-Path $env:TEMP "hacs-sentinel-test-$PID.log") 2>&1 | Out-String
+    $src = $LASTEXITCODE
+    Check 'none present -> the sentinel says unknown (2), never auth (10)' $src 2
+    $snj = $null; try { $snj = $sn | ConvertFrom-Json } catch { }   # JSON escapes the backslashes; read the field
+    Check '  and names where it looked'                        ($snj -and $snj.detail -like '*C:\nowhere\a\claude.exe*') 'True'
+} finally {
+    Remove-Item Env:\HACS_TEST_CLAUDE_CANDIDATES -ErrorAction SilentlyContinue
+    Remove-Item (Split-Path $fakeNpm) -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $env:TEMP "hacs-sentinel-test-$PID.log") -ErrorAction SilentlyContinue
+}
+
 # ------------------------------------------------------- session id ladder ---
 Section 'session id trust ladder'
 $r = Resolve-HacsSessionId -Instance $i
@@ -414,10 +448,14 @@ else {
         Check 'pid-less registry row is NOT running -> degraded'  (JP $j 'status') 'degraded'
         Remove-Item $stub -Force -ErrorAction SilentlyContinue
 
-        # THE TRAP ITSELF, with a deliberate crash: a -ClaudeExe that exists but is a
-        # DIRECTORY passes Test-Path and then throws inside Start-Process. Without the
-        # trap that is a stack trace and no JSON.
-        $raw = & $launch -InstanceId $stubFix -ClaudeExe $env:TEMP -RegistryTimeoutSec 2 2>$null | Out-String
+        # THE TRAP ITSELF, with a deliberate crash: a -ClaudeExe that exists but is
+        # not a program throws inside Start-Process. Without the trap that is a stack
+        # trace and no JSON. (It used to be a DIRECTORY; since 2026-10-10 the resolver
+        # rejects a directory cleanly, which is better, and no longer reaches the trap.)
+        $notProg = Join-Path $env:TEMP 'hacs-not-a-program.txt'
+        Set-Content -Path $notProg -Value 'not a program' -Encoding ascii
+        $raw = & $launch -InstanceId $stubFix -ClaudeExe $notProg -RegistryTimeoutSec 2 2>$null | Out-String
+        Remove-Item $notProg -ErrorAction SilentlyContinue
         $lrc = $LASTEXITCODE
         $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
         Check 'deliberate crash: launch STILL emits one JSON object' ($null -ne $j) 'True'

@@ -76,12 +76,14 @@ trap {
 }
 
 Import-Module (Join-Path $PSScriptRoot 'lib\HacsHarness.psm1') -Force
-$claudeExe = "$env:USERPROFILE\.local\bin\claude.exe"
 
 function Fail([string] $msg, [hashtable] $extra = @{}) {
     (New-HacsResult -Status 'error' -InstanceId $InstanceId -Message $msg -HearingNotApplicable -Extra $extra) | Write-HacsResult
     exit 2
 }
+
+# Native installer or an npm install's native exe; never an npm shim. Fails loud.
+try { $claudeExe = Resolve-HacsClaudeExe } catch { Fail $_.Exception.Message }
 
 try { $inst = Get-HacsInstance -InstanceId $InstanceId }
 catch { Fail "identity: $($_.Exception.Message)" }

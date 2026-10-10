@@ -71,7 +71,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $Claude       = "$env:USERPROFILE\.local\bin\claude.exe",
+    [string] $Claude,      # default: the first that exists of the candidates below
     [string] $Model        = 'haiku',
     # NOT '_credential-probe'. The model cited that directory name as evidence it
     # was being security-tested, and refused. A probe's own name should not be an
@@ -140,6 +140,16 @@ function Complete-Sentinel([string] $State, [int] $Code, [string] $Detail) {
 
 # --- preconditions: these are UNKNOWN (2), never AUTH (10) ---------------------
 if ($SimulateFailure -eq 'unknown') { Complete-Sentinel 'unknown' 2 'SIMULATED: precondition failure' }
+if (-not $Claude) {
+    # The same list as Get-HacsClaudeExeCandidate in lib\HacsHarness.psm1, kept
+    # inline on purpose: the sentinel imports nothing, so it still runs when the
+    # module is what broke. Native installer, then an npm install's NATIVE exe
+    # (measured on greywolf, 2026-10-10). Never the npm .cmd/.ps1 shims.
+    $cands = if ($env:HACS_TEST_CLAUDE_CANDIDATES) { @($env:HACS_TEST_CLAUDE_CANDIDATES -split ';' | Where-Object { $_ }) }
+             else { @("$env:USERPROFILE\.local\bin\claude.exe", "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe") }
+    foreach ($c in $cands) { if (Test-Path -LiteralPath $c -PathType Leaf) { $Claude = $c; break } }
+    if (-not $Claude) { Complete-Sentinel 'unknown' 2 "Claude Code not found (looked at: $($cands -join '; ')) -- could not look" }
+}
 if (-not (Test-Path $Claude))       { Complete-Sentinel 'unknown' 2 "claude.exe not found at $Claude -- could not look" }
 try { if (-not (Test-Path $ScratchDir)) { $null = New-Item -ItemType Directory -Force -Path $ScratchDir } }
 catch { Complete-Sentinel 'unknown' 2 "cannot create scratch dir ${ScratchDir}: $($_.Exception.Message)" }

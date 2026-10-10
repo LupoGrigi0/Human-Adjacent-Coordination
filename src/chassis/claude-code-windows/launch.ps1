@@ -66,7 +66,7 @@ param(
     [ValidateSet('attended', 'unattended')][string] $Mode = 'unattended',
     [switch] $Relaunch,
     [switch] $WhatIf,
-    [string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe",   # overridable so a test can point at a stub
+    [string] $ClaudeExe,          # default: Resolve-HacsClaudeExe (native, then npm's native exe); a test can point at a stub
     [int]    $RegistryTimeoutSec = 30,
     [switch] $SkipHearing,                                           # -> hearing 'not-attempted'
     [int]    $HearingTimeoutSec = 120,
@@ -125,7 +125,12 @@ catch { Fail "identity: $($_.Exception.Message)" }
 
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message "=== launch requested (mode=$Mode) ==="
 
-if (-not (Test-Path $claudeExe)) { Fail "claude.exe not found at $claudeExe" }
+# An explicit -ClaudeExe must exist; otherwise the native installer, then an npm
+# install's native exe (Lantern-4224 on greywolf has only the latter). Never an npm
+# shim: claude.cmd re-parses every argument through cmd.exe.
+$claudeExplicit = $PSBoundParameters.ContainsKey('ClaudeExe')
+try { $ClaudeExe = Resolve-HacsClaudeExe -Explicit $ClaudeExe } catch { Fail $_.Exception.Message }
+Write-HacsLog -Instance $inst -Log 'launch.log' -Message "claude: $ClaudeExe$(if ($claudeExplicit) { ' (explicit)' })"
 if (-not (Test-Path $inst.HomeDir)) { Fail "home dir missing: $($inst.HomeDir)" }
 $null = New-Item -ItemType Directory -Force -Path $inst.RuntimeDir -ErrorAction SilentlyContinue
 
@@ -190,7 +195,11 @@ if (Test-Path $sentinel) {
     if ($WhatIf) {
         $credState = 'skipped (WhatIf)'
     } else {
-        $null = & $sentinel 2>&1        # capture first...
+        # The sentinel probes the install launch will run -- when launch FOUND it. An
+        # explicit -ClaudeExe is usually a test stub, and a stub cannot answer a
+        # credential probe; the box has one credential store either way.
+        $sentArgs = if ($claudeExplicit) { @{} } else { @{ Claude = $ClaudeExe } }
+        $null = & $sentinel @sentArgs 2>&1        # capture first...
         $credRc = $LASTEXITCODE         # ...then measure, unpiped
         $credState = switch ($credRc) { 0 {'ok'} 10 {'auth'} 20 {'degraded'} default {'unknown'} }
         Write-HacsLog -Instance $inst -Log 'launch.log' -Message "credential precheck: $credState (exit $credRc)"

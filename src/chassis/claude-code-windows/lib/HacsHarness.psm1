@@ -448,6 +448,42 @@ function Test-HacsTranscriptSchema {
 }
 
 
+function Get-HacsClaudeExeCandidate {
+    <#
+    .SYNOPSIS
+      Where Claude Code's native executable may live, in the order tried.
+    .DESCRIPTION
+      1. the native installer:  %USERPROFILE%\.local\bin\claude.exe        (lupos-lap)
+      2. an npm install:        %APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+         Measured on greywolf by Lantern-4224, 2026-10-10: the package's bin is a
+         NATIVE exe (no cli.js at the package root), and claude.cmd only wraps it.
+      NEVER the npm shims (claude.cmd, claude.ps1, claude): a .cmd re-parses every
+      argument through cmd.exe, where & | ^ in a prompt are operators.
+      HACS_TEST_CLAUDE_CANDIDATES (';'-separated) replaces the list, for tests.
+    #>
+    if ($env:HACS_TEST_CLAUDE_CANDIDATES) { return @($env:HACS_TEST_CLAUDE_CANDIDATES -split ';' | Where-Object { $_ }) }
+    @("$env:USERPROFILE\.local\bin\claude.exe",
+      "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe")
+}
+
+function Resolve-HacsClaudeExe {
+    <#
+    .SYNOPSIS
+      The claude.exe to run. An explicit path must exist (a wrong explicit path is
+      a caller error, never silently replaced by a fallback); otherwise the first
+      candidate that exists. Throws, naming every path it looked at, if none does.
+    #>
+    [CmdletBinding()]
+    param([string] $Explicit)
+    if ($Explicit) {
+        if (Test-Path -LiteralPath $Explicit -PathType Leaf) { return $Explicit }
+        throw "claude not found at the explicitly given path '$Explicit' (not falling back: a wrong explicit path is a caller error)"
+    }
+    $c = @(Get-HacsClaudeExeCandidate)
+    foreach ($p in $c) { if (Test-Path -LiteralPath $p -PathType Leaf) { return $p } }
+    throw "Claude Code not found. Looked at: $($c -join '; '). Deliberately NOT used: the npm shims claude.cmd / claude.ps1, which re-parse arguments. Pass -ClaudeExe if it lives elsewhere."
+}
+
 function Get-HacsAgentRegistryResult {
     <#
     .SYNOPSIS
@@ -465,10 +501,10 @@ function Get-HacsAgentRegistryResult {
       HACS_TEST_SIMULATE_REGISTRY_FAILURE injects a failure for the tests.
     #>
     [CmdletBinding()]
-    param([string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe")
+    param([string] $ClaudeExe)
     function NotOk([string] $why) { [pscustomobject]@{ Ok = $false; Rows = @(); Error = $why } }
     if ($env:HACS_TEST_SIMULATE_REGISTRY_FAILURE) { return (NotOk 'simulated registry failure (HACS_TEST_SIMULATE_REGISTRY_FAILURE is set)') }
-    if (-not (Test-Path $ClaudeExe)) { return (NotOk "claude not found at $ClaudeExe") }
+    try { $ClaudeExe = Resolve-HacsClaudeExe -Explicit $ClaudeExe } catch { return (NotOk $_.Exception.Message) }
     try {
         $n = Invoke-HacsNative -FilePath $ClaudeExe -Arguments @('agents', '--json') -TimeoutSec 30
         if ($n.TimedOut)          { return (NotOk 'claude agents --json timed out after 30s') }
@@ -612,7 +648,7 @@ function Get-HacsAgentRegistry {
       directory at all.
     #>
     [CmdletBinding()]
-    param([string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe")
+    param([string] $ClaudeExe)
     $r = Get-HacsAgentRegistryResult -ClaudeExe $ClaudeExe
     if (-not $r.Ok) { return }
     $parsed = $r.Rows
@@ -993,7 +1029,7 @@ function Invoke-HacsRing {
         [Parameter(Mandatory)][ValidateSet('launch', 'mail')][string] $Reason,
         [int]    $Unread = 0,
         [string] $RingName,
-        [string] $ClaudeExe = "$env:USERPROFILE\.local\bin\claude.exe",
+        [string] $ClaudeExe,
         [string] $SenderModel = 'haiku',
         [string] $SenderDir = 'D:\Lupo\hacs-runtime\_liveness-probe',
         [int]    $TimeoutSec = 90
@@ -1011,6 +1047,8 @@ function Invoke-HacsRing {
     $runCanary = { param([string[]] $canaryArgs, [int] $timeout)
         (Invoke-HacsNative -FilePath $ps -Arguments (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $canary) + $canaryArgs) -TimeoutSec $timeout).StdOut }
 
+    try { $ClaudeExe = Resolve-HacsClaudeExe -Explicit $ClaudeExe }
+    catch { return (& $mkVerdict 'ERROR' $null "cannot ring: $($_.Exception.Message)") }
     $reg = Get-HacsAgentRegistryResult -ClaudeExe $ClaudeExe
     if (-not $reg.Ok) { return (& $mkVerdict 'ERROR' $null "could not read the agent registry ($($reg.Error)), so I cannot address the ring") }
     if (-not $RingName) {
@@ -1180,7 +1218,7 @@ function Write-HacsResult {
 }
 
 
-Export-ModuleMember -Function Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance, Get-HacsPresence, Invoke-HacsRing,
+Export-ModuleMember -Function Resolve-HacsClaudeExe, Get-HacsClaudeExeCandidate, Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance, Get-HacsPresence, Invoke-HacsRing,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
                               Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
                               Get-HacsEntryContent, Test-HacsTranscriptSchema,
