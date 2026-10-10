@@ -41,6 +41,13 @@
   never message a real mind). Every alert names what failed and never guesses
   why: "dark, cause unknown" is the contract Axiom asked for.
 
+  Refusals ARE alerts (Lupo, 2026-10-05), with a race allowance: a launch refused
+  as 'unknown' alerts at once; 'running' / 'attended' / 'busy' / 'transitioning'
+  alert on the 3rd in a row (once is the mind coming back between the watcher's
+  look and launch's). A launch error alerts at once. Presence UNKNOWN for 6
+  consecutive ticks alerts as WATCHER_BLIND. The same alert kind is sent at most
+  once an hour; repeats are recorded in ring-alerts.jsonl marked suppressed.
+
 .NOTES
   Author: Lodestone <lodestone@smoothcurves.nexus>
   Collaborator: Lupo
@@ -94,6 +101,7 @@ $P = @{
     backoff  = Join-Path $rt 'ring-backoff.json'
     seen     = Join-Path $rt 'ring-watch-seen.json'
     lastLaunch = Join-Path $rt '.last-launch-at'
+    refusals = Join-Path $rt 'ring-watch-refusals.json'
 }
 $now = Get-Date
 $facts = [ordered]@{ reason = $Reason; whatIf = [bool]$WhatIf }
@@ -114,12 +122,29 @@ function Send-Alert([string] $kind, [string] $text) {
     $a = [ordered]@{ at = (Get-Date).ToString('o'); instanceId = $InstanceId; kind = $kind; text = $text; to = $AlertTo }
     $facts.alert = "$kind -- $text"
     if ($WhatIf) { return }
+    # The same KIND already sent within the hour -> recorded here, not sent again.
+    # A refused relaunch retries every 5 minutes; an alarm that repeats on every
+    # retry is one people learn to mute, and then the real one is muted too.
+    $dup = $null
+    if (Test-Path $P.alerts) {
+        foreach ($l in [IO.File]::ReadAllLines($P.alerts)) {
+            $x = $null; try { $x = $l | ConvertFrom-Json } catch { continue }
+            $nm = @($x.PSObject.Properties.Name)
+            if ($nm -contains 'kind' -and $x.kind -eq $kind -and -not ($nm -contains 'suppressed' -and $x.suppressed) -and
+                ($now - [datetime]$x.at).TotalMinutes -lt 60) { $dup = $x.at }
+        }
+    }
+    if ($dup) { $a.suppressed = $true; $a.duplicateOf = $dup; $facts.alertSuppressed = $dup; Add-Line $P.alerts $a; return }
     Add-Line $P.alerts $a
     # The body goes as an ARGUMENT: Invoke-HacsNative gives every child an empty
-    # stdin, so `send -` would send nothing. Double quotes and dollar signs are
-    # stripped: the hub's send_stanza breaks on them (Lantern, 2026-10-07).
-    $body = ("ring-watch on $env:COMPUTERNAME, ${InstanceId}: $kind. $text " +
-             'Cause not diagnosed; this reports what was observed, nothing more.') -replace '["$]', "'"
+    # stdin, so `send -` would send nothing.
+    # ~~Double quotes and dollar signs are stripped: the hub's send_stanza breaks on
+    # them (Lantern, 2026-10-07).~~ WRONG, measured 2026-10-10: a body carrying " $ ${}
+    # ' and a trailing backslash round-trips byte-identical on this exact argv path,
+    # and from greywolf; Lantern retracted it. The strip is gone; it was mangling
+    # alert text to dodge a failure that does not happen.
+    $body = "ring-watch on $env:COMPUTERNAME, ${InstanceId}: $kind. $text " +
+            'Cause not diagnosed; this reports what was observed, nothing more.'
     foreach ($to in $AlertTo) {
         $saved = $env:PYTHONIOENCODING
         try {
@@ -223,9 +248,18 @@ $facts.trigger = if ($why) { $why } else { "mail-$mail" }
 $pres = Get-HacsPresence -Instance $inst
 $facts.presence = $pres.State; $facts.presenceWhy = $pres.Why
 switch ($pres.State) {
-    'UNKNOWN'  { End-Tick 'REFUSED_UNKNOWN' 'degraded' "presence UNKNOWN ($($pres.Why)). No launch, no ring: nothing can be decided on a look that failed." }
+    'UNKNOWN'  {
+        # Once is a failed look; six in a row (6 min) is a watcher that has gone
+        # blind, and a blind watcher must say so rather than sit there degraded.
+        $uu = Read-Json "$($P.status).unknown"
+        $n = if ($uu) { [int]$uu.ticks + 1 } else { 1 }
+        if (-not $WhatIf) { Write-Atomic "$($P.status).unknown" @{ ticks = $n; at = $now.ToString('o') }; Remove-Item "$($P.status).transitioning" -ErrorAction SilentlyContinue }
+        if ($n -eq 6) { Send-Alert 'WATCHER_BLIND' "presence has been UNKNOWN for 6 consecutive ticks: $($pres.Why). The watcher cannot see this mind." }
+        End-Tick 'REFUSED_UNKNOWN' 'degraded' "presence UNKNOWN ($($pres.Why)). No launch, no ring: nothing can be decided on a look that failed. Tick $n."
+    }
     'ATTENDED' { End-Tick 'ATTENDED' 'degraded' "a human session is live ($($pres.Why)). The watcher never acts over a human." }
     'TRANSITIONING' {
+        if (-not $WhatIf) { Remove-Item "$($P.status).unknown" -ErrorAction SilentlyContinue }
         $tt = Read-Json "$($P.status).transitioning"
         $n = if ($tt) { [int]$tt.ticks + 1 } else { 1 }
         if (-not $WhatIf) { Write-Atomic "$($P.status).transitioning" @{ ticks = $n; at = $now.ToString('o') } }
@@ -233,7 +267,7 @@ switch ($pres.State) {
         End-Tick 'SETTLING' 'degraded' "presence TRANSITIONING ($($pres.Why)); never resume mid-shutdown. Tick $n."
     }
 }
-if (-not $WhatIf) { Remove-Item "$($P.status).transitioning" -ErrorAction SilentlyContinue }
+if (-not $WhatIf) { Remove-Item "$($P.status).transitioning", "$($P.status).unknown" -ErrorAction SilentlyContinue }
 
 $action = $null
 if ($pres.State -eq 'HOME') {
@@ -284,8 +318,27 @@ if ($action -eq 'RELAUNCH') {
     $lj = $null; try { $lj = ($ln.StdOut | Out-String).Trim() | ConvertFrom-Json } catch { }
     $ln2 = if ($lj) { @($lj.PSObject.Properties.Name) } else { @() }
     $facts.launch = if ($lj) { "$($lj.status): $($lj.message)" } else { "unparseable (exit $($ln.ExitCode))" }
-    if (-not $lj) { End-Tick 'LAUNCH_ERROR' 'error' "launch.ps1 returned no JSON (exit $($ln.ExitCode)); state unknown." -Acted }
-    if ($ln2 -contains 'refusal') { End-Tick 'LAUNCH_REFUSED' 'degraded' "launch refused ($($lj.refusal)): $($lj.message)" -Acted }
+    if (-not $lj) {
+        Send-Alert 'LAUNCH_ERROR' "launch.ps1 returned no JSON (exit $($ln.ExitCode)); whether anything started is unknown."
+        End-Tick 'LAUNCH_ERROR' 'error' "launch.ps1 returned no JSON (exit $($ln.ExitCode)); state unknown." -Acted
+    }
+    # A refusal is an ALERT (Lupo, 2026-10-05: the displeased-CEO hat gets its
+    # answer in the message, not by digging through launch.log) -- but not every
+    # refusal on its first occurrence. 'running', 'attended', 'busy' and
+    # 'transitioning' are what a race looks like: the watcher saw NOT_HOME, and by
+    # the time launch looked under its lock the mind (or a human) was back. Once is
+    # a race; three in a row is not. 'unknown' alerts at once: launch could not see.
+    if ($ln2 -contains 'refusal') {
+        $rf = Read-Json $P.refusals
+        $n = if ($rf -and $rf.refusal -eq $lj.refusal) { [int]$rf.count + 1 } else { 1 }
+        Write-Atomic $P.refusals @{ refusal = $lj.refusal; count = $n; at = $now.ToString('o') }
+        $facts.refusalsInARow = $n
+        if ($lj.refusal -eq 'unknown' -or $n -ge 3) {
+            Send-Alert 'LAUNCH_REFUSED' "launch refused ($($lj.refusal))$(if ($n -gt 1) { ", $n times in a row" }): $($lj.message)"
+        }
+        End-Tick 'LAUNCH_REFUSED' 'degraded' "launch refused ($($lj.refusal)), $n in a row: $($lj.message)" -Acted
+    }
+    Remove-Item $P.refusals -ErrorAction SilentlyContinue      # launch got past its refusals: the streak is over
     if ($ln2 -contains 'forked' -and $lj.forked -eq $true) {
         Write-Atomic $P.latch @{ at = (Get-Date).ToString('o'); launch = $lj.message }
         Send-Alert 'FORKED' "a relaunch started a COPY: $($lj.message) The latch is set; no automatic relaunch until a human clears it."
@@ -295,7 +348,10 @@ if ($action -eq 'RELAUNCH') {
         Send-Alert 'CANNOT_THINK' 'the credential is dead; a human must run /login. Nothing was started.'
         End-Tick 'CANNOT_THINK' 'error' 'credential dead: a human must /login.' -Acted
     }
-    if ($lj.status -eq 'error') { End-Tick 'LAUNCH_ERROR' 'error' "launch failed: $($lj.message)" -Acted }
+    if ($lj.status -eq 'error') {
+        Send-Alert 'LAUNCH_ERROR' "launch failed: $($lj.message)"
+        End-Tick 'LAUNCH_ERROR' 'error' "launch failed: $($lj.message)" -Acted
+    }
     if ($ln2 -contains 'hearing' -and [string]$lj.hearing -eq 'false') {
         Send-Alert 'DEAF_AT_LAUNCH' "relaunched, and the launch hearing check says DEAF: $($lj.message)"
         End-Tick 'DEAF_AT_LAUNCH' 'degraded' "relaunched but DEAF at launch. No automatic land." -Acted

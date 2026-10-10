@@ -123,6 +123,70 @@ try {
     Check 'another tick holds the ring lock -> BUSY'               $r.end 'BUSY'
     $null = Wait-Job $holder -Timeout 45; Remove-Job $holder -Force
 
+    Write-Host "=== refusals and launch errors are ALERTS (real ticks, fake launch) ==="
+    # Lupo, 2026-10-05: "if it refuses I'm gonna put on my displeased CEO hat." These
+    # ticks are NOT -WhatIf: they run the launch branch against a fake launch.ps1 that
+    # prints a chosen result, on the stopped fixture. The fixture's runtime dir is
+    # saved byte-for-byte first and restored after.
+    $fakeLaunch = Join-Path $scratch 'fake-launch.ps1'
+    [IO.File]::WriteAllText($fakeLaunch, 'param([string] $InstanceId) if ($env:FAKE_LAUNCH_OUT) { Write-Output $env:FAKE_LAUNCH_OUT }; exit [int]$env:FAKE_LAUNCH_EXIT')
+    $rec = Join-Path $scratch 'sent.jsonl'
+    $env:FAKE_RECORD = $rec
+    $dirSaved = @{}; foreach ($f in Get-ChildItem $rtFix -File -Force) { $dirSaved[$f.Name] = [IO.File]::ReadAllBytes($f.FullName) }
+    function Sent { if (Test-Path $rec) { @(Get-Content $rec | ForEach-Object { , ($_ | ConvertFrom-Json) }) } else { @() } }
+    function Fresh { Remove-Item (Join-Path $rtFix 'relaunch-history.jsonl'), (Join-Path $rtFix '.last-launch-at') -ErrorAction SilentlyContinue }
+    function LaunchTick($out, [int] $exit = 0, [string] $to = 'T1') {
+        Fresh
+        $env:FAKE_LAUNCH_OUT = if ($null -eq $out) { '' } else { $out | ConvertTo-Json -Compress }
+        $env:FAKE_LAUNCH_EXIT = "$exit"
+        $sc = Join-Path $scratch ("s-" + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.json')
+        [IO.File]::WriteAllText($sc, (ConvertTo-Json -InputObject @($new) -Depth 6))
+        $env:FAKE_INBOX_SCENARIO = $sc
+        $raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $watch -InstanceId $fix -HacsPy $fake -LaunchScript $fakeLaunch -AlertTo $to 2>&1 | Out-String
+        $j = $null; try { $j = $raw | ConvertFrom-Json } catch { }
+        if (-not $j) { return [pscustomobject]@{ end = "<no JSON: $(($raw -replace '\s+',' ').Substring(0, [Math]::Min(200, ($raw -replace '\s+',' ').Length)))>" } }
+        $j
+    }
+    $refuse = { param($why) [ordered]@{ status = 'degraded'; instanceId = $fix; hearing = $null; refusal = $why; message = "refused: $why (test)" } }
+    try {
+        Remove-Item (Join-Path $rtFix 'ring-alerts.jsonl'), (Join-Path $rtFix 'ring-watch-refusals.json'), $rec -ErrorAction SilentlyContinue
+        $r = LaunchTick (& $refuse 'running')
+        Check "refused 'running' once -> LAUNCH_REFUSED"                $r.end 'LAUNCH_REFUSED'
+        Check '  once is a race: no alert sent'                         @(Sent).Count 0
+        $r = LaunchTick (& $refuse 'running')
+        Check '  twice: still no alert'                                 "$($r.refusalsInARow)/$(@(Sent).Count)" '2/0'
+        $r = LaunchTick (& $refuse 'running')
+        Check '  THREE in a row -> alert sent'                          @(Sent).Count 1
+        Check '  ... as LAUNCH_REFUSED, saying how many'               (@(Sent)[0][3] -match 'LAUNCH_REFUSED. launch refused \(running\), 3 times in a row') 'True'
+
+        Remove-Item (Join-Path $rtFix 'ring-alerts.jsonl'), (Join-Path $rtFix 'ring-watch-refusals.json'), $rec -ErrorAction SilentlyContinue
+        $r = LaunchTick (& $refuse 'unknown')
+        Check "refused 'unknown' -> alert at ONCE (launch could not see)" @(Sent).Count 1
+        $r = LaunchTick (& $refuse 'unknown')
+        Check '  the same kind again within the hour -> NOT re-sent'    @(Sent).Count 1
+        Check '  ... but recorded, marked suppressed'                   ((Get-Content (Join-Path $rtFix 'ring-alerts.jsonl') -Raw) -match '"suppressed":true') 'True'
+
+        Remove-Item (Join-Path $rtFix 'ring-alerts.jsonl'), (Join-Path $rtFix 'ring-watch-refusals.json'), $rec -ErrorAction SilentlyContinue
+        $r = LaunchTick (& $refuse 'busy'); $r = LaunchTick (& $refuse 'busy')
+        $r = LaunchTick ([ordered]@{ status = 'error'; instanceId = $fix; hearing = $null; message = 'fork guard: test "quoted" $dollar' }) 2 'T1,T2'
+        Check 'launch error -> LAUNCH_ERROR (error)'                    "$($r.end)/$($r.status)" 'LAUNCH_ERROR/error'
+        Check '  alert sent to BOTH of -AlertTo T1,T2 (split under -File)' (@(Sent | ForEach-Object { $_[1] }) -join ',') 'T1,T2'
+        Check '  the body keeps quotes and dollar signs (no strip)'     (@(Sent)[0][3] -match [regex]::Escape('test "quoted" $dollar')) 'True'
+        Check '  a launch that got past refusal ends the streak'        (Test-Path (Join-Path $rtFix 'ring-watch-refusals.json')) 'False'
+        Remove-Item $rec -ErrorAction SilentlyContinue
+        $r = LaunchTick (& $refuse 'busy')
+        Check '  control: the next busy counts from 1 again'            "$($r.refusalsInARow)/$(@(Sent).Count)" '1/0'
+
+        Remove-Item (Join-Path $rtFix 'ring-alerts.jsonl'), $rec -ErrorAction SilentlyContinue
+        $r = LaunchTick $null 1
+        Check 'launch printed no JSON -> LAUNCH_ERROR, alert sent'      "$($r.end)/$(@(Sent).Count)" 'LAUNCH_ERROR/1'
+    }
+    finally {
+        Remove-Item Env:\FAKE_RECORD, Env:\FAKE_LAUNCH_OUT, Env:\FAKE_LAUNCH_EXIT -ErrorAction SilentlyContinue
+        foreach ($f in Get-ChildItem $rtFix -File -Force) { if (-not $dirSaved.ContainsKey($f.Name)) { Remove-Item $f.FullName -Force } }
+        foreach ($k in $dirSaved.Keys) { [IO.File]::WriteAllBytes((Join-Path $rtFix $k), $dirSaved[$k]) }
+    }
+
     Write-Host "=== the running mind ($LiveInstanceId) ==="
     # PRECONDITION: these cases assume the live mind's doorbell is ARMED. Between a
     # ring and its re-arm it is not, and the watcher then (correctly) says

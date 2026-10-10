@@ -111,7 +111,9 @@ if ($fails.Count -eq 0) { Log 'PASS'; exit 0 }
 foreach ($f in $fails) { Log "  - $f" }
 Log "FAIL ($($fails.Count))"
 foreach ($to in $AlertTo) {
-    $body = ("nightly on $env:COMPUTERNAME FAILED: " + ($fails -join '; ') + ". Log: $log") -replace '["$]', "'"
+    # No character stripping: the "hub breaks on quotes and dollar signs" rule was
+    # measured false on 2026-10-10 (stdin and argv, two boxes) and retracted.
+    $body = "nightly on $env:COMPUTERNAME FAILED: " + ($fails -join '; ') + ". Log: $log"
     $saved = $env:PYTHONIOENCODING
     try { $env:PYTHONIOENCODING = 'utf-8'; $null = Invoke-HacsNative -FilePath 'python' -Arguments @($HacsPy, 'send', $to, 'nightly FAILED', $body) -TimeoutSec 60 }
     catch { Log "alert to $to could not be sent: $($_.Exception.Message)" }

@@ -13,6 +13,14 @@ import json
 import os
 import sys
 
+# `send` with FAKE_RECORD set: append argv as one JSON line and succeed, without
+# consuming a scenario step -- so alert tests can count exactly what was sent.
+if len(sys.argv) > 1 and sys.argv[1] == "send" and os.environ.get("FAKE_RECORD"):
+    with open(os.environ["FAKE_RECORD"], "a", encoding="utf-8") as f:
+        f.write(json.dumps(sys.argv[1:]) + "\n")
+    print(json.dumps({"success": True, "delivered_to": sys.argv[2] if len(sys.argv) > 2 else None}))
+    sys.exit(int(os.environ.get("FAKE_SEND_EXIT", "0")))
+
 scenario = os.environ["FAKE_INBOX_SCENARIO"]
 counter = scenario + ".count"
 steps = json.load(open(scenario, encoding="utf-8"))
