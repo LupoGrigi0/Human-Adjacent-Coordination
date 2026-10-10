@@ -124,6 +124,18 @@ try {
     $null = Wait-Job $holder -Timeout 45; Remove-Job $holder -Force
 
     Write-Host "=== the running mind ($LiveInstanceId) ==="
+    # PRECONDITION: these cases assume the live mind's doorbell is ARMED. Between a
+    # ring and its re-arm it is not, and the watcher then (correctly) says
+    # WOULD_RING -- which read as two logic failures on 2026-10-10. Wait for a live
+    # doorbell; if none comes, fail with the real reason, not a wrong-looking verdict.
+    $hbFile = Join-Path (Get-HacsInstance -InstanceId $LiveInstanceId).RuntimeDir 'doorbell-heartbeat.json'
+    $t0 = Get-Date
+    do {
+        $hb = $null; try { $hb = Get-Content $hbFile -Raw | ConvertFrom-Json } catch { }
+        $live = $hb -and (Get-Process -Id $hb.pid -ErrorAction SilentlyContinue) -and ((Get-Date) - [datetime]$hb.at).TotalSeconds -lt 120
+        if ($live) { break }; Start-Sleep -Seconds 10
+    } while (((Get-Date) - $t0).TotalSeconds -lt 90)
+    if (-not $live) { throw "precondition: $LiveInstanceId's doorbell is not armed (no live heartbeat in 90 s); the running-mind cases cannot be judged" }
     $r = Tick $LiveInstanceId @($new)
     Check 'home + new mail + live doorbell, in grace -> DEFERRED_TO_DOORBELL' $r.end 'DEFERRED_TO_DOORBELL'
     $r = Tick $LiveInstanceId @($new) @('-GraceSec', '0')

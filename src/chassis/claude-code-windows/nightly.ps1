@@ -31,11 +31,15 @@ param(
     [string]   $LiveInstanceId = 'Lodestone-8ec9',
     [string[]] $AlertTo = @(),
     [string[]] $ExtraSuite = @(),
-    [string[]] $Suites = @('harness.tests.ps1', 'hook.tests.ps1', 'doorbell.tests.ps1', 'ring-watch.tests.ps1'),
+    [string[]] $Suites = @('harness.tests.ps1', 'hook.tests.ps1', 'doorbell.tests.ps1', 'ring-watch.tests.ps1', 'power-notice.tests.ps1'),
     [string]   $HacsPy = 'D:\Lupo\Source\AI\instance-archaeology\src\hacs\hacs.py'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# A scheduled task runs this with `powershell -File`, which binds `-AlertTo A,B`
+# (and `-Suites a,b`) as ONE string. Split, or the alert goes to 'A,B'. 2026-10-10.
+$AlertTo = @($AlertTo | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$Suites  = @($Suites  | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $null = New-Item -ItemType Directory -Force -Path $LogDir
 $log = Join-Path $LogDir ((Get-Date).ToString('yyyy-MM-dd') + '.log')
 $ps = (Get-Process -Id $PID).Path

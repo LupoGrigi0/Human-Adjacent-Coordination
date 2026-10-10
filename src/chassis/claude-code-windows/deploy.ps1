@@ -57,6 +57,7 @@ $deployed = @(
     'run-hidden.vbs',
     'doorbell.ps1',             # run by the mind itself from bin, so a checkout cannot break its ears
     'ring-watch.ps1',           # the outside watcher's scheduled task runs this copy
+    'power-notice.ps1',         # the power-event tasks run this copy
     'lib\HacsHarness.psm1'      # doorbell.ps1 imports it from beside itself
 )
 

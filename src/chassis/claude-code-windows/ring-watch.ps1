@@ -62,6 +62,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:lock = $null
+# register-ring-watch.ps1 passes `-AlertTo A,B` through run-hidden.vbs to
+# `powershell -File`, which binds ONE string 'A,B', not two. Split here, or every
+# alert goes to a recipient named 'A,B' that does not exist. Found 2026-10-10,
+# by power-notice's tests, before any task carried -AlertTo.
+$AlertTo = @($AlertTo | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
 trap {
     $why = "UNHANDLED: $($_.Exception.Message) (ring-watch.ps1 line $($_.InvocationInfo.ScriptLineNumber))"
