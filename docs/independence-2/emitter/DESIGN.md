@@ -43,3 +43,29 @@ wake mechanism — unacceptable. This is the make-or-break; it needs a .nexus fi
 ## Status
 Chosen 2026-10-17. Relay handler + mirror endpoints: Cairn, building. Chassis launch change: Forge.
 Gate measurement: unscheduled, blocks fleet migration not local build.
+
+## STATUS UPDATE 2026-10-18 — gate progressing, my half built + verified
+GATE RESULTS (Forge, on Den/Blackwolf, 2.1.283 — .nexus re-run still owed):
+- G6 auth: PASS. Runs on the mind's login, NOT an API key. Host MUST scrub ANTHROPIC_*/CLAUDE_CODE_*.
+- G1 fork: PASS incl. the load-bearing --bg-born case. While --bg holds it, streaming resume REFUSES
+  (no fork). After `claude stop`: clean resume, same id, recalls nonce. Migration REVERSIBLE per mind.
+- SDK host v0 EXISTS: BlackWolf-Forge d2d96a4 scripts/sdk_gate/mind_host.py. runuser as the mind's user,
+  scrubs env, requires full uuid + recorded cwd, refuses while --bg holds (unless --land-bg), launches
+  `claude -p --input-format stream-json --output-format stream-json --verbose --resume <id>`, stops if
+  init's session id differs, injects turns via a 0600 unix socket. My relay plugs in as
+  --permission-prompt-tool + --mcp-config. E2E passed on fixture 6f47.
+- Still owed: G2 (idle lifetime), G3 (sockets), G4 (--permission-prompt-tool under stream-json = MY SEAM),
+  G7 (doorbell->inject), G8 (deny shape).
+
+MY HALF BUILT + VERIFIED (claude-session-mirror, branch cairn/emitter-permissions, f434438):
+the direct relay<->mirror permission path (POST /permission-request, GET /permission-verdict?id=,
+POST /permission records direct verdict). Loopback round-trip GREEN. permission-relay.py updated to match.
+
+THREE TRAPS for the .nexus coexistence checker (Forge, measured — bake these in):
+1. `claude agents` without a TTY prints only a refusal; text-grep reads "not running" FOREVER.
+   Use --json; unparseable == UNKNOWN, never "nothing". (This is Cairn's own WakeTest-8bc1 ghost.)
+2. `claude --bg --resume <id>` on a session already running under --bg exits 0 and SILENTLY starts a
+   COPY ("started a copy as ..."). A fork with a green exit. Check agents --json BEFORE any resume.
+3. A HOSTED session shows in agents --json as kind "interactive" with NO job id. A kind-filtered
+   land/checker skips it and reports a live mind as "nothing running". Treat interactive-with-no-job
+   as a candidate hosted mind, not absence.
