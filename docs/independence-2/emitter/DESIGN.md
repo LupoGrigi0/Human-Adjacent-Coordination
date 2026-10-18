@@ -69,3 +69,26 @@ THREE TRAPS for the .nexus coexistence checker (Forge, measured — bake these i
 3. A HOSTED session shows in agents --json as kind "interactive" with NO job id. A kind-filtered
    land/checker skips it and reports a live mind as "nothing running". Treat interactive-with-no-job
    as a candidate hosted mind, not absence.
+
+## GATE G4/G8/G2 — PASS on Den (Forge, 2026-10-18, 841ca7b). Relay requirements fixed.
+Measured through Forge's host (stream-json, --permission-mode default, her probe as prompt tool):
+- SEAM (G4): --permission-prompt-tool ROUTES under stream-json. The join between host and relay holds.
+- SUBAGENT prompts route to the SAME prompt tool (G4c). Bastion's case — the reason for the SDK route —
+  is solvable, not structural. MEASURED.
+- G8 deny: {"behavior":"deny","message":"..."} -> action blocked, model quotes the message verbatim. My
+  relay's deny return is correct.
+- G2 (half): a HOSTED session with no keepalive answered an injected turn after 76 min idle (past the
+  61-min --bg reaper). Hosted minds don't get reaped like --bg. (~8h token-refresh half still running.)
+
+RELAY REQUIREMENT this fixes (would have shipped wrong):
+AskUserQuestion ROUTES to the prompt tool with the full questions structure — BUT a bare allow (input
+unchanged) makes the model see "the user did not answer the questions." The working shape is:
+    {"behavior":"allow","updatedInput": {...input, "answers": {"<question text>":"<chosen label>"}}}
+=> AskUserQuestion needs a CHOICE path, distinct from allow/deny:
+   - relay detects tool_name==="AskUserQuestion", surfaces input.questions[] (question/header/options/multiSelect)
+   - the mirror panel RENDERS the question + its options as selectable, not just Allow/Deny
+   - the verdict carries the chosen label(s); the relay merges them into updatedInput.answers and returns allow
+   The allow/deny path (Bastion's core approvals) is DONE + verified; this choice path is the next build.
+
+Host now keeps state per-session (/run/user/<uid>/mind-host/<first8ofid>/) + --permission-mode.
+probe: BlackWolf-Forge scripts/sdk_gate/g4_probe_mcp.py.
