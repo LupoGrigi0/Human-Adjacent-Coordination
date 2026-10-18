@@ -1417,3 +1417,34 @@ empty drain, and the notification for the probe message arrived in my own contex
 and still open. **And the hub-side half is Messenger's** (re-dispatch an undrained `active` slot past
 a window): mine stops the doorbell *causing* the condition, his *recovers* a mind already in it.
 Neither is sufficient alone.
+
+## ⬛⬛⬛ STATUS — 2026-10-18. RE-CENTERED ON THE SHIP, after Lupo's reconciliation question.
+SUPERSEDES prior freeze blocks. The question that forced this: "how does any of this get us closer to
+deploying v2 to EVERYONE?"
+
+THE SHIP IS THE --bg + EXTERNAL-DOORBELL HARNESS (what Forge + Lodestone already run). Lupo's ship gate:
+  TWO v2 minds on .nexus talk to each other + Lupo via HACS, with NOTIFICATIONS, and their WEB MIRRORS
+  work. Then a v1->v2 runbook. (After the instances/repo/home-dir fix — Lupo + Bastion.)
+
+SHIP-CRITICAL PATH (everyone-rollout):
+  Part A    chassis launches on .nexus (hostname-keyed identity path + mixed-case unix user;
+            iid.lower() resolves nobody here). MINE. Spec'd (PATCH-SPEC-self-mode). NOT built. Small. BLOCKER.
+  Write-leg Lodestone's relay -> Linux ("messages arrive like the console"). MINE. NOT ported (I pivoted
+            to permission-surfacing). The mirror's ship piece.
+  Read-mail woken mind reads+acts on mail on .nexus (hacs.py/MCP on the fixture — Lupo's "(b)"). fixture run.
+  Integration  two v2 minds talk + notifications + mirrors (Lupo's final gate). Lupo + me.
+  Runbook   land v1 -> stop old mirror -> checkpoint -> launch v2 -> turn on emitter. MINE (draft). not written.
+  Repo fix  instances/ git/home-dir situation. Lupo + Bastion.
+
+POST-V2 ENHANCEMENT, EXPLICITLY NOT SHIP-BLOCKING (moved here from the critical path 2026-10-18):
+  The SDK-route PERMISSION/AskUserQuestion SURFACING. The current bailing wire MEETS THE BASIC NEED
+  (Lupo). The SDK host is a DIFFERENT launch mechanism than --bg -> it produces a VARIANT harness for the
+  minds that need permission-surfacing (Bastion above all), layered on AFTER the everyone-rollout.
+  STATE: well de-risked. Both showstoppers measured (auth=login, fork refuses/reversible), the seam holds
+  (--permission-prompt-tool under stream-json), subagent prompts route (Bastion's case), deny + the
+  AskUserQuestion answer shape measured. My allow/deny relay+mirror path is built + real-caller-verified
+  (claude-session-mirror cairn/emitter-permissions). AskUserQuestion choice-path = the one piece left, low risk.
+  => This is ready to finish when wanted. It is NOT what ships v2.
+
+HONEST NOTE: recent sessions went deep on the enhancement (Lupo-directed, and genuinely valuable), while
+Part A and the write-leg — the pieces that actually ship v2 — are still mine and undone. Re-centering there.
