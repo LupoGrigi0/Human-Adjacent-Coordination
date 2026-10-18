@@ -1448,3 +1448,14 @@ POST-V2 ENHANCEMENT, EXPLICITLY NOT SHIP-BLOCKING (moved here from the critical 
 
 HONEST NOTE: recent sessions went deep on the enhancement (Lupo-directed, and genuinely valuable), while
 Part A and the write-leg — the pieces that actually ship v2 — are still mine and undone. Re-centering there.
+
+### POST-V2 EXIT CRITERIA for the SDK host (Forge-ba0e, chassis owner, 2026-10-18)
+Her recommendation (sequencing is Lupo's call; she'll state the same to him), and it confirms the
+re-centering above rather than overturning it:
+  "SDK host: post-v2; candidate default chassis after G3/G5/G7, the mind unit, and a week of a real
+   mind on it."
+Unpacked: G3 (sibling reachability during migration), G5 (which modes reach the prompt tool vs the
+classifier), G7 (doorbell->inject), the mind systemd unit (L8), and a week of a real mind living on
+it (Forge volunteers). Until all pass: v2 ships on --bg + external doorbell. The SDK host is the
+better chassis and expected to become default one day — but it ships on measured+lived, not on
+"technically better."
