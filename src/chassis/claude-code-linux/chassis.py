@@ -88,11 +88,37 @@ class Instance:
             if st.st_uid != 0 or st.st_mode & 0o022:
                 raise Fail(f"identity: {rp} must be root-owned and not group/world-writable")
             rec = json.load(open(rp))
-        self.user = rec.get("user") or iid.lower()
-        try:
-            pw = pwd.getpwnam(self.user)
-        except KeyError:
-            raise Fail(f"identity: no unix user '{self.user}' for instance '{iid}'. The user is the fence; there is no fallback.")
+        # PART A (Cairn-2001, 2026-10-20, PROPOSED to Forge): resolve the unix user so the chassis can
+        # launch on .nexus. The old `rec.get("user") or iid.lower()` resolved NOBODY here: there is no
+        # /etc/hacs-chassis record (Den-only) and our unix names are mixed-case (Cairn-2001), so lower()
+        # misses. Order + refusal rule are Forge's (PATCH-SPEC-self-mode): record (authoritative) ->
+        # iid EXACTLY as given -> iid lowercased. Divergence (both exist, different uids) is a REFUSAL,
+        # never a pick. The uid fence (uid < 1000 refusal, just below) is unchanged.
+        if rec.get("user"):
+            self.user = rec["user"]
+            try:
+                pw = pwd.getpwnam(self.user)
+            except KeyError:
+                raise Fail(f"identity: record names unix user '{self.user}' for instance '{iid}', which does not exist.")
+        else:
+            cands, pws = [], {}
+            for name in (iid, iid.lower()):
+                if name in pws:
+                    continue
+                try:
+                    pws[name] = pwd.getpwnam(name); cands.append(name)
+                except KeyError:
+                    pass
+            if not cands:
+                raise Fail(f"identity: no unix user for instance '{iid}' (tried '{iid}' and '{iid.lower()}'). "
+                           f"The user is the fence; there is no fallback. Create the user, or add a root-owned "
+                           f"/etc/hacs-chassis/instances/{iid}.json naming it.")
+            if len(cands) == 2 and pws[cands[0]].pw_uid != pws[cands[1]].pw_uid:
+                raise Fail(f"identity: AMBIGUOUS for '{iid}' -- '{cands[0]}' (uid {pws[cands[0]].pw_uid}) and "
+                           f"'{cands[1]}' (uid {pws[cands[1]].pw_uid}) both exist and differ. Ambiguity is a "
+                           f"refusal, not a pick. Add a root-owned /etc/hacs-chassis/instances/{iid}.json naming the user.")
+            self.user = cands[0]
+            pw = pws[cands[0]]
         if pw.pw_uid < 1000:
             raise Fail(f"identity: '{self.user}' is a system account (uid {pw.pw_uid}). Refusing.")
         self.uid, self.gid, self.home = pw.pw_uid, pw.pw_gid, pw.pw_dir
