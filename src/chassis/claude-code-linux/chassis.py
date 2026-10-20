@@ -119,6 +119,12 @@ class Instance:
                            f"refusal, not a pick. Add a root-owned /etc/hacs-chassis/instances/{iid}.json naming the user.")
             self.user = cands[0]
             pw = pws[cands[0]]
+            # CANONICAL ID (Forge, 2026-10-20, review of Part A): with no record, the mind's id IS its unix user name.
+            # Measured: the state ledger (recorded session id) is keyed by the id, so before this, launching the same
+            # mind under another casing ("Dev-Reconstruction-001-6F47" for user dev-reconstruction-001-6f47) found an
+            # empty ledger and planned a BIRTH beside the live mind (L15). One mind, one spelling, one ledger.
+            if self.user != iid:
+                self.id = iid = self.user
         if pw.pw_uid < 1000:
             raise Fail(f"identity: '{self.user}' is a system account (uid {pw.pw_uid}). Refusing.")
         self.uid, self.gid, self.home = pw.pw_uid, pw.pw_gid, pw.pw_dir
