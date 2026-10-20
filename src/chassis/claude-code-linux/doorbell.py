@@ -121,7 +121,11 @@ def ring(name, text):
               f'and exactly this message: "{text}". Do nothing else. Then reply with the single word SENT.')
     r = subprocess.run(["claude", "-p", "--model", "haiku", "--allowedTools=SendMessage", prompt], cwd=RINGER_DIR,
                        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=150)
-    ok = r.returncode == 0 and "SENT" in r.stdout.upper()
+    # The ringer's LAST line must be exactly SENT. Measured 2026-10-20 (Forge): the ringer REFUSED a ring twice
+    # (it took Lupo's phone text for an injection), and the old substring check `"SENT" in stdout.upper()` logged
+    # the second refusal as delivered (a word like "preSENTed" inside the refusal). A refusal must never pass.
+    last = (r.stdout.strip().splitlines() or [""])[-1].strip().strip(".*").upper()
+    ok = r.returncode == 0 and last == "SENT"
     log(f"ring rc={r.returncode} ok={ok} out={r.stdout.strip()[-160:]!r} err={r.stderr.strip()[-160:]!r}")
     return ok
 
