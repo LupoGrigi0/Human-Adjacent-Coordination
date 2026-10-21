@@ -1434,7 +1434,7 @@ SHIP-CRITICAL PATH (everyone-rollout):
   Read-mail woken mind reads+acts on mail on .nexus (hacs.py/MCP on the fixture — Lupo's "(b)"). fixture run.
   Integration  two v2 minds talk + notifications + mirrors (Lupo's final gate). Lupo + me.
   Runbook   land v1 -> stop old mirror -> checkpoint -> launch v2 -> turn on emitter. MINE (draft). not written.
-  Repo fix  instances/ git/home-dir situation. Lupo + Bastion.
+  Repo fix  DONE (Bastion, 2026-10-21): the ../.git shared-clone-above-home issue is cleared.
 
 POST-V2 ENHANCEMENT, EXPLICITLY NOT SHIP-BLOCKING (moved here from the critical path 2026-10-18):
   The SDK-route PERMISSION/AskUserQuestion SURFACING. The current bailing wire MEETS THE BASIC NEED
