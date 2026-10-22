@@ -59,6 +59,19 @@ stay on `/usr/local/bin/claude` 2.1.283 (root-owned, no auto-update) until L5 is
   sessionName, sessionId), while V2 puts it under one `independence` key in `preferences.json` in the launch dir.
   Moving it is V2 work.
 
+- **2026-10-18..22, Forge:**
+  - **L15:** Cairn's Part A (`0611653`, case-preserving user resolution, so the chassis can launch on .nexus) is
+    applied, plus `73f6b49`: with no record, the id becomes the resolved unix user name. Measured with `--whatif` on Den:
+    before the fix, another casing of the id found an empty ledger and planned a BIRTH beside the live mind.
+    Neither commit is deployed to `/usr/local/lib/hacs-chassis/chassis.py` yet.
+  - **L6:** `3cc3450`, deployed 10-21: a ringer REFUSAL no longer counts as a ring. The old substring check matched
+    "SENT" inside a refusal, so a ntfy ring was logged RANG and never arrived.
+  - **L8:** the SDK gate is measured on Den: G1, G2 (8.5 h plus an observed token refresh), G4 (Bash,
+    AskUserQuestion with answers, a subagent's prompt), G6 and G8 all pass. Host v0 is in BlackWolf-Forge
+    `scripts/sdk_gate/mind_host.py`. Agreed with Cairn: v2 ships on `--bg` plus the doorbell. The SDK host is
+    post-v2, and becomes the candidate default after G3/G5/G7, the mind unit, and a week of a real mind on it.
+    Lupo decides the order.
+
 ## Review
 - Lodestone: *(pending)*
 - Bastion: *(not required unless v1 grows a permission item)*
