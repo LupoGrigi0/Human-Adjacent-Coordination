@@ -88,7 +88,18 @@ def mind_running(name):
     return any(a.get("name") == name and a.get("pid") and (a.get("kind") != "interactive" or ALLOW_INTERACTIVE) for a in rows)
 
 def socket_of(pid):
-    return os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "cc-socks", f"{pid}.sock")
+    # The per-session uds socket dir differs by host: /run/user/<uid>/cc-socks when
+    # XDG_RUNTIME_DIR/linger is set (Den), else /tmp/cc-socks-<uid> (nexus, pre-linger).
+    # Return whichever actually holds the socket so the chassis is portable to both;
+    # fall back to the XDG form when neither is present (preserves prior behaviour).
+    # Cairn, 2026-10-24 — nexus sockets measured in /tmp/cc-socks-<uid> (Bastion).
+    uid = os.getuid()
+    xdg = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
+    for d in (os.path.join(xdg, "cc-socks"), f"/tmp/cc-socks-{uid}"):
+        p = os.path.join(d, f"{pid}.sock")
+        if os.path.exists(p):
+            return p
+    return os.path.join(xdg, "cc-socks", f"{pid}.sock")
 
 def locate(ident, target):
     """Where to ring, by IDENTITY, not by name (Cairn, 2026-10-04: resuming a RUNNING session forks it, and the
