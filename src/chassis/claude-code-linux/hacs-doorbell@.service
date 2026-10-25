@@ -1,0 +1,16 @@
+# HACS pull-spoke doorbell for one chassis-hosted mind. Instance = the mind's unix user.
+#   systemctl enable --now hacs-doorbell@dev-reconstruction-001-6f47
+[Unit]
+Description=HACS doorbell (pull spoke) for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=%i
+WorkingDirectory=~
+ExecStart=/bin/sh -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u) PATH=/usr/local/bin:/usr/bin:/bin; exec /usr/bin/python3 /usr/local/lib/hacs-chassis/doorbell.py'
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

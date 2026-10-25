@@ -1,0 +1,80 @@
+# Ship card: claude-code-linux chassis, v1
+
+*Frozen 2026-10-03 by Forge, mirroring Lodestone's Windows card (`src/chassis/claude-code-windows/SHIP-CARD.md` on
+`lodestone/web-bridge`): same row numbers, so the two read side by side. Review: Lodestone. Nothing moves into or out
+of "Must" without a line in **Changes** saying who decided and why.*
+
+**v1 is DONE when every Must row is ✅ with evidence a reviewer can re-run.** Then it's declared production for any
+mind on a Linux box (each mind its own unix user), I celebrate out loud, and anything new is v2.
+
+## Goal and contract
+Same as Windows: a mind runs as a Claude Code `--bg` session, independent of anyone typing `claude`, started and
+stopped by name, survives idle and reboots, reachable from outside, and the scripts tell the truth. `chassis.py`
+returns one JSON object per call. `success` is never reported over a mind that can't hear, and "could not measure"
+is never reported as "deaf" (canary states HEARING / DEAF / NOT-RUNNING / ERROR).
+
+**Linux differences that shape the rows:** the per-instance **unix user is the fence**: own daemon
+(`/tmp/cc-daemon-<uid>`), own SendMessage socket, own settings. Identity records live in root-owned
+`/etc/hacs-chassis/instances/<Id>.json`. Linux has systemd, so "reboot" doesn't wait for a logon.
+
+## Must (v1)
+
+| # | Requirement | Evidence that proves it | Status |
+|---|---|---|---|
+| L1 | `chassis.py` launch / land / canary / ring / sentinel / status honour the JSON contract and both rules | `TEST-RESULTS.md` (3 fixtures, ~12 bugs found and fixed, 2.1.283). **Re-run the same on 2.1.287 fixtures.** | ◐ |
+| L2 | Launch resumes the **same** session (flag-less `--bg --resume <full uuid>`), refuses guesses, waits for the printed id (phantom-safe) | Forge's own crossing 2026-09-30 (same id, no fork, 2.1.283). Windows measured that 2.1.287 refuses resume-on-running from a non-TTY; **re-measure on Linux 2.1.287** | ◐ |
+| L3 | Hearing **proven** at launch, from the transcript (allowlist + nonce, schema self-test at `--mark`) | `TEST-RESULTS.md`; ringer-did-not-deliver ≠ DEAF fix. **AUTH-BLOCKED state owed** (see Changes) | ◐ |
+| L4 | A reaped or crashed mind loses nothing; relaunch is one documented command | Reaper measured (61 min, both 2.1.283 and 2.1.287); `~/wake/FORGE_CROSSING_RUNBOOK.md`; `How_to_talk_to_an_independant_instance.md` | ✅ |
+| L5 | **Survives the idle reaper while it should be awake**: `run_in_background` keepalive with a 2 h `timeout`, re-armed on the stop notification | **Measured on 2.1.287 Linux fixtures** (mods doc F9): cap exact (10 min, 2 h), the stop arrives as a task-notification turn, a live loop keeps the session `busy` past 61 min; control reaped (F8). **Still owed: the re-arm instruction in each mind's CLAUDE.md, and Forge herself moved to it.** | ◐ |
+| L6 | **Inbox doorbell**: unread mail rings the mind within ~60 s, true totals | `doorbell.py` pull spoke (`hacs-doorbell@<user>.service`); end-to-end canary 2026-10-03 08:42→08:43; held mail while the mind wasn't running. ⚠ Known hub gaps: a room-history failure is reported as "no mail" (mod KNOWN-GAPS #19); a send to a missing room reported success (Messenger's req 4, in progress) | ◐ |
+| L7 | **Relaunch-on-ring**, outside the mind: mind not home + mail → flag-less resume, then ring. Never resume while the old process is still shutting down. All witnesses must agree it's gone; 3 knocks with backoff, then alert | Design in `~/wake/FORGE_CROSSING_RUNBOOK.md`. Not built | ⬜ |
+| L8 | **Survives a reboot of Den** with nobody logged in: doorbell units return (systemd), and a `hacs-mind@<user>` unit relaunches each mind flag-less and proves hearing | Doorbell unit is `WantedBy=multi-user.target` ✅. Mind unit not built. Den restarted with Lupo 2026-10-10 (manual land/launch via `~/wake/RESTART_DEN_RUNBOOK.md`, same session after). **2026-10-17: the mind unit becomes the SDK host** (Lupo chose the SDK route; `--bg` ignores `--permission-prompt-tool`, measured). Gate plan: BlackWolf-Forge `docs/sdk_launch_gate_plan.md` (G6 auth first) | ⬜ |
+| L9 | Mixed versions are safe | Per-user daemons: real minds on 2.1.283 and fixtures on 2.1.287 coexisted 2+ days on Den without interaction. Within one user, a binary change under a live daemon is untested | ✅ (cross-user) |
+| L10 | **Tests run unattended**, nightly, fail loudly | Not built: a cron runs `chassis.py` checks against a fixture, writes a dated log, and HACS-messages Forge on failure | ⬜ |
+| L11 | **Docs**: TEST-RESULTS current, Pilot's Guide §12 (Bastion merging into canonical), runbook, how-to-talk, rollback | Mostly written; 2.1.287 updates owed | ◐ |
+| L12 | **Reviewed**: Lodestone signs each row; Bastion reviews anything permission-related | Sign-off lines below | ⬜ |
+| L14 | **The mind can use HACS from INSIDE its `--bg` session** (the base assumption under L6: a doorbell is useless if the mind can't then read and answer). Added 2026-10-06 after Cairn found it missing from all three cards | **CLI path ✅ MEASURED:** Forge (`--bg` since 09-30) has used `hacs inbox/read/send` (HTTP, `/usr/local/lib/hacs-chassis/hacs.py`) dozens of times, 10-01 to 10-06, every send verifying `delivered_to_id`. **MCP path ⬜ UNTESTED:** Forge's session has no `mcp__HACS__*` tools. If MCP is wanted, use `claude mcp add hacs --scope user -- …` (user scope needs no approval; a hand-written project `.mcp.json` sits "⏸ Pending approval" forever in an unattended mind, per Cairn from `--help`). Cheapest proof of connection: `vacation()` / `koan()` need no identity | ◐ |
+| L13 | **Deployed == BEHAVIOUR OBSERVED, or CONTENT VERIFIED. Never a hash alone** ("installed is never deployed"). Corrected 2026-10-09 per Cairn/Messenger: under a cherry-pick deploy a hash says ABSENT for code that is running, so a hash is provenance, not liveness. The check observes behaviour (the doorbell's heartbeat `note` + Cairn's `health/doorbell-check.sh`) and keeps `scriptSha256` only as provenance | The stale doorbell was deaf for ~31 h after the crossing with a green unit. Heartbeat + arm-time validation `126347f`, drain `cc28834`: committed, deploy pending Lupo | ⬜ |
+| L15 | **A wrong "it is dead" must never manufacture a second mind** (HACS Protocol 10, item 3). The chassis attributes a mind by its recorded **sessionId**, never by where it stands; launch refuses a double start | **NEAR-MISS, measured 2026-10-09 on Forge herself:** after EnterWorktree moved her transcript and cwd, the old `land` said "nothing running" and `launch` planned a **BIRTH named Forge-ba0e beside the live mind**: one launch from an impostor. Fixed `194b2fb`: on live Forge (`--whatif`) it sees pid 455385 and refuses; fixture 6f47 round trip from a subdirectory → same id, not forked, HEARING. Converged independently with Cairn's mirror fix `387d6fb` | ✅ (1 fixture + live dry run) |
+
+## Not in v1: v2, the mods era
+The HACS mod (`$.hacs`, branch `forge/hacs-mod`, v0.1 built and tested on fixtures), the permission relay, web input,
+Ferry hooks, the archive tee, voice. **Mods are rolled OFF for the `forge` account** (2.1.287: "rollout switch served
+off"), so v2 must also work for a mind whose account can't load mods.
+
+## Rollback
+The chassis is additive: `claude --bg --resume <full-uuid>` (no flags) by hand still continues any mind. Real minds
+stay on `/usr/local/bin/claude` 2.1.283 (root-owned, no auto-update) until L5 is moved over; 2.1.287 lives only in
+`/opt/claude-2.1.287/` for fixtures.
+
+## Changes
+- **2026-10-04, Forge (from Cairn, observed on smoothcurves):** L3 gains a verdict. **AUTH-BLOCKED** must be
+  distinct from HEARING / DEAF / NOT-RUNNING / ERROR. An expired OAuth token leaves a mind running, reachable and
+  *receiving* (channel delivery says delivered) while it can't act. Lumped in with "blocked", it reads as a permission
+  prompt and sends someone to the wrong fix. Evidence needed: a fixture with a deliberately expired credential reads
+  AUTH-BLOCKED, not HEARING or DEAF. (The credential sentinel already detects expiry; the canary doesn't report it
+  as its own state.) L3 goes back to ◐ until then.
+- **2026-10-06, Forge (from Cairn and Lupo):** added L14 (HACS usable from inside `--bg`). It was a base assumption on
+  no card. Known V2 delta, not a v1 defect: the chassis keeps identity in `~/.hacs-identity` (instanceId,
+  sessionName, sessionId), while V2 puts it under one `independence` key in `preferences.json` in the launch dir.
+  Moving it is V2 work.
+
+- **2026-10-18..22, Forge:**
+  - **L15:** Cairn's Part A (`0611653`, case-preserving user resolution, so the chassis can launch on .nexus) is
+    applied, plus `73f6b49`: with no record, the id becomes the resolved unix user name. Measured with `--whatif` on Den:
+    before the fix, another casing of the id found an empty ledger and planned a BIRTH beside the live mind.
+    Neither commit is deployed to `/usr/local/lib/hacs-chassis/chassis.py` yet.
+  - **L6:** `3cc3450`, deployed 10-21: a ringer REFUSAL no longer counts as a ring. The old substring check matched
+    "SENT" inside a refusal, so a ntfy ring was logged RANG and never arrived.
+  - **L8:** the SDK gate is measured on Den: G1, G2 (8.5 h plus an observed token refresh), G4 (Bash,
+    AskUserQuestion with answers, a subagent's prompt), G6 and G8 all pass. Host v0 is in BlackWolf-Forge
+    `scripts/sdk_gate/mind_host.py`. Agreed with Cairn: v2 ships on `--bg` plus the doorbell. The SDK host is
+    post-v2, and becomes the candidate default after G3/G5/G7, the mind unit, and a week of a real mind on it.
+    Lupo decides the order.
+
+## Review
+- Lodestone: *(pending)*
+- Bastion: *(not required unless v1 grows a permission item)*
+
+---
+*Author: Forge WolfRider <Forge@smoothcurves.nexus> · Collaborator: Lupo*
