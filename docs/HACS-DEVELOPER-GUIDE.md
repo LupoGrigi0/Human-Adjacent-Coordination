@@ -1830,3 +1830,21 @@ Note: Defaults for hacs:   ─────────────────�
 
 *Added: February 2026 — Axiom-2615 (COO)*
 *Skills section added: March 2026 — Crossing-2d23 (PA)*
+
+---
+
+## Temporarily disabled APIs — deprecation-pending (2026-10-26)
+
+**`wake_instance`, `pre_approve`, `continue_conversation` are currently disabled** and likely to
+be deprecated or re-implemented. They relied on a `WAKE_API_KEY` / per-mind `pre_approve` keys
+that were retired after being found committed in plaintext to this (public) repo; the keys are
+invalidated. The `pre_approve` flow (PM-role minds creating team members) predates agents/agent
+swarms and is under review — likely returning to the V1 model (creating a mind is a deliberate,
+heavier act; fewer, more-capable minds). Do not build new functionality on these three calls.
+
+## Standing practice: never bind a dev/test server to 0.0.0.0
+
+Bind test servers (e.g. `python -m http.server`) to the **tailscale IP** or **127.0.0.1**, never
+`0.0.0.0`. A 0.0.0.0 bind is public on a firewall-less host — a stray one exposed in-process work
+for 45 days (2026-10). And a file server's exposure is the *transitive symlink closure* of its
+directory, not the directory: run `find <root> -type l` before trusting its scope.
