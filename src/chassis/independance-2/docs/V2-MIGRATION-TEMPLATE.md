@@ -36,6 +36,13 @@ OpenRouter minds (Witness, Genevieve): also `OR_MODEL` + `OR_KEY` — see Specia
 
 ## 0. Pre-flight (root)
 - **Same mind, new harness.** Home, memory, identity, diary persist. Nothing is deleted.
+- **⚠ CHECK THE MIND'S CONTEXT FIRST — do not migrate a mind over ~70%.** Step 4's resume *carries the
+  session's fullness*, and v2 piles baseline overhead on top (new built-in skills, re-loading CLAUDE.md +
+  MEMORY.md, the `--bg` classifier), so a near-full mind overflows on its first post-resume turn (Orla,
+  2026-10-26: resumed ~84%, ~140k eaten, every reply tipped over). **If near-full, the mind CROSSES instead
+  of resuming** — it writes a handoff, lands, and comes up FRESH (step 4 becomes a `launch.sh` *birth*, not a
+  resume), waking from handoff + memory with a clean window. Resume-continue (step 4) is only for a mind with
+  real headroom.
 - Confirm root; confirm `INSTANCE` is registered in HACS (`get_instance_v2`) — the doorbell refuses to arm otherwise.
 - Pick `MIRROR_PORT` + `BRIDGE_PORT` (`ss -ltnp` to confirm free).
 - **Symlink sweep (Orla's H4)** — before any `git add`, find cross-home links that would commit into the wrong repo:
