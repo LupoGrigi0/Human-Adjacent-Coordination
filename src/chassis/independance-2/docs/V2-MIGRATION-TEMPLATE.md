@@ -104,16 +104,27 @@ then is landed.
   ```
 - Technically none of what v1-land does matters for v2 — but do it anyway, for cleanliness and the
   ability to back out: it leaves the v1 session landable/resumable, nothing deleted.
+- **Capture the session's UUID — you RESUME this exact session in step 4.** Before landing,
+  `sudo -u USER claude agents --json` shows the running session's id; or it's the active (largest/newest)
+  `<uuid>.jsonl` under `HOME/.claude/projects/<slug>/`. Record it. (Orla's was `9ccc1e69…`, a 56 MB session.)
 
-## 4. First wake in v2 — `launch.sh` (as the mind, manual mode)
+## 4. Resume the mind's session into v2 (`--bg`) — a CONTINUATION, not a fresh launch
+A migrating mind already HAS a session (its v1 session); v2 **continues** it — same mind, full live context,
+no crossing, no lost history. As the mind, from its home, resume the now-stopped (step 3) session into `--bg`:
 ```
 su - USER
-cd ~ && HARNESS/preseed-trust.sh      # if not already seeded in step 2
-cd ~ && HARNESS/launch.sh             # claude --bg --permission-mode=manual --name=INSTANCE
+cd ~ && HARNESS/preseed-trust.sh             # if not already seeded (esp. after the step-1 clone changed the git-root)
+cd ~ && claude --bg --resume <SESSION_UUID>  # the UUID captured at step 3; prints the running id to attach to
 ```
-`launch.sh` is checks-first, **refuses to resume** (any flag on a `--bg` resume forks), and **refuses
-if cwd != the mind's own home** (the identity-collision guard — how Genevieve once woke as Bastion).
-Manual mode is built in, so there is no auto-mode "Data Exfiltration" block on the mirror.
+`claude --bg --resume <uuid>` is a **clean resume into `--bg`** — one command, and **it does NOT fork**
+(verified on .nexus with Orla, 2026-10-26). A fork happens ONLY from: resuming an **already-running** session
+(land it first — step 3; reach a running mind with `attach.sh`), **any flag beyond** `--bg --resume <uuid>`,
+or a `cd` that relocates the transcript. `resume-stopped.sh` wraps this with the safety checks —
+**currently guarded to WakeTest fixtures; generalize it before a real mind.**
+- **`launch.sh` is for a BRAND-NEW mind with NO prior session only** — a fresh `claude --bg` *birth*. Run on a
+  migrating mind it births a **blank** session beside the real one (measured on Orla, 2026-10-26: a 15 KB blank
+  `90a1a5cd` sat beside her real 56 MB `9ccc1e69`). **For a migration: resume, do not launch.** Manual mode +
+  the identity-collision cwd guard that `launch.sh` enforces also apply here — resume only from the mind's own home.
 
 ## 5. Attach + the identity guard (NEVER skip)
 ```
