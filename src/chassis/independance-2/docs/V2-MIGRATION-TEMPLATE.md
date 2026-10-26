@@ -25,8 +25,11 @@ USER        = <unix user — verify: id INSTANCE>     == INSTANCE (mixed case; d
 HOME        = /mnt/coordinaton_mcp_data/instances/INSTANCE
 SHORT       = <short name>                           e.g.  Orla      (also the GitHub repo name)
 REPO        = git@github.com:LupoGrigi0/SHORT.git    the mind's private home-dir repo
-MIRROR_PORT = <free 22xxx — confirm: ss -ltnp>
-BRIDGE_PORT = <free 22xxx, distinct from MIRROR_PORT>
+MIRROR_PORT = <a FREE 22xxx — a NEW port the mirror will LISTEN on, not one to look up>
+BRIDGE_PORT = <another FREE 22xxx, distinct from MIRROR_PORT>
+    # These are two new listen ports you ASSIGN; there is no "existing port" to find in ss.
+    # The MIND picks them itself in step 6:  ss -lntp | grep -oE ':22[0-9]{3}' | sort -u
+    # lists what's TAKEN — choose any two 22xxx not in that list. (Serial rollout = no collision.)
 HARNESS     = /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/independance-2
 ```
 OpenRouter minds (Witness, Genevieve): also `OR_MODEL` + `OR_KEY` — see Special Case B.
