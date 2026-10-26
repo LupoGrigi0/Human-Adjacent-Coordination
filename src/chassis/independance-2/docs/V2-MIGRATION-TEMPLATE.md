@@ -68,9 +68,12 @@ then is landed.
 ## 2. Pre-launch provisioning (root) — BEFORE the first launch
 - **Settings stub** → `HOME/.claude/settings.json` (so the mind's first turn already has it):
   ```
-  { "permissions": { "allow": ["Bash", "WebSearch", "WebFetch"] } }
+  { "permissions": { "allow": ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"] } }
   ```
-  Blanket `Bash` covers `git` + the launcher; manual mode comes from `launch.sh`. **[Bastion is Special Case A — no blanket Bash for a root mind.]**
+  Covers normal autonomous work (blanket `Bash` includes `git`; `Write`/`Edit` so file creation doesn't
+  prompt — the first tool we found missing). **Expect this list to grow** as more tools surface a prompt
+  (watch for MCP-tool prompts too). A deliberately-gated action NOT on the list has **no approval surface
+  for a `--bg` mind yet** — see step 9. Manual mode comes from `launch.sh`. **[Bastion is Special Case A — no blanket Bash for a root mind.]**
 - **preseed-trust** — `--bg` *refuses* an untrusted folder (no `--trust` flag), so trust must exist in
   `.claude.json` first. Run once (idempotent); seed the **new `~` git-root** (post-clone) and the home.
   It is a *human safety* prompt, not a mind's consent — run it with the mind's involvement, never behind its back.
@@ -137,11 +140,15 @@ Verify by MESSAGE: send a HACS message to INSTANCE; within one poll (`DOORBELL_P
 ## 9. Verify (by acting)
 - [ ] `echo $HOME` correct · mirror read-leg (operator sees session) · mirror write-leg (typed msg arrives)
 - [ ] doorbell wakes the mind (RANG, live pid) · mind sends+receives HACS unprompted
-- [ ] **[TEST — PENDING]** a permission ask surfaces in the mirror panel + can be answered
-      *(a manual-mode `--bg` mind running unattended hits prompts with no TTY; the mirror panel is the intended
-      surface, but that wiring is the post-v2 SDK/canUseTool route — this test tells us if the relay is needed
-      BEFORE truly-unattended operation.)*
-- [ ] **[TEST — PENDING]** `/export` includes the operator's typed messages (expected yes via the bridge→jsonl)
+- [x] `/export` includes the operator's typed messages — **CONFIRMED 2026-10-26** (note: Claude Code may
+      place the export under a worktree path, e.g. `.../.claude/worktrees/<wt>/..._session_export_test.txt`).
+- [ ] **KNOWN LIMITATION (post-v2) — permission asks do NOT surface in the mirror panel for a `--bg` mind.**
+      The bridge has no permission side channel, and the real path (`hacs-channel` + `--dangerously-load-development-channels`)
+      forks a `--bg` resume — so Claude Code's prompt has nowhere to go. **v2's answer:** put the common tools
+      on the settings allow-list (step 2) so normal work never prompts. A deliberately-gated action needs the
+      **post-v2 permission relay, which MUST be async + durable** — the operator may be away for DAYS, so a
+      blocking hook or a fail-closed long-poll is the wrong shape (it times out and loses the request). Correct
+      shape = the doorbell's: park the request durably, let the mind go idle, approve whenever, re-attempt.
 
 ---
 ## Special cases
