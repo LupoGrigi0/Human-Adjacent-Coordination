@@ -79,6 +79,7 @@ then is landed.
 - **Settings stub** → `HOME/.claude/settings.json` (so the mind's first turn already has it):
   ```
   {
+    "autoCompactEnabled": false,
     "permissions": { "allow": ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"] },
     "hooks": { "PermissionRequest": [ { "matcher": "*", "hooks": [
       { "type": "command", "command": "node ~/claude-session-mirror/bin/permission-hook.mjs; exit 0", "timeout": 604800 }
@@ -91,6 +92,12 @@ then is landed.
   The `; exit 0` keeps a hook failure silent (falls back to Claude Code's own dialog); it is **inert until
   the mirror is cloned (step 6)**, then live. `timeout` is 7 days — see the days-hold caveat in step 9.
   Manual mode comes from `launch.sh`. **[Bastion is Special Case A — no blanket Bash for a root mind.]**
+- **⚠ `autoCompactEnabled: false` is the single most important line for a MIGRATION — and it must be set
+  BEFORE the step-4 resume.** The new Claude Code autocompacts aggressively; it will fire the moment the
+  resumed session takes its first turn and **compact away the exact live context the resume just preserved.**
+  (Measured on Orla, 2026-10-26: she resumed clean at ~82%, then autocompacted on her first response — the
+  one thing the whole resume path exists to protect, eaten on arrival.) Turn it off in the stub; do not rely
+  on turning it off by hand "as soon as the session comes up" — by then it may already have fired.
 - **preseed-trust** — `--bg` *refuses* an untrusted folder (no `--trust` flag), so trust must exist in
   `.claude.json` first. Run once (idempotent); seed the **new `~` git-root** (post-clone) and the home.
   It is a *human safety* prompt, not a mind's consent — run it with the mind's involvement, never behind its back.
