@@ -76,9 +76,14 @@ then is landed.
   It is a *human safety* prompt, not a mind's consent — run it with the mind's involvement, never behind its back.
 
 ## 3. Land the v1 (channel) session
-- **[PENDING exact v1 land]** — the channel chassis's own stop (`claude-code-channel@INSTANCE` `ExecStop`),
-  which must: (a) `mirror-stop.sh` any running mirror, (b) end the channel session cleanly
-  (`claude stop`, **never `claude rm`** — stop stays resumable), (c) record it in `preferences.json`.
+- **⚠ If you are attached to the mind's v1 `tmux` session, DETACH with `Ctrl-b d` — NEVER `Ctrl-C`.**
+  Ctrl-C kills the server tmux. This is the one keystroke that burns you here.
+- Then, from outside the tmux:
+  ```
+  /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/claude-code-channel/land-claude-code-channel.sh --instance-id INSTANCE
+  ```
+- Technically none of what v1-land does matters for v2 — but do it anyway, for cleanliness and the
+  ability to back out: it leaves the v1 session landable/resumable, nothing deleted.
 
 ## 4. First wake in v2 — `launch.sh` (as the mind, manual mode)
 ```
