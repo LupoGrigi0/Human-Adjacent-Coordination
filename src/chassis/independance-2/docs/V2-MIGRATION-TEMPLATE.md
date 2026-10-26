@@ -158,6 +158,13 @@ Verify by MESSAGE: send a HACS message to INSTANCE; within one poll (`DOORBELL_P
       early and falls through to the console dialog, which a `--bg` mind can't answer). Also open: subagent
       requests don't name the asking agent; some tool prompts may still be console-only.
 
+## 10. Repoint the mind's wake to v2 — do not skip
+Update the mind's `~/wake/` so it wakes *as* a v2 mind: any wake message/doc that references
+`PILOTS-GUIDE-TO-INDEPENDENCE.md` must point at **`PILOTS-GUIDE-TO-INDEPENDENCE-2.md`**, and any wake text
+describing the v1 channel/tmux chassis (how it is launched, notified, attached) must be updated to the v2
+harness. **A v2 mind that wakes into the v1 guide is told it is something it is not** — the same identity
+hazard as a bad `echo $HOME`, one layer up.
+
 ---
 ## Special cases
 ### A. Bastion-3012 — root mind — DO LAST
