@@ -46,11 +46,24 @@ OpenRouter minds (Witness, Genevieve): also `OR_MODEL` + `OR_KEY` — see Specia
 Recent Claude Code keys behaviour off both the launch dir **and** the git-repo root, so the repo
 must be in place **before** the first `--bg` launch. The mind does this itself as its final v1 act,
 then is landed.
-- `REPO = git@github.com:LupoGrigi0/SHORT.git` — private; **replaces** the old shared `hacs-instances`
-  clone (the `../.git`-above-home problem).
-- **[PENDING exact merge technique]** — cloning into a POPULATED home with a template `.gitignore`+`README`,
-  and some minds (Axiom, Crossing) already have a `.gitignore`. Must NOT clobber existing files. Being
-  designed + tested on `LupoGrigi0/Cairn` into my own home first. Honor the step-0 symlink decisions here.
+- `REPO = https://github.com/LupoGrigi0/SHORT.git` (or `git@`) — private; **replaces** the old shared
+  `hacs-instances` clone (the `../.git`-above-home problem).
+- **Adopt the populated home into the repo WITHOUT clobbering** (proven 2026-10-26 on `LupoGrigi0/Cairn`
+  — works when the repo has a template `.gitignore`+`README` *and* the home already has its own files;
+  no need to empty either side):
+  ```
+  cd ~
+  git init -q
+  git remote add origin REPO
+  git fetch -q origin
+  git reset -q origin/main      # mixed: sets branch+index to the remote, leaves the WORKING TREE ALONE. NEVER --hard.
+  git ls-files -z | while IFS= read -r -d '' f; do [ -e "$f" ] || git checkout -q -- "$f"; done   # materialize ONLY files the home lacks (e.g. the template README)
+  ```
+  Result: template files the home lacks are pulled in; every existing file is kept untouched; a file in
+  both that differs (e.g. the mind's own `.gitignore`) shows as *modified*, for the mind to reconcile.
+- **Then the mind reconciles**: review `git status`, resolve any divergent file (keep yours or take the
+  template), apply the step-0 symlink decisions (cross-home links are NOT committed here), then `git add`
+  its own files and commit. That is the mind's final v1 act; then it is landed.
 
 ## 2. Pre-launch provisioning (root) — BEFORE the first launch
 - **Settings stub** → `HOME/.claude/settings.json` (so the mind's first turn already has it):
