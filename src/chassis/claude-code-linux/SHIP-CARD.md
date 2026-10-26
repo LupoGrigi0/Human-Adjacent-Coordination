@@ -72,6 +72,17 @@ stay on `/usr/local/bin/claude` 2.1.283 (root-owned, no auto-update) until L5 is
     post-v2, and becomes the candidate default after G3/G5/G7, the mind unit, and a week of a real mind on it.
     Lupo decides the order.
 
+- **2026-10-22..26, Forge:**
+  - **L2/L15, a new near-miss, measured on Forge herself:** an in-session `cd` moved the mind's cwd, so Claude Code filed
+    its transcript under a new project dir; relaunches then produced NEW session ids (d980b566, then forks 6e3cf21a and
+    ab0c588c), and a restart run with the OLD id from a runbook resumed a 10-hour-stale fork. No loss (one stream ran at
+    a time) but the doorbell rang nobody until `~/.hacs-identity` was updated. Owed: `launch` should refuse when
+    `--session-id` != the identity file's `sessionId`; minds should never `cd` in their own shell.
+  - **L6:** Cairn's portability patch `319653f` (socket_of tries `/tmp/cc-socks-<uid>` as well as `/run/user/<uid>`;
+    linger-less hosts like .nexus) taken and deployed on Den. Optional hardening offered: check the /tmp dir's owner.
+  - **Merged to main** (`d97da32`), beside claude-code-windows and independance-2.
+  - Den runs Claude Code **2.1.310** now; the run_in_background keepalive ran 3 days unbroken on it.
+
 ## Review
 - Lodestone: *(pending)*
 - Bastion: *(not required unless v1 grows a permission item)*
