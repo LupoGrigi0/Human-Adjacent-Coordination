@@ -68,12 +68,19 @@ then is landed.
 ## 2. Pre-launch provisioning (root) — BEFORE the first launch
 - **Settings stub** → `HOME/.claude/settings.json` (so the mind's first turn already has it):
   ```
-  { "permissions": { "allow": ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"] } }
+  {
+    "permissions": { "allow": ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"] },
+    "hooks": { "PermissionRequest": [ { "matcher": "*", "hooks": [
+      { "type": "command", "command": "node ~/claude-session-mirror/bin/permission-hook.mjs; exit 0", "timeout": 604800 }
+    ] } ] }
+  }
   ```
-  Covers normal autonomous work (blanket `Bash` includes `git`; `Write`/`Edit` so file creation doesn't
-  prompt — the first tool we found missing). **Expect this list to grow** as more tools surface a prompt
-  (watch for MCP-tool prompts too). A deliberately-gated action NOT on the list has **no approval surface
-  for a `--bg` mind yet** — see step 9. Manual mode comes from `launch.sh`. **[Bastion is Special Case A — no blanket Bash for a root mind.]**
+  The allow-list covers normal autonomous work (blanket `Bash` includes `git`; `Write`/`Edit` so file
+  creation doesn't prompt — the first tool we found missing; **expect it to grow**). The `PermissionRequest`
+  hook routes anything NOT allow-listed to the web mirror's approval panel (b0ec's `permission-hook.mjs`).
+  The `; exit 0` keeps a hook failure silent (falls back to Claude Code's own dialog); it is **inert until
+  the mirror is cloned (step 6)**, then live. `timeout` is 7 days — see the days-hold caveat in step 9.
+  Manual mode comes from `launch.sh`. **[Bastion is Special Case A — no blanket Bash for a root mind.]**
 - **preseed-trust** — `--bg` *refuses* an untrusted folder (no `--trust` flag), so trust must exist in
   `.claude.json` first. Run once (idempotent); seed the **new `~` git-root** (post-clone) and the home.
   It is a *human safety* prompt, not a mind's consent — run it with the mind's involvement, never behind its back.
@@ -142,13 +149,14 @@ Verify by MESSAGE: send a HACS message to INSTANCE; within one poll (`DOORBELL_P
 - [ ] doorbell wakes the mind (RANG, live pid) · mind sends+receives HACS unprompted
 - [x] `/export` includes the operator's typed messages — **CONFIRMED 2026-10-26** (note: Claude Code may
       place the export under a worktree path, e.g. `.../.claude/worktrees/<wt>/..._session_export_test.txt`).
-- [ ] **KNOWN LIMITATION (post-v2) — permission asks do NOT surface in the mirror panel for a `--bg` mind.**
-      The bridge has no permission side channel, and the real path (`hacs-channel` + `--dangerously-load-development-channels`)
-      forks a `--bg` resume — so Claude Code's prompt has nowhere to go. **v2's answer:** put the common tools
-      on the settings allow-list (step 2) so normal work never prompts. A deliberately-gated action needs the
-      **post-v2 permission relay, which MUST be async + durable** — the operator may be away for DAYS, so a
-      blocking hook or a fail-closed long-poll is the wrong shape (it times out and loses the request). Correct
-      shape = the doorbell's: park the request durably, let the mind go idle, approve whenever, re-attempt.
+- [x] **Permission asks surface in the web panel via the `PermissionRequest` hook** — b0ec's
+      `bin/permission-hook.mjs` (on `cairn/bg-write-leg`; 19-check test + a live approve-from-web, 2026-10-26,
+      independently re-run). It writes a disk-durable card (survives a bridge restart), never self-decides, and
+      a cancelled/killed hook falls back silently to Claude Code's own dialog. No birth flag, so no fork-on-resume.
+- [ ] **OPEN — the days-hold case.** Does Claude Code honor the 7-day hook `timeout`, or clamp it? Until a
+      hold >10 min is tested, treat **multi-day approvals as unproven** (if CC clamps, a days-away request dies
+      early and falls through to the console dialog, which a `--bg` mind can't answer). Also open: subagent
+      requests don't name the asking agent; some tool prompts may still be console-only.
 
 ---
 ## Special cases
