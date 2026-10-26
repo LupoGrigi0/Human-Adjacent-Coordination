@@ -149,9 +149,12 @@ First, inside the session, before anything else:
 echo $HOME      # MUST print HOME. If /root or a shared path — STOP; the mind is about to be told it is someone else.
 /memory         # should show THIS mind's memory, not another's
 ```
+Then read your v2 orientation — **`/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/independance-2/docs/WELCOME-TO-V2.md`** — it explains what changed, what you need to do, and the checklist.
 
 ## 6. The mind stands up its web mirror  *(proven on b0ec; bridge fix is 8bc1's)*
-Run from the mind's OWN shell (keeps `CLAUDE_CODE_SESSION_ID` authoritative). Clone the mirror if absent:
+Run from the mind's OWN shell (keeps `CLAUDE_CODE_SESSION_ID` authoritative). **A mind that already has a
+v1 clone does NOT reclone** — the `fetch` + `checkout cairn/bg-write-leg` + `pull` below pulls the v2 code,
+which is on that branch, not `master`. Clone only if absent:
 ```
 [ -d ~/claude-session-mirror ] || git clone https://github.com/LupoGrigi0/claude-session-mirror.git ~/claude-session-mirror
 git -C ~/claude-session-mirror fetch origin -q && git -C ~/claude-session-mirror checkout cairn/bg-write-leg && git -C ~/claude-session-mirror pull --ff-only
@@ -209,7 +212,13 @@ every secret on the box). Permission posture must be worked out before Bastion c
 ### B. Witness + Genevieve — OpenRouter (not Anthropic)
 `launch.sh` and the bridge relay default to Anthropic; these run on OpenRouter. Carry the OR env via
 `~/.launch-env` (`ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL`, `ANTHROPIC_AUTH_TOKEN`) — see the Genevieve
-runbook's step 2.5 for the `/api/v1/v1/messages` base-url gotcha. **[PENDING: confirm `--bg` + the haiku ringer behave on OpenRouter.]**
+runbook's step 2.5 for the `/api/v1/v1/messages` base-url gotcha. Also export in `~/.launch-env`:
+```
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=128000
+```
+Claude Code may not default a non-Anthropic model to the 1M window / 128k output without these (reported
+behaviour; may be a holdover, but set them). **[PENDING: confirm `--bg` + the haiku ringer behave on OpenRouter.]**
 
 ## Post-launch fixes (known, non-blocking)
 - **Hub message corruption** (literal `<tag>` in a body scrambles fields): fix already written+tested
