@@ -153,11 +153,11 @@ Then read your v2 orientation — **`/mnt/coordinaton_mcp_data/Human-Adjacent-Co
 
 ## 6. The mind stands up its web mirror  *(proven on b0ec; bridge fix is 8bc1's)*
 Run from the mind's OWN shell (keeps `CLAUDE_CODE_SESSION_ID` authoritative). **A mind that already has a
-v1 clone does NOT reclone** — the `fetch` + `checkout cairn/bg-write-leg` + `pull` below pulls the v2 code,
-which is on that branch, not `master`. Clone only if absent:
+v1 clone does NOT reclone** — a `git pull` on `master` gets the v2 code (merged to master 2026-10-26).
+Clone only if absent:
 ```
 [ -d ~/claude-session-mirror ] || git clone https://github.com/LupoGrigi0/claude-session-mirror.git ~/claude-session-mirror
-git -C ~/claude-session-mirror fetch origin -q && git -C ~/claude-session-mirror checkout cairn/bg-write-leg && git -C ~/claude-session-mirror pull --ff-only
+git -C ~/claude-session-mirror checkout master && git -C ~/claude-session-mirror fetch origin -q && git -C ~/claude-session-mirror pull --ff-only   # v2 code is on master now
 printf '{"instanceId":"INSTANCE","sessionId":"%s","sessionName":"INSTANCE","channelPort":BRIDGE_PORT}\n' "$CLAUDE_CODE_SESSION_ID" > ~/.hacs-identity
 cat ~/.hacs-identity    # confirm sessionId is a real UUID
 mkdir -p ~/.web-bridge
