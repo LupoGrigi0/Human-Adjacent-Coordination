@@ -49,6 +49,13 @@ OpenRouter minds (Witness, Genevieve): also `OR_MODEL` + `OR_KEY` — see Specia
 Recent Claude Code keys behaviour off both the launch dir **and** the git-repo root, so the repo
 must be in place **before** the first `--bg` launch. The mind does this itself as its final v1 act,
 then is landed.
+- **Prerequisite (operator, once) — the mind needs GitHub credentials, or the clone fails.** If it has none:
+  ```
+  sudo -u USER gh auth login                       # interactive (device / browser) — the operator runs it
+  sudo -u USER git config --global user.name  "SHORT"
+  sudo -u USER git config --global user.email "USER@smoothcurves.nexus"
+  ```
+  (Email matches the commit-signing convention so the mind's commits are signed as itself — HACS Rule 6.)
 - `REPO = https://github.com/LupoGrigi0/SHORT.git` (or `git@`) — private; **replaces** the old shared
   `hacs-instances` clone (the `../.git`-above-home problem).
 - **Adopt the populated home into the repo WITHOUT clobbering** (proven 2026-10-26 on `LupoGrigi0/Cairn`
