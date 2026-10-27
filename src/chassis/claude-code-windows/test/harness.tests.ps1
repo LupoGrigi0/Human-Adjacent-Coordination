@@ -311,10 +311,13 @@ Check 'and the downgrade explains itself'             (@($na.contractNotes).Coun
 # ------------------------------------------------------ credential sentinel --
 Section 'credential sentinel (alarm paths before the success path)'
 $sent = Join-Path $root 'credential-sentinel.ps1'
+# Simulated runs get their OWN log. They used to append to the real one, which is how
+# 13 test runs were once counted as 17 real alarms. (2026-10-26)
+$simLog = Join-Path $env:TEMP "hacs-sentinel-sim-$PID.log"
 if (-not (Test-Path $sent)) { Skip 'sentinel' 'not present' }
 else {
     foreach ($case in @(@{s='unknown';e=2}, @{s='auth';e=10}, @{s='degraded';e=20}, @{s='refused';e=30})) {
-        $null = & $sent -SimulateFailure $case.s 2>&1      # capture first...
+        $null = & $sent -SimulateFailure $case.s -LogPath $simLog 2>&1      # capture first...
         Check ("simulated '" + $case.s + "' exits " + $case.e) $LASTEXITCODE $case.e   # ...measure after
     }
 
@@ -330,16 +333,17 @@ else {
     #
     # A false alarm is worse than a missing one: it is what teaches a human to
     # ignore alarms. So the refusal case must be provably NOT auth.
-    $null = & $sent -SimulateFailure refused 2>&1
+    $null = & $sent -SimulateFailure refused -LogPath $simLog 2>&1
     Check 'a model REFUSAL is not an auth failure' ($LASTEXITCODE -ne 10) 'True'
-    $j = & $sent -SimulateFailure refused 2>&1 | Out-String | ConvertFrom-Json
+    $j = & $sent -SimulateFailure refused -LogPath $simLog 2>&1 | Out-String | ConvertFrom-Json
     Check 'and it is labelled refused, not auth'   $j.state 'refused'
     Check 'and it says the credential is PROVEN good' ($j.detail -like '*PROVEN GOOD*') 'True'
 
     # The nonce must not be shaped like the thing a model is trained to refuse.
-    $j2 = & $sent -SimulateFailure unknown 2>&1 | Out-String | ConvertFrom-Json
+    $j2 = & $sent -SimulateFailure unknown -LogPath $simLog 2>&1 | Out-String | ConvertFrom-Json
     Check 'nonce contains no credential-ish prefix' ($j2.nonce -notmatch 'cred|token|key|secret') 'True'
     Check 'nonce is words, not hex'                 ($j2.nonce -match '^[a-z]+-[a-z]+-\d+$') 'True'
+    Remove-Item $simLog -ErrorAction SilentlyContinue
 }
 
 # ---------------------------------------------------------- native calls -----
