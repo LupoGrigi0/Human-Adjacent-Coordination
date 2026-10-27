@@ -55,6 +55,10 @@ try {
     Check '  ...one send per recipient'                                     $s.Count 2
     Check '  ...to Axiom and Bastion-3012 (default)'                         (($s | ForEach-Object { $_[1] }) -join ',') 'Axiom,Bastion-3012'
     Check '  ...subject names the state'                                     ($s[0][2] -like '*auth*') 'True'
+    # Bastion's routing contract, CASE-SENSITIVE (-cmatch): a matcher that is "dumb and robust"
+    # on their side means every deviation here is a silently unrouted alert.
+    $contract = '^credential-sentinel: \S+ (AUTH|DEGRADED|COULD-NOT-LOOK|RECOVERED)( \(still\))?$'
+    Check "  ...subject meets Bastion's routing contract exactly"           ($s[0][2] -cmatch $contract) 'True'
     Check '  ...body tells a human what to do'                               ($s[0][3] -like '*must*/login*') 'True'
 
     $r = Run (@('-SimulateFailure', 'auth') + $withFake) $rec
@@ -64,6 +68,7 @@ try {
     $s = @(Sends)
     Check 'while it persists past -RepeatHours, it re-alerts'               $s.Count 4
     Check '  ...marked (still)'                                              ($s[2][2] -like '*(still)*') 'True'
+    Check '  ...and a (still) subject still meets the contract'             ($s[2][2] -cmatch $contract) 'True'
 
     # --- recovery: a real round-trip through a fake claude ----------------------
     $fakeClaude = Join-Path $work 'claude.cmd'
@@ -73,6 +78,7 @@ try {
     Check 'a real OK after an alert exits 0'                                 $r.Code 0
     Check '  ...and sends RECOVERED to both'                                 $s.Count 6
     Check '  ...subject says RECOVERED'                                      ($s[4][2] -like '*RECOVERED*') 'True'
+    Check '  ...RECOVERED meets the contract'                                ($s[4][2] -cmatch $contract) 'True'
     $r = Run (@('-Claude', $fakeClaude, '-ScratchDir', (Join-Path $work 'scratch')) + $withFake) $rec
     Check 'CONTROL a second OK sends nothing'                               @(Sends).Count 6
 
@@ -90,6 +96,10 @@ try {
     $s = @(Sends)
     Check 'unknown x3 alerts'                                                $s.Count 2
     Check "  ...and says 'could not look', not 'bad credential'"             ($s[0][3] -like '*could not look*') 'True'
+    Check '  ...token COULD-NOT-LOOK, never the internal word unknown'      ($s[0][2] -cmatch $contract -and $s[0][2] -cmatch 'COULD-NOT-LOOK') 'True'
+    Reset
+    foreach ($n in 1..3) { $null = Run (@('-SimulateFailure', 'degraded') + $withFake) $rec }
+    Check '  ...DEGRADED meets the contract'                                ((@(Sends))[0][2] -cmatch $contract) 'True'
 
     Reset
     foreach ($n in 1..3) { $null = Run (@('-SimulateFailure', 'refused') + $withFake) $rec }

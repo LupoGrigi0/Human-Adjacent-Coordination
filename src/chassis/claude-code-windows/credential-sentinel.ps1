@@ -205,7 +205,12 @@ function Update-SentinelAlerting([string] $State, [string] $Detail) {
                 'degraded' { "the credential probe has failed $($st.streak) runs in a row without a clean answer (rate limit, overload, or worse). Minds on this box may be unable to respond." }
                 'unknown'  { "the credential sentinel itself has been unable to run its probe $($st.streak) times in a row. This is 'could not look', NOT a known-bad credential." }
             }
-            $msg = @(("credential-sentinel: $env:COMPUTERNAME $State" + $(if ($repeat) { ' (still)' } else { '' })),
+            # SUBJECT CONTRACT (Bastion-3012, 2026-10-27): "credential-sentinel: <machine> <TOKEN>",
+            # TOKEN one bare UPPERCASE word from {AUTH, DEGRADED, COULD-NOT-LOOK, RECOVERED},
+            # nothing between machine and token. Bastion routes on it without opening the
+            # body (AUTH -> Lupo's phone). Adding a state means telling Bastion its token.
+            $token = @{ auth = 'AUTH'; degraded = 'DEGRADED'; unknown = 'COULD-NOT-LOOK' }[$State]
+            $msg = @(("credential-sentinel: $env:COMPUTERNAME $token" + $(if ($repeat) { ' (still)' } else { '' })),
                      ("On ${env:COMPUTERNAME}: $what Detected $($now.ToString('yyyy-MM-dd HH:mm')) by the hourly credential sentinel " +
                       "(log: $LogPath). This repeats every $RepeatHours h while it persists, and a RECOVERED note follows the fix. " +
                       "Observed, not diagnosed. Last probe said: $($Detail.Substring(0, [Math]::Min(160, $Detail.Length)))"))
