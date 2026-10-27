@@ -81,8 +81,27 @@ param(
     [int]    $TimeoutSec   = 90,
     # Test affordances, after battery-watch.ps1: a monitor whose alarm path has
     # never executed is decoration.
-    [ValidateSet('none', 'auth', 'degraded', 'unknown', 'refused')][string] $SimulateFailure = 'none'
+    [ValidateSet('none', 'auth', 'degraded', 'unknown', 'refused')][string] $SimulateFailure = 'none',
+
+    # WHO HEARS ABOUT IT. Added 2026-10-26, after this sentinel logged "a human must
+    # run /login" ELEVEN times over three days (10-23..10-26) into a file nobody
+    # reads, while the box sat in Modern Standby with an expired OAuth token. It was
+    # right every time and told no one. Lupo chose Axiom and Bastion-3012.
+    # The scheduled task passes no arguments, so the recipients are a default here
+    # and a redeploy is the whole rollout. A credential is per BOX, not per mind.
+    [string[]] $AlertTo       = @('Axiom', 'Bastion-3012'),
+    [string]   $HacsPy        = 'D:\Lupo\Source\AI\instance-archaeology\src\hacs\hacs.py',
+    [string]   $Python        = 'python',
+    [string]   $StatePath,                 # default: beside -LogPath, so a test that redirects the log redirects this too
+    [int]      $StreakToAlert = 3,         # degraded / unknown must repeat this many runs; auth alerts at once
+    [int]      $RepeatHours   = 12,        # re-alert while it persists: a long absence must not go quiet
+    [switch]   $NoAlert
 )
+# powershell -File binds `-AlertTo A,B` as ONE string (measured 2026-10-10). Split after binding.
+$AlertTo = @($AlertTo | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+if (-not $StatePath) { $StatePath = [IO.Path]::ChangeExtension($LogPath, '.alert-state.json') }
+# Captured HERE: inside a function, $PSBoundParameters is the function's own, not the script's.
+$PSBoundParameters_HacsPy = $PSBoundParameters.ContainsKey('HacsPy')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -129,11 +148,86 @@ function Write-SentinelLog([string] $msg) {
     } catch { }   # logging must never be the thing that fails the check
 }
 
+function Send-SentinelAlert([string] $subject, [string] $body) {
+    # Returns a short outcome string for the log. Never throws: an alert that fails
+    # must not change the sentinel's verdict or its exit code.
+    $outcomes = foreach ($to in $AlertTo) {
+        try {
+            $saved = $env:PYTHONIOENCODING; $env:PYTHONIOENCODING = 'utf-8'
+            # Body as an ARGUMENT, not stdin: the scheduled task's stdin is not ours.
+            $null = & $Python $HacsPy send $to $subject $body 2>$null
+            $rc = $LASTEXITCODE
+            $env:PYTHONIOENCODING = $saved
+            if ($rc -eq 0) { "$to=sent" } else { "$to=FAILED(exit $rc)" }
+        } catch { "$to=FAILED($($_.Exception.Message))" }
+    }
+    return ($outcomes -join ', ')
+}
+
+function Update-SentinelAlerting([string] $State, [string] $Detail) {
+    # Not tested against the real hub: a SIMULATED failure never touches state or
+    # sends, unless the caller supplied its own -HacsPy (a test's fake). That is the
+    # SEVENTEEN mistake designed out: test runs must never be counted, or paged, as
+    # real ones.
+    if ($NoAlert) { return }
+    if ($SimulateFailure -ne 'none' -and -not $PSBoundParameters_HacsPy) { return }
+    if (-not $AlertTo) { return }
+
+    $st = [ordered]@{ state = 'ok'; streak = 0; alerted = $null; alertedAt = $null }
+    try {
+        if (Test-Path $StatePath) {
+            $j = Get-Content $StatePath -Raw | ConvertFrom-Json
+            foreach ($k in @('state','streak','alerted','alertedAt')) { if ($j.PSObject.Properties.Name -contains $k) { $st[$k] = $j.$k } }
+        }
+    } catch { }    # unreadable state -> start fresh; worst case one duplicate alert
+
+    $st.streak = if ($st.state -eq $State) { [int]$st.streak + 1 } else { 1 }
+    $st.state  = $State
+    $now = Get-Date
+    $msg = $null
+
+    if ($State -eq 'ok') {
+        if ($st.alerted) {
+            # Each element in its own parentheses: in PowerShell the COMMA binds tighter
+            # than +, so `"a", "b" + "c"` is a 3-element array and `"a" + $x, "b"` is one
+            # string. Both bit this function on its first test run.
+            $msg = @(("credential-sentinel: $env:COMPUTERNAME RECOVERED"),
+                     ("The Claude Code credential on $env:COMPUTERNAME works again (probe round-tripped at $($now.ToString('yyyy-MM-dd HH:mm'))). " +
+                      "It had been '$($st.alerted)' since the alert at $($st.alertedAt). Nothing further needed."))
+            $st.alerted = $null; $st.alertedAt = $null
+        }
+    } elseif ($State -in @('auth','degraded','unknown')) {
+        $due = ($State -eq 'auth') -or ($st.streak -ge $StreakToAlert)
+        $repeat = $st.alerted -eq $State -and $st.alertedAt -and (($now - [datetime]$st.alertedAt).TotalHours -ge $RepeatHours)
+        if ($due -and ($st.alerted -ne $State -or $repeat)) {
+            $what = switch ($State) {
+                'auth'     { "the Claude Code LOGIN HAS EXPIRED. Every mind on this box (Lodestone; Claude Code instances on lupos-lap) cannot think until a HUMAN runs /login there. A scheduled wake cannot fix this." }
+                'degraded' { "the credential probe has failed $($st.streak) runs in a row without a clean answer (rate limit, overload, or worse). Minds on this box may be unable to respond." }
+                'unknown'  { "the credential sentinel itself has been unable to run its probe $($st.streak) times in a row. This is 'could not look', NOT a known-bad credential." }
+            }
+            $msg = @(("credential-sentinel: $env:COMPUTERNAME $State" + $(if ($repeat) { ' (still)' } else { '' })),
+                     ("On ${env:COMPUTERNAME}: $what Detected $($now.ToString('yyyy-MM-dd HH:mm')) by the hourly credential sentinel " +
+                      "(log: $LogPath). This repeats every $RepeatHours h while it persists, and a RECOVERED note follows the fix. " +
+                      "Observed, not diagnosed. Last probe said: $($Detail.Substring(0, [Math]::Min(160, $Detail.Length)))"))
+            $st.alerted = $State; $st.alertedAt = $now.ToString('o')
+        }
+    }
+    # refused (30) never alerts: a refusal PROVES the credential and network are good.
+
+    if ($msg) {
+        $subject = [string]$msg[0]; $body = [string]$msg[1]
+        $outcome = Send-SentinelAlert $subject $body
+        Write-SentinelLog "alert    -> $outcome ($subject)"
+    }
+    try { $st | ConvertTo-Json | Set-Content -Path $StatePath -Encoding utf8 } catch { Write-SentinelLog "alert    state not saved: $($_.Exception.Message)" }
+}
+
 function Complete-Sentinel([string] $State, [int] $Code, [string] $Detail) {
     $result.state    = $State
     $result.exitCode = $Code
     $result.detail   = $Detail
     Write-SentinelLog ('{0,-8} exit={1} {2}' -f $State, $Code, $Detail)
+    try { Update-SentinelAlerting $State $Detail } catch { Write-SentinelLog "alert    error (verdict unaffected) at line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)" }
     $result | ConvertTo-Json -Depth 4
     exit $Code
 }

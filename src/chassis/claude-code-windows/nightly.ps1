@@ -31,7 +31,7 @@ param(
     [string]   $LiveInstanceId = 'Lodestone-8ec9',
     [string[]] $AlertTo = @(),
     [string[]] $ExtraSuite = @(),
-    [string[]] $Suites = @('harness.tests.ps1', 'hook.tests.ps1', 'doorbell.tests.ps1', 'ring-watch.tests.ps1', 'power-notice.tests.ps1'),
+    [string[]] $Suites = @('harness.tests.ps1', 'hook.tests.ps1', 'doorbell.tests.ps1', 'ring-watch.tests.ps1', 'power-notice.tests.ps1', 'sentinel-alert.tests.ps1'),
     [string]   $HacsPy = 'D:\Lupo\Source\AI\instance-archaeology\src\hacs\hacs.py'
 )
 Set-StrictMode -Version Latest

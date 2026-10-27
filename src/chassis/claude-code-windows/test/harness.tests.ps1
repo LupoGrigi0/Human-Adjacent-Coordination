@@ -273,7 +273,8 @@ try {
     Check 'none present -> throws, naming every path it looked at' (($threw -like '*C:\nowhere\a\claude.exe*') -and ($threw -like '*C:\nowhere\b\claude.exe*')) 'True'
     $rr = Get-HacsAgentRegistryResult
     Check 'none present -> the registry says could-not-look'   "$($rr.Ok)/$($rr.Error -like '*not found*')" 'False/True'
-    $sn = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'credential-sentinel.ps1') -LogPath (Join-Path $env:TEMP "hacs-sentinel-test-$PID.log") 2>&1 | Out-String
+    # -NoAlert: this is a REAL (not simulated) run, so the simulation guard does not cover it.
+    $sn = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'credential-sentinel.ps1') -LogPath (Join-Path $env:TEMP "hacs-sentinel-test-$PID.log") -NoAlert 2>&1 | Out-String
     $src = $LASTEXITCODE
     Check 'none present -> the sentinel says unknown (2), never auth (10)' $src 2
     $snj = $null; try { $snj = $sn | ConvertFrom-Json } catch { }   # JSON escapes the backslashes; read the field
