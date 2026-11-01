@@ -85,7 +85,11 @@ function Read-Ledger {
 }
 
 $armedAt    = Get-Date
-$leaseUntil = $armedAt.AddMinutes($LeaseMin)
+$leaseUntil = $armedAt.AddMinutes($LeaseMin)     # for the log/state only -- NOT the clock the lease runs on
+# The lease runs on ELAPSED time, never wall-clock. On 2026-11-01 DST fell back, the
+# local clock repeated an hour, a Get-Date deadline moved an hour later than the 2 h
+# background cap, and Claude Code killed the doorbell instead of it exiting 10.
+$leaseClock = [Diagnostics.Stopwatch]::StartNew()
 $fails      = 0
 $failSince  = $null
 $recovered  = -not $HubDownSince      # a re-arm during an outage stays quiet until the hub comes back
@@ -155,7 +159,7 @@ while ($true) {
     # After the poll, so the file always describes the latest look -- found by the
     # first live run, whose heartbeat still said lastPollOk=null after a good poll.
     Write-Heartbeat
-    if ((Get-Date) -ge $leaseUntil -or ($MaxPolls -gt 0 -and $polls -ge $MaxPolls)) {
+    if ($leaseClock.Elapsed.TotalMinutes -ge $LeaseMin -or ($MaxPolls -gt 0 -and $polls -ge $MaxPolls)) {
         Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "LEASE EXPIRED after $polls polls"
         Write-Output "LEASE EXPIRED: re-arm the doorbell (no new mail since it was armed; last poll ok=$lastOk, unread=$lastTotal)"
         exit 10
