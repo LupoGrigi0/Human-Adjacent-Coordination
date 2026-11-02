@@ -32,6 +32,15 @@ BRIDGE_PORT = <another FREE 22xxx, distinct from MIRROR_PORT>
     # lists what's TAKEN — choose any two 22xxx not in that list. (Serial rollout = no collision.)
 HARNESS     = /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/independance-2
 ```
+
+> **⚠ SUBSTITUTE CASE-SENSITIVELY — and never blind-replace `HOME`.** The tokens are ALL-CAPS on
+> purpose, so a **case-sensitive, word-boundary** replace is safe. A **case-INSENSITIVE** replace of
+> `INSTANCE` corrupts `instances` → `<id>s` and `instanceId` → `<id>Id` — Orla, 2026-10-26: her
+> `.hacs-identity` came out with `"<id>Id"` and her HOME path became `.../instances/<id>` →
+> `.../<id>s/<id>`. Separately, `HOME` appears inside `$HOME` in the commands below: do **not**
+> globally replace `HOME` — the `HOME =` line above is already correct once `INSTANCE` is filled in,
+> so leave `$HOME` alone. Safest of all: fill the seven values in by hand.
+
 OpenRouter minds (Witness, Genevieve): also `OR_MODEL` + `OR_KEY` — see Special Case B.
 
 ## 0. Pre-flight (root)
@@ -149,6 +158,23 @@ First, inside the session, before anything else:
 echo $HOME      # MUST print HOME. If /root or a shared path — STOP; the mind is about to be told it is someone else.
 /memory         # should show THIS mind's memory, not another's
 ```
+Then the **identity-consistency check — NEW, and it is the bug that black-holed Orla's bridge.**
+Step 4's `--bg --resume` can **silently auto-rename the session** (Orla's resumed as *"project
+handoff documentation"*), and the web bridge targets the session **NAME** — so a wrong name means
+every message Lupo types is accepted and **black-holed**, while the bridge prints `SENT` (a
+self-report, never a receipt). Inside the session, confirm the whole chain agrees:
+```
+claude agents --json    # this session's "name" — MUST be INSTANCE
+id -un                  # linux user        — MUST be INSTANCE
+basename "$HOME"         # home-dir name      — MUST be INSTANCE
+basename "$PWD"          # launch-dir name    — MUST be INSTANCE
+```
+**All four MUST equal `INSTANCE`.** If the session name differs, fix it from inside the session with
+`/rename INSTANCE`, then re-check — do this BEFORE step 6, or the bridge comes up pointed at a name
+that does not exist.
+**Root exception (Bastion only):** a root mind has `id -un` = `root` and `$HOME` = `/root`, so the
+UID / home / launch-dir legs don't apply — check **only** that the session name equals the instance
+id (`Bastion-3012`).
 Then read your v2 orientation — **`/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/independance-2/docs/WELCOME-TO-V2.md`** — it explains what changed, what you need to do, and the checklist.
 
 ## 6. The mind stands up its web mirror  *(proven on b0ec; bridge fix is 8bc1's)*
