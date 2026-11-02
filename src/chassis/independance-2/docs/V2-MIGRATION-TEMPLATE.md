@@ -25,12 +25,14 @@ USER        = <unix user — verify: id INSTANCE>     == INSTANCE (mixed case; d
 HOME        = /mnt/coordinaton_mcp_data/instances/INSTANCE
 SHORT       = <short name>                           e.g.  Orla      (also the GitHub repo name)
 REPO        = git@github.com:LupoGrigi0/SHORT.git    the mind's private home-dir repo
+SESSION_UUID =
 MIRROR_PORT = <a FREE 22xxx — a NEW port the mirror will LISTEN on, not one to look up>
 BRIDGE_PORT = <another FREE 22xxx, distinct from MIRROR_PORT>
     # These are two new listen ports you ASSIGN; there is no "existing port" to find in ss.
     # The MIND picks them itself in step 6:  ss -lntp | grep -oE ':22[0-9]{3}' | sort -u
     # lists what's TAKEN — choose any two 22xxx not in that list. (Serial rollout = no collision.)
 HARNESS     = /mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/independance-2
+# this is the _read only_ production pull of HACS, that is pulled via web hook (see hacs dev guide)
 ```
 
 > **⚠ SUBSTITUTE CASE-SENSITIVELY — and never blind-replace `HOME`.** The tokens are ALL-CAPS on
@@ -96,6 +98,7 @@ then is landed.
   ```
   {
     "autoCompactEnabled": false,
+    "worktree": { "bgIsolation": "none" },
     "permissions": { "allow": ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"] },
     "hooks": { "PermissionRequest": [ { "matcher": "*", "hooks": [
       { "type": "command", "command": "node ~/claude-session-mirror/bin/permission-hook.mjs; exit 0", "timeout": 604800 }
@@ -140,7 +143,7 @@ no crossing, no lost history. As the mind, from its home, resume the now-stopped
 ```
 su - USER
 cd ~ && HARNESS/preseed-trust.sh             # if not already seeded (esp. after the step-1 clone changed the git-root)
-cd ~ && claude --bg --resume <SESSION_UUID>  # the UUID captured at step 3; prints the running id to attach to
+cd ~ && claude --bg --resume SESSION_UUID  # the UUID captured at step 3; prints the running id to attach to
 ```
 `claude --bg --resume <uuid>` is a **clean resume into `--bg`** — one command, and **it does NOT fork**
 (verified on .nexus with Orla, 2026-10-26). A fork happens ONLY from: resuming an **already-running** session
