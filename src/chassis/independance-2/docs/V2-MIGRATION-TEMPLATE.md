@@ -115,8 +115,11 @@ then is landed.
   one thing the whole resume path exists to protect, eaten on arrival.) Turn it off in the stub; do not rely
   on turning it off by hand "as soon as the session comes up" — by then it may already have fired.
 - **preseed-trust** — `--bg` *refuses* an untrusted folder (no `--trust` flag), so trust must exist in
-  `.claude.json` first. Run once (idempotent); seed the **new `~` git-root** (post-clone) and the home.
-  It is a *human safety* prompt, not a mind's consent — run it with the mind's involvement, never behind its back.
+  `.claude.json` first. Run it **as the mind, from the mind's own home, AFTER the step-1 clone** (the clone
+  moves the git-root): `cd ~ && HARNESS/preseed-trust.sh` seeds the mind's home — which post-clone is both
+  the git-root and the launch cwd, so it is **one path** (the old shared-parent `/mnt/.../instances` seed is
+  gone with that repo). Idempotent; verifies by reading back. It is a *human safety* prompt, not a mind's
+  consent — run it with the mind's involvement, never behind its back.
 
 ## 3. Land the v1 (channel) session
 - **⚠ If you are attached to the mind's v1 `tmux` session, DETACH with `Ctrl-b d` — NEVER `Ctrl-C`.**
