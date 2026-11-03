@@ -32,11 +32,13 @@ $saved = @{}
 foreach ($f in $files) { $p = Join-Path $rt $f; if (Test-Path $p) { $saved[$f] = [IO.File]::ReadAllBytes($p) } }
 function Reset-Doorbell { foreach ($f in 'doorbell-heartbeat.json', 'doorbell-ledger.json', 'doorbell-state.json') { Remove-Item (Join-Path $rt $f) -ErrorAction SilentlyContinue } }
 
-function Ring([object[]] $steps, [string[]] $extra = @()) {
+function Ring([object[]] $steps, [string[]] $extra = @(), [string] $api = 'up') {
+    # $api scripts the model-API probe (never the real network): 'up', or 'down,down,up' ...
+    # Every scripted 'down' sequence must end in 'up' or carry -HardStopMin 0, or it spins.
     $sc = Join-Path $scratch ("s-" + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.json')
     [IO.File]::WriteAllText($sc, (ConvertTo-Json -InputObject $steps -Depth 6))
     $env:FAKE_INBOX_SCENARIO = $sc
-    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $bell -InstanceId $fixture -PollSec 0 -HubDownPolls 3 -HacsPy $fake @extra 2>&1 | Out-String
+    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $bell -InstanceId $fixture -PollSec 0 -HubDownPolls 3 -HacsPy $fake -SimulateApi $api @extra 2>&1 | Out-String
     [pscustomobject]@{ Code = $LASTEXITCODE; Out = $out.Trim() }
 }
 function OkReply([string[]] $ids, [int] $total, [bool] $more = $false) {
@@ -107,6 +109,47 @@ try {
     Reset-Doorbell
     $r = Ring @(@{ exit = 0; out = @{ ok = $true; me = 'Lodestone-8ec9'; total_unread = 4; ids = @('x'); more_unread = $false; page_size = 1 } }) @('-MaxPolls', '5')
     Check "another mind's inbox -> never a ring, HUB (3)" $r.Code 3
+
+    Write-Host '=== never wake a mind that cannot think (2026-11-01: exit 3 into a dead network, 15 h with no doorbell) ==='
+    $log = Join-Path $rt 'doorbell.log'
+    $logMark = if (Test-Path $log) { (Get-Item $log).Length } else { 0 }
+    function NewLog { if (-not (Test-Path $log)) { return '' }; $b = [IO.File]::ReadAllBytes($log); [Text.Encoding]::UTF8.GetString($b, [int]$logMark, $b.Length - [int]$logMark) }
+    Reset-Doorbell
+    $r = Ring @($down) @('-MaxPolls', '6', '-HardStopMin', '0') 'down'
+    Check 'hub AND api down -> no HUB exit (10, not 3)'   $r.Code 10
+    Check 'and the exit warns the api was unreachable'    ($r.Out -match 'WARNING') 'True'
+    $st = Get-Content (Join-Path $rt 'doorbell-state.json') -Raw | ConvertFrom-Json
+    Check 'state says network-down, not hub-unreachable'  $st.state 'network-down'
+    Check 'log says NETWORK DOWN, riding it out'          ((NewLog) -match 'NETWORK DOWN') 'True'
+    # twin: the hub alone down, api up -> exit 3 exactly as before (the '=== could not look ===' block, api 'up')
+
+    $logMark = (Get-Item $log).Length
+    Reset-Doorbell
+    $r = Ring @((OkReply @() 0)) @('-MaxPolls', '2', '-HardStopMin', '60') 'down,down,up'
+    Check 'lease end with api down -> HELD, then exits when it answers (10)' $r.Code 10
+    Check 'and says it was held'                          ($r.Out -match 'held from') 'True'
+    Check 'log shows HELD then RELEASED'                  ((NewLog) -match '(?s)HELD lease.*RELEASED lease') 'True'
+    $r = Ring @((OkReply @() 0)) @('-MaxPolls', '2', '-HardStopMin', '60') 'up'
+    Check 'control: api up -> lease exit, not held'       ($r.Code -eq 10 -and $r.Out -notmatch 'held') 'True'
+
+    Reset-Doorbell
+    $r = Ring @((OkReply @('m1') 1)) @('-MaxPolls', '5', '-HardStopMin', '60') 'down,up'
+    Check 'new mail with api down -> HELD, rings when it answers (0)' $r.Code 0
+    $r = Ring @((OkReply @('m1') 1)) @('-MaxPolls', '3')
+    Check 'and m1 was claimed by that ring -> no second ring' $r.Code 10
+    # The page-cap ring has no new id, only a higher total. A held ring must not let
+    # lastTotal ratchet UP to it, or the ring is silently lost (caught while writing this).
+    Reset-Doorbell
+    $five = @('a', 'b', 'c', 'd', 'e')
+    $r = Ring @((OkReply $five 5)) @('-MaxPolls', '2')
+    $r = Ring @((OkReply $five 6 $true)) @('-MaxPolls', '5', '-HardStopMin', '60') 'down,down,up'
+    Check 'held page-cap ring still rings after the hold (0)' $r.Code 0
+
+    $logMark = (Get-Item $log).Length
+    Reset-Doorbell
+    $r = Ring @($down, $down, $down, $down, (OkReply @('m1') 1)) @('-MaxPolls', '8', '-HardStopMin', '60') 'down,down,up'
+    Check 'network down, then back with mail waiting -> RING (0)' $r.Code 0
+    Check 'log says network back'                         ((NewLog) -match 'network back') 'True'
 
     Write-Host '=== keepalive only ==='
     Reset-Doorbell

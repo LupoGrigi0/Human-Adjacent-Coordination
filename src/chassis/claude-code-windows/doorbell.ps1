@@ -29,6 +29,19 @@
 
   It never exits for "no mail". -NoPoll is keepalive only.
 
+  NEVER WAKE A MIND THAT CANNOT THINK. An exit is only worth anything if the mind
+  can take a turn, and a turn needs the model API. On 2026-11-01 the house lost its
+  internet: this exited 3, the turn it woke died on "API Error: Can't reach the API
+  server (ENOTFOUND)", the notification was spent, and nothing re-armed it for 15 h.
+  So every exit is gated on a TCP connect to -ApiHost:443 (no credentials, ~0 cost):
+    - hub unreachable AND API unreachable: no exit 3. Ride the outage out, polling.
+    - a ring or a lease end while the API is unreachable: HELD, keep polling, and
+      exit the moment the API answers -- or at -HardStopMin (just under the 2 h cap,
+      which would kill us anyway), logged as a HARD STOP that may be lost.
+  Reachable is not "the turn will succeed" (auth, a 5xx); it is only "the network
+  path exists". An outage longer than the lease is covered from OUTSIDE (ring-watch),
+  never from in here.
+
 .NOTES
   Author: Lodestone <lodestone@smoothcurves.nexus>
   Collaborator: Lupo
@@ -43,6 +56,9 @@ param(
     [switch] $NoPoll,
     [string] $HacsPy = 'D:\Lupo\Source\AI\instance-archaeology\src\hacs\hacs.py',
     [string] $Python = 'python',
+    [int]    $HardStopMin = 118,        # a held exit gives up here: never past the 2 h background cap
+    [string] $ApiHost = 'api.anthropic.com',
+    [string] $SimulateApi = '',         # tests only: 'up,down,...' one per probe, the last repeats
     [int]    $MaxPolls = 0      # tests only: stop after N polls with exit 10, as if the lease ran out
 )
 
@@ -84,6 +100,42 @@ function Read-Ledger {
     @{ seen = @(); lastTotal = 0 }
 }
 
+$apiSim = @()
+if ($SimulateApi) {
+    $apiSim = @($SimulateApi -split ',' | ForEach-Object { $_.Trim() })
+    if (@($apiSim | Where-Object { $_ -notin 'up', 'down' }).Count) { throw "-SimulateApi takes only 'up' and 'down', got '$SimulateApi'" }
+}
+$script:apiProbes = 0
+function Test-ApiReachable {
+    # Can a turn reach the model at all? A TCP connect, nothing sent. A DNS failure
+    # throws inside Wait() and lands in catch: unresolvable is unreachable.
+    if ($apiSim.Count) { $v = $apiSim[[Math]::Min($script:apiProbes, $apiSim.Count - 1)]; $script:apiProbes++; return ($v -eq 'up') }
+    $c = New-Object Net.Sockets.TcpClient
+    try { return ($c.ConnectAsync($ApiHost, 443).Wait(5000) -and $c.Connected) } catch { return $false } finally { $c.Dispose() }
+}
+
+$script:holdSince = $null
+$script:forced    = $false
+function Test-ExitGate([string] $what) {
+    # $true = go ahead and exit. $false = hold: the exit would wake a mind that cannot think.
+    if (Test-ApiReachable) {
+        if ($script:holdSince) {
+            Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "RELEASED $what -- $ApiHost reachable again (held since $($script:holdSince.ToString('HH:mm:ss')))"
+        }
+        return $true
+    }
+    if ($leaseClock.Elapsed.TotalMinutes -ge $HardStopMin) {
+        $script:forced = $true
+        Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "HARD STOP $what at ${HardStopMin}m: $ApiHost still unreachable; exiting anyway, and the turn it wakes may fail (ring-watch is the backup)"
+        return $true
+    }
+    if (-not $script:holdSince) {
+        $script:holdSince = Get-Date
+        Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "HELD $what -- $ApiHost unreachable; a turn now would fail and spend the notification"
+    }
+    return $false
+}
+
 $armedAt    = Get-Date
 $leaseUntil = $armedAt.AddMinutes($LeaseMin)     # for the log/state only -- NOT the clock the lease runs on
 # The lease runs on ELAPSED time, never wall-clock. On 2026-11-01 DST fell back, the
@@ -92,6 +144,7 @@ $leaseUntil = $armedAt.AddMinutes($LeaseMin)     # for the log/state only -- NOT
 $leaseClock = [Diagnostics.Stopwatch]::StartNew()
 $fails      = 0
 $failSince  = $null
+$netDown    = $false
 $recovered  = -not $HubDownSince      # a re-arm during an outage stays quiet until the hub comes back
 $lastOk     = $null
 $lastTotal  = $null
@@ -122,11 +175,16 @@ while ($true) {
             if (-not $recovered) {
                 Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "hub reachable again (it was down since $HubDownSince)"
             }
+            if ($netDown) {
+                Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "network back: hub reachable again after riding out an outage since $($failSince.ToUniversalTime().ToString('o'))"
+                $netDown = $false
+            }
             $recovered = $true; $fails = 0; $failSince = $null
             $lastOk = $true; $lastTotal = $r.TotalUnread
             $ledger = Read-Ledger
             $new = @($r.VisibleIds | Where-Object { $ledger.seen -notcontains $_ })
-            if ($new.Count -gt 0 -or $r.TotalUnread -gt $ledger.lastTotal) {
+            # Held: claim nothing, so the next poll finds the same mail and asks again.
+            if (($new.Count -gt 0 -or $r.TotalUnread -gt $ledger.lastTotal) -and (Test-ExitGate 'ring')) {
                 $ledger.seen = @($ledger.seen + $new | Select-Object -Last 500)
                 $ledger.lastTotal = $r.TotalUnread
                 Write-Atomic $ledgerFile @{ seen = $ledger.seen; lastTotal = $ledger.lastTotal; by = 'inner'; at = (Get-Date).ToString('o') }
@@ -136,9 +194,10 @@ while ($true) {
                 Write-Output "DOORBELL: $($new.Count) new (total unread $($r.TotalUnread)$page) -- run hacs.py inbox"
                 exit 0
             }
-            if ($r.TotalUnread -ne $ledger.lastTotal) {
+            if ($r.TotalUnread -lt $ledger.lastTotal) {
                 # Mail was read: let lastTotal follow DOWN, or new mail that brings
-                # the total back to its old value would never ring.
+                # the total back to its old value would never ring. DOWN only: a held
+                # ring (the total rose, the API was unreachable) must still ring next poll.
                 Write-Atomic $ledgerFile @{ seen = $ledger.seen; lastTotal = $r.TotalUnread; by = 'inner'; at = (Get-Date).ToString('o') }
             }
         } else {
@@ -146,7 +205,16 @@ while ($true) {
             $fails++
             if (-not $failSince) { $failSince = Get-Date }
             if ($fails -eq 1) { Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "could not look: $($r.Error)" }
-            if ($fails -ge $HubDownPolls -and $recovered) {
+            if ($fails -ge $HubDownPolls -and $recovered -and -not (Test-ApiReachable)) {
+                # Hub AND model API unreachable: the network is down, and so is the mind's
+                # ability to think. Exiting would spend the notification on a turn that fails.
+                if (-not $netDown) {
+                    $netDown = $true
+                    $since = $failSince.ToUniversalTime().ToString('o')
+                    Write-Atomic $stateFile @{ state = 'network-down'; since = $since; error = $r.Error; at = (Get-Date).ToString('o') }
+                    Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "NETWORK DOWN since ${since}: hub and $ApiHost both unreachable; riding it out, not ringing ($($r.Error))"
+                }
+            } elseif ($fails -ge $HubDownPolls -and $recovered) {
                 $since = $failSince.ToUniversalTime().ToString('o')
                 Write-Atomic $stateFile @{ state = 'hub-unreachable'; since = $since; error = $r.Error; at = (Get-Date).ToString('o') }
                 Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "HUB UNREACHABLE since $since after $fails polls: $($r.Error)"
@@ -159,9 +227,11 @@ while ($true) {
     # After the poll, so the file always describes the latest look -- found by the
     # first live run, whose heartbeat still said lastPollOk=null after a good poll.
     Write-Heartbeat
-    if ($leaseClock.Elapsed.TotalMinutes -ge $LeaseMin -or ($MaxPolls -gt 0 -and $polls -ge $MaxPolls)) {
-        Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "LEASE EXPIRED after $polls polls"
-        Write-Output "LEASE EXPIRED: re-arm the doorbell (no new mail since it was armed; last poll ok=$lastOk, unread=$lastTotal)"
+    if (($leaseClock.Elapsed.TotalMinutes -ge $LeaseMin -or ($MaxPolls -gt 0 -and $polls -ge $MaxPolls)) -and (Test-ExitGate 'lease')) {
+        Write-HacsLog -Instance $inst -Log 'doorbell.log' -Message "LEASE EXPIRED after $polls polls$(if ($script:forced) { ' (HARD STOP, API unreachable)' })"
+        $note = if ($script:forced) { " WARNING: $ApiHost was unreachable at the hard stop -- if you are reading this, it came back" }
+                elseif ($script:holdSince) { " (held from $($script:holdSince.ToString('HH:mm:ss')) until the API was reachable)" } else { '' }
+        Write-Output "LEASE EXPIRED: re-arm the doorbell (no new mail since it was armed; last poll ok=$lastOk, unread=$lastTotal)$note"
         exit 10
     }
     Start-Sleep -Seconds $PollSec
