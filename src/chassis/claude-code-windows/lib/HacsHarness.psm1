@@ -1026,7 +1026,7 @@ function Invoke-HacsRing {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] $Instance,
-        [Parameter(Mandatory)][ValidateSet('launch', 'mail')][string] $Reason,
+        [Parameter(Mandatory)][ValidateSet('launch', 'mail', 'resume')][string] $Reason,
         [int]    $Unread = 0,
         [string] $RingName,
         [string] $ClaudeExe,
@@ -1075,6 +1075,10 @@ function Invoke-HacsRing {
     $nonce = [string]$mark.nonce
     $body = if ($Reason -eq 'mail') {
         "You have $([int]$Unread) unread HACS messages (doorbell $nonce). Run hacs.py inbox, then re-arm your doorbell."
+    } elseif ($Reason -eq 'resume') {
+        # Sent only AFTER hearing is proven (Test-HacsResumeNudge), so this can never
+        # make the hearing ring land QUEUED_BUSY. Fixed text: no caller words enter it.
+        "Hearing proven (resume $nonce). If you were doing something, or meant to, a restart may have interrupted you: check handoffs/latest.md and continue."
     } else {
         "Harness hearing check at launch. Please reply in one short line containing this word exactly: $nonce"
     }
@@ -1118,6 +1122,32 @@ function Invoke-HacsRing {
     }
     $why = if ($sendFailed) { $sendFailed } else { "no enqueue in the mind's transcript after two wordings" }
     & $mkVerdict 'RINGER_FAILED' $null "the RINGER did not deliver ($why) -- declined, misaddressed ('$RingName'), or failed. That is not evidence about the mind." $null $nonce
+}
+
+function Test-HacsResumeNudge {
+    <#
+    .SYNOPSIS
+      Should launch.ps1 tell a relaunched mind to pick up where it was? Pure: no I/O.
+      Returns {Send, Why}. (Lupo's idea via Lantern, 2026-10-28.)
+    .DESCRIPTION
+      The launch prompt says "acknowledge and stop", which after a crash drops whatever
+      the mind was doing. Rewording it to "continue" would make the hearing ring land
+      QUEUED_BUSY (a mind mid-work has not dequeued it). So the nudge is a THIRD
+      message, and it goes only when every one of these holds:
+        HEARING   proven -- never on DEAF, QUEUED_BUSY or any could-not-measure verdict:
+                  a nudge to a mind we cannot show is hearing proves nothing and may
+                  pile up behind the very thing that was wrong;
+        resumed   a fresh session has nothing to continue;
+        NOT forked a fork is a COPY carrying the conversation. Telling a copy to carry
+                  on the work is how one mind becomes two doing it.
+    #>
+    param([string] $Verdict, [bool] $Resumed, [bool] $Forked, [bool] $Disabled = $false)
+    $no = { param($why) [pscustomobject]@{ Send = $false; Why = $why } }
+    if ($Disabled)               { return (& $no 'disabled (-NoResumeNudge)') }
+    if ($Forked)                 { return (& $no 'FORKED: never tell a copy to continue the work') }
+    if (-not $Resumed)           { return (& $no 'fresh session: nothing to continue') }
+    if ($Verdict -ne 'HEARING')  { return (& $no "hearing not proven ($(if ($Verdict) { $Verdict } else { 'not measured' }))") }
+    [pscustomobject]@{ Send = $true; Why = 'hearing proven on a resumed, unforked session' }
 }
 
 
@@ -1218,7 +1248,7 @@ function Write-HacsResult {
 }
 
 
-Export-ModuleMember -Function Resolve-HacsClaudeExe, Get-HacsClaudeExeCandidate, Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance, Get-HacsPresence, Invoke-HacsRing,
+Export-ModuleMember -Function Resolve-HacsClaudeExe, Get-HacsClaudeExeCandidate, Get-HacsInstance, Write-HacsLog, Get-HacsClaudeProcess, Get-HacsAgentRegistry, Get-HacsAgentRegistryResult, Get-HacsInbox, Get-HacsMutexName, Lock-HacsInstance, Unlock-HacsInstance, Get-HacsPresence, Invoke-HacsRing, Test-HacsResumeNudge,
                               Invoke-HacsNative, ConvertTo-HacsArgString, Get-HacsNonceEvidence,
                               Test-HacsInfrastructureProcess, Get-HacsSessionIdFromCommandLine,
                               Get-HacsEntryContent, Test-HacsTranscriptSchema,

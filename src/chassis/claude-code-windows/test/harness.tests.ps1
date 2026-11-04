@@ -236,6 +236,27 @@ Check 'registry unreadable -> ERROR, nothing sent'              $r.Verdict 'ERRO
 # nonce. Its signature must not offer a way to pass text.
 $ringParams = @((Get-Command Invoke-HacsRing).Parameters.Keys)
 Check 'Invoke-HacsRing takes no free-text parameter' (@($ringParams | Where-Object { $_ -match '^(Text|Message|Body|Prompt|Subject)$' }).Count) 0
+$r = Invoke-HacsRing -Instance $lockInst -Reason resume -RingName 'no-such-session-name-0000'
+Check "reason 'resume' is accepted, and still refuses a bad address" $r.Verdict 'AMBIGUOUS'
+
+Section 'resume nudge: only after HEARING, only on a resume, never on a fork (Lupo via Lantern, 10-28)'
+Check 'HEARING + resumed + not forked -> SEND'        (Test-HacsResumeNudge -Verdict 'HEARING' -Resumed $true -Forked $false).Send 'True'
+foreach ($v in 'DEAF', 'QUEUED_BUSY', 'RINGER_FAILED', 'NOT_HOME', 'AMBIGUOUS', 'ERROR', '') {
+    $label = if ($v) { $v } else { 'not measured (-SkipHearing)' }
+    Check "$label -> no nudge"                       (Test-HacsResumeNudge -Verdict $v -Resumed $true -Forked $false).Send 'False'
+}
+Check 'fresh session (not a resume) -> no nudge'      (Test-HacsResumeNudge -Verdict 'HEARING' -Resumed $false -Forked $false).Send 'False'
+$g = Test-HacsResumeNudge -Verdict 'HEARING' -Resumed $true -Forked $true
+Check 'FORKED, even with hearing -> no nudge'         $g.Send 'False'
+# -cmatch: the SEND reason says "unforked", which a case-blind match also accepts
+# (found by mutation: with the fork guard removed, a -match version still passed).
+Check 'and it says why'                               ($g.Why -cmatch 'FORKED') 'True'
+Check '-NoResumeNudge -> no nudge'                    (Test-HacsResumeNudge -Verdict 'HEARING' -Resumed $true -Forked $false -Disabled $true).Send 'False'
+# launch.ps1 must ask the gate, not decide inline, and must report the outcome.
+$lsrc = Get-Content (Join-Path $root 'launch.ps1') -Raw
+Check 'launch.ps1 calls Test-HacsResumeNudge'         ($lsrc -match 'Test-HacsResumeNudge') 'True'
+Check 'launch.ps1 rings resume only inside the gate'  ($lsrc -match '(?s)if \(\$gate\.Send\) \{\s*\$n = Invoke-HacsRing [^\r\n]*-Reason resume') 'True'
+Check 'launch result carries resumeNudge'             ($lsrc -match 'resumeNudge\s*=\s*\$nudge') 'True'
 
 Section 'agent registry that cannot be read says so (P1)'
 $rr = Get-HacsAgentRegistryResult

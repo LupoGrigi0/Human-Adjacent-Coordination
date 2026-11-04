@@ -72,7 +72,8 @@ param(
     [int]    $HearingTimeoutSec = 120,
     [string] $SenderModel = 'haiku',
     [string] $SenderDir = 'D:\Lupo\hacs-runtime\_liveness-probe',  # never a repo or a home
-    [string] $RingName                                              # default: the registry's name for the mind
+    [string] $RingName,                                             # default: the registry's name for the mind
+    [switch] $NoResumeNudge                                         # skip the "you may have been interrupted" message
 )
 
 Set-StrictMode -Version Latest
@@ -494,6 +495,7 @@ Write-HacsLog -Instance $inst -Log 'launch.log' -Message "registered: kind=$($ag
 #    -SkipHearing opts out and yields hearing 'not-attempted' -- distinct from
 #    'unknown', so "did not try" can never read like "could not tell".
 $hearing = $null
+$ring = $null          # step 9 reads it; with -SkipHearing it stays null (StrictMode)
 $notAttempted = $false
 $hearingEvidence = $null
 $ringName = if ($RingName) { $RingName }
@@ -522,6 +524,22 @@ if ($SkipHearing) {
 }
 Write-HacsLog -Instance $inst -Log 'launch.log' -Message $hearingDetail
 
+# --------------------------------------------------------------------------
+# 9. Resume nudge: a relaunched mind should RESUME, not stop (Lupo via Lantern, 10-28).
+# --------------------------------------------------------------------------
+#    Only AFTER hearing is proven, only on a resume, never on a fork -- the rules live
+#    in Test-HacsResumeNudge so they are tested without a live mind. Its outcome is
+#    reported, never used to change status or hearing: those were settled in step 8.
+$gate  = Test-HacsResumeNudge -Verdict $(if ($ring) { $ring.Verdict }) -Resumed ([bool]$isResume) -Forked ([bool]$forked) -Disabled ([bool]$NoResumeNudge)
+$nudge = "not sent: $($gate.Why)"
+if ($gate.Send) {
+    $n = Invoke-HacsRing -Instance $inst -Reason resume -RingName $ringName -ClaudeExe $ClaudeExe `
+             -SenderModel $SenderModel -SenderDir $SenderDir -TimeoutSec $HearingTimeoutSec
+    # QUEUED_BUSY is SUCCESS here: the mind is already working, and will read it at its next turn.
+    $nudge = "sent: $($n.Verdict)"
+}
+Write-HacsLog -Instance $inst -Log 'launch.log' -Message "resume nudge $nudge"
+
 # New-HacsResult will downgrade this to 'degraded' if hearing is false or unknown.
 # That is the point: I am allowed to ask for success and not allowed to get it.
 # Anything claude said on stderr beyond its startup chatter is worth surfacing:
@@ -534,6 +552,7 @@ $r = New-HacsResult -Status $ask -InstanceId $InstanceId -Hearing $hearing -Hear
     -Message $msg `
     -Extra @{
         hearingEvidence   = $hearingEvidence
+        resumeNudge       = $nudge
         ringName          = $ringName
         resumed           = $isResume
         forked            = $forked
