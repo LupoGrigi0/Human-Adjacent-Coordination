@@ -95,7 +95,9 @@ def socket_of(pid):
     # Cairn, 2026-10-24 — nexus sockets measured in /tmp/cc-socks-<uid> (Bastion).
     uid = os.getuid()
     xdg = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
-    for d in (os.path.join(xdg, "cc-socks"), f"/tmp/cc-socks-{uid}"):
+    # Forge, 2026-11-10: a relaunch without XDG_RUNTIME_DIR in its environment put Den's socket in plain /tmp/cc-socks
+    # (no uid suffix), and every ring reported could-not-look. Check that too; the dir is mode 700, so it is ours.
+    for d in (os.path.join(xdg, "cc-socks"), f"/tmp/cc-socks-{uid}", "/tmp/cc-socks"):
         p = os.path.join(d, f"{pid}.sock")
         if os.path.exists(p):
             return p
