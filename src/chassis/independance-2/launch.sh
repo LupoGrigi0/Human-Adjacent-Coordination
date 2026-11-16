@@ -140,7 +140,17 @@ stl = load(os.path.join(home, ".claude", "settings.local.json"))
 merged = {**st, **stl}
 env = {**(st.get("env") or {}), **(stl.get("env") or {})}
 
-mind_external = bool(merged.get("apiKeyHelper")) or bool(env.get("ANTHROPIC_BASE_URL"))
+# Ferry (Crossing, 2026-11-16): a LOOPBACK base URL that Ferry itself wrote -- its marker
+# ROLLING_CONTEXT_WROTE_BASE_URL equals the URL exactly -- on a mind with NO apiKeyHelper
+# is Anthropic behind a local curating proxy, not an external backend: the proxy holds no
+# key and passes the mind's own OAuth through. Any other loopback URL, or a Ferry URL on a
+# mind WITH an apiKeyHelper (Ferry in front of OpenRouter), still takes the external path.
+_base = env.get("ANTHROPIC_BASE_URL") or ""
+from urllib.parse import urlparse
+via_ferry = (bool(_base) and not merged.get("apiKeyHelper")
+             and (urlparse(_base).hostname or "") in ("127.0.0.1", "localhost", "::1")
+             and env.get("ROLLING_CONTEXT_WROTE_BASE_URL") == _base)
+mind_external = bool(merged.get("apiKeyHelper")) or (bool(_base) and not via_ferry)
 # MY environment, i.e. whatever the operator happens to be carrying.
 launcher_external = bool(os.environ.get("ANTHROPIC_BASE_URL")) or bool(os.environ.get("ANTHROPIC_AUTH_TOKEN"))
 
@@ -154,6 +164,9 @@ if launcher_external and not mind_external:
         "  Anthropic. The backend must be a property of the ACCOUNT, not of whoever typed\n"
         "  the command. Put apiKeyHelper + env in the mind's ~/.claude/settings.json.")
 
+if via_ferry:
+    print("  backend      Anthropic via Ferry (local proxy %s, written by Ferry)" % _base)
+    sys.exit(0)
 if not mind_external:
     print("  backend      Anthropic (no apiKeyHelper, no ANTHROPIC_BASE_URL in settings)")
     print("               -- correct for an Anthropic-backed mind; nothing to check.")
