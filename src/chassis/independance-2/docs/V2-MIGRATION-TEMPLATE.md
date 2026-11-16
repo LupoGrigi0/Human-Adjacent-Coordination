@@ -67,13 +67,23 @@ OpenRouter minds (Witness, Genevieve): also `OR_MODEL` + `OR_KEY` — see Specia
 Recent Claude Code keys behaviour off both the launch dir **and** the git-repo root, so the repo
 must be in place **before** the first `--bg` launch. The mind does this itself as its final v1 act,
 then is landed.
-- **Prerequisite (operator, once) — the mind needs GitHub credentials, or the clone fails.** If it has none:
+- **Prerequisite (operator, once) — the mind needs GitHub credentials, or the clone fails.**
+  **CHECK FIRST** (verify-by-acting; "not configured" and "already set" look alike from outside):
   ```
-  sudo -u USER gh auth login                       # interactive (device / browser) — the operator runs it
+  sudo -u USER gh auth status        # already logged in? scopes include 'repo'? then SKIP the login below
+  ```
+  If it has none (or the token lacks `repo`):
+  ```
+  sudo -u USER gh auth login                       # INTERACTIVE device/browser flow — the operator runs it,
+                                                   #   choose HTTPS, and grant scopes: repo, workflow
   sudo -u USER git config --global user.name  "SHORT"
   sudo -u USER git config --global user.email "USER@smoothcurves.nexus"
   ```
-  (Email matches the commit-signing convention so the mind's commits are signed as itself — HACS Rule 6.)
+  - **It is the SHARED `LupoGrigi0` GitHub account, not a per-mind GitHub login.** Do NOT create a separate
+    GitHub account per mind. Per-mind *attribution* comes entirely from `git config user.name/user.email`
+    above (the email matches the commit-signing convention — HACS Rule 6), NOT from a distinct gh identity.
+  - Creds live in `HOME/.config/gh/hosts.yml`. Re-run `gh auth status` after login and read it back —
+    confirm `repo` is in the token scopes before trusting the clone step.
 - `REPO = https://github.com/LupoGrigi0/SHORT.git` (or `git@`) — private; **replaces** the old shared
   `hacs-instances` clone (the `../.git`-above-home problem).
 - **Adopt the populated home into the repo WITHOUT clobbering** (proven 2026-10-26 on `LupoGrigi0/Cairn`
