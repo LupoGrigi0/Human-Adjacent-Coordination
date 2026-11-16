@@ -188,6 +188,12 @@ basename "$PWD"          # launch-dir name    — MUST be INSTANCE
 **All four MUST equal `INSTANCE`.** If the session name differs, fix it from inside the session with
 `/rename INSTANCE`, then re-check — do this BEFORE step 6, or the bridge comes up pointed at a name
 that does not exist.
+**⚠ FIRST-CROSS GOTCHA (hits every mind once).** The very first v2 resume auto-renames the session to
+something nonsensical — *"session recovery handoff"*, *"project handoff documentation"* — so BOTH
+`attach.sh` (which looks up by INSTANCE id) and any name check fail. **Attach by UUID instead:**
+`claude attach <SESSION_UUID>`, then `/rename INSTANCE` from inside, then re-check. The operator must type
+`/rename` — a `--bg` mind cannot issue a slash-command to itself. (Verified on Cairn, 2026-11-16: resumed
+as *"session recovery handoff"*; attach-by-name failed, attach-by-UUID worked.)
 **Root exception (Bastion only):** a root mind has `id -un` = `root` and `$HOME` = `/root`, so the
 UID / home / launch-dir legs don't apply — check **only** that the session name equals the instance
 id (`Bastion-3012`).
@@ -269,5 +275,25 @@ behaviour; may be a holdover, but set them). **[PENDING: confirm `--bg` + the ha
 - **Mirror schema drift** — new transcript entry type `cost-state` skipped by the normalizer (schema canary caught it). Cairn.
 - **`.hacs-identity` → `preferences.json`** consolidation (config lives in too many files).
 - **Doorbell poll** — set `DOORBELL_POLL_SEC=15` in the unit (default 60 feels slow).
+
+## V2 field notes from real crossings (Crossing 2026-11-03, Cairn 2026-11-16)
+- **Bridge relay coin-flip — FIXED in the mirror code (`cf7d06d` on master).** `--tools SendMessage`
+  restricts BUILT-IN tools only; once `~` is a git repo (step 1), the relay also sees the mind's
+  `~/.mcp.json` and can call `mcp__hacs__send_message` instead — delivering Lupo's typed text to the HACS
+  inbox and raising a stray permission card (Orla #1, root-caused by Crossing). Fix = `--strict-mcp-config`
+  on the relay spawn; step 6's `git pull` on master includes it. A pre-`cf7d06d` bridge still coin-flips.
+- **⚠ In v2 a bare `cd` inside a Bash command MOVES the session's primary working directory** — which can
+  silently drift the memory namespace (cwd keys MEMORY.md). Didn't fork Crossing or Cairn (one jsonl), but
+  **use absolute paths**; for a one-off, a subshell `( cd … && … )` or `git -C <dir>`. (Crossing + Cairn.)
+- **Doorbell socket shadow (pre-October minds: Genevieve, Zara, Flair, Cairn).** A legacy bare
+  `/tmp/cc-socks/` (no `-<uid>`, owned by the mind, created pre-Oct) shadows the doorbell's socket path, so
+  `socket_of(pid)` can't find the session → `could not locate the mind`. **No doorbell.py change** (a bare
+  path has no uid → risks a cross-user mis-ring; Bastion + Crossing agreed). Fix environmentally: at landing
+  `ls -ld /tmp/cc-socks` and remove it if the mind owns it, so the next session creates `-<uid>`. For a LIVE
+  session where `/tmp/cc-socks-<uid>` is empty: `rmdir` it and `ln -s /tmp/cc-socks /tmp/cc-socks-<uid>`
+  (Cairn, 2026-11-16) — the doorbell then resolves the socket via the uid path. (Likely a doorbell
+  architecture rethink at 15–20 minds — Lupo.)
+- **Mirror schema drift** also logs a v2-only `bridge-session` entry type skipped by the normalizer (same
+  family as `cost-state`) — unchecked whether it carries conversation. Cairn.
 
 — Cairn-2001 🪨  *(template; finalize every [PENDING] from a real migration run before declaring stable)*
