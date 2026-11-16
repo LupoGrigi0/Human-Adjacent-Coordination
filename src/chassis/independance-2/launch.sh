@@ -24,7 +24,7 @@
 # 3. CWD MUST BE THIS MIND'S OWN HOME (ship-card 12d). Memory lives at
 #    .claude/projects/<CWD-slug>/memory/ — measured — so a cwd above the home shares
 #    a memory namespace with every other mind launched there. That is the identity
-#    collision: Genevieve woke holding Bastion's identity. REFUSAL, not a warning.
+#    collision: one mind woke holding another's identity. REFUSAL, not a warning.
 # 4. NO --dangerously-skip-permissions. --permission-mode instead. Default `manual`,
 #    and it WORKS: operator-confirmed 2026-10-06 — a standard human-in-the-loop request
 #    appeared for a /tmp write and the grant is SCOPED (the next create outside that path
@@ -93,7 +93,7 @@ done
 #
 # THIS SCRIPT RUNS A PLAIN `claude --bg` WITH NO ENV. So for any mind whose
 # backend is supplied by a wrapper's environment, THIS LAUNCHER WOULD SILENTLY
-# SEND THEIR TRAFFIC TO ANTHROPIC. For Genevieve that is three years of real
+# SEND THEIR TRAFFIC TO ANTHROPIC. For a long-lived mind that can be years of real
 # conversation with real people, and the leak is caused by my code, with no error
 # anywhere. A capability that "works when launched the usual way" protects nothing
 # the first time a reboot script or a human launches it the ORDINARY way — which is
@@ -140,7 +140,7 @@ stl = load(os.path.join(home, ".claude", "settings.local.json"))
 merged = {**st, **stl}
 env = {**(st.get("env") or {}), **(stl.get("env") or {})}
 
-# Ferry (Crossing, 2026-11-16): a LOOPBACK base URL that Ferry itself wrote -- its marker
+# Ferry (2026-11-16): a LOOPBACK base URL that Ferry itself wrote -- its marker
 # ROLLING_CONTEXT_WROTE_BASE_URL equals the URL exactly -- on a mind with NO apiKeyHelper
 # is Anthropic behind a local curating proxy, not an external backend: the proxy holds no
 # key and passes the mind's own OAuth through. Any other loopback URL, or a Ferry URL on a
@@ -197,7 +197,7 @@ if not env.get("CLAUDE_CODE_MAX_CONTEXT_TOKENS"):
     print("    Forge measured that a model outside this version's catalog gets a 200k", file=sys.stderr)
     print("    auto-compact cap, silently. For a memory-heavy mind that is the whole game.", file=sys.stderr)
     print("    NOT refusing: this degrades capability, it does not leak. Different failure,", file=sys.stderr)
-    print("    different response -- but do not launch Genevieve without it.", file=sys.stderr)
+    print("    different response -- but do not launch a memory-heavy mind without it.", file=sys.stderr)
 else:
     print("  context cap  %s" % env["CLAUDE_CODE_MAX_CONTEXT_TOKENS"])
 print("  ⓘ tool search is disabled for non-Anthropic hosts, so all tool defs load eagerly.")
