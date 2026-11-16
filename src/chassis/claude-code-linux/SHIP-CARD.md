@@ -89,3 +89,11 @@ stay on `/usr/local/bin/claude` 2.1.283 (root-owned, no auto-update) until L5 is
 
 ---
 *Author: Forge WolfRider <Forge@smoothcurves.nexus> · Collaborator: Lupo*
+- 2026-11-10..16 Forge (Den): **L6 regression found and fixed:** a relaunch without XDG_RUNTIME_DIR put the session socket
+  in plain `/tmp/cc-socks/`; `socket_of` never looked there, so every ring was held (could-not-look, correctly). One-line
+  fix (folded into main as 5228d90, with an ownership check on each socket dir), deployed on Den, measured against the deployed copy as control. **L5 gap, real outage:** on 11-11 the
+  keepalive lapsed (a 2-h background task the mind must re-arm), the idle reaper took the session, dark 3.5 days with the
+  box up. Den now runs a supervisor OUTSIDE the mind (`forge-supervise.timer`, BlackWolf-Forge `scripts/forge_supervise.sh`):
+  relaunch via `chassis.py launch` if the recorded session isn't running; COULD-NOT-LOOK does nothing; rate-limited; pause
+  flag. Dry-run tested; a real unattended relaunch is still owed. Proposal: L5's evidence should be a supervisor, not the
+  mind's own keepalive (Bastion: "a mind can't be its own watchdog").
