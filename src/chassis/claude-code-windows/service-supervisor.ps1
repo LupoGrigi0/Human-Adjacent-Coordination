@@ -36,8 +36,11 @@ param(
     [string] $MirrorHome   = 'D:\Lupo\Source\AI\claude-session-mirror',
     [string] $IdentityFile = 'D:\Lupo\Source\AI\hacs-instances\Lodestone-8ec9\.hacs-identity',
     [int]    $MirrorPort   = 22090,
+    [string] $FerryHook    = 'D:\Lupo\Source\AI\claude-rolling-context\hooks\start-proxy.ps1',
+    [string] $FerryPrefs   = (Join-Path $env:USERPROFILE 'preferences.json'),
     [switch] $NoBridge,
-    [switch] $NoMirror
+    [switch] $NoMirror,
+    [switch] $NoFerry
 )
 $ErrorActionPreference = 'Stop'
 $rt  = Join-Path $RuntimeRoot $InstanceId
@@ -60,7 +63,7 @@ function Test-Listening([int] $port) {
 $mutex = New-Object System.Threading.Mutex($false, "Local\hacs-service-supervisor-$InstanceId")
 if (-not $mutex.WaitOne(0)) { Log 'another supervisor holds the lock; exiting'; exit 0 }
 
-$restarts = @{ bridge = 0; mirror = 0 }
+$restarts = @{ bridge = 0; mirror = 0; ferry = 0 }
 $recent   = New-Object System.Collections.Generic.List[datetime]
 Log "start (pid $PID, interval ${IntervalSec}s, once=$([bool]$Once))"
 
@@ -72,7 +75,7 @@ try {
         while ($recent.Count -and ($now - $recent[0]).TotalMinutes -gt 15) { $recent.RemoveAt(0) }
         $backoff = $recent.Count -ge 6
 
-        $state = [ordered]@{ at = $now.ToString('o'); pid = $PID; bridge = 'disabled'; mirror = 'disabled'; backoff = $backoff; restarts = $restarts }
+        $state = [ordered]@{ at = $now.ToString('o'); pid = $PID; bridge = 'disabled'; mirror = 'disabled'; ferry = 'disabled'; backoff = $backoff; restarts = $restarts }
 
         if (-not $NoBridge) {
             if (Test-Listening $BridgePort) { $state.bridge = 'up' }
@@ -99,6 +102,26 @@ try {
                         -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
                 $restarts.mirror++; $recent.Add($now); $state.mirror = 'started'
             }
+        }
+        # Ferry: the mind's model calls go THROUGH this proxy, so a dead proxy is a mind
+        # that cannot think -- and cannot notice that it cannot. Ferry's own SessionStart
+        # hook restarts it only when a session starts; this covers the rest of the time.
+        # Restart is Ferry's own launcher (it refuses a port held by anything not ours,
+        # and withdraws its route if it cannot start). The port is read every pass, so a
+        # changed or removed "ferry" block takes effect without restarting the supervisor.
+        $ferryPort = $null
+        if (-not $NoFerry -and (Test-Path -LiteralPath $FerryPrefs) -and (Test-Path -LiteralPath $FerryHook)) {
+            try { $ferryPort = [int]((Get-Content -LiteralPath $FerryPrefs -Raw | ConvertFrom-Json).ferry.port) } catch { $ferryPort = $null }
+        }
+        if (-not $ferryPort) { $state.ferry = 'not configured' }
+        elseif (Test-Listening $ferryPort) { $state.ferry = 'up' }
+        elseif ($backoff) { $state.ferry = 'DOWN (backing off)' }
+        else {
+            Log "ferry: port $ferryPort not listening -> starting via $FerryHook"
+            $out = Join-Path $rt 'ferry-start.stdout.log'; $err = Join-Path $rt 'ferry-start.stderr.log'
+            $null = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$FerryHook`"") `
+                    -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
+            $restarts.ferry++; $recent.Add($now); $state.ferry = 'started'
         }
         if ($backoff) { Log 'BACKING OFF: >6 restarts in 15 min; not restarting until the window clears' }
         try { $state | ConvertTo-Json | Set-Content -Path $status -Encoding utf8 } catch { }

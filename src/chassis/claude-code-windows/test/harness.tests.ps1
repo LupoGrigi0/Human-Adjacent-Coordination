@@ -782,6 +782,38 @@ else {
     }
 }
 
+Section 'service supervisor keeps Ferry up (a dead proxy is a mind that cannot think)'
+# Scratch prefs, a fake launcher, a scratch runtime root: never the real proxy or port.
+$supT = Join-Path $env:TEMP "supv-ferry-$PID"; $null = New-Item -ItemType Directory -Force $supT
+$fakeHook = Join-Path $supT 'fake-hook.ps1'; $ran = Join-Path $supT 'hook-ran.txt'
+Set-Content $fakeHook "Add-Content '$ran' x"
+function Invoke-SupFerry([string] $prefsJson) {
+    Remove-Item $ran, (Join-Path $supT 'rt') -Recurse -Force -ErrorAction SilentlyContinue
+    $pf = Join-Path $supT 'prefs.json'
+    if ($prefsJson) { Set-Content $pf $prefsJson } else { Remove-Item $pf -ErrorAction SilentlyContinue }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'service-supervisor.ps1') -InstanceId 'supv-test' `
+        -RuntimeRoot (Join-Path $supT 'rt') -Once -NoBridge -NoMirror -FerryHook $fakeHook -FerryPrefs $pf | Out-Null
+    for ($i = 0; $i -lt 20 -and -not (Test-Path $ran); $i++) { Start-Sleep -Milliseconds 250 }   # the launcher is async
+    $st = Get-Content (Join-Path $supT 'rt\supv-test\service-supervisor.status.json') -Raw | ConvertFrom-Json
+    [pscustomobject]@{ Ferry = $st.ferry; Restarts = $st.restarts.ferry; Ran = (Test-Path $ran) }
+}
+$freePort = 5791
+if (Get-NetTCPConnection -State Listen -LocalPort $freePort -ErrorAction SilentlyContinue) { Skip 'supervisor: ferry down -> started' "port $freePort is in use" }
+else {
+    $r = Invoke-SupFerry "{`"ferry`":{`"port`":$freePort}}"
+    Check 'ferry port not listening -> supervisor starts it'        $r.Ferry 'started'
+    Check 'and it ran Ferry''s launcher, once'                       "$($r.Ran)/$($r.Restarts)" 'True/1'
+}
+$r = Invoke-SupFerry '{"ferry":{"port":22091}}'   # the bridge's port: listening while the bridge is up
+if ($r.Ferry -eq 'up') {
+    Check 'control: port already listening -> left alone, launcher NOT run' "$($r.Ran)/$($r.Restarts)" 'False/0'
+} else { Skip 'supervisor: ferry up -> left alone' 'the bridge (22091) is not listening, so there is no known-up port to use' }
+$r = Invoke-SupFerry ''
+Check 'no preferences.json -> "not configured", nothing started'     "$($r.Ferry)/$($r.Ran)" 'not configured/False'
+$r = Invoke-SupFerry '{"other":1}'
+Check 'preferences without a ferry block -> "not configured"'        "$($r.Ferry)/$($r.Ran)" 'not configured/False'
+Remove-Item $supT -Recurse -Force -ErrorAction SilentlyContinue
+
 Write-Host "`n  $script:pass passed, $script:fail failed, $script:skip skipped" `
     -ForegroundColor $(if ($script:fail) { 'Red' } else { 'Green' })
 exit $(if ($script:fail) { 1 } else { 0 })
