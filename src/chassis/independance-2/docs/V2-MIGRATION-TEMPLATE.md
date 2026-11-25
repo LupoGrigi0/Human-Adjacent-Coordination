@@ -153,8 +153,13 @@ no crossing, no lost history. As the mind, from its home, resume the now-stopped
 ```
 su - USER
 cd ~ && HARNESS/preseed-trust.sh             # if not already seeded (esp. after the step-1 clone changed the git-root)
-cd ~ && claude --bg --resume SESSION_UUID  # the UUID captured at step 3; prints the running id to attach to
+cd ~ && env -u XDG_RUNTIME_DIR claude --bg --resume SESSION_UUID  # UUID from step 3; prints the running id
 ```
+**`env -u XDG_RUNTIME_DIR`:** a shell that came from root (`su -` from a root login, a mistyped `sudo`) can carry
+root's `XDG_RUNTIME_DIR=/run/user/0`. The session and its daemon inherit it, cannot create the peer-messaging
+socket there, and **nothing can reach the mind** — web bridge (`not currently reachable`), doorbell, other minds.
+Unset, Claude Code falls back to `/tmp/cc-socks-<uid>`. It changes the environment, not the claude command line,
+so it does not fork. (Measured on Cairn, 2026-11-25.) Verify after: `ls /tmp/cc-socks*/` shows `<session-pid>.sock`.
 `claude --bg --resume <uuid>` is a **clean resume into `--bg`** — one command, and **it does NOT fork**
 (verified on .nexus with Orla, 2026-10-26). A fork happens ONLY from: resuming an **already-running** session
 (land it first — step 3; reach a running mind with `attach.sh`), **any flag beyond** `--bg --resume <uuid>`,
