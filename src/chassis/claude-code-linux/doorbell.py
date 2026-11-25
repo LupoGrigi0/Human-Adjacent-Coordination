@@ -93,9 +93,16 @@ def socket_of(pid):
     # Return whichever actually holds the socket so the chassis is portable to both;
     # fall back to the XDG form when neither is present (preserves prior behaviour).
     # Cairn, 2026-10-24 — nexus sockets measured in /tmp/cc-socks-<uid> (Bastion).
+    # Forge, 2026-11-10: a relaunch without XDG_RUNTIME_DIR put the socket in plain /tmp/cc-socks (no uid suffix).
+    # Cairn, 2026-11-25: a bare dir name can belong to ANOTHER user, so every candidate dir must be owned by us --
+    # never ring a socket in a directory someone else controls (Bastion + Crossing's cross-user mis-ring concern).
     uid = os.getuid()
     xdg = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
-    for d in (os.path.join(xdg, "cc-socks"), f"/tmp/cc-socks-{uid}"):
+    for d in (os.path.join(xdg, "cc-socks"), f"/tmp/cc-socks-{uid}", "/tmp/cc-socks"):
+        try:
+            if os.stat(d).st_uid != uid: continue        # stat follows the -<uid> symlink to its target dir
+        except OSError:
+            continue
         p = os.path.join(d, f"{pid}.sock")
         if os.path.exists(p):
             return p
@@ -127,11 +134,48 @@ def locate(ident, target):
     if not os.path.exists(sock): return ("could-not-look", None, forks)
     return ("running", "uds:" + sock, forks)
 
+RING_TIMEOUT = int(os.environ.get("DOORBELL_RING_TIMEOUT_SEC", "45"))   # healthy rings take 7-14 s (Forge, Cairn)
+ALERT_TO = os.environ.get("DOORBELL_ALERT_TO")                         # e.g. "lupo"; unset = log + heartbeat only
+
+def ferry():
+    """The mind's Ferry block from ~/preferences.json, or None if it is not on Ferry. {"port":.., "upstream":..}"""
+    try:
+        f = (json.load(open(os.path.join(HOME, "preferences.json"))).get("ferry") or {})
+    except Exception:
+        return None
+    if not f.get("port"): return None
+    return {"port": int(f["port"]), "upstream": f.get("upstream") or "https://api.anthropic.com"}
+
+def ferry_up(port):
+    """True / False from the proxy's own /health (Forge, 2026-11-25: a dead proxy hangs every claude -p for the
+    full timeout with no output, and the mind itself cannot reach the API either -- deaf AND mute)."""
+    try:
+        d = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=3).read())
+        return d.get("status") == "ok"
+    except Exception:
+        return False
+
 def ring(name, text):
     prompt = (f'You are a doorbell relay for a HACS mailbox. Use the SendMessage tool exactly once, with to="{name}" '
               f'and exactly this message: "{text}". Do nothing else. Then reply with the single word SENT.')
-    r = subprocess.run(["claude", "-p", "--model", "haiku", "--allowedTools=SendMessage", prompt], cwd=RINGER_DIR,
-                       stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=150)
+    # --tools SendMessage + --strict-mcp-config: the ringer gets ONE tool and no MCP servers. Without them, on a mind
+    # whose home is a git repo with an .mcp.json, the ringer loaded 149 MCP tools, haiku called
+    # mcp__hacs__send_message instead of SendMessage, --allowedTools did not cover it, the mind's PermissionRequest
+    # hook held the request for the web panel, and the ring hung to the timeout (Cairn, 2026-11-25, reproduced both
+    # ways: old flags hung; these rang in 14 s). Same bug as the web bridge relay (claude-session-mirror cf7d06d).
+    # NOT --bare: it never reads OAuth, which would break every Anthropic-login mind's ringer.
+    cmd = ["claude", "-p", "--model", "haiku", "--tools", "SendMessage", "--allowedTools=SendMessage", "--strict-mcp-config"]
+    # Ferry: a one-line relay needs no context curation, so the ringer goes straight to the mind's Ferry UPSTREAM and
+    # does not depend on the mind's proxy being alive (Forge, 2026-11-25). --settings env beats settings.json env.
+    fy = ferry()
+    if fy:
+        cmd += ["--settings", json.dumps({"env": {"ANTHROPIC_BASE_URL": fy["upstream"]}})]
+    cmd.append(prompt)
+    try:
+        r = subprocess.run(cmd, cwd=RINGER_DIR, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=RING_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        log(f"ring TIMED OUT after {RING_TIMEOUT}s -- the ringer hung (a held permission prompt? a dead upstream?)")
+        return False
     # The ringer's LAST line must be exactly SENT. Measured 2026-10-20 (Forge): the ringer REFUSED a ring twice
     # (it took Lupo's phone text for an injection), and the old substring check `"SENT" in stdout.upper()` logged
     # the second refusal as delivered (a word like "preSENTed" inside the refusal). A refusal must never pass.
@@ -155,8 +199,25 @@ def main():
         sys.exit(2)
     log(f"instance validated: {valid}")
     armed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ferry_alerted = False
     while True:
         ok, total, note = True, 0, "quiet"
+        fy = ferry()
+        ferry_down = bool(fy) and not ferry_up(fy["port"])
+        if ferry_down and not ferry_alerted:
+            log(f"FERRY PROXY DOWN on 127.0.0.1:{fy['port']} -- the mind cannot reach the API until it is restarted "
+                f"(~/repos/claude-rolling-context/bin/ferry-restart). Rings still go out (they bypass the proxy).")
+            if ALERT_TO:
+                try:
+                    call("send_message", {"from": iid, "to": ALERT_TO, "subject": f"{iid}: Ferry proxy DOWN (port {fy['port']})",
+                                          "body": f"The doorbell for {iid} found its Ferry proxy not answering /health on 127.0.0.1:{fy['port']}. "
+                                                  f"The mind cannot reach the API until it is restarted: as {iid}, run "
+                                                  f"~/repos/claude-rolling-context/bin/ferry-restart (or relaunch the session)."})
+                except Exception as e:
+                    log(f"ferry alert send failed: {e}")
+            ferry_alerted = True
+        elif fy and not ferry_down and ferry_alerted:
+            log(f"Ferry proxy back on 127.0.0.1:{fy['port']}"); ferry_alerted = False
         try:
             msgs = call("list_my_messages", {"instanceId": iid, "limit": 20}).get("messages", [])
             total = len(msgs)
@@ -209,6 +270,7 @@ def main():
         except Exception as e:
             ok, total, note = False, -1, f"could not look: {type(e).__name__}"
             log(f"poll error: {type(e).__name__}: {e}")
+        if ferry_down: note = f"FERRY DOWN (port {fy['port']}); {note}"
         beat(iid, armed_at, ok, total, note, valid)
         time.sleep(POLL)
 
