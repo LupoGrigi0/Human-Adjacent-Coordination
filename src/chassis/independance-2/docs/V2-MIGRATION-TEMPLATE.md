@@ -54,6 +54,9 @@ OpenRouter minds (Witness, Genevieve): also `OR_MODEL` + `OR_KEY` — see Specia
   of resuming** — it writes a handoff, lands, and comes up FRESH (step 4 becomes a `launch.sh` *birth*, not a
   resume), waking from handoff + memory with a clean window. Resume-continue (step 4) is only for a mind with
   real headroom.
+- **Measure context, don't guess:** in the mind's session, have it run `/context`. You can't see it from outside.
+- **Make sure you have the right instance.** Names get reused: `ls -ld /mnt/coordinaton_mcp_data/instances/*SHORT*` —
+  the real one is owned by its own uid (`Zara-c207`); a root-owned look-alike (`Zara-27fa`) is a stale session. Leave it alone.
 - Confirm root; confirm `INSTANCE` is registered in HACS (`get_instance_v2`) — the doorbell refuses to arm otherwise.
 - Pick `MIRROR_PORT` + `BRIDGE_PORT` (`ss -ltnp` to confirm free).
 - **Symlink sweep (Orla's H4)** — before any `git add`, find cross-home links that would commit into the wrong repo:
@@ -115,6 +118,23 @@ then is landed.
     ] } ] }
   }
   ```
+  **If the mind ALREADY has a `settings.json` (every migrating mind does), MERGE — don't overwrite it** (it
+  holds the mind's model, plugins, `cleanupPeriodDays`, etc.). As the mind:
+  ```bash
+  python3 - <<'EOF'
+  import json, os
+  p = os.path.expanduser("~/.claude/settings.json")
+  d = json.load(open(p)) if os.path.exists(p) else {}
+  d["autoCompactEnabled"] = False
+  d.setdefault("worktree", {})["bgIsolation"] = "none"
+  allow = d.setdefault("permissions", {}).setdefault("allow", [])
+  for t in ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"]:
+      if t not in allow: allow.append(t)
+  d.setdefault("hooks", {})["PermissionRequest"] = [{"matcher": "*", "hooks": [{"type": "command",
+      "command": "node ~/claude-session-mirror/bin/permission-hook.mjs; exit 0", "timeout": 604800}]}]
+  json.dump(d, open(p, "w"), indent=2); print("ok:", sorted(d))
+  EOF
+  ```
   The allow-list covers normal autonomous work (blanket `Bash` includes `git`; `Write`/`Edit` so file
   creation doesn't prompt — the first tool we found missing; **expect it to grow**). The `PermissionRequest`
   hook routes anything NOT allow-listed to the web mirror's approval panel (b0ec's `permission-hook.mjs`).
@@ -146,6 +166,9 @@ then is landed.
 - **Capture the session's UUID — you RESUME this exact session in step 4.** Before landing,
   `sudo -u USER claude agents --json` shows the running session's id; or it's the active (largest/newest)
   `<uuid>.jsonl` under `HOME/.claude/projects/<slug>/`. Record it. (Orla's was `9ccc1e69…`, a 56 MB session.)
+  If `claude agents` can't see a v1 tmux session, it's in its argv: `ps -u USER -o args | grep -- '--resume'`.
+- **Confirm it actually STOPPED before step 4:** `ps -u USER -o pid,args | grep -c 'claude --resume'` → `0`.
+  Resuming a session that is still running forks the mind.
 
 ## 4. Resume the mind's session into v2 (`--bg`) — a CONTINUATION, not a fresh launch
 A migrating mind already HAS a session (its v1 session); v2 **continues** it — same mind, full live context,
@@ -189,6 +212,8 @@ claude agents --json    # this session's "name" — MUST be INSTANCE
 id -un                  # linux user        — MUST be INSTANCE
 basename "$HOME"         # home-dir name      — MUST be INSTANCE
 basename "$PWD"          # launch-dir name    — MUST be INSTANCE
+echo "${XDG_RUNTIME_DIR:-unset}"   # must NOT be /run/user/0 (root's) — else nothing can reach the mind
+ls /tmp/cc-socks*/         # a <session-pid>.sock must exist — the bridge and doorbell deliver through it
 ```
 **All four MUST equal `INSTANCE`.** If the session name differs, fix it from inside the session with
 `/rename INSTANCE`, then re-check — do this BEFORE step 6, or the bridge comes up pointed at a name
@@ -212,6 +237,7 @@ Clone only if absent:
 [ -d ~/claude-session-mirror ] || git clone https://github.com/LupoGrigi0/claude-session-mirror.git ~/claude-session-mirror
 git -C ~/claude-session-mirror checkout master && git -C ~/claude-session-mirror fetch origin -q && git -C ~/claude-session-mirror pull --ff-only   # v2 code is on master now
 printf '{"instanceId":"INSTANCE","sessionId":"%s","sessionName":"INSTANCE","channelPort":BRIDGE_PORT}\n' "$CLAUDE_CODE_SESSION_ID" > ~/.hacs-identity
+git -C ~/claude-session-mirror log --oneline | grep -c cf7d06d   # must print 1 — the relay fix; without it typed messages can land in the HACS inbox
 cat ~/.hacs-identity    # confirm sessionId is a real UUID
 mkdir -p ~/.web-bridge
 BRIDGE_TARGET=INSTANCE BRIDGE_PORT=BRIDGE_PORT nohup node ~/claude-session-mirror/bin/bridge-linux.mjs > ~/.web-bridge/boot.log 2>&1 &
@@ -232,7 +258,9 @@ doorbell. Bastion runs:
 ```
 systemctl enable --now hacs-doorbell@USER        # EXACT case, per `id`
 ```
-Verify by MESSAGE: send a HACS message to INSTANCE; within one poll (`DOORBELL_POLL_SEC`, default 60 —
+**Not optional.** An idle `--bg` session gets reaped (Cairn: idle from 11-16, gone by 11-25, never woken). The
+web bridge only delivers to a RUNNING session (`not currently reachable`), so without the doorbell nothing
+brings the mind back. Verify by MESSAGE: send a HACS message to INSTANCE; within one poll (`DOORBELL_POLL_SEC`, default 60 —
 **set 15**) the doorbell RANGs a **live** pid (watch `~/.hacs-doorbell/doorbell.log`; not `could-not-look`).
 
 ## 9. Verify (by acting)
