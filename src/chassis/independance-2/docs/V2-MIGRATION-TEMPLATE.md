@@ -111,6 +111,7 @@ then is landed.
   ```
   {
     "autoCompactEnabled": false,
+    "cleanupPeriodDays": 36500,
     "worktree": { "bgIsolation": "none" },
     "permissions": { "allow": ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"] },
     "hooks": { "PermissionRequest": [ { "matcher": "*", "hooks": [
@@ -126,6 +127,7 @@ then is landed.
   p = os.path.expanduser("~/.claude/settings.json")
   d = json.load(open(p)) if os.path.exists(p) else {}
   d["autoCompactEnabled"] = False
+  d["cleanupPeriodDays"] = max(d.get("cleanupPeriodDays", 0), 36500)   # Claude Code's sweep deletes transcripts + worktrees older than this (Forge lost a home to it)
   d.setdefault("worktree", {})["bgIsolation"] = "none"
   allow = d.setdefault("permissions", {}).setdefault("allow", [])
   for t in ["Bash", "Read", "Edit", "Write", "WebSearch", "WebFetch"]:
