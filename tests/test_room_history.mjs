@@ -92,10 +92,50 @@ check('readRoomHistory exists as ONE shared helper',
   /export async function readRoomHistory\(/.test(msg));
 check('the catch-to-empty swallow is gone from every site',
   !/catch \{\s*history = '';\s*\}/.test(simple));
-check('all three callers surface could-not-look distinctly',
-  (simple.match(/reason: 'history_unavailable'/g) || []).length === 3);
+// v1 asserted EXACTLY 3 occurrences. The absent-room guard added a second
+// could-not-look return per caller, so the count went to 6 and the test went red
+// on strictly better code. THIRD time one of my assertions has pinned a COUNT
+// where it meant a PROPERTY (Cairn: asserting syntax where you should assert the
+// property). Re-pinned: at least one per caller, and the swallow still gone.
+check('every caller surfaces could-not-look distinctly (>= one per caller)',
+  (simple.match(/reason: 'history_unavailable'/g) || []).length >= 3);
 check('the helper inspects stdout AND stderr, not just .message',
   /err\?\.stdout/.test(msg) && /err\?\.stderr/.test(msg));
+
+// ===========================================================================
+// 2026-11-25 — THE BENIGN BRANCH REINTRODUCED THE DISEASE AT A NARROWER APERTURE.
+// "Room does not exist" was classified benign to protect a brand-new mind from an
+// error where it should see an empty inbox. For an ESTABLISHED mind it is a
+// failure — and it bit me: do_i_have_new_messages returned total_unread:0 while
+// twenty messages sat unread in that room, and I reported "no new messages" on
+// the strength of it. Twenty minutes later the same call returned 20. The room was
+// transiently absent during the v2/Ferry rollout, and the benign branch rendered
+// that as "you have no mail", success:true.
+//
+// The discriminator is a DENOMINATOR, as every time: a register that does not come
+// from the thing being measured. read_messages.json is written on the READ path and
+// is independent of the room. Ever read a message => that room existed => its
+// absence now is a failure.
+// ===========================================================================
+const simpleSrc = fs.readFileSync(new URL('../src/v2/messaging-simple.js', import.meta.url), 'utf8');
+
+control('rig can see the absent-room guard at all', /absentRoomIsBenign/.test(simpleSrc));
+
+check('an absent room is judged by the CALLER, which has the instance context',
+  /async function absentRoomIsBenign\(instanceId\)/.test(simpleSrc));
+
+check('the discriminator is read_messages.json — independent of the room',
+  /const readSet = await getReadMessages\(instanceId\);\s*\n\s*return readSet\.size === 0;/.test(simpleSrc));
+
+check('it errs toward LOUD: cannot-tell means NOT benign',
+  /catch \{\s*\n\s*return false;/.test(simpleSrc));
+
+check('all THREE callers apply the guard, not one',
+  (simpleSrc.match(/hist\.existed === false && !\(await absentRoomIsBenign\(instanceId\)\)/g) || []).length === 3);
+
+check('an established mind gets success:FALSE, never zero-unread, on an absent room',
+  /is absent, but this instance has read mail before/.test(simpleSrc)
+  && /reason: 'history_unavailable'/.test(simpleSrc));
 
 if (ctlFail) {
   console.log(`\n${ctlFail} CONTROL(S) FAILED — the rig is broken, not the code.`);

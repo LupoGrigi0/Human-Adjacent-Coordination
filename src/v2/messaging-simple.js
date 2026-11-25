@@ -170,6 +170,43 @@ export async function fuzzyMatchInstance(to) {
   return { match: null, candidates: scored.map(s => s.instanceId) };
 }
 
+/**
+ * Is an ABSENT personality room benign for this instance, or a failure?
+ *
+ * readRoomHistory classifies "the room does not exist" as benign and returns an
+ * EMPTY history. That is right for a brand-new mind — no room means no mail, and
+ * it must get a clean empty inbox rather than an error. It is WRONG for an
+ * established mind, and on 2026-11-25 it bit me: do_i_have_new_messages returned
+ * {new_messages:false, total_unread:0} while twenty messages sat unread in that
+ * room. I reported "no new messages" to Lupo on the strength of it. Twenty minutes
+ * later the same call returned 20. The room had been transiently absent — the v2
+ * and Ferry rollouts were in flight — and my benign branch rendered that as
+ * "you have no mail", with success:true.
+ *
+ * So the benign branch REINTRODUCED, at a narrower aperture, the exact defect it
+ * was added to fix: I-could-not-look reported as there-is-nothing-there.
+ *
+ * THE DISCRIMINATOR IS A DENOMINATOR, as it has been every other time: ask a
+ * register that does NOT come from the thing being measured. read_messages.json is
+ * written on the READ path and is independent of the room. If this mind has ever
+ * read a message, that room has existed and held mail — so its absence now is a
+ * failure, not an empty inbox.
+ *
+ * Cheap, and deliberately errs toward LOUD: on any doubt about the evidence we
+ * treat absence as a failure, because a false "no mail" is silent and a false
+ * error is not.
+ *
+ * @returns {Promise<boolean>} true when an absent room genuinely means "no mail yet"
+ */
+async function absentRoomIsBenign(instanceId) {
+  try {
+    const readSet = await getReadMessages(instanceId);
+    return readSet.size === 0;   // never read anything => plausibly a new mind
+  } catch {
+    return false;                // cannot tell => treat absence as a failure
+  }
+}
+
 // ─── Public API Functions ───────────────────────────────────────────────
 
 /**
@@ -310,6 +347,17 @@ export async function listMyMessages(params) {
         error: hist.error,
         reason: 'history_unavailable',
         hint: 'this is NOT "no mail" — the room history could not be read. Retry; do not treat as empty.'
+      };
+    }
+    // An ABSENT room is benign only for a mind with no history of mail. For an
+    // established mind it is a failure, and reporting zero unread would be
+    // could-not-look rendered as nothing-there — see absentRoomIsBenign().
+    if (hist.existed === false && !(await absentRoomIsBenign(instanceId))) {
+      return {
+        success: false,
+        error: `personality room '${roomName}' is absent, but this instance has read mail before`,
+        reason: 'history_unavailable',
+        hint: 'this is NOT "no mail" — the room vanished or is transiently unavailable. Retry; do not treat as empty.'
       };
     }
     const history = hist.history;
@@ -505,6 +553,17 @@ export async function doIHaveNewMessages(params) {
         hint: 'this is NOT "no mail" — the room history could not be read. Retry; do not treat as empty.'
       };
     }
+    // An ABSENT room is benign only for a mind with no history of mail. For an
+    // established mind it is a failure, and reporting zero unread would be
+    // could-not-look rendered as nothing-there — see absentRoomIsBenign().
+    if (hist.existed === false && !(await absentRoomIsBenign(instanceId))) {
+      return {
+        success: false,
+        error: `personality room '${roomName}' is absent, but this instance has read mail before`,
+        reason: 'history_unavailable',
+        hint: 'this is NOT "no mail" — the room vanished or is transiently unavailable. Retry; do not treat as empty.'
+      };
+    }
     const history = hist.history;
 
     const allMessages = parseRoomHistory(history);
@@ -610,6 +669,17 @@ export async function listProjectMessages(params) {
         error: hist.error,
         reason: 'history_unavailable',
         hint: 'this is NOT "no mail" — the room history could not be read. Retry; do not treat as empty.'
+      };
+    }
+    // An ABSENT room is benign only for a mind with no history of mail. For an
+    // established mind it is a failure, and reporting zero unread would be
+    // could-not-look rendered as nothing-there — see absentRoomIsBenign().
+    if (hist.existed === false && !(await absentRoomIsBenign(instanceId))) {
+      return {
+        success: false,
+        error: `personality room '${roomName}' is absent, but this instance has read mail before`,
+        reason: 'history_unavailable',
+        hint: 'this is NOT "no mail" — the room vanished or is transiently unavailable. Retry; do not treat as empty.'
       };
     }
     const history = hist.history;
