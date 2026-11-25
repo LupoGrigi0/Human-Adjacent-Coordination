@@ -180,6 +180,11 @@ su - USER
 cd ~ && HARNESS/preseed-trust.sh             # if not already seeded (esp. after the step-1 clone changed the git-root)
 cd ~ && env -u XDG_RUNTIME_DIR claude --bg --resume SESSION_UUID  # UUID from step 3; prints the running id
 ```
+From a ROOT shell without `su -`, the stronger form (Forge's chassis.py pattern) starts from an EMPTY environment so
+nothing of root's leaks in:
+`runuser -u USER -- env -i HOME=HOME USER=USER LOGNAME=USER SHELL=/bin/bash PATH=/usr/local/bin:/usr/bin:/bin XDG_RUNTIME_DIR=/run/user/$(id -u USER) bash -lc 'cd ~ && claude --bg --resume SESSION_UUID'`
+(XDG must be the mind's OWN `/run/user/<uid>` or unset — never root's. Both own and unset create a socket the
+doorbell finds; only root's creates none.)
 **`env -u XDG_RUNTIME_DIR`:** a shell that came from root (`su -` from a root login, a mistyped `sudo`) can carry
 root's `XDG_RUNTIME_DIR=/run/user/0`. The session and its daemon inherit it, cannot create the peer-messaging
 socket there, and **nothing can reach the mind** — web bridge (`not currently reachable`), doorbell, other minds.
