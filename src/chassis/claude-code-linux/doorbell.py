@@ -205,6 +205,9 @@ def main():
         fy = ferry()
         ferry_down = bool(fy) and not ferry_up(fy["port"])
         if ferry_down and not ferry_alerted:
+            # CONTRACT (2026-11-26): this line is CONSUMED downstream — Zara's Ferry UI uses it as the external
+            # liveness witness, and Bastion records it as a format. Keep the prefix "FERRY PROXY DOWN on 127.0.0.1:<port>"
+            # and the "Ferry proxy back on 127.0.0.1:<port>" recovery line stable; ask Zara before changing either.
             log(f"FERRY PROXY DOWN on 127.0.0.1:{fy['port']} -- the mind cannot reach the API until it is restarted "
                 f"(~/repos/claude-rolling-context/bin/ferry-restart). Rings still go out (they bypass the proxy).")
             if ALERT_TO:
