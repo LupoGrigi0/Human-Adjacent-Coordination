@@ -240,9 +240,12 @@ Then read your v2 orientation — **`/mnt/coordinaton_mcp_data/Human-Adjacent-Co
 > **⚠ MERGE `~/.hacs-identity`, never overwrite it** (fixed 2026-11-26, Messenger found it). The hub registers a
 > mind as `chassis` only if this file has `"chassis": "claude-code-channel"` (or prefs `runtime.type`); otherwise
 > `legacy`, which silently means **no `drain_events` slots, ever** — while the doorbell still rings, so nobody
-> notices. The old `printf … >` stripped that field. The merge below keeps every existing key. Whether a v2 mind
-> *should* be chassis-registered (the hub may push to `channelPort`, which is now the bridge) is Messenger's call —
-> don't add the field by hand.
+> notices. The old `printf … >` stripped that field. The merge below keeps every existing key.
+> **Do NOT add `"chassis"` to a v2 mind that lacks it** (Messenger, from source, 2026-11-26): `chassis` also makes the
+> hub POST every event to `channelPort/broker-event` — on v2 that port is the bridge, so you get a retry-every-60s
+> error flood (bridge 404s) or a duplicate doorbell (bridge relays). **Legacy + doorbell is the correct v2 state**
+> until Messenger ships EVENT-HUB-CONTRACT §8c (a `claude-code-pull` type: slots, no push). The doorbell polls the
+> inbox and is unaffected; only `drain_events` slots are missing.
 Run from the mind's OWN shell (keeps `CLAUDE_CODE_SESSION_ID` authoritative). **A mind that already has a
 v1 clone does NOT reclone** — a `git pull` on `master` gets the v2 code (merged to master 2026-10-26).
 Clone only if absent:
