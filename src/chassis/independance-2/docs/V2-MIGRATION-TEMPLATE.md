@@ -237,13 +237,29 @@ id (`Bastion-3012`).
 Then read your v2 orientation — **`/mnt/coordinaton_mcp_data/Human-Adjacent-Coordination/src/chassis/independance-2/docs/WELCOME-TO-V2.md`** — it explains what changed, what you need to do, and the checklist.
 
 ## 6. The mind stands up its web mirror  *(proven on b0ec; bridge fix is 8bc1's)*
+> **⚠ MERGE `~/.hacs-identity`, never overwrite it** (fixed 2026-11-26, Messenger found it). The hub registers a
+> mind as `chassis` only if this file has `"chassis": "claude-code-channel"` (or prefs `runtime.type`); otherwise
+> `legacy`, which silently means **no `drain_events` slots, ever** — while the doorbell still rings, so nobody
+> notices. The old `printf … >` stripped that field. The merge below keeps every existing key. Whether a v2 mind
+> *should* be chassis-registered (the hub may push to `channelPort`, which is now the bridge) is Messenger's call —
+> don't add the field by hand.
 Run from the mind's OWN shell (keeps `CLAUDE_CODE_SESSION_ID` authoritative). **A mind that already has a
 v1 clone does NOT reclone** — a `git pull` on `master` gets the v2 code (merged to master 2026-10-26).
 Clone only if absent:
 ```
 [ -d ~/claude-session-mirror ] || git clone https://github.com/LupoGrigi0/claude-session-mirror.git ~/claude-session-mirror
 git -C ~/claude-session-mirror checkout master && git -C ~/claude-session-mirror fetch origin -q && git -C ~/claude-session-mirror pull --ff-only   # v2 code is on master now
-printf '{"instanceId":"INSTANCE","sessionId":"%s","sessionName":"INSTANCE","channelPort":BRIDGE_PORT}\n' "$CLAUDE_CODE_SESSION_ID" > ~/.hacs-identity
+cp ~/.hacs-identity ~/.hacs-identity.v1-bak 2>/dev/null    # keep the v1 file
+python3 - <<'EOF'
+import json, os
+p = os.path.expanduser("~/.hacs-identity")
+d = json.load(open(p)) if os.path.exists(p) else {}
+before = dict(d)
+d.update({"instanceId": "INSTANCE", "sessionId": os.environ["CLAUDE_CODE_SESSION_ID"], "sessionName": "INSTANCE", "channelPort": BRIDGE_PORT})
+json.dump(d, open(p, "w"), indent=1)
+print("kept:", sorted(k for k in before if k not in ("instanceId","sessionId","sessionName","channelPort")))
+print("chassis:", d.get("chassis", "(absent -> the hub registers this mind as LEGACY: no drain_events slots)"))
+EOF
 git -C ~/claude-session-mirror log --oneline | grep -c cf7d06d   # must print 1 — the relay fix; without it typed messages can land in the HACS inbox
 cat ~/.hacs-identity    # confirm sessionId is a real UUID
 mkdir -p ~/.web-bridge
