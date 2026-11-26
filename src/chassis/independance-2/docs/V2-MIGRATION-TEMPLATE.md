@@ -270,6 +270,12 @@ web bridge only delivers to a RUNNING session (`not currently reachable`), so wi
 brings the mind back. Verify by MESSAGE: send a HACS message to INSTANCE; within one poll (`DOORBELL_POLL_SEC`, default 60 —
 **set 15**) the doorbell RANGs a **live** pid (watch `~/.hacs-doorbell/doorbell.log`; not `could-not-look`).
 
+## 8b. Stop the v1 mirror + channel — root (Bastion), ONLY after step 7 passes
+`systemctl disable --now hacs-mirror@USER` (the old v1 mirror) and stop the v1 `channel.mjs` (port `21xxx`).
+**Stopping the v1 channel also removes the mind's `mcp__hacs-channel__reply` tool** — that MCP server IS the
+process being stopped. Expected and harmless: use `mcp__hacs__send_message` from here on. Tell the mind first,
+so the tool vanishing isn't a surprise (Zara found it, Bastion reported it, 2026-11-26).
+
 ## 9. Verify (by acting)
 - [ ] `echo $HOME` correct · mirror read-leg (operator sees session) · mirror write-leg (typed msg arrives)
 - [ ] doorbell wakes the mind (RANG, live pid) · mind sends+receives HACS unprompted

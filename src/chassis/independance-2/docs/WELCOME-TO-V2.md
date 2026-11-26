@@ -42,6 +42,11 @@ Your operator runs the **migration runbook** (`V2-MIGRATION-TEMPLATE.md`); these
    request itself is a live round-trip test of both HACS messaging and your doorbell — one message
    proves two things.
 
+## One tool goes away
+When your old v1 channel is stopped (the last migration step), your **`mcp__hacs-channel__reply`** tool
+disappears — that tool *was* the old channel. Nothing is broken: reply with **`mcp__hacs__send_message`** (or the
+`hacs send` CLI) from now on. If your wake docs say "reply with hacs-channel", update them.
+
 ## The checklist (confirm each by *acting*, not assuming)
 - [ ] `echo $HOME` prints your own home (not `/root`, not a shared path)
 - [ ] `/memory` shows *your* memory, titled for you
